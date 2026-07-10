@@ -430,7 +430,7 @@ return {
             zone = true
           },
           currencyFilter = {},
-          enabled = true,
+          enabled = false,
           reputationFilter = {},
           scanners = {
             lockouts = true,
@@ -654,6 +654,46 @@ return {
         },
         buffBorders = {
           borderSize = 1,
+          buffDurationTextAnchor = "CENTER",
+          buffDurationTextOffsetX = 0,
+          buffDurationTextOffsetY = 0,
+          buffFilterBigDefensive = false,
+          buffFilterCancelable = false,
+          buffFilterNotCancelable = false,
+          buffFilterPlayer = false,
+          buffFilterRaid = false,
+          buffGrowLeft = true,
+          buffGrowUp = false,
+          buffIconSize = 35,
+          buffIconSpacing = 0,
+          buffIconsPerRow = 10,
+          buffInvertSwipeDarkening = false,
+          buffRowSpacing = 0,
+          buffSortReverse = false,
+          buffSortRule = "INDEX",
+          buffStackTextAnchor = "BOTTOMRIGHT",
+          buffStackTextOffsetX = -1,
+          buffStackTextOffsetY = 1,
+          debuffDurationTextAnchor = "CENTER",
+          debuffDurationTextOffsetX = 0,
+          debuffDurationTextOffsetY = 0,
+          debuffFilterCrowdControl = false,
+          debuffFilterIncludeNameplateOnly = false,
+          debuffFilterPlayer = false,
+          debuffFilterRaid = false,
+          debuffFilterRaidPlayerDispellable = false,
+          debuffGrowLeft = true,
+          debuffGrowUp = false,
+          debuffIconSize = 35,
+          debuffIconSpacing = 0,
+          debuffIconsPerRow = 10,
+          debuffInvertSwipeDarkening = false,
+          debuffRowSpacing = 0,
+          debuffSortReverse = false,
+          debuffSortRule = "INDEX",
+          debuffStackTextAnchor = "BOTTOMRIGHT",
+          debuffStackTextOffsetX = -1,
+          debuffStackTextOffsetY = 1,
           enableBuffs = true,
           enableDebuffs = true,
           externalSkinning = false,
@@ -1617,7 +1657,6 @@ return {
           buffFrame = {
             autoHeight = false,
             autoWidth = false,
-            growAnchor = "TOPRIGHT",
             heightAdjust = 0,
             hideWithParent = false,
             keepInPlace = true,
@@ -1700,12 +1739,11 @@ return {
           debuffFrame = {
             autoHeight = false,
             autoWidth = false,
-            growAnchor = "TOPRIGHT",
             heightAdjust = 0,
             hideWithParent = false,
             keepInPlace = true,
             offsetX = 0,
-            offsetY = -5,
+            offsetY = 0,
             parent = "buffFrame",
             point = "TOPRIGHT",
             relative = "BOTTOMRIGHT",
@@ -2338,7 +2376,6 @@ return {
           autoTurnInQuest = true,
           autoUnwrapCollections = false,
           closeBagsOnKeystoneInsert = false,
-          communitiesPrivacy = false,
           consumableAnchorMode = true,
           consumableCheckEnabled = true,
           consumableExpirationThreshold = 300,
@@ -2400,13 +2437,6 @@ return {
           },
           darkModeHealthOpacity = 0.69999999999999996,
           darkModeOpacity = 0.69999999999999996,
-          deathAlert = {
-            enabled = false,
-            fontSize = 24,
-            offsetX = 0,
-            offsetY = 220,
-            sound = "None"
-          },
           defaultBgColor = {
             [1] = 0,
             [2] = 0,
@@ -2424,7 +2454,6 @@ return {
           defaultOpacity = 1,
           defaultUseClassColor = true,
           disableScrollingCombatText = false,
-          ejLootSpecIcons = false,
           eventSounds = {
             enabled = false,
             lfgProposal = "None",
@@ -2461,24 +2490,11 @@ return {
             },
             useClassColor = false
           },
-          focusMarker = {
-            enabled = false,
-            marker = 8,
-            useMouseover = true,
-            writeMacro = true
-          },
           font = "Quazii",
           fontOutline = "OUTLINE",
           friendsClassColor = true,
           gameMenuDim = true,
           gameMenuFontSize = 12,
-          gemSocketPicker = false,
-          healerMana = {
-            enabled = false,
-            instanceOnly = true,
-            offsetX = 0,
-            offsetY = -260
-          },
           hideObjectiveTrackerBorder = true,
           hostilityColorFriendly = {
             [1] = 0.20000000000000001,
@@ -2519,8 +2535,6 @@ return {
             minKeepIlvl = 0,
             minQuality = 0
           },
-          mailContactsPanel = false,
-          mailRememberRecipient = false,
           masterColorCastbarText = false,
           masterColorHealthText = false,
           masterColorNameText = false,
@@ -2651,22 +2665,7 @@ return {
           statusTrackingBarsShowBarText = true,
           statusTrackingBarsShowBorder = true,
           texture = "Quazii v5",
-          tradeMailLog = {
-            enabled = false,
-            logReceivedMail = true,
-            logSentMail = true,
-            logTrades = true
-          },
-          uiScale = 0.64000000000000001,
-          vendorRules = {
-            enabled = false,
-            forceSell = "",
-            maxIlvl = 0,
-            maxQuality = 1,
-            neverSell = "",
-            previewOnly = true
-          },
-          worldMapTeleports = false
+          uiScale = 0.64000000000000001
         },
         hudLayering = {
           bossFrames = 4,
@@ -2700,7 +2699,7 @@ return {
           },
           borderColorSource = "inherit",
           borderSize = 1,
-          enabled = true,
+          enabled = false,
           fadeRestOpacity = 0,
           fontSize = 12,
           height = 22,
@@ -4322,7 +4321,6 @@ return {
           width = 250
         },
         quiDatatexts = {
-          enabled = true,
           panels = {}
         },
         quiGroupFrames = {
@@ -4670,6 +4668,21 @@ return {
               powerBarOnlyTanks = false,
               powerBarUsePowerColor = true,
               showPowerBar = true
+            },
+            privateAuras = {
+              anchor = "RIGHT",
+              anchorOffsetX = -2,
+              anchorOffsetY = 0,
+              borderScale = 1,
+              enabled = true,
+              growDirection = "RIGHT",
+              iconSize = 20,
+              maxPerFrame = 2,
+              reverseSwipe = false,
+              showCountdown = true,
+              showCountdownNumbers = true,
+              spacing = 2,
+              textScale = 1
             },
             range = {
               enabled = true,
@@ -5060,6 +5073,21 @@ return {
               powerBarUsePowerColor = true,
               showPowerBar = true
             },
+            privateAuras = {
+              anchor = "RIGHT",
+              anchorOffsetX = -2,
+              anchorOffsetY = 0,
+              borderScale = 1,
+              enabled = true,
+              growDirection = "RIGHT",
+              iconSize = 20,
+              maxPerFrame = 2,
+              reverseSwipe = false,
+              showCountdown = true,
+              showCountdownNumbers = true,
+              spacing = 2,
+              textScale = 1
+            },
             range = {
               enabled = true,
               outOfRangeAlpha = 0.40000000000000002
@@ -5125,7 +5153,22 @@ return {
               opacity = 0.69999999999999996,
               texture = "QUI Stripes"
             },
-            auras = {},
+            auras = {
+              buffAnchor = "BOTTOMLEFT",
+              buffGrow = "RIGHT",
+              buffIconSize = 22,
+              buffMaxIcons = 4,
+              buffOffsetX = 0,
+              buffOffsetY = 0,
+              debuffAnchor = "TOPLEFT",
+              debuffGrow = "RIGHT",
+              debuffMaxIcons = 4,
+              debuffOffsetX = 0,
+              debuffOffsetY = 0,
+              iconSize = 22,
+              showBuffs = false,
+              showDebuffs = false
+            },
             borderSize = 1,
             castbar = {
               anchor = "unitframe",
@@ -5279,7 +5322,22 @@ return {
               opacity = 0.69999999999999996,
               texture = "QUI Stripes"
             },
-            auras = {},
+            auras = {
+              buffAnchor = "BOTTOMLEFT",
+              buffGrow = "RIGHT",
+              buffIconSize = 20,
+              buffMaxIcons = 16,
+              buffOffsetX = 0,
+              buffOffsetY = -2,
+              debuffAnchor = "TOPLEFT",
+              debuffGrow = "RIGHT",
+              debuffMaxIcons = 16,
+              debuffOffsetX = 0,
+              debuffOffsetY = 2,
+              iconSize = 20,
+              showBuffs = false,
+              showDebuffs = false
+            },
             borderSize = 1,
             castbar = {
               anchor = "unitframe",
@@ -5399,6 +5457,21 @@ return {
             powerTextOffsetY = 2,
             powerTextUseClassColor = false,
             powerTextUsePowerColor = true,
+            privateAuras = {
+              anchor = "TOPLEFT",
+              anchorOffsetX = 2,
+              anchorOffsetY = -2,
+              borderScale = 1,
+              enabled = true,
+              frameLevel = 50,
+              growDirection = "RIGHT",
+              iconSize = 22,
+              maxPerFrame = 3,
+              reverseSwipe = false,
+              showCountdown = true,
+              showCountdownNumbers = true,
+              spacing = 2
+            },
             showHealth = true,
             showHealthAbsolute = true,
             showHealthPercent = true,
@@ -5493,7 +5566,22 @@ return {
               opacity = 0.69999999999999996,
               texture = "QUI Stripes"
             },
-            auras = {},
+            auras = {
+              buffAnchor = "BOTTOMLEFT",
+              buffGrow = "RIGHT",
+              buffIconSize = 22,
+              buffMaxIcons = 4,
+              buffOffsetX = 0,
+              buffOffsetY = 0,
+              debuffAnchor = "TOPLEFT",
+              debuffGrow = "RIGHT",
+              debuffMaxIcons = 4,
+              debuffOffsetX = 0,
+              debuffOffsetY = 0,
+              iconSize = 22,
+              showBuffs = false,
+              showDebuffs = false
+            },
             borderSize = 1,
             castbar = {
               anchor = "unitframe",
@@ -5616,7 +5704,138 @@ return {
             anchorGap = 10,
             anchorTo = "disabled",
             anchorYOffset = 0,
-            auras = {},
+            auras = {
+              buffAnchor = "BOTTOMLEFT",
+              buffClassifications = {
+                bigDefensive = false,
+                cancelable = false,
+                externalDefensive = false,
+                helpful = false,
+                notCancelable = false
+              },
+              buffDuration = {
+                anchor = "CENTER",
+                color = {
+                  [1] = 1,
+                  [2] = 1,
+                  [3] = 1,
+                  [4] = 1
+                },
+                fontSize = 12,
+                offsetX = 0,
+                offsetY = 0,
+                show = true
+              },
+              buffFilterMode = "off",
+              buffFilterOnlyMine = true,
+              buffGrow = "RIGHT",
+              buffIconSize = 22,
+              buffMaxIcons = 4,
+              buffMaxPerRow = 0,
+              buffOffsetX = 0,
+              buffOffsetY = 0,
+              buffShowStack = true,
+              buffSpacing = 2,
+              buffStack = {
+                anchor = "BOTTOMRIGHT",
+                color = {
+                  [1] = 1,
+                  [2] = 1,
+                  [3] = 1,
+                  [4] = 1
+                },
+                fontSize = 10,
+                offsetX = -1,
+                offsetY = 1,
+                show = true
+              },
+              buffStackAnchor = "BOTTOMRIGHT",
+              buffStackColor = {
+                [1] = 1,
+                [2] = 1,
+                [3] = 1,
+                [4] = 1
+              },
+              buffStackOffsetX = -1,
+              buffStackOffsetY = 1,
+              buffStackSize = 10,
+              debuffAnchor = "TOPLEFT",
+              debuffClassifications = {
+                crowdControl = false,
+                dispellable = false,
+                harmful = false
+              },
+              debuffDuration = {
+                anchor = "CENTER",
+                color = {
+                  [1] = 1,
+                  [2] = 1,
+                  [3] = 1,
+                  [4] = 1
+                },
+                fontSize = 10,
+                offsetX = 0,
+                offsetY = 0,
+                show = false
+              },
+              debuffFilterMode = "off",
+              debuffGrow = "RIGHT",
+              debuffMaxIcons = 4,
+              debuffMaxPerRow = 0,
+              debuffOffsetX = 0,
+              debuffOffsetY = 0,
+              debuffShowStack = true,
+              debuffSpacing = 2,
+              debuffStack = {
+                anchor = "BOTTOMRIGHT",
+                color = {
+                  [1] = 1,
+                  [2] = 1,
+                  [3] = 1,
+                  [4] = 1
+                },
+                fontSize = 10,
+                offsetX = -1,
+                offsetY = 1,
+                show = true
+              },
+              debuffStackAnchor = "BOTTOMRIGHT",
+              debuffStackColor = {
+                [1] = 1,
+                [2] = 1,
+                [3] = 1,
+                [4] = 1
+              },
+              debuffStackOffsetX = -1,
+              debuffStackOffsetY = 1,
+              debuffStackSize = 10,
+              durationAnchor = "CENTER",
+              durationColor = {
+                [1] = 1,
+                [2] = 1,
+                [3] = 1,
+                [4] = 1
+              },
+              durationOffsetX = 0,
+              durationOffsetY = 0,
+              durationSize = 12,
+              iconSize = 22,
+              iconSpacing = 2,
+              showBuffs = false,
+              showDebuffs = false,
+              showDuration = false,
+              showStack = true,
+              stackAnchor = "BOTTOMRIGHT",
+              stackColor = {
+                [1] = 1,
+                [2] = 1,
+                [3] = 1,
+                [4] = 1
+              },
+              stackOffsetX = -1,
+              stackOffsetY = 1,
+              stackSize = 10
+            },
             borderSize = 1,
             castbar = {
               anchor = "none",
@@ -5796,6 +6015,21 @@ return {
             powerTextOffsetY = 4,
             powerTextUseClassColor = false,
             powerTextUsePowerColor = true,
+            privateAuras = {
+              anchor = "BOTTOMLEFT",
+              anchorOffsetX = 2,
+              anchorOffsetY = 2,
+              borderScale = 1,
+              enabled = true,
+              frameLevel = 50,
+              growDirection = "RIGHT",
+              iconSize = 24,
+              maxPerFrame = 3,
+              reverseSwipe = false,
+              showCountdown = true,
+              showCountdownNumbers = true,
+              spacing = 2
+            },
             showHealth = true,
             showHealthAbsolute = true,
             showHealthPercent = true,
@@ -5831,7 +6065,136 @@ return {
             anchorGap = 10,
             anchorTo = "disabled",
             anchorYOffset = 0,
-            auras = {},
+            auras = {
+              buffAnchor = "BOTTOMLEFT",
+              buffClassifications = {
+                bigDefensive = false,
+                cancelable = false,
+                externalDefensive = false,
+                helpful = false,
+                notCancelable = false
+              },
+              buffDuration = {
+                anchor = "CENTER",
+                color = {
+                  [1] = 1,
+                  [2] = 1,
+                  [3] = 1,
+                  [4] = 1
+                },
+                fontSize = 12,
+                offsetX = 0,
+                offsetY = 0,
+                show = true
+              },
+              buffFilterMode = "off",
+              buffFilterOnlyMine = true,
+              buffGrow = "RIGHT",
+              buffIconSize = 18,
+              buffMaxIcons = 4,
+              buffOffsetX = 0,
+              buffOffsetY = 0,
+              buffShowStack = true,
+              buffSpacing = 2,
+              buffStack = {
+                anchor = "BOTTOMRIGHT",
+                color = {
+                  [1] = 1,
+                  [2] = 1,
+                  [3] = 1,
+                  [4] = 1
+                },
+                fontSize = 10,
+                offsetX = -1,
+                offsetY = 1,
+                show = true
+              },
+              buffStackAnchor = "BOTTOMRIGHT",
+              buffStackColor = {
+                [1] = 1,
+                [2] = 1,
+                [3] = 1,
+                [4] = 1
+              },
+              buffStackOffsetX = -1,
+              buffStackOffsetY = 1,
+              buffStackSize = 10,
+              debuffAnchor = "TOPLEFT",
+              debuffClassifications = {
+                crowdControl = false,
+                dispellable = false,
+                harmful = false
+              },
+              debuffDuration = {
+                anchor = "CENTER",
+                color = {
+                  [1] = 1,
+                  [2] = 1,
+                  [3] = 1,
+                  [4] = 1
+                },
+                fontSize = 10,
+                offsetX = 0,
+                offsetY = 0,
+                show = false
+              },
+              debuffFilterMode = "off",
+              debuffGrow = "RIGHT",
+              debuffMaxIcons = 4,
+              debuffOffsetX = 0,
+              debuffOffsetY = 0,
+              debuffShowStack = true,
+              debuffSpacing = 2,
+              debuffStack = {
+                anchor = "BOTTOMRIGHT",
+                color = {
+                  [1] = 1,
+                  [2] = 1,
+                  [3] = 1,
+                  [4] = 1
+                },
+                fontSize = 10,
+                offsetX = -1,
+                offsetY = 1,
+                show = true
+              },
+              debuffStackAnchor = "BOTTOMRIGHT",
+              debuffStackColor = {
+                [1] = 1,
+                [2] = 1,
+                [3] = 1,
+                [4] = 1
+              },
+              debuffStackOffsetX = -1,
+              debuffStackOffsetY = 1,
+              debuffStackSize = 10,
+              durationAnchor = "CENTER",
+              durationColor = {
+                [1] = 1,
+                [2] = 1,
+                [3] = 1,
+                [4] = 1
+              },
+              durationOffsetX = 0,
+              durationOffsetY = 0,
+              durationSize = 12,
+              iconSize = 26,
+              iconSpacing = 2,
+              showBuffs = false,
+              showDebuffs = false,
+              showDuration = false,
+              showStack = true,
+              stackAnchor = "BOTTOMRIGHT",
+              stackColor = {
+                [1] = 1,
+                [2] = 1,
+                [3] = 1,
+                [4] = 1
+              },
+              stackOffsetX = -1,
+              stackOffsetY = 1,
+              stackSize = 10
+            },
             borderSize = 1,
             castbar = {
               anchor = "unitframe",
@@ -6000,6 +6363,21 @@ return {
             powerTextOffsetY = 2,
             powerTextUseClassColor = false,
             powerTextUsePowerColor = false,
+            privateAuras = {
+              anchor = "TOPLEFT",
+              anchorOffsetX = 2,
+              anchorOffsetY = -2,
+              borderScale = 1,
+              enabled = true,
+              frameLevel = 50,
+              growDirection = "RIGHT",
+              iconSize = 24,
+              maxPerFrame = 4,
+              reverseSwipe = false,
+              showCountdown = true,
+              showCountdownNumbers = true,
+              spacing = 2
+            },
             showHealth = true,
             showHealthAbsolute = true,
             showHealthPercent = true,
@@ -6043,7 +6421,22 @@ return {
               opacity = 0.69999999999999996,
               texture = "QUI Stripes"
             },
-            auras = {},
+            auras = {
+              buffAnchor = "BOTTOMLEFT",
+              buffGrow = "RIGHT",
+              buffIconSize = 22,
+              buffMaxIcons = 4,
+              buffOffsetX = 0,
+              buffOffsetY = 0,
+              debuffAnchor = "TOPLEFT",
+              debuffGrow = "RIGHT",
+              debuffMaxIcons = 4,
+              debuffOffsetX = 0,
+              debuffOffsetY = 0,
+              iconSize = 22,
+              showBuffs = false,
+              showDebuffs = false
+            },
             borderSize = 1,
             castbar = {
               anchor = "unitframe",
@@ -6375,9 +6768,6 @@ return {
           useRawPixels = true,
           visibility = "always",
           width = 234
-        },
-        skinning = {
-          enabled = true
         },
         skyriding = {
           backgroundColor = {
@@ -6741,7 +7131,82 @@ return {
       imports = {},
       isDone = false,
       lastVersion = 0,
-      specTrackerSpells = {}
+      ncdm = {
+        specTrackerSpells = {
+          customBar_test_bar_spec = {
+            ["DEATHKNIGHT-250"] = {
+              [1] = {
+                _legacySourceSpecKey = "250",
+                _sourceSpecID = 250,
+                id = 33333,
+                type = "spell"
+              },
+              [2] = {
+                _legacySourceSpecKey = "250",
+                _sourceSpecID = 250,
+                id = 44444,
+                type = "spell"
+              },
+              [3] = {
+                _legacySourceSpecKey = "250",
+                _legacySpellbookSlot = 11111,
+                _sourceSpecID = 250,
+                id = 11111,
+                type = "spell"
+              },
+              [4] = {
+                _legacySourceSpecKey = "250",
+                _legacySpellbookSlot = 22222,
+                _sourceSpecID = 250,
+                id = 22222,
+                type = "spell"
+              }
+            },
+            ["DEATHKNIGHT-251"] = {
+              [1] = {
+                _legacySourceSpecKey = "251",
+                _sourceSpecID = 251,
+                id = 55555,
+                type = "spell"
+              },
+              [2] = {
+                _legacySourceSpecKey = "251",
+                _sourceSpecID = 251,
+                id = 66666,
+                type = "spell"
+              }
+            }
+          }
+        }
+      },
+      specTrackerSpells = {
+        test_bar_spec = {
+          ["250"] = {
+            [1] = {
+              id = 33333,
+              type = "spell"
+            },
+            [2] = {
+              id = 33333,
+              type = "spell"
+            },
+            [3] = {
+              id = 44444,
+              type = "spell"
+            }
+          },
+          ["251"] = {
+            [1] = {
+              id = 55555,
+              type = "spell"
+            },
+            [2] = {
+              id = 66666,
+              type = "spell"
+            }
+          }
+        }
+      }
     },
     profileKeys = {
       ["TestChar - TestRealm"] = "Default"
@@ -6749,34 +7214,622 @@ return {
     profiles = {
       Default = {
         _defaultsVersion = 3,
-        _needsLateAbImport = true,
-        _schemaVersion = 51,
-        damageMeter = {
-          appearance = {
-            global = {
-              fonts = {
-                header = {
-                  name = "Expressway",
-                  outline = "THICKOUTLINE",
-                  size = 14
+        _schemaVersion = 47,
+        chat = {
+          enabled = false
+        },
+        customTrackers = {
+          bars = {
+            [1] = {
+              activeGlowFrequency = 0.25,
+              activeGlowLines = 8,
+              activeGlowScale = 1,
+              activeGlowThickness = 2,
+              aspectRatioCrop = 1.25,
+              borderColor = {
+                [1] = 0,
+                [2] = 0,
+                [3] = 0,
+                [4] = 1
+              },
+              borderSize = 1,
+              durationAnchor = "TOP",
+              durationColor = {
+                [1] = 0.80000000000000004,
+                [2] = 0.90000000000000002,
+                [4] = 0.94999999999999996
+              },
+              durationOffsetX = 2,
+              durationOffsetY = -3,
+              durationSize = 17,
+              dynamicLayout = false,
+              enabled = true,
+              entries = {
+                [1] = {
+                  id = 12345,
+                  type = "spell"
                 },
-                rowName = {
-                  name = "Poppins Bold",
-                  outline = "OUTLINE",
-                  size = 12
-                },
-                rowValue = {
-                  name = "Poppins Medium",
-                  outline = "_inherit",
-                  size = 11
+                [2] = {
+                  id = 67890,
+                  type = "spell"
                 }
               },
-              textures = {
-                background = "Square",
-                bar = "Quazii v3",
-                border = "Quazii v2"
-              }
+              hideDurationText = true,
+              hideStackText = true,
+              iconSize = 32,
+              id = "test_bar_1",
+              maxIcons = 6,
+              name = "Test Bar One",
+              noDesaturateWithCharges = false,
+              offsetX = 120,
+              offsetY = -80,
+              showRechargeSwipe = false,
+              specSpecificSpells = false,
+              stackAnchor = "BOTTOMLEFT",
+              stackColor = {
+                [2] = 0.69999999999999996,
+                [3] = 0.20000000000000001
+              },
+              stackOffsetX = -2,
+              stackOffsetY = 4,
+              stackSize = 11,
+              zoom = 0.080000000000000002
+            },
+            [2] = {
+              _sourceSpecID = 250,
+              activeGlowColor = {
+                [1] = 1,
+                [2] = 0.84999999999999998,
+                [3] = 0.29999999999999999,
+                [4] = 1
+              },
+              activeGlowEnabled = true,
+              activeGlowFrequency = 0.25,
+              activeGlowLines = 8,
+              activeGlowScale = 1,
+              activeGlowThickness = 2,
+              activeGlowType = "Pixel Glow",
+              aspectRatioCrop = 1,
+              bgColor = {
+                [1] = 0,
+                [2] = 0,
+                [3] = 0,
+                [4] = 1
+              },
+              bgOpacity = 0,
+              borderColor = {
+                [1] = 0.20000000000000001,
+                [2] = 0.20000000000000001,
+                [3] = 0.20000000000000001,
+                [4] = 1
+              },
+              borderSize = 2,
+              clickableIcons = false,
+              durationAnchor = "CENTER",
+              durationColor = {
+                [1] = 1,
+                [2] = 1,
+                [3] = 1,
+                [4] = 1
+              },
+              durationOffsetX = 0,
+              durationOffsetY = 0,
+              durationSize = 13,
+              dynamicLayout = false,
+              enabled = true,
+              entries = {},
+              growDirection = "DOWN",
+              hideDurationText = false,
+              hideGCD = true,
+              hideNonUsable = false,
+              hideStackText = false,
+              iconSize = 36,
+              id = "test_bar_spec",
+              locked = false,
+              maxIcons = 8,
+              name = "Spec Bar",
+              noDesaturateWithCharges = false,
+              offsetX = -200,
+              offsetY = 50,
+              showActiveState = true,
+              showItemCharges = true,
+              showOnlyInCombat = false,
+              showOnlyOnCooldown = false,
+              showOnlyWhenActive = false,
+              showOnlyWhenOffCooldown = false,
+              showProfessionQuality = true,
+              showRechargeSwipe = false,
+              spacing = 2,
+              specSpecificSpells = true,
+              stackAnchor = "BOTTOMRIGHT",
+              stackColor = {
+                [1] = 1,
+                [2] = 1,
+                [3] = 1,
+                [4] = 1
+              },
+              stackOffsetX = 3,
+              stackOffsetY = -1,
+              stackSize = 9,
+              zoom = 0
             }
+          }
+        },
+        customTrackersVisibility = {
+          fadeDuration = 0.34999999999999998,
+          fadeOutAlpha = 0.25,
+          hideWhenMounted = false,
+          hideWhenSkyriding = false,
+          showAlways = false,
+          showInCombat = true,
+          showInInstance = true,
+          showOnMouseover = true,
+          showWhenTargetExists = true
+        },
+        frameAnchoring = {
+          cdmCustom_customBar_test_bar_1 = {
+            autoHeight = false,
+            autoWidth = false,
+            heightAdjust = -1,
+            hideWithParent = true,
+            keepInPlace = true,
+            offsetX = 5,
+            offsetY = 7,
+            parent = "playerFrame",
+            point = "BOTTOMRIGHT",
+            relative = "TOPRIGHT",
+            sizeStable = true,
+            widthAdjust = 3
+          },
+          combatTimer = {
+            keepInPlace = true,
+            offsetX = 1,
+            offsetY = -2,
+            parent = "cdmCustom_customBar_test_bar_1",
+            point = "TOP",
+            relative = "BOTTOM"
+          },
+          ["customTracker:test_bar_1"] = {
+            autoHeight = false,
+            autoWidth = false,
+            heightAdjust = -1,
+            hideWithParent = true,
+            keepInPlace = true,
+            offsetX = 5,
+            offsetY = 7,
+            parent = "playerFrame",
+            point = "BOTTOMRIGHT",
+            relative = "TOPRIGHT",
+            sizeStable = true,
+            widthAdjust = 3
+          }
+        },
+        ncdm = {
+          _lastSpecID = 250,
+          containers = {
+            customBar_test_bar_1 = {
+              _legacyId = "test_bar_1",
+              _migratedFromCustomTrackers = true,
+              activeGlowColor = {
+                [1] = 1,
+                [2] = 0.84999999999999998,
+                [3] = 0.29999999999999999,
+                [4] = 1
+              },
+              activeGlowEnabled = true,
+              activeGlowFrequency = 0.25,
+              activeGlowLines = 8,
+              activeGlowScale = 1,
+              activeGlowThickness = 2,
+              activeGlowType = "Pixel Glow",
+              anchorTo = "disabled",
+              aspectRatioCrop = 1.25,
+              borderColor = {
+                [1] = 0,
+                [2] = 0,
+                [3] = 0,
+                [4] = 1
+              },
+              borderSize = 1,
+              builtIn = false,
+              clickableIcons = false,
+              containerType = "customBar",
+              durationAnchor = "TOP",
+              durationColor = {
+                [1] = 0.80000000000000004,
+                [2] = 0.90000000000000002,
+                [3] = 1,
+                [4] = 0.94999999999999996
+              },
+              durationOffsetX = 2,
+              durationOffsetY = -3,
+              durationSize = 17,
+              dynamicLayout = false,
+              enabled = true,
+              entries = {
+                [1] = {
+                  id = 12345,
+                  type = "spell"
+                },
+                [2] = {
+                  id = 67890,
+                  type = "spell"
+                }
+              },
+              growDirection = "RIGHT",
+              hideDurationText = true,
+              hideGCD = true,
+              hideNonUsable = false,
+              hideStackText = true,
+              iconSize = 32,
+              id = "test_bar_1",
+              keybindContext = "customTrackers",
+              layoutDirection = "HORIZONTAL",
+              locked = false,
+              maxIcons = 6,
+              name = "Test Bar One",
+              noDesaturateWithCharges = false,
+              offsetX = 120,
+              offsetY = -80,
+              pos = {
+                ox = 120,
+                oy = -80
+              },
+              row1 = {
+                aspectRatioCrop = 1.25,
+                borderColorTable = {
+                  [1] = 0,
+                  [2] = 0,
+                  [3] = 0,
+                  [4] = 1
+                },
+                borderSize = 1,
+                durationAnchor = "TOP",
+                durationOffsetX = 2,
+                durationOffsetY = -3,
+                durationSize = 17,
+                durationTextColor = {
+                  [1] = 0.80000000000000004,
+                  [2] = 0.90000000000000002,
+                  [3] = 1,
+                  [4] = 0.94999999999999996
+                },
+                hideDurationText = true,
+                hideStackText = true,
+                iconCount = 6,
+                iconSize = 32,
+                opacity = 1,
+                padding = 4,
+                stackAnchor = "BOTTOMLEFT",
+                stackOffsetX = -2,
+                stackOffsetY = 4,
+                stackSize = 11,
+                stackTextColor = {
+                  [1] = 1,
+                  [2] = 0.69999999999999996,
+                  [3] = 0.20000000000000001,
+                  [4] = 1
+                },
+                xOffset = 0,
+                yOffset = 0,
+                zoom = 0.080000000000000002
+              },
+              row2 = {
+                iconCount = 0
+              },
+              row3 = {
+                iconCount = 0
+              },
+              shape = "icon",
+              showActiveState = true,
+              showItemCharges = true,
+              showOnlyInCombat = false,
+              showOnlyOnCooldown = false,
+              showOnlyWhenActive = false,
+              showOnlyWhenOffCooldown = false,
+              showProfessionQuality = true,
+              showRechargeSwipe = false,
+              spacing = 4,
+              stackAnchor = "BOTTOMLEFT",
+              stackColor = {
+                [1] = 1,
+                [2] = 0.69999999999999996,
+                [3] = 0.20000000000000001,
+                [4] = 1
+              },
+              stackOffsetX = -2,
+              stackOffsetY = 4,
+              stackSize = 11,
+              tooltipContext = "customTrackers",
+              visibilityMode = "always",
+              zoom = 0.080000000000000002
+            },
+            customBar_test_bar_spec = {
+              _legacyId = "test_bar_spec",
+              _legacySpecKeyAliases = {
+                ["250"] = "DEATHKNIGHT-250",
+                ["251"] = "DEATHKNIGHT-251"
+              },
+              _migratedFromCustomTrackers = true,
+              _sourceSpecID = 250,
+              _specEntriesPortedB3 = true,
+              activeGlowColor = {
+                [1] = 1,
+                [2] = 0.84999999999999998,
+                [3] = 0.29999999999999999,
+                [4] = 1
+              },
+              activeGlowEnabled = true,
+              activeGlowFrequency = 0.25,
+              activeGlowLines = 8,
+              activeGlowScale = 1,
+              activeGlowThickness = 2,
+              activeGlowType = "Pixel Glow",
+              anchorTo = "disabled",
+              borderColor = {
+                [1] = 0.20000000000000001,
+                [2] = 0.20000000000000001,
+                [3] = 0.20000000000000001,
+                [4] = 1
+              },
+              borderSize = 2,
+              builtIn = false,
+              clickableIcons = false,
+              containerType = "customBar",
+              dynamicLayout = false,
+              enabled = true,
+              entries = {},
+              growDirection = "DOWN",
+              hideGCD = true,
+              hideNonUsable = false,
+              iconSize = 36,
+              id = "test_bar_spec",
+              keybindContext = "customTrackers",
+              layoutDirection = "VERTICAL",
+              locked = false,
+              maxIcons = 8,
+              name = "Spec Bar",
+              noDesaturateWithCharges = false,
+              offsetX = -200,
+              offsetY = 50,
+              pos = {
+                ox = -200,
+                oy = 50
+              },
+              row1 = {
+                aspectRatioCrop = 1,
+                borderColorTable = {
+                  [1] = 0.20000000000000001,
+                  [2] = 0.20000000000000001,
+                  [3] = 0.20000000000000001,
+                  [4] = 1
+                },
+                borderSize = 2,
+                durationAnchor = "CENTER",
+                durationOffsetX = 0,
+                durationOffsetY = 0,
+                durationSize = 13,
+                durationTextColor = {
+                  [1] = 1,
+                  [2] = 1,
+                  [3] = 1,
+                  [4] = 1
+                },
+                hideDurationText = false,
+                hideStackText = false,
+                iconCount = 8,
+                iconSize = 36,
+                opacity = 1,
+                padding = 2,
+                stackAnchor = "BOTTOMRIGHT",
+                stackOffsetX = 3,
+                stackOffsetY = -1,
+                stackSize = 9,
+                stackTextColor = {
+                  [1] = 1,
+                  [2] = 1,
+                  [3] = 1,
+                  [4] = 1
+                },
+                xOffset = 0,
+                yOffset = 0,
+                zoom = 0
+              },
+              row2 = {
+                iconCount = 0
+              },
+              row3 = {
+                iconCount = 0
+              },
+              shape = "icon",
+              showActiveState = true,
+              showItemCharges = true,
+              showOnlyInCombat = false,
+              showOnlyOnCooldown = false,
+              showOnlyWhenActive = false,
+              showOnlyWhenOffCooldown = false,
+              showProfessionQuality = true,
+              showRechargeSwipe = false,
+              spacing = 2,
+              specSpecific = true,
+              specSpecificSpells = true,
+              tooltipContext = "customTrackers",
+              visibilityMode = "always"
+            },
+            custom_aura = {
+              builtIn = false,
+              containerType = "aura",
+              enabled = true,
+              name = "Custom Auras",
+              ownedSpells = {
+                [1] = {
+                  id = 33333,
+                  kind = "aura",
+                  type = "spell"
+                },
+                [2] = {
+                  id = 44444,
+                  kind = "aura",
+                  type = "spell"
+                },
+                [3] = {
+                  id = 1,
+                  kind = "cooldown",
+                  macroName = "Defensives",
+                  type = "macro"
+                }
+              },
+              shape = "icon"
+            },
+            custom_bar = {
+              builtIn = false,
+              containerType = "auraBar",
+              enabled = true,
+              name = "Custom Aura Bars",
+              ownedSpells = {
+                [1] = {
+                  id = 55555,
+                  kind = "aura",
+                  type = "spell"
+                }
+              },
+              shape = "bar"
+            },
+            custom_cd = {
+              builtIn = false,
+              containerType = "cooldown",
+              enabled = true,
+              name = "Custom Cooldowns",
+              ownedSpells = {
+                [1] = {
+                  id = 11111,
+                  type = "spell"
+                },
+                [2] = {
+                  id = 222,
+                  kind = "cooldown",
+                  type = "item"
+                },
+                [3] = {
+                  id = 13,
+                  kind = "cooldown",
+                  type = "trinket"
+                }
+              },
+              shape = "icon"
+            }
+          },
+          powerBar = {
+            bgColor = {
+              [1] = 0.050000000000000003,
+              [2] = 0.059999999999999998,
+              [3] = 0.070000000000000007,
+              [4] = 0.80000000000000004
+            },
+            colorMode = "custom",
+            customColor = {
+              [1] = 0.90000000000000002,
+              [2] = 0.10000000000000001,
+              [3] = 0.25,
+              [4] = 1
+            },
+            height = 18,
+            textSize = 15,
+            width = 321
+          },
+          secondaryPowerBar = {
+            colorMode = "custom",
+            customColor = {
+              [1] = 0.20000000000000001,
+              [2] = 0.80000000000000004,
+              [3] = 0.40000000000000002,
+              [4] = 1
+            },
+            height = 13,
+            showText = true
+          }
+        },
+        powerBar = {
+          bgColor = {
+            [1] = 0.050000000000000003,
+            [2] = 0.059999999999999998,
+            [3] = 0.070000000000000007,
+            [4] = 0.80000000000000004
+          },
+          colorMode = "custom",
+          customColor = {
+            [1] = 0.90000000000000002,
+            [2] = 0.10000000000000001,
+            [3] = 0.25
+          },
+          height = 18,
+          textSize = 15,
+          width = 321
+        },
+        quiGroupFrames = {
+          party = {
+            auras = {
+              elements = {
+                ["*"] = {
+                  [1] = {
+                    auraType = "HARMFUL",
+                    blacklist = {},
+                    classifications = {},
+                    enabled = false,
+                    id = "debuffs",
+                    maxIcons = 0,
+                    mode = "filterStrip",
+                    whitelist = {}
+                  },
+                  [2] = {
+                    auraType = "HELPFUL",
+                    blacklist = {},
+                    classifications = {},
+                    dedupeDefensives = true,
+                    enabled = false,
+                    hidePermanent = false,
+                    id = "buffs",
+                    maxIcons = 0,
+                    mode = "filterStrip",
+                    onlyMine = false,
+                    whitelist = {}
+                  }
+                }
+              }
+            },
+            enabled = true
+          },
+          raid = {
+            auras = {
+              elements = {
+                ["*"] = {
+                  [1] = {
+                    auraType = "HARMFUL",
+                    blacklist = {},
+                    classifications = {},
+                    enabled = false,
+                    id = "debuffs",
+                    maxIcons = 0,
+                    mode = "filterStrip",
+                    whitelist = {}
+                  },
+                  [2] = {
+                    auraType = "HELPFUL",
+                    blacklist = {},
+                    classifications = {},
+                    dedupeDefensives = true,
+                    enabled = false,
+                    hidePermanent = false,
+                    id = "buffs",
+                    maxIcons = 0,
+                    mode = "filterStrip",
+                    onlyMine = false,
+                    whitelist = {}
+                  }
+                }
+              }
+            },
+            enabled = true
           }
         },
         quiUnitFrames = {
@@ -6805,6 +7858,15 @@ return {
               previewMode = false
             }
           }
+        },
+        secondaryPowerBar = {
+          colorMode = "custom",
+          customColor = {
+            [1] = 0.20000000000000001,
+            [3] = 0.40000000000000002
+          },
+          height = 13,
+          showText = true
         }
       }
     }
