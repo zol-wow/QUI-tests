@@ -1084,4 +1084,17 @@ assert(staleMirrorNoDurationIcon._resolvedCooldownMode == "inactive",
 assert(staleMirrorDesaturated == false,
     "stale mirrored cooldown should release previous cooldown desaturation once")
 
+local releasedGlowIcon = {}
+local releasedGlowStops = 0
+ns._OwnedGlows = {
+    StopGlow = function(stoppedIcon)
+        assert(stoppedIcon == releasedGlowIcon, "factory release should stop glow on the released icon")
+        releasedGlowStops = releasedGlowStops + 1
+    end,
+}
+
+ns.CDMIcons.OnFactoryIconReleased(releasedGlowIcon)
+
+assert(releasedGlowStops == 1, "factory release should clear owned proc-glow state")
+
 print("OK: cdm_icons_gcd_style_test")
