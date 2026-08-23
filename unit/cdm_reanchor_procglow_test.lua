@@ -264,4 +264,48 @@ do
     assert(#rec.stopGlow == 1, "OnClaim(nil): no-op")
 end
 
+do
+    local inst, rec = buildInstance({ getEntryForFrame = function(f) return f._entry end })
+    local frame = makeLiveFrame()
+    frame._entry = { spellID = 221562, viewerType = "essential" }
+    inst:_OnShowAlert(frame)
+    ns._cdmReanchorProcGlow = inst
+
+    local installs = {}
+    local pool = {
+        Acquire = function() end,
+        Release = function() end,
+        EnumerateActive = function() return function() return nil end end,
+    }
+    local lifecycle = ns.CDMReanchorHooks.New({
+        keys = { "essential" },
+        hooksecurefunc = function(owner, method, fn)
+            installs[#installs + 1] = { owner = owner, method = method, fn = fn }
+        end,
+    })
+    lifecycle:InstallViewerHooks(function()
+        return { RefreshLayout = function() end, itemFramePool = pool }
+    end)
+
+    local releaseHook
+    for _, hook in ipairs(installs) do
+        if hook.owner == pool and hook.method == "Release" then
+            releaseHook = hook.fn
+        end
+    end
+    assert(type(releaseHook) == "function", "native pool release installs proc-glow cleanup")
+
+    frame._entry = nil
+    releaseHook(pool, frame)
+    assert(#rec.stopGlow == 1, "native pool release stops the latched proc glow")
+    releaseHook(pool, frame)
+    assert(#rec.stopGlow == 1, "repeated native pool release is idempotent")
+    inst:OnClaim(frame, { spellID = 221562, viewerType = "essential" })
+    assert(#rec.stopGlow == 1, "same-spell reclaim starts from a cleared proc-glow latch")
+    frame._entry = { spellID = 221562, viewerType = "essential" }
+    inst:_OnShowAlert(frame)
+    assert(#rec.startGlow == 2, "a fresh proc can start after native pool release")
+    ns._cdmReanchorProcGlow = nil
+end
+
 print("OK: cdm_reanchor_procglow_test")
