@@ -35,6 +35,7 @@ local function MakeTexture()
     function t:DisablePixelSnap() end
     function t:SetColorTexture() end
     function t:SetTexture(path) self._texture = path end
+    function t:SetTexCoord(...) self._texCoord = { ... } end
     function t:SetBlendMode(mode) self._blend = mode end
     function t:SetVertexColor(r, g, b, a) self._vertex = { r, g, b, a } end
     function t:ClearAllPoints() self._points = {} end
@@ -222,6 +223,91 @@ F.SetLifeGate(frame, true)
 check("life gate re-shows the container after resurrection", c._shown == true)
 F.SetLifeGate(MakeHostFrame(), false)
 check("life gate on a frame without a feeder is a safe no-op", true)
+
+----------------------------------------------------------------------------
+-- (2c) BY_ME_PLUS_TYPED: by-me visual + typed awareness-gradient slot
+----------------------------------------------------------------------------
+settings.dispelOverlay.scope = "BY_ME_PLUS_TYPED"
+settings.dispelOverlay.gradientStartOpacity = 0.75
+settings.dispelOverlay.gradientEndOpacity = 0.25
+complete = F.Sync(frame, "party1", true, settings, "HORIZONTAL")
+check("gradient-scope sync completes", complete == true)
+check("visual slot returns to the by-me filter", c._filters.visual == BY_ME)
+check("visual slot drops candidate filters in gradient scope", c._cf.visual == nil)
+check("typed slot created with the bare HARMFUL filter", c._filters.typed == "HARMFUL")
+local tcf = c._cf.typed
+check("typed slot carries the typed-debuff candidate filter",
+    type(tcf) == "table" and type(tcf.includeDispelTypes) == "table"
+        and tcf.includeDispelTypes.Curse and tcf.includeDispelTypes.Enrage)
+
+local typedSlot = c._slots.typed
+local gradTex = typedSlot and typedSlot._quiDispelArt and typedSlot._quiDispelArt.gradient
+check("gradient art uses the alpha-ramp asset",
+    gradTex and type(gradTex._texture) == "string"
+        and gradTex._texture:find("dispel_gradient", 1, true) ~= nil,
+    gradTex and gradTex._texture)
+
+-- Opacity MUST ride the asset's per-pixel alpha through a texcoord sub-range:
+-- the engine rewrites SetAlpha on registered dispel-type textures and
+-- overwrites vertex color from its RGB-only color map on every aura update.
+check("gradient does not lean on SetAlpha for opacity",
+    gradTex and gradTex._alpha == 1, gradTex and gradTex._alpha)
+-- Horizontal fill rotates 90 degrees: UL/LL sample the start opacity (left
+-- edge = fill origin), UR/LR the end opacity.
+check("horizontal texcoords encode both endpoints at the right corners",
+    gradTex and gradTex._texCoord and #gradTex._texCoord == 8
+        and gradTex._texCoord[2] == 0.75 and gradTex._texCoord[4] == 0.75
+        and gradTex._texCoord[6] == 0.25 and gradTex._texCoord[8] == 0.25,
+    gradTex and table.concat(gradTex._texCoord or {}, ","))
+
+local gradReg
+for _, reg in ipairs(typedSlot and typedSlot._dispelRegs or {}) do
+    if reg.texture == gradTex then gradReg = reg end
+end
+check("gradient bound via PreserveAsset with the custom color map",
+    gradReg and gradReg.opts.style == 3 and gradReg.opts.customDispelColorMap ~= nil)
+check("gradient slot registers exactly one texture",
+    typedSlot and #typedSlot._dispelRegs == 1, typedSlot and #typedSlot._dispelRegs)
+
+complete = F.Sync(frame, "party1", true, settings, "VERTICAL")
+-- Vertical fill needs no rotation: top samples the end opacity, bottom the
+-- start opacity.
+check("vertical texcoords run end (top) -> start (bottom)",
+    complete == true and gradTex._texCoord and #gradTex._texCoord == 4
+        and gradTex._texCoord[3] == 0.25 and gradTex._texCoord[4] == 0.75,
+    gradTex and table.concat(gradTex._texCoord or {}, ","))
+
+-- End above start inverts the range; WoW samples a flipped texcoord natively.
+settings.dispelOverlay.gradientStartOpacity = 0.25
+settings.dispelOverlay.gradientEndOpacity = 0.75
+complete = F.Sync(frame, "party1", true, settings, "VERTICAL")
+check("inverted endpoints flip the sampled range",
+    complete == true and gradTex._texCoord
+        and gradTex._texCoord[3] == 0.75 and gradTex._texCoord[4] == 0.25)
+
+-- Equal endpoints degenerate to a flat fill at that opacity.
+settings.dispelOverlay.gradientStartOpacity = 0.5
+settings.dispelOverlay.gradientEndOpacity = 0.5
+complete = F.Sync(frame, "party1", true, settings, "VERTICAL")
+check("equal endpoints sample a single alpha row (flat fill)",
+    complete == true and gradTex._texCoord
+        and gradTex._texCoord[3] == 0.5 and gradTex._texCoord[4] == 0.5)
+
+-- Out-of-range values clamp rather than sampling outside the asset.
+settings.dispelOverlay.gradientStartOpacity = 5
+settings.dispelOverlay.gradientEndOpacity = -3
+complete = F.Sync(frame, "party1", true, settings, "VERTICAL")
+check("endpoints clamp into the 0..1 texcoord range",
+    complete == true and gradTex._texCoord
+        and gradTex._texCoord[3] == 0 and gradTex._texCoord[4] == 1)
+
+settings.dispelOverlay.gradientStartOpacity = 0.75
+settings.dispelOverlay.gradientEndOpacity = 0.25
+settings.dispelOverlay.scope = "PLAYER_DISPELLABLE"
+complete = F.Sync(frame, "party1", true, settings)
+check("typed slot parks when leaving the gradient scope",
+    complete == true and isParked(c._cf.typed))
+check("no script handlers after gradient styling", scriptInstalls == 0)
 
 ----------------------------------------------------------------------------
 -- (3) Feature fully off: park everything, disable the container

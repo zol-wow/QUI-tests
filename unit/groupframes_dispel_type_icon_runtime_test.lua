@@ -100,7 +100,7 @@ assert(fnSource:find("icon:GetStatusBarTexture():SetVertexColor(color:GetRGBA())
     "secret color components are forwarded directly into a supported texture sink")
 assert(not fnSource:find("IsSecretValue(color)", 1, true),
     "curve-driven icon path never branches on the returned secret color")
-assert(source:find('dispelCfg.scope == "ALL_TYPED"', 1, true)
+assert(source:find('scope == "ALL_TYPED"', 1, true)
     and source:find('"typedDebuffOrder", "typedDebuffs"', 1, true),
     "all-typed scope selects the dedicated awareness cache")
 assert(source:find("if glowOn and playerInstID then", 1, true),
