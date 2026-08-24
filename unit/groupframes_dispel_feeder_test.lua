@@ -255,6 +255,26 @@ local tcf = c._cf.typed
 check("typed slot carries the typed-debuff candidate filter",
     type(tcf) == "table" and type(tcf.includeDispelTypes) == "table"
         and tcf.includeDispelTypes.Curse and tcf.includeDispelTypes.Enrage)
+check("no dispel capability leaves the gradient unrestricted",
+    tcf ~= nil and tcf.excludeDispelTypes == nil)
+
+-- Types the player could act on never feed the awareness gradient: those
+-- auras already light the actionable by-me overlay, and the capability probe
+-- re-runs on every sync so respecs are picked up at the next update.
+_G.IsPlayerSpell = function(spellID) return spellID == 527 end -- Purify
+complete = F.Sync(frame, "party1", true, settings, "HORIZONTAL")
+tcf = c._cf.typed
+check("player-dispellable types are excluded from the gradient slot",
+    complete == true and tcf ~= nil and tcf.excludeDispelTypes ~= nil
+        and tcf.excludeDispelTypes.Magic == true
+        and tcf.excludeDispelTypes.Disease == true
+        and tcf.excludeDispelTypes.Curse == nil
+        and tcf.excludeDispelTypes.Bleed == nil)
+_G.IsPlayerSpell = nil
+complete = F.Sync(frame, "party1", true, settings, "HORIZONTAL")
+tcf = c._cf.typed
+check("lost capability clears the gradient exclusions on the next sync",
+    complete == true and tcf ~= nil and tcf.excludeDispelTypes == nil)
 
 local typedSlot = c._slots.typed
 local gradTex = typedSlot and typedSlot._quiDispelArt and typedSlot._quiDispelArt.gradient

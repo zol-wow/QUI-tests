@@ -96,6 +96,17 @@ local id, typeName = dispel.SelectCachedAura({
 assert(id == 11 and typeName == "Poison",
     "selector ignores phantom order entries and resolves the first live member")
 
+local exId = dispel.SelectCachedAura({
+    typedDebuffOrder = { 10, 11 },
+    typedDebuffs = { [11] = true },
+    debuffsByID = { [11] = { dispelName = "Magic" } },
+}, "party1", "typedDebuffOrder", "typedDebuffs", { [11] = true })
+assert(exId == nil,
+    "exclusion set drops actionable auras from the awareness pick entirely")
+
+assert(source:find("cache and cache.playerDispellable", 1, true),
+    "gradient scope excludes player-dispellable auras from the awareness pick")
+
 assert(fnSource:find("icon:GetStatusBarTexture():SetVertexColor(color:GetRGBA())", 1, true),
     "secret color components are forwarded directly into a supported texture sink")
 assert(not fnSource:find("IsSecretValue(color)", 1, true),
