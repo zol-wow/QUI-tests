@@ -81,6 +81,7 @@ return {
     "core/cast_engine.lua::6",
     "core/diagnostics_console.lua::1",
     "core/dumpspell.lua::3",
+    "core/group_frame_chrome.lua::2",
     "core/main.lua::6",
     "core/migrations.lua::1",
     "core/modules.lua::1",
