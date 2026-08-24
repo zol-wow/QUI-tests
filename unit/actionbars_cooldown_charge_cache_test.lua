@@ -199,8 +199,10 @@ C_ActionBar = {
     GetActionCooldownDuration = function() return { type = "cooldown-duration" } end,
 }
 local rangeCheckCalls = {}
+local rangeCheckEnabled = { [301] = true }
 function C_ActionBar.EnableActionRangeCheck(slot, enabled)
     rangeCheckCalls[#rangeCheckCalls + 1] = { slot = slot, enabled = enabled }
+    rangeCheckEnabled[slot] = enabled
 end
 
 local chargeCalls = 0
@@ -693,11 +695,10 @@ actionBars.RefreshUsabilityButtons()
 inCombat = false
 assert(buttonsBySlot[301] == nil and buttonsBySlot[302] == buttonsForSlot,
     "combat page remaps must reuse the prior slot bucket")
-local disabledOldSlot = rangeCheckCalls[#rangeCheckCalls - 1]
 local enabledNewSlot = rangeCheckCalls[#rangeCheckCalls]
-assert(disabledOldSlot and disabledOldSlot.slot == 301 and not disabledOldSlot.enabled
+assert(rangeCheckEnabled[301] and rangeCheckEnabled[302]
     and enabledNewSlot and enabledNewSlot.slot == 302 and enabledNewSlot.enabled,
-    "combat page remaps must move native range subscriptions")
+    "combat page remaps must not disable globally shared native range events")
 rangeButton.action = 301
 actionBars.RefreshUsabilityButtons()
 local usabilityEvent = ns.ActionBarsEnv.usabilityState.checkFrame:GetScript("OnEvent")
@@ -773,10 +774,11 @@ unavailableActions[301] = nil
 ns.ActionBarsEnv.GetFrameState(rangeButton).hiddenEmpty = nil
 actionBarsDB.global.rangeIndicator = false
 actionBarsDB.global.usabilityIndicator = true
+local rangeCallsBeforeDisable = #rangeCheckCalls
 actionBars.UpdateUsabilityPolling()
-lastRangeCheck = rangeCheckCalls[#rangeCheckCalls]
-assert(lastRangeCheck and lastRangeCheck.slot == 301 and not lastRangeCheck.enabled,
-    "disabling range coloring should release native range events")
+assert(#rangeCheckCalls == rangeCallsBeforeDisable
+    and rangeCheckEnabled[301] and rangeCheckEnabled[302],
+    "disabling QUI range coloring must preserve globally shared native range events")
 
 assert(actionBars._perfProbesEnabled == false,
     "split actionbar perf probes should be disabled unless explicitly requested")

@@ -28,6 +28,8 @@ C_Container = {
     end,
 }
 local categorySourceAvailable = true
+local categorySourceSpellID = 6262
+local categorySourceItemID = 5512
 local categoryMetadataAvailable = true
 local categoryIndexQueries = 0
 local categoryMetadataQueries = 0
@@ -36,7 +38,7 @@ C_Spell = {
     GetLastCategoryCooldownSource = function(categoryID)
         if categoryID == 4 then return 777, 1001 end
         if categoryID == 1711 then
-            if categorySourceAvailable then return 6262, 5512 end
+            if categorySourceAvailable then return categorySourceSpellID, categorySourceItemID end
             return nil, nil
         end
         return nil, nil
@@ -59,7 +61,7 @@ local ns = {
         Version = function() return indexVersion end,
         GetByCategory = function(categoryID)
             categoryIndexQueries = categoryIndexQueries + 1
-            if categoryID == 1711 and categoryMetadataAvailable then
+            if (categoryID == 1711 or categoryID == 1712) and categoryMetadataAvailable then
                 return { cooldownID = 7001 }
             end
             return nil
@@ -123,19 +125,29 @@ local cachedSource = assert(categorySourceCache and categorySourceCache[1711])
 sourceSpellID, sourceItemID = sources.QueryLastCategoryCooldownSource(1711)
 assert(categorySourceCache[1711] == cachedSource,
     "unchanged category cooldown sources should reuse their cache record")
+categorySourceSpellID = 7777
+categorySourceItemID = nil
+sourceSpellID, sourceItemID = sources.QueryLastCategoryCooldownSource(1711)
+assert(sourceSpellID == 7777 and sourceItemID == nil
+        and categorySourceCache[1711] == cachedSource
+        and cachedSource.spellID == 7777 and cachedSource.itemID == nil,
+    "readable partial category sources should replace and clear stale cached fields")
 categorySourceAvailable = false
 sourceSpellID, sourceItemID = sources.QueryLastCategoryCooldownSource(1711)
-assert(sourceSpellID == 6262 and sourceItemID == 5512,
-    "category cooldown source should retain the last readable pair when combat values are opaque")
-sourceSpellID, sourceItemID = sources.QueryLastCategoryCooldownSource(1711)
+assert(sourceSpellID == 7777 and sourceItemID == nil,
+    "missing category sources should retain the last readable partial result")
+sourceSpellID, sourceItemID = sources.QueryLastCategoryCooldownSource(1712)
+assert(sourceSpellID == 6262 and sourceItemID == nil,
+    "category metadata should supply the spell when no current source exists")
+sourceSpellID, sourceItemID = sources.QueryLastCategoryCooldownSource(1712)
 assert(categoryMetadataQueries == 1,
     "unchanged category metadata should be queried once")
 indexVersion = indexVersion + 1
 categoryMetadataAvailable = false
-sourceSpellID, sourceItemID = sources.QueryLastCategoryCooldownSource(1711)
-assert(sourceSpellID == 6262 and sourceItemID == 5512 and categoryIndexQueries == 2,
+sourceSpellID, sourceItemID = sources.QueryLastCategoryCooldownSource(1712)
+assert(sourceSpellID == nil and sourceItemID == nil and categoryIndexQueries == 2,
     "category metadata cache should invalidate with the CDM index")
-sourceSpellID, sourceItemID = sources.QueryLastCategoryCooldownSource(1711)
+sourceSpellID, sourceItemID = sources.QueryLastCategoryCooldownSource(1712)
 assert(categoryIndexQueries == 2,
     "missing category metadata should be cached until the CDM index changes")
 local startTime, duration, enabled = sources.QueryItemCooldown(5512)
