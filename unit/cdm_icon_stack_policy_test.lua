@@ -13,9 +13,10 @@
 --   * GetSpellCountForEntry action-button spell count
 
 local secretStackText = { token = "secret-stack-text" }
+local secretSpellCount = { token = "secret-spell-count" }
 
 function issecretvalue(value)
-    return value == secretStackText
+    return value == secretStackText or value == secretSpellCount
 end
 
 function InCombatLockdown() return false end
@@ -28,6 +29,7 @@ end
 
 C_StringUtil = {
     TruncateWhenZero = function(value)
+        if value == secretSpellCount then return secretStackText end
         return value == 0 and "" or tostring(value)
     end,
 }
@@ -211,5 +213,21 @@ spellCounts[500] = 3
 local count, countSource = policy:GetSpellCountForEntry(500, nil, {})
 assert(count == 3, "spell count fallback should return positive action-button counts")
 assert(countSource == "spell-cast-count", "spell count fallback should report its source")
+
+local castCountIcon = {
+    _runtimeSpellID = 500,
+    _spellEntry = { kind = "cooldown", type = "spell", spellID = 500 },
+}
+local castText, castSource = policy:ResolveIconStackText(castCountIcon)
+assert(castText == 3, "owned cooldown icons should resolve positive spell cast counts")
+assert(castSource == "spell-cast-count", "owned cooldown cast counts should report their source")
+
+spellCounts[501] = secretSpellCount
+castCountIcon._runtimeSpellID = 501
+castCountIcon._spellEntry.spellID = 501
+castText, castSource = policy:ResolveIconStackText(castCountIcon)
+assert(rawequal(castText, secretStackText),
+    "owned cooldown icons should truncate secret zero values through the compatible C sink")
+assert(castSource == "spell-cast-count", "secret cast counts should keep their source")
 
 print("OK: cdm_icon_stack_policy_test")
