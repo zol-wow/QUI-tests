@@ -23,6 +23,7 @@
 -- luacheck: globals GetTime CreateFrame InCombatLockdown UnitCastingInfo UnitChannelInfo UnitClass UnitGUID UIParent RAID_CLASS_COLORS C_Timer EventRegistry
 
 local function noop() end
+local inCombat = false
 
 local function newRegion(frameType, parent)
     local region = {
@@ -35,15 +36,43 @@ local function newRegion(frameType, parent)
         frameLevel = 1,
         frameStrata = "MEDIUM",
         points = {},
+        protected = false,
+        anchoringRestricted = false,
     }
 
     function region:SetSize(width, height) self.width = width; self.height = height end
     function region:SetWidth(width) self.width = width end
-    function region:SetHeight(height) self.height = height end
+    function region:SetHeight(height)
+        if inCombat and (self.protected or self.anchoringRestricted) then
+            error("ADDON_ACTION_BLOCKED: Frame:SetHeight()")
+        end
+        self.height = height
+    end
     function region:GetWidth() return self.width end
     function region:GetHeight() return self.height end
-    function region:SetPoint(...) self.points[#self.points + 1] = {...} end
-    function region:ClearAllPoints() self.points = {} end
+    function region:GetLeft() return self.left or 0 end
+    function region:GetRight() return self:GetLeft() + self.width end
+    function region:GetBottom() return self.bottom or 0 end
+    function region:GetTop() return self:GetBottom() + self.height end
+    function region:GetEffectiveScale() return 1 end
+    function region:GetNumPoints() return #self.points end
+    function region:GetPoint(index)
+        local point = self.points[index or 1]
+        if point then return unpack(point) end
+    end
+    function region:SetPoint(...)
+        local point = {...}
+        self.points[#self.points + 1] = point
+        local relativeTo = point[2]
+        self.anchoringRestricted = relativeTo and relativeTo ~= UIParent
+            and ((relativeTo.IsProtected and relativeTo:IsProtected())
+                or (relativeTo.IsAnchoringRestricted and relativeTo:IsAnchoringRestricted()))
+            or false
+    end
+    function region:ClearAllPoints()
+        self.points = {}
+        self.anchoringRestricted = false
+    end
     function region:SetAllPoints(anchor) self.allPoints = anchor or self.parent or true end
     function region:Show() self.shown = true end
     function region:Hide() self.shown = false end
@@ -56,6 +85,8 @@ local function newRegion(frameType, parent)
     function region:SetFrameLevel(level) self.frameLevel = level end
     function region:GetFrameLevel() return self.frameLevel end
     function region:GetParent() return self.parent end
+    function region:IsProtected() return self.protected end
+    function region:IsAnchoringRestricted() return self.anchoringRestricted end
     function region:CreateTexture() return newRegion("Texture", self) end
 
     function region:CreateFontString()
@@ -110,7 +141,6 @@ local now = 100
 
 -- Mutable combat state and a *queuing* timer: C_Timer.After records callbacks so
 -- the test can assert work was deferred (not run) and then fire it on demand.
-local inCombat = false
 local timerQueue = {}
 local function flushTimers()
     local pending = timerQueue
@@ -128,7 +158,7 @@ function InCombatLockdown() return inCombat end
 function UnitCastingInfo(unit)
     -- The target castbar watches "target"; report an active (non-channeled) cast
     -- so Cast() enters the real-cast branch that applies the protected geometry.
-    if unit == "target" or unit == "player" then
+    if unit == "target" or unit == "player" or unit == "boss1" then
         return "Frostbolt", "Frostbolt", 135846, (now - 0.2) * 1000, (now + 2.8) * 1000, false, "CastGUID", false, 116, nil, 0
     end
     return nil
@@ -160,6 +190,14 @@ ns.Helpers.Clamp = function(value, minValue, maxValue)
     return value
 end
 ns.Helpers.CreateStateTable = function() return setmetatable({}, { __mode = "k" }) end
+ns.Helpers.FrameMutationRestricted = function(frame)
+    return frame and (frame:IsProtected() or frame:IsAnchoringRestricted()) or false
+end
+ns.Helpers.PinFrameToTargetAbsolute = function(frame, sourcePoint)
+    frame:ClearAllPoints()
+    frame:SetPoint(sourcePoint, UIParent, "BOTTOMLEFT", 0, 0)
+    return true
+end
 ns.Helpers.CHROME = { BORDER_PX = 1, BG_FALLBACK = { 0.05, 0.05, 0.05, 0.95 }, BORDER_FALLBACK = { 0, 0, 0, 1 }, BUTTON_BOOST = 0.07, SCROLLROW_BOOST = 0.03, DEPTH = { PANEL = { boost = 0, alpha = 0.95 }, SUBPANEL = { boost = 0.04, alpha = 0.85 }, ROW = { boost = 0.07, alpha = 0.75 } } }
 
 function ns.Addon:PixelRound(value) return math.floor((value / pixelScale) + 0.5) * pixelScale end
@@ -168,6 +206,7 @@ function ns.Addon:GetPixelSize() return pixelScale end
 function ns.Addon:SetPixelPerfectSize(frame, width, height) frame:SetSize(math.floor(width + 0.5) * pixelScale, math.floor(height + 0.5) * pixelScale) end
 function ns.Addon:SetPixelPerfectHeight(frame, height) frame:SetHeight(math.floor(height + 0.5) * pixelScale) end
 function ns.Addon:SetPixelPerfectPoint(frame, point, relativeTo, relativePoint, x, y) frame:SetPoint(point, relativeTo, relativePoint, x, y) end
+function ns.Addon:SetSnappedPoint(frame, point, relativeTo, relativePoint, x, y) frame:SetPoint(point, relativeTo, relativePoint, x, y) end
 function ns.Addon:ApplyPixelSnapping() end
 function ns.Addon:ApplyFont(fontString, _, size, path, outline) fontString:SetFont(path, size, outline) end
 
@@ -198,6 +237,7 @@ local settings = {
         },
     },
 }
+settings.boss = settings.target
 
 ns.QUI_Castbar:SetHelpers({
     GetUnitSettings = function(unit) return settings[unit] end,
@@ -210,9 +250,12 @@ ns.QUI_Castbar:SetHelpers({
 
 local unitFrame = newRegion("Frame", UIParent)
 unitFrame:SetSize(220, 40)
+unitFrame.protected = true
 
 -- A target castbar registers PLAYER_TARGET_CHANGED -- the secure-execution vector.
 local castbar = assert(ns.QUI_Castbar:CreateCastbar(unitFrame, "target", "target"))
+assert(not castbar:IsAnchoringRestricted(),
+    "target castbar should pin to UIParent instead of the protected unit frame")
 local onEvent = assert(castbar.scripts and castbar.scripts.OnEvent,
     "castbar should wire an OnEvent handler")
 
@@ -223,6 +266,23 @@ castbar.SetHeight = function(self, height)
     setHeightCalls = setHeightCalls + 1
     return realSetHeight(self, height)
 end
+
+for _, event in ipairs({"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START"}) do
+    inCombat = true
+    setHeightCalls = 0
+    timerQueue = {}
+    local ok, err = pcall(onEvent, castbar, event, "target", "CastGUID", 116)
+    assert(ok, event .. " should not hit protected castbar geometry: " .. tostring(err))
+    assert(setHeightCalls >= 1, event .. " should update the unrestricted castbar immediately")
+end
+
+inCombat = false
+local bossFrame = newRegion("Frame", UIParent)
+bossFrame:SetSize(220, 40)
+bossFrame.protected = true
+local bossCastbar = assert(ns.QUI_Castbar:CreateBossCastbar(bossFrame, "boss1", 1))
+assert(not bossCastbar:IsAnchoringRestricted(),
+    "boss castbar should pin to UIParent instead of the protected boss frame")
 
 -- In combat, a target-change event must NOT run protected geometry synchronously
 -- (it could be inside a secure execution context). It must defer Cast().

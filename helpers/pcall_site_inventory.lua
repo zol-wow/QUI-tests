@@ -119,7 +119,6 @@ return {
     "modules/qol/focus_marker.lua::2",
     "modules/qol/gem_picker.lua::1",
     "modules/qol/healer_mana.lua::4",
-    "modules/qol/lusttimer.lua::2",
     "modules/qol/merchant_pets.lua::3",
     "modules/qol/qol.lua::2",
     "modules/qol/quicksalvage.lua::1",
