@@ -201,13 +201,14 @@ for _, event in ipairs({
 end
 
 methodHooks[actionButton].SetButtonState(actionButton, "PUSHED")
+local pressedCountBeforeRemap = #pressedEvents
 inCombat = true
 eventFrame.scripts.OnEvent(eventFrame, "ACTIONBAR_PAGE_CHANGED")
-assert(pressedEvents[#pressedEvents].down == false,
-    "action-page invalidation must release a held pressed effect immediately")
+assert(#pressedEvents == pressedCountBeforeRemap,
+    "combat action remaps must retain the active pressed mapping until rebuild")
 methodHooks[actionButton].SetButtonState(actionButton, "PUSHED")
-assert(pressedEvents[#pressedEvents].candidates == nil,
-    "combat action invalidation must suppress the stale pressed spell identity")
+assert(pressedEvents[#pressedEvents].candidates[4242] == true,
+    "combat action remaps must retain the last safe pressed spell identity")
 methodHooks[actionButton].SetButtonState(actionButton, "NORMAL")
 inCombat = false
 
