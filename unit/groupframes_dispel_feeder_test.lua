@@ -26,6 +26,7 @@ _G.Enum = _G.Enum or {}
 _G.Enum.CustomAuraButtonDispelTypeTextureStyle = {
     Border = 0, BorderWithIcon = 1, Icon = 2, PreserveAsset = 3, CustomAsset = 4,
 }
+_G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
 
 local scriptInstalls = 0
 
@@ -38,6 +39,9 @@ local function MakeTexture()
     function t:SetTexCoord(...) self._texCoord = { ... } end
     function t:SetBlendMode(mode) self._blend = mode end
     function t:SetVertexColor(r, g, b, a) self._vertex = { r, g, b, a } end
+    function t:SetGradient(orientation, minColor, maxColor)
+        self._gradient = { orientation, minColor, maxColor }
+    end
     function t:ClearAllPoints() self._points = {} end
     function t:SetPoint(...) self._points = self._points or {}; self._points[#self._points + 1] = { ... } end
     function t:SetAllPoints(region) self._allPoints = region end
@@ -109,7 +113,10 @@ end
 ----------------------------------------------------------------------------
 -- Load the module
 ----------------------------------------------------------------------------
-local ns = { QUI_GroupFrameChrome = { LEVELS = { DISPEL = 8 } } }
+-- Load the real chrome module first: the feeder delegates cleanse-glow art to
+-- Chrome.StyleCleanseGlowArt, and the test should exercise the real strips.
+local ns = {}
+assert(loadfile("core/group_frame_chrome.lua"))("QUI", ns)
 local F = assert(loadfile("QUI_GroupFrames/groupframes/groupframes_dispel_feeder.lua"))("QUI_GroupFrames", ns)
 check("module publishes ns.QUI_GFDispelFeeder", ns.QUI_GFDispelFeeder == F and type(F.Sync) == "function")
 
@@ -204,10 +211,19 @@ end
 check("icon binding added with the engine Icon style", iconRegs == 1, iconRegs)
 
 local glowSlot = c._slots.glow
-local glowTex = glowSlot and glowSlot._quiDispelArt and glowSlot._quiDispelArt.glow
-check("glow art styled with the configured color",
-    glowTex and glowTex._vertex and glowTex._vertex[1] == 0.3 and glowTex._vertex[2] == 1
-        and glowTex._blend == "ADD")
+local gArt = glowSlot and glowSlot._quiDispelArt
+local gTop = gArt and gArt.glowTop
+check("glow art is four additive edge strips, not a stretched ring",
+    gTop and gArt.glowBottom and gArt.glowLeft and gArt.glowRight
+        and gTop._blend == "ADD" and gTop._texture == nil)
+check("glow gradient peaks at the frame edge in the configured color",
+    gTop and gTop._gradient and gTop._gradient[1] == "VERTICAL"
+        and gTop._gradient[2].a == 0
+        and gTop._gradient[3].r == 0.3 and gTop._gradient[3].g == 1
+        and gTop._gradient[3].a == 0.9)
+check("side strips fade inward horizontally",
+    gArt and gArt.glowLeft._gradient and gArt.glowLeft._gradient[1] == "HORIZONTAL"
+        and gArt.glowLeft._gradient[2].a == 0.9 and gArt.glowLeft._gradient[3].a == 0)
 check("still no script handlers after restyle", scriptInstalls == 0)
 
 ----------------------------------------------------------------------------
