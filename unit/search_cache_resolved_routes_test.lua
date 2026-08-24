@@ -68,12 +68,17 @@ local checked = 0
 local failures = {}
 local counts = {}
 local groupTintAnimation = false
+local cdmPressedProviders = {}
 for _, registry in ipairs({ GUI.StaticSettingsRegistry, GUI.StaticNavigationRegistry }) do
     for _, entry in ipairs(registry or {}) do
         if entry.label == "Tint Animation" then
             assert(entry.featureId ~= "nameplatesPage" and entry.featureId ~= "aurasNameplatePage",
                 "nameplate health tints must not advertise unsupported animations")
             if entry.featureId == "groupFramesPage" then groupTintAnimation = true end
+        end
+        if entry.featureId == "cooldownManagerContainersPage"
+            and entry.label == "Pressed Effect" then
+            cdmPressedProviders[entry.providerKey] = true
         end
         if type(entry.tileId) == "string" and entry.tileId ~= "" then
             checked = checked + 1
@@ -102,6 +107,10 @@ end
 
 assert(checked > 0, "no direct search routes were checked")
 assert(groupTintAnimation, "group-frame health tints must keep their supported animation control")
+assert(cdmPressedProviders.essential and cdmPressedProviders.utility and cdmPressedProviders.buff,
+    "every built-in icon container must expose the Pressed Effect control")
+assert(not cdmPressedProviders.trackedBar,
+    "bar containers must not expose the icon-only Pressed Effect control")
 if #failures > 0 then
     local summary = {}
     for route, count in pairs(counts) do

@@ -8,8 +8,10 @@ function wipe(tbl)
     end
 end
 
-function issecretvalue() return false end
-function InCombatLockdown() return false end
+local secretValue = {}
+function issecretvalue(value) return value == secretValue end
+local inCombat = false
+function InCombatLockdown() return inCombat end
 local now = 2
 function GetTime() return now end
 function GetSpecialization() return nil end
@@ -45,6 +47,11 @@ C_Widget = {
 }
 
 local frames = {}
+local methodHooks = setmetatable({}, { __mode = "k" })
+function hooksecurefunc(target, method, callback)
+    methodHooks[target] = methodHooks[target] or {}
+    methodHooks[target][method] = callback
+end
 function CreateFrame()
     local frame = { events = {}, scripts = {} }
     function frame:SetAllPoints() end
@@ -69,13 +76,19 @@ end
 
 _G.ForeignWidgetWrapper = setmetatable({ type = "label", dframework = true }, hostileMeta)
 
-_G.QUI_Bar1Button1 = {
+local actionButton = {
     isFrameWidget = true,
     action = 7,
     HotKey = { GetText = function() return "F" end },
     GetName = function() return "QUI_Bar1Button1" end,
     GetObjectType = function() return "CheckButton" end,
+    SetButtonState = noop,
+    HookScript = function(self, script, callback)
+        self.hooks = self.hooks or {}
+        self.hooks[script] = callback
+    end,
 }
+_G.QUI_Bar1Button1 = actionButton
 
 local reportedErrors = {}
 
@@ -83,8 +96,14 @@ local core = {
     db = {
         profile = {
             keybindOverridesEnabledCDM = true,
-            viewers = { EssentialCooldownViewer = { showKeybinds = true } },
-            ncdm = { containers = {} },
+            viewers = { EssentialCooldownViewer = { showKeybinds = false } },
+            ncdm = {
+                enabled = true,
+                essential = { enabled = true, pressedEffect = "off" },
+                utility = { enabled = false, pressedEffect = "off" },
+                buff = { enabled = true, pressedEffect = "qui" },
+                containers = {},
+            },
         },
         char = { keybindOverrides = { [0] = {} } },
     },
@@ -116,11 +135,37 @@ local addon = {
     FormatKeybind = function(binding) return binding end,
 }
 
+local pressedEvents = {}
+addon._OwnedHighlighter = {
+    OnActionButtonState = function(button, candidates, down)
+        pressedEvents[#pressedEvents + 1] = {
+            button = button,
+            candidates = candidates,
+            down = down,
+        }
+    end,
+}
+
 _G.QUI = addon
 
 assert(loadfile("modules/utility/keybinds.lua"))("QUI", addon)
 
 addon.Keybinds.RebuildCache()
+
+assert(actionButton.hooks and actionButton.hooks.OnClick,
+    "buff-only pressed effects must hook action-button click state when keybind text is disabled")
+assert(methodHooks[actionButton] and methodHooks[actionButton].SetButtonState,
+    "buff-only pressed effects must hook action-button pushed state when keybind text is disabled")
+
+methodHooks[actionButton].SetButtonState(actionButton, "PUSHED")
+methodHooks[actionButton].SetButtonState(actionButton, "NORMAL")
+actionButton.hooks.OnClick(actionButton, "LeftButton", true)
+actionButton.hooks.OnClick(actionButton, "LeftButton", false)
+
+assert(#pressedEvents == 4 and pressedEvents[1].down == true and pressedEvents[2].down == false,
+    "pushed and normal states must dispatch held-state transitions")
+assert(pressedEvents[1].button == actionButton and pressedEvents[1].candidates[4242] == true,
+    "pressed-state dispatch must use the out-of-combat spell candidate cache")
 
 assert(hostileTouches == 0,
     "the pairs(_G) sweep must not call methods on non-widget globals (ran foreign code " ..
@@ -139,6 +184,28 @@ for _, frame in ipairs(frames) do
 end
 assert(eventFrame and eventFrame.scripts.OnEvent,
     "the keybind cache must listen for action-slot changes")
+for _, event in ipairs({
+    "ACTIONBAR_PAGE_CHANGED",
+    "UPDATE_BONUS_ACTIONBAR",
+    "UPDATE_STEALTH",
+    "UPDATE_VEHICLE_ACTIONBAR",
+    "UPDATE_OVERRIDE_ACTIONBAR",
+    "UPDATE_POSSESS_BAR",
+    "UPDATE_MACROS",
+}) do
+    assert(eventFrame.events[event], event .. " must invalidate pressed spell identities")
+end
+
+methodHooks[actionButton].SetButtonState(actionButton, "PUSHED")
+inCombat = true
+eventFrame.scripts.OnEvent(eventFrame, "ACTIONBAR_PAGE_CHANGED")
+assert(pressedEvents[#pressedEvents].down == false,
+    "action-page invalidation must release a held pressed effect immediately")
+methodHooks[actionButton].SetButtonState(actionButton, "PUSHED")
+assert(pressedEvents[#pressedEvents].candidates == nil,
+    "combat action invalidation must suppress the stale pressed spell identity")
+methodHooks[actionButton].SetButtonState(actionButton, "NORMAL")
+inCombat = false
 
 local callsBeforeRefresh = actionInfoCalls
 eventFrame.scripts.OnEvent(eventFrame, "ACTIONBAR_SLOT_CHANGED")
@@ -155,5 +222,13 @@ now = 3
 timers[2].callback()
 assert(actionInfoCalls > callsBeforeRefresh,
     "the debounced action-slot refresh must rebuild the keybind cache")
+
+methodHooks[actionButton].SetButtonState(actionButton, "PUSHED")
+eventFrame.scripts.OnEvent(eventFrame, "PLAYER_ENTERING_WORLD")
+assert(pressedEvents[#pressedEvents].down == false,
+    "entering-world invalidation must release a held pressed effect before its delayed rebuild")
+methodHooks[actionButton].SetButtonState(actionButton, "PUSHED")
+assert(pressedEvents[#pressedEvents].candidates == nil,
+    "entering-world invalidation must suppress stale candidates during its delay")
 
 print("OK: keybind_global_sweep_skips_nonwidgets_test")

@@ -31,6 +31,9 @@ function CreateFrame()
 end
 
 local ns = {
+    SafeCallMethodIfPresent = function(_, object, method, ...)
+        if object and object[method] then object[method](object, ...) end
+    end,
     Helpers = {
         GetGeneralFont = function() return "Fonts\\FRIZQT__.TTF" end,
         GetGeneralFontOutline = function() return "" end,
@@ -66,8 +69,14 @@ local timerBinds = 0
 local lastInterpolation
 local lastDirection
 local shown = false
+local alpha
+local layoutModeActive = false
+
+ns.Helpers.IsLayoutModeActive = function() return layoutModeActive end
 
 local statusBar = {
+    SetMinMaxValues = function() end,
+    SetValue = function() end,
     SetSize = function() end,
     SetOrientation = function() end,
     ClearAllPoints = function() end,
@@ -98,7 +107,7 @@ local bar = {
     _cSideFill = true,
     StatusBar = statusBar,
     SetSize = function() end,
-    SetAlpha = function() end,
+    SetAlpha = function(_, value) alpha = value end,
     SetFrameStrata = function() end,
     SetFrameLevel = function() end,
     ClearAllPoints = function() end,
@@ -150,5 +159,23 @@ bars:LayoutBars(container, settings)
 
 assert(timerBinds == 2,
     "layout should not re-arm an already-shown active bar every refresh")
+
+bar._active = false
+bar._cfgActive = nil
+shown = false
+layoutModeActive = true
+
+bars:LayoutBars(container, settings)
+
+assert(bar._active == false,
+    "layout preview must not overwrite the bar's runtime active state")
+assert(shown == true and alpha == 1,
+    "layout preview should still show an inactive bar at full alpha")
+
+layoutModeActive = false
+bars:LayoutBars(container, settings)
+
+assert(shown == false and alpha == 0,
+    "exiting layout mode should clear the inactive preview bar")
 
 print("OK: cdm_bars_show_rearm_test")
