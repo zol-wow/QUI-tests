@@ -136,6 +136,7 @@ local addon = {
 }
 
 local pressedEvents = {}
+local preparedButtons = {}
 addon._OwnedHighlighter = {
     OnActionButtonState = function(button, candidates, down)
         pressedEvents[#pressedEvents + 1] = {
@@ -144,6 +145,7 @@ addon._OwnedHighlighter = {
             down = down,
         }
     end,
+    PrepareActionButton = function(button) preparedButtons[button] = true end,
 }
 
 _G.QUI = addon
@@ -156,6 +158,8 @@ assert(actionButton.hooks and actionButton.hooks.OnClick,
     "buff-only pressed effects must hook action-button click state when keybind text is disabled")
 assert(methodHooks[actionButton] and methodHooks[actionButton].SetButtonState,
     "buff-only pressed effects must hook action-button pushed state when keybind text is disabled")
+assert(preparedButtons[actionButton] == true,
+    "action-button rebuilds must prepare reusable pressed-effect state out of combat")
 
 methodHooks[actionButton].SetButtonState(actionButton, "PUSHED")
 methodHooks[actionButton].SetButtonState(actionButton, "NORMAL")

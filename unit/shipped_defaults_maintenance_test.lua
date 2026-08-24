@@ -13,6 +13,15 @@ local function check(name, ok, detail)
     else failures = failures + 1; print(("FAIL  %s  %s"):format(name, detail or "")) end
 end
 
+local ncdm = ns.defaults.profile.ncdm
+for _, key in ipairs({ "essential", "utility", "buff" }) do
+    check("top-level " .. key .. " pressed effect default", ncdm[key].pressedEffect == "qui")
+    check("container " .. key .. " pressed effect default",
+        ncdm.containers[key].pressedEffect == "qui")
+end
+check("bar containers have no pressed effect default",
+    ncdm.trackedBar.pressedEffect == nil and ncdm.containers.trackedBar.pressedEffect == nil)
+
 ns.defaults.profile.__unitTestDefaults = {
     enabled = true,
     scale = 2,
