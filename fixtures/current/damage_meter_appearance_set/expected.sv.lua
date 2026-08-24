@@ -2352,6 +2352,7 @@ return {
           autoSelectGossip = true,
           autoTurnInQuest = true,
           autoUnwrapCollections = false,
+          blockReleaseInRaid = false,
           closeBagsOnKeystoneInsert = false,
           communitiesPrivacy = false,
           consumableAnchorMode = true,
