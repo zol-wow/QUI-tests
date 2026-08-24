@@ -24,6 +24,7 @@ local actionInfoCalls = 0
 function GetActionInfo(action)
     actionInfoCalls = actionInfoCalls + 1
     if action == 7 then return "spell", 4242 end
+    if action == 8 then return "spell", 5252 end
     return nil
 end
 
@@ -201,16 +202,24 @@ for _, event in ipairs({
 end
 
 methodHooks[actionButton].SetButtonState(actionButton, "PUSHED")
-local pressedCountBeforeRemap = #pressedEvents
+actionButton.action = 8
 inCombat = true
 eventFrame.scripts.OnEvent(eventFrame, "ACTIONBAR_PAGE_CHANGED")
-assert(#pressedEvents == pressedCountBeforeRemap,
-    "combat action remaps must retain the active pressed mapping until rebuild")
+assert(pressedEvents[#pressedEvents].down == false,
+    "combat action remaps must release the old pressed mapping")
 methodHooks[actionButton].SetButtonState(actionButton, "PUSHED")
-assert(pressedEvents[#pressedEvents].candidates[4242] == true,
-    "combat action remaps must retain the last safe pressed spell identity")
+assert(pressedEvents[#pressedEvents].candidates[5252] == true,
+    "combat action remaps must use the precomputed destination-slot identity")
+actionButton.action = secretValue
+eventFrame.scripts.OnEvent(eventFrame, "ACTIONBAR_PAGE_CHANGED")
+assert(pressedEvents[#pressedEvents].down == false,
+    "secret combat remaps must release the last readable pressed mapping")
+methodHooks[actionButton].SetButtonState(actionButton, "PUSHED")
+assert(pressedEvents[#pressedEvents].candidates == nil,
+    "secret combat remaps must fail closed instead of reusing a stale identity")
 methodHooks[actionButton].SetButtonState(actionButton, "NORMAL")
 inCombat = false
+actionButton.action = 7
 
 local callsBeforeRefresh = actionInfoCalls
 eventFrame.scripts.OnEvent(eventFrame, "ACTIONBAR_SLOT_CHANGED")
