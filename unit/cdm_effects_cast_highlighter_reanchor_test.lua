@@ -84,6 +84,9 @@ end
 local nativeFrame = {
     IsShown = function() return true end,
 }
+local lateNativeFrame = {
+    IsShown = function() return true end,
+}
 local nativeEntry = {
     spellID = 1001,
     id = 1001,
@@ -91,7 +94,15 @@ local nativeEntry = {
     kind = "cooldown",
     viewerType = "essential",
 }
+local lateNativeEntry = {
+    spellID = 4004,
+    id = 4004,
+    type = "spell",
+    kind = "cooldown",
+    viewerType = "essential",
+}
 local sharedOverlay = {}
+local lateSharedOverlay = {}
 local customIcon = {
     _quiLayoutRestricted = true,
     Cooldown = { GetFrameLevel = function() return 10 end },
@@ -129,11 +140,12 @@ local lateIcon = {
 lateIcon.CreateTexture = CreateFrame().CreateTexture
 
 QUI_GetReanchoredCDMFrames = function(containerKey)
-    if containerKey == "essential" then return { nativeFrame } end
+    if containerKey == "essential" then return { nativeFrame, lateNativeFrame } end
     return nil
 end
 QUI_ResolveCDMFrameEntry = function(frame)
     if frame == nativeFrame then return nativeEntry end
+    if frame == lateNativeFrame then return lateNativeEntry end
     return nil
 end
 
@@ -212,6 +224,7 @@ local ns = {
     CDMRuntimeStore = { GetFrameState = function() return nil end },
     _CDMEnsureReanchorGlowOverlay = function(frame)
         if frame == nativeFrame then return sharedOverlay end
+        if frame == lateNativeFrame then return lateSharedOverlay end
         return nil
     end,
 }
@@ -292,14 +305,28 @@ inCombat = false
 
 local lateFramesBefore = #createdFrames
 local lateTexturesBefore = #createdTextures
+local lateStartsBefore = #starts
 inCombat = true
 highlighter.PrepareIcon(lateIcon)
+highlighter.PrepareReanchoredFrame(lateNativeFrame, "essential")
+highlighter.OnPlayerCastSucceeded(3003)
+highlighter.OnPlayerCastSucceeded(4004)
 assert(#createdFrames == lateFramesBefore and #createdTextures == lateTexturesBefore,
-    "combat icon acquisition must defer visual preparation")
+    ("combat acquisition and cast scans must defer visual preparation (%d/%d frames, %d/%d textures)")
+        :format(#createdFrames, lateFramesBefore, #createdTextures, lateTexturesBefore))
+assert(#starts == lateStartsBefore,
+    "combat casts must skip unprepared factory and reanchored targets")
 inCombat = false
 highlighter.DrainPreparedTargets()
-assert(#createdFrames == lateFramesBefore + 1 and #createdTextures == lateTexturesBefore + 1,
+assert(#createdFrames == lateFramesBefore + 2 and #createdTextures == lateTexturesBefore + 2,
     "regen must prepare visuals skipped by combat acquisition")
+local preparedStarts = #starts
+highlighter.OnPlayerCastSucceeded(3003)
+highlighter.OnPlayerCastSucceeded(4004)
+assert(#starts == preparedStarts + 2
+    and starts[preparedStarts + 1].parent == lateIcon
+    and starts[preparedStarts + 2].parent == lateSharedOverlay,
+    "post-regen casts must use the deferred prewarmed targets")
 local lateButton = {}
 highlighter.PrepareActionButton(lateButton)
 local lateFrameCount = #createdFrames

@@ -8,7 +8,7 @@ local actionBarsDB = {
     bars = {},
 }
 
-local function wipe(tbl)
+function wipe(tbl)
     for key in pairs(tbl) do
         tbl[key] = nil
     end
@@ -674,6 +674,27 @@ actionBars.UpdateUsabilityPolling()
 local lastRangeCheck = rangeCheckCalls[#rangeCheckCalls]
 assert(lastRangeCheck and lastRangeCheck.slot == 301 and lastRangeCheck.enabled,
     "range polling setup should opt active slots into native range events")
+local buttonsBySlot = ns.ActionBarsEnv.usabilityState.buttonsBySlot
+local buttonsForSlot = buttonsBySlot[301]
+inCombat = true
+actionBars.RefreshUsabilityButtons()
+inCombat = false
+assert(ns.ActionBarsEnv.usabilityState.buttonsBySlot == buttonsBySlot
+    and buttonsBySlot[301] == buttonsForSlot,
+    "combat usability refreshes must reuse the slot map and button set")
+rangeButton.action = 302
+inCombat = true
+actionBars.RefreshUsabilityButtons()
+inCombat = false
+assert(buttonsBySlot[301] == nil and buttonsBySlot[302] == buttonsForSlot,
+    "combat page remaps must reuse the prior slot bucket")
+local disabledOldSlot = rangeCheckCalls[#rangeCheckCalls - 1]
+local enabledNewSlot = rangeCheckCalls[#rangeCheckCalls]
+assert(disabledOldSlot and disabledOldSlot.slot == 301 and not disabledOldSlot.enabled
+    and enabledNewSlot and enabledNewSlot.slot == 302 and enabledNewSlot.enabled,
+    "combat page remaps must move native range subscriptions")
+rangeButton.action = 301
+actionBars.RefreshUsabilityButtons()
 local usabilityEvent = ns.ActionBarsEnv.usabilityState.checkFrame:GetScript("OnEvent")
 assert(type(usabilityEvent) == "function",
     "range and usability events should share one dispatcher")
