@@ -662,6 +662,11 @@ rangeButton._quiButtonIndex = 1
 rangeButton.icon = NewFrame()
 rangeButton.CreateTexture = function() return rangeOverlay end
 rangeButton.IsVisible = function() return true end
+rangeButton.cooldown = false
+rangeButton.Cooldown = false
+rangeButton.SpellActivationAlert = false
+rangeButton.OverlayGlow = false
+rangeButton._ButtonGlow = false
 local rangeStates = { [301] = true }
 function IsActionInRange(action) return rangeStates[action] end
 
@@ -713,6 +718,26 @@ usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
     "ACTION_RANGE_CHECK_UPDATE", 301, false, false)
 assert(not rangeOverlay:IsShown(),
     "a no-range-check event should clear the prior range tint")
+
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, false, true)
+local rangeButtonState = ns.ActionBarsEnv.GetFrameState(rangeButton)
+ns.ActionBarsEnv.FadeHideTextures(rangeButtonState, rangeButton)
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, false, false)
+ns.ActionBarsEnv.FadeShowTextures(rangeButtonState, rangeButton)
+assert(not rangeOverlay:IsShown(),
+    "a faded bar should not restore a range tint cleared while hidden")
+
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, false, true)
+actionBars.containers.bar1 = NewFrame()
+actionBars.SetBarAlpha("bar1", 0.5)
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, false, false)
+actionBars.SetBarAlpha("bar1", 1)
+assert(not rangeOverlay:IsShown(),
+    "a partially faded bar should not restore a cleared range tint")
 
 usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
     "ACTION_RANGE_CHECK_UPDATE", 301, false, true)
@@ -770,6 +795,11 @@ assert(type(usabilityOnUpdate) == "function",
 usabilityOnUpdate(actionBars._usabilityUpdateFrame, 0.05)
 assert(not actionBars._usabilityUpdateFrame:IsShown(),
     "usability scheduler frame should hide after flushing")
+
+ns.ActionBarsEnv.OnOwnedEvent(nil, "PLAYER_MOUNT_DISPLAY_CHANGED")
+assert(actionBars._usabilityUpdateFrame:IsShown(),
+    "mount display changes should schedule a usability repaint")
+usabilityOnUpdate(actionBars._usabilityUpdateFrame, 0.05)
 
 inCombat = true
 currentTime = 10
