@@ -250,33 +250,32 @@ complete = F.Sync(frame, "party1", true, settings, "HORIZONTAL")
 check("gradient-scope sync completes", complete == true)
 check("visual slot returns to the by-me filter", c._filters.visual == BY_ME)
 check("visual slot drops candidate filters in gradient scope", c._cf.visual == nil)
-check("typed slot created with the bare HARMFUL filter", c._filters.typed == "HARMFUL")
-local tcf = c._cf.typed
-check("typed slot carries the typed-debuff candidate filter",
-    type(tcf) == "table" and type(tcf.includeDispelTypes) == "table"
-        and tcf.includeDispelTypes.Curse and tcf.includeDispelTypes.Enrage)
-check("no dispel capability leaves the gradient unrestricted",
-    tcf ~= nil and tcf.excludeDispelTypes == nil)
+-- One slot per dispel type: a shared slot holds a single aura, so an
+-- actionable Magic debuff could crowd out a concurrent non-actionable Bleed.
+local TYPED_KEYS = {
+    "typedMagic", "typedCurse", "typedDisease", "typedPoison", "typedBleed",
+}
+local allTypedOk = true
+for _, key in ipairs(TYPED_KEYS) do
+    local kcf = c._cf[key]
+    if c._filters[key] ~= "HARMFUL" or type(kcf) ~= "table"
+        or type(kcf.includeDispelTypes) ~= "table" then
+        allTypedOk = false
+    end
+end
+check("every dispel type gets its own bare-HARMFUL gradient slot", allTypedOk)
+local mcf = c._cf.typedMagic
+check("per-type candidate filters select exactly their own type",
+    mcf and mcf.includeDispelTypes.Magic == true
+        and mcf.includeDispelTypes.Bleed == nil
+        and mcf.excludeDispelTypes == nil)
+local bcf = c._cf.typedBleed
+check("Bleed slot also admits Enrage (shared color alias)",
+    bcf and bcf.includeDispelTypes.Bleed == true
+        and bcf.includeDispelTypes.Enrage == true
+        and bcf.includeDispelTypes.Magic == nil)
 
--- Types the player could act on never feed the awareness gradient: those
--- auras already light the actionable by-me overlay, and the capability probe
--- re-runs on every sync so respecs are picked up at the next update.
-_G.IsPlayerSpell = function(spellID) return spellID == 527 end -- Purify
-complete = F.Sync(frame, "party1", true, settings, "HORIZONTAL")
-tcf = c._cf.typed
-check("player-dispellable types are excluded from the gradient slot",
-    complete == true and tcf ~= nil and tcf.excludeDispelTypes ~= nil
-        and tcf.excludeDispelTypes.Magic == true
-        and tcf.excludeDispelTypes.Disease == true
-        and tcf.excludeDispelTypes.Curse == nil
-        and tcf.excludeDispelTypes.Bleed == nil)
-_G.IsPlayerSpell = nil
-complete = F.Sync(frame, "party1", true, settings, "HORIZONTAL")
-tcf = c._cf.typed
-check("lost capability clears the gradient exclusions on the next sync",
-    complete == true and tcf ~= nil and tcf.excludeDispelTypes == nil)
-
-local typedSlot = c._slots.typed
+local typedSlot = c._slots.typedMagic
 local gradTex = typedSlot and typedSlot._quiDispelArt and typedSlot._quiDispelArt.gradient
 check("gradient art uses the alpha-ramp asset",
     gradTex and type(gradTex._texture) == "string"
@@ -341,8 +340,11 @@ settings.dispelOverlay.gradientStartOpacity = 0.75
 settings.dispelOverlay.gradientEndOpacity = 0.25
 settings.dispelOverlay.scope = "PLAYER_DISPELLABLE"
 complete = F.Sync(frame, "party1", true, settings)
-check("typed slot parks when leaving the gradient scope",
-    complete == true and isParked(c._cf.typed))
+local allParked = complete == true
+for _, key in ipairs(TYPED_KEYS) do
+    if not isParked(c._cf[key]) then allParked = false end
+end
+check("typed slots all park when leaving the gradient scope", allParked)
 check("no script handlers after gradient styling", scriptInstalls == 0)
 
 ----------------------------------------------------------------------------
