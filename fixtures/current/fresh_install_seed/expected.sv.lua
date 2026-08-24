@@ -4920,6 +4920,7 @@ return {
             iconDisplayMode = "active",
             iconSize = 30,
             padding = 0,
+            pressedEffect = "qui",
             removedSpells = {},
             shape = "square",
             showAbsorbAmount = false,
@@ -4963,6 +4964,7 @@ return {
               iconSize = 30,
               name = "Buff Icons",
               padding = 0,
+              pressedEffect = "qui",
               removedSpells = {},
               shape = "square",
               showAbsorbAmount = false,
@@ -4983,6 +4985,7 @@ return {
               iconDisplayMode = "always",
               layoutDirection = "HORIZONTAL",
               name = "Essential",
+              pressedEffect = "qui",
               rangeColor = {
                 [1] = 0.80000000000000004,
                 [2] = 0.10000000000000001,
@@ -5175,6 +5178,7 @@ return {
               iconDisplayMode = "always",
               layoutDirection = "HORIZONTAL",
               name = "Utility",
+              pressedEffect = "qui",
               rangeColor = {
                 [1] = 0.80000000000000004,
                 [2] = 0.10000000000000001,
@@ -5308,6 +5312,7 @@ return {
             greyOutInactiveBuffs = false,
             iconDisplayMode = "always",
             layoutDirection = "HORIZONTAL",
+            pressedEffect = "qui",
             rangeColor = {
               [1] = 0.80000000000000004,
               [2] = 0.10000000000000001,
@@ -5502,6 +5507,7 @@ return {
             greyOutInactiveBuffs = false,
             iconDisplayMode = "always",
             layoutDirection = "HORIZONTAL",
+            pressedEffect = "qui",
             rangeColor = {
               [1] = 0.80000000000000004,
               [2] = 0.10000000000000001,

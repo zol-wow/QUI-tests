@@ -5,6 +5,10 @@ local loadChunk = dofile("tests/helpers/load_cdm_consolidated_chunk.lua")
 loadChunk("QUI_CDM/cdm/cdm_reanchor_hooks.lua", "cdm_reanchor_hooks.lua")("QUI", ns)
 local H = assert(ns.CDMReanchorHooks, "CDMReanchorHooks should be exported")
 assert(type(H.New) == "function", "New is a function")
+local preparedFrames = {}
+ns._OwnedHighlighter = {
+    PrepareReanchoredFrame = function(frame) preparedFrames[frame] = true end,
+}
 
 -- scheduler that records the callback so the test drives the flush
 local pending
@@ -84,6 +88,8 @@ assert(#hookInstalls == 0, "nil viewers do not permanently block later hook inst
 h2:InstallViewerHooks(function(k) return viewers[k] end)
 assert(#hookInstalls >= 6, "viewer acquire/refresh and frame state hooks installed")
 assert(hookInstalls[1].method == "RefreshLayout", "hooks RefreshLayout")
+assert(preparedFrames[existingFrame] == true,
+    "icon viewer frames prewarm pressed-effect visuals")
 -- idempotent: re-install does not double-hook
 local installedCount = #hookInstalls
 h2:InstallViewerHooks(function(k) return viewers[k] end)
@@ -111,6 +117,32 @@ for _, h in ipairs(hookInstalls) do
     if h.owner == acquiredFrame and h.method == "OnCooldownIDSet" then acquiredIDHook = h.fn end
 end
 assert(type(acquiredIDHook) == "function", "acquired frame gets cooldown-id hook")
+assert(preparedFrames[acquiredFrame] == true,
+    "acquired icon viewer frames prewarm pressed-effect visuals")
+
+do
+    local barFrame = makeFrame()
+    local barPool = {
+        EnumerateActive = function()
+            local yielded = false
+            return function()
+                if yielded then return nil end
+                yielded = true
+                return barFrame
+            end
+        end,
+    }
+    local barViewer = { RefreshLayout = function() end, itemFramePool = barPool }
+    local barHooks = H.New({
+        refresh = function() end,
+        keys = { "trackedBar" },
+        hooksecurefunc = fakeHook,
+        schedule = function(fn) fn() end,
+    })
+    barHooks:InstallViewerHooks(function() return barViewer end)
+    assert(preparedFrames[barFrame] == nil,
+        "bar viewer frames do not allocate icon pressed-effect visuals")
+end
 
 before = #h2refresh
 activeHook(existingFrame)

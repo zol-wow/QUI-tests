@@ -3,13 +3,15 @@ local function noop() end
 local secretValue = {}
 function issecretvalue(value) return value == secretValue end
 
-function InCombatLockdown() return false end
+local inCombat = false
+function InCombatLockdown() return inCombat end
 function wipe(tbl)
     for key in pairs(tbl) do tbl[key] = nil end
 end
 
 local createdFrames = {}
 local createdTextures = {}
+local factoryCallbacks = {}
 function CreateFrame(_, _, parent, template)
     local frame = {
         parent = parent,
@@ -114,6 +116,17 @@ local buffIcon = {
     IsShown = function() return true end,
 }
 buffIcon.CreateTexture = CreateFrame().CreateTexture
+local lateIcon = {
+    _spellEntry = {
+        spellID = 3003,
+        id = 3003,
+        type = "spell",
+        kind = "cooldown",
+        viewerType = "customRotation",
+    },
+    IsShown = function() return true end,
+}
+lateIcon.CreateTexture = CreateFrame().CreateTexture
 
 QUI_GetReanchoredCDMFrames = function(containerKey)
     if containerKey == "essential" then return { nativeFrame } end
@@ -187,8 +200,10 @@ local ns = {
     },
     CDMIconFactory = {
         ForEachIcon = function(_, callback)
+            factoryCallbacks[#factoryCallbacks + 1] = callback
             callback(customIcon)
             callback(buffIcon)
+            callback(lateIcon)
         end,
         GetIconPool = function() return {} end,
     },
@@ -205,6 +220,14 @@ local loadChunk = dofile("tests/helpers/load_cdm_consolidated_chunk.lua")
 loadChunk("QUI_CDM/cdm/cdm_frame_writes.lua", "cdm_effects.lua")("QUI", ns)
 
 local highlighter = assert(ns._OwnedHighlighter, "effects module should publish the highlighter")
+assert(type(highlighter.PrepareActionButton) == "function"
+    and type(highlighter.PrepareReanchoredFrame) == "function"
+    and type(highlighter.PrepareIcon) == "function"
+    and type(highlighter.DrainPreparedTargets) == "function",
+    "effects module should expose out-of-combat pressed-effect preparation")
+highlighter.PrepareReanchoredFrame(nativeFrame, "essential")
+highlighter.PrepareIcon(customIcon)
+highlighter.PrepareIcon(buffIcon)
 highlighter.OnPlayerCastSucceeded(1001)
 
 assert(#starts == 1, "reanchored cast should start one highlight")
@@ -237,20 +260,71 @@ assert(#timers == 3, "each resolved cast should arm one highlight timer")
 
 local pressedState = assert(highlighter.OnActionButtonState, "effects module should consume cached action-button state")
 local nativeButton = {}
+highlighter.PrepareReanchoredFrame(nativeFrame, "essential")
+highlighter.PrepareActionButton(nativeButton)
+local frameCountBeforePress = #createdFrames
+local textureCountBeforePress = #createdTextures
+inCombat = true
 pressedState(nativeButton, { [1001] = true }, true)
+assert(#createdFrames == frameCountBeforePress and #createdTextures == textureCountBeforePress,
+    "matching combat presses must use prewarmed frames and textures")
 
-local pushedTexture = createdTextures[#createdTextures]
+local pushedTexture
+for _, texture in ipairs(createdTextures) do
+    if texture.parent == nativeTarget then pushedTexture = texture end
+end
+assert(pushedTexture, "native pressed texture should be prewarmed")
 assert(pushedTexture.parent == nativeTarget, "pressed effect should use the owned reanchor target")
 assert(pushedTexture.texture == "iconskin\\Pushed", "QUI pressed mode should reuse the ActionBars texture")
 assert(pushedTexture.shown == true, "pressed effect should show while the key is held")
 
 pressedState(nativeButton, { [1001] = true }, false)
 assert(pushedTexture.shown == false, "pressed effect should hide when the key is released")
+local noMatchButton = {}
+inCombat = false
+highlighter.PrepareActionButton(noMatchButton)
+inCombat = true
+pressedState(noMatchButton, { [9999] = true }, true)
+pressedState(noMatchButton, { [9999] = true }, false)
+assert(#createdFrames == frameCountBeforePress and #createdTextures == textureCountBeforePress,
+    "unmatched combat presses must not allocate visual objects")
+inCombat = false
+
+local lateFramesBefore = #createdFrames
+local lateTexturesBefore = #createdTextures
+inCombat = true
+highlighter.PrepareIcon(lateIcon)
+assert(#createdFrames == lateFramesBefore and #createdTextures == lateTexturesBefore,
+    "combat icon acquisition must defer visual preparation")
+inCombat = false
+highlighter.DrainPreparedTargets()
+assert(#createdFrames == lateFramesBefore + 1 and #createdTextures == lateTexturesBefore + 1,
+    "regen must prepare visuals skipped by combat acquisition")
+local lateButton = {}
+highlighter.PrepareActionButton(lateButton)
+local lateFrameCount = #createdFrames
+local lateTextureCount = #createdTextures
+inCombat = true
+pressedState(lateButton, { [3003] = true }, true)
+local lateTexture
+for _, texture in ipairs(createdTextures) do
+    if texture.parent and texture.parent.parent == lateIcon then lateTexture = texture end
+end
+assert(lateTexture and lateTexture.shown == true
+    and #createdFrames == lateFrameCount and #createdTextures == lateTextureCount,
+    "post-regen combat presses must use the deferred prewarmed visual")
+pressedState(lateButton, { [3003] = true }, false)
+inCombat = false
 
 containerSettings.customRotation.pressedEffect = "blizzard"
 local customButton = {}
+highlighter.PrepareActionButton(customButton)
 pressedState(customButton, { [2002] = true }, true)
-local blizzardTexture = createdTextures[#createdTextures]
+local blizzardTexture
+for _, texture in ipairs(createdTextures) do
+    if texture.parent == customTarget then blizzardTexture = texture end
+end
+assert(blizzardTexture, "custom pressed texture should be prewarmed")
 assert(blizzardTexture.parent == customTarget, "custom CDM icons should receive the pressed effect")
 assert(blizzardTexture.atlas == "UI-HUD-ActionBar-IconFrame-Down", "Blizzard mode should reuse the stock pushed atlas")
 assert(blizzardTexture.shown == true, "Blizzard pressed mode should show while held")
@@ -267,8 +341,13 @@ assert(pushedTexture.showCount == showCount, "Off mode should not show a pressed
 
 containerSettings.buff.pressedEffect = "qui"
 local buffButton = {}
+highlighter.PrepareActionButton(buffButton)
 pressedState(buffButton, { [1001] = true }, true)
-local buffTexture = createdTextures[#createdTextures]
+local buffTexture
+for _, texture in ipairs(createdTextures) do
+    if texture.parent and texture.parent.parent == buffIcon then buffTexture = texture end
+end
+assert(buffTexture, "buff pressed texture should be prewarmed")
 assert(buffTexture.parent.parent == buffIcon and buffTexture.shown == true,
     "an Off duplicate must not block an enabled Buff Icon pressed effect")
 pressedState(buffButton, { [1001] = true }, false)
@@ -277,5 +356,17 @@ assert(buffTexture.shown == false, "Buff Icon pressed effects should clear on re
 containerSettings.essential.pressedEffect = "qui"
 pressedState(nativeButton, { [secretValue] = true }, true)
 assert(pushedTexture.showCount == showCount, "secret action identities should be rejected")
+
+for i = 2, #factoryCallbacks do
+    assert(factoryCallbacks[i] == factoryCallbacks[1],
+        "CDM icon scans should reuse one stable callback")
+end
+
+local source = assert(io.open("QUI_CDM/cdm/cdm_effects.lua", "rb"))
+local sourceText = source:read("*a")
+source:close()
+local hiddenBody = assert(sourceText:match("local function IsPressedEffectHidden%b().-\nend"))
+assert(not hiddenBody:find(" .. ", 1, true),
+    "pressed-effect visibility lookup must not concatenate on the keypress path")
 
 print("cdm_effects_cast_highlighter_reanchor_test: ok")

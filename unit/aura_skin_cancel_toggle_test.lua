@@ -44,9 +44,12 @@ end
 -- touch. No secure template involved -- Configure only calls METHODS on the
 -- container/button objects we hand it, never CreateFrame itself except for
 -- the Cooldown swipe child inside buildButtonArt.
-_G.InCombatLockdown = function() return false end
+local inCombat = false
+_G.InCombatLockdown = function() return inCombat end
 local aurasSecret = false
 _G.C_Secrets = { ShouldAurasBeSecret = function() return aurasSecret end }
+local scheduledRestyle
+_G.C_Timer = { After = function(_, callback) scheduledRestyle = callback end }
 _G.AuraContainerSortMethod = { Default = 1 }
 _G.AuraContainerSortDirection = { Normal = 1 }
 _G.AnchorUtil = { FlowDirection = { Left = -1, Right = 1, Up = 1, Down = -1 }, FlowLayoutAxis = { Horizontal = 0, Vertical = 1 } }
@@ -96,6 +99,7 @@ local function MakeButton()
     function b:SetDurationText() end
     function b:SetApplicationCount() end
     function b:SetMouseMotionEnabled(v) self._mouseMotionEnabled = v end
+    function b:SetMouseClickEnabled(v) self._mouseClickEnabled = v end
     return b
 end
 
@@ -174,17 +178,29 @@ initFn(button2)
 check("a batch-later button from the STALE closure gets the CURRENT cancel state, not the value frozen at closure-creation",
     button2._lastCancel == nil)
 check("a batch-later button inherits the container's current range-gate mouse state",
-    button2._mouseMotionEnabled == false)
+    button2._mouseMotionEnabled == false and button2._mouseClickEnabled == false)
 
 aurasSecret = true
 container._quiRangeGateMouseEnabled = true
 AuraSkin.Restyle(container, profile)
 check("restricted restyle does not write mouse state",
-    button2._mouseMotionEnabled == false)
+    button2._mouseMotionEnabled == false and button2._mouseClickEnabled == false)
 aurasSecret = false
-AuraSkin.Restyle(container, profile)
+scheduledRestyle()
 check("post-restriction restyle applies the remembered mouse state",
-    button2._mouseMotionEnabled == true)
+    button2._mouseMotionEnabled == true and button2._mouseClickEnabled == true)
+scheduledRestyle = nil
+
+container._quiRangeGateMouseEnabled = false
+inCombat = true
+AuraSkin.Restyle(container, profile)
+check("combat restyle defers protected mouse state",
+    button2._mouseMotionEnabled == true and button2._mouseClickEnabled == true
+    and type(scheduledRestyle) == "function")
+inCombat = false
+scheduledRestyle()
+check("post-combat restyle applies both latched mouse states",
+    button2._mouseMotionEnabled == false and button2._mouseClickEnabled == false)
 
 -- (4) Restyle (the combat-legal subset) must also re-assert cancel from
 -- whatever Configure last latched onto the container, on every tracked
