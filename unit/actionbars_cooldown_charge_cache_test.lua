@@ -171,7 +171,8 @@ local inCombat = false
 function InCombatLockdown() return inCombat end
 local currentTime = 1
 function GetTime() return currentTime end
-function HasAction(action) return action and action > 0 end
+local unavailableActions = {}
+function HasAction(action) return action and action > 0 and not unavailableActions[action] end
 function hooksecurefunc() end
 function RegisterStateDriver() end
 function UnregisterStateDriver() end
@@ -197,6 +198,10 @@ C_Timer = {
 C_ActionBar = {
     GetActionCooldownDuration = function() return { type = "cooldown-duration" } end,
 }
+local rangeCheckCalls = {}
+function C_ActionBar.EnableActionRangeCheck(slot, enabled)
+    rangeCheckCalls[#rangeCheckCalls + 1] = { slot = slot, enabled = enabled }
+end
 
 local chargeCalls = 0
 local chargeDurationCalls = 0
@@ -647,6 +652,85 @@ assert(usabilityCalls == 1,
     "usability refresh should respect the configured visible button count")
 assert(visibleCalls == 1,
     "buttons hidden by visible-count layout should not be visibility-probed")
+
+local rangeOverlay = NewFrame()
+local rangeButton = NewFrame()
+rangeButton.action = 301
+rangeButton.GetAttribute = ActionAttr
+rangeButton._quiBarKey = "bar1"
+rangeButton._quiButtonIndex = 1
+rangeButton.icon = NewFrame()
+rangeButton.CreateTexture = function() return rangeOverlay end
+rangeButton.IsVisible = function() return true end
+local rangeStates = { [301] = true }
+function IsActionInRange(action) return rangeStates[action] end
+
+actionBars.nativeButtons.bar1 = { rangeButton }
+actionBarsDB.bars.bar1.ownedLayout.iconCount = 1
+actionBarsDB.global.rangeIndicator = true
+actionBarsDB.global.usabilityIndicator = false
+actionBars.UpdateUsabilityPolling()
+
+local lastRangeCheck = rangeCheckCalls[#rangeCheckCalls]
+assert(lastRangeCheck and lastRangeCheck.slot == 301 and lastRangeCheck.enabled,
+    "range polling setup should opt active slots into native range events")
+local usabilityEvent = ns.ActionBarsEnv.usabilityState.checkFrame:GetScript("OnEvent")
+assert(type(usabilityEvent) == "function",
+    "range and usability events should share one dispatcher")
+
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, false, true)
+assert(rangeOverlay:IsShown(),
+    "an out-of-range event should tint its button immediately")
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, true, true)
+assert(not rangeOverlay:IsShown(),
+    "an in-range event should clear its button tint immediately")
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, false, true)
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, false, false)
+assert(not rangeOverlay:IsShown(),
+    "a no-range-check event should clear the prior range tint")
+
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, false, true)
+ns.ActionBarsEnv.GetFrameState(rangeButton).hiddenEmpty = true
+unavailableActions[301] = true
+actionBars.slotMap = { [301] = { button = rangeButton, barKey = "bar1" } }
+actionBars.initialized = true
+local realSafeUpdate = actionBars.SafeUpdate
+local realUpdateCooldown = actionBars.UpdateCooldown
+local realUpdateOverlayGlow = actionBars.UpdateOverlayGlow
+local realUpdateAllAssistedCombatRotation = actionBars.UpdateAllAssistedCombatRotation
+local realUpdateAllAssistedHighlights = ns.ActionBarsEnv.UpdateAllAssistedHighlights
+actionBars.SafeUpdate = noop
+actionBars.UpdateCooldown = noop
+actionBars.UpdateOverlayGlow = noop
+actionBars.UpdateAllAssistedCombatRotation = noop
+ns.ActionBarsEnv.UpdateAllAssistedHighlights = noop
+inCombat = true
+ns.ActionBarsEnv._lastPagingTime = currentTime
+ns.ActionBarsEnv.OnOwnedEvent(nil, "ACTIONBAR_SLOT_CHANGED", 301)
+assert(ns.ActionBarsEnv.abSlotFrame:IsShown(),
+    "slot changes during paging settle should still queue lifecycle refresh")
+ns.ActionBarsEnv.abSlotFrame:GetScript("OnUpdate")(ns.ActionBarsEnv.abSlotFrame)
+inCombat = false
+actionBars.SafeUpdate = realSafeUpdate
+actionBars.UpdateCooldown = realUpdateCooldown
+actionBars.UpdateOverlayGlow = realUpdateOverlayGlow
+actionBars.UpdateAllAssistedCombatRotation = realUpdateAllAssistedCombatRotation
+ns.ActionBarsEnv.UpdateAllAssistedHighlights = realUpdateAllAssistedHighlights
+assert(not rangeOverlay:IsShown(),
+    "an emptied hidden slot should clear its stale tint during lifecycle refresh")
+unavailableActions[301] = nil
+ns.ActionBarsEnv.GetFrameState(rangeButton).hiddenEmpty = nil
+actionBarsDB.global.rangeIndicator = false
+actionBarsDB.global.usabilityIndicator = true
+actionBars.UpdateUsabilityPolling()
+lastRangeCheck = rangeCheckCalls[#rangeCheckCalls]
+assert(lastRangeCheck and lastRangeCheck.slot == 301 and not lastRangeCheck.enabled,
+    "disabling range coloring should release native range events")
 
 assert(actionBars._perfProbesEnabled == false,
     "split actionbar perf probes should be disabled unless explicitly requested")

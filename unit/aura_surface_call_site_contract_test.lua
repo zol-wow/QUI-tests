@@ -28,6 +28,8 @@ NewStub = function(parent)
     function s:SetEnabled(v) self._enabled = v end
     function s:SetFrameLevel(v) self._frameLevel = v end
     function s:GetFrameLevel() return self._frameLevel end
+    function s:SetFrameStrata(v) self._frameStrata = v end
+    function s:GetFrameStrata() return self._frameStrata or "MEDIUM" end
     function s:CreateTexture() return NewStub(self) end
     function s:CreateFontString() return NewStub(self) end
     function s:SetTexture() end
@@ -114,7 +116,10 @@ local function LoadGroupFrames()
     }
     ns.QUI_GroupFrames = { GetFrameUnit = function(frame) return frame.unit end }
     assert(loadfile("QUI_GroupFrames/groupframes/groupframes_auras.lua"))("QUI_GroupFrames", ns)
-    local frame = { unit = "party1", GetFrameLevel = function() return 1 end }
+    local healthBar = NewStub()
+    healthBar:SetFrameLevel(2)
+    healthBar:SetFrameStrata("HIGH")
+    local frame = { unit = "party1", healthBar = healthBar, GetFrameLevel = function() return 1 end }
     return records, frame, function() ns.QUI_GroupFrameAuras.ApplyStripContainers(frame) end, 2
 end
 
@@ -169,9 +174,16 @@ local ufTargetRecords, _ufTargetFrame, runUFTarget = LoadUnitFrames("target")
 runUFTarget()
 CheckCancel("unit frames (target)", ufTargetRecords, nil)
 
-local gfRecords, _gfFrame, runGF = LoadGroupFrames()
+local gfRecords, gfFrame, runGF = LoadGroupFrames()
 runGF()
 CheckCancel("group frames", gfRecords, nil)
+local gfContainer = gfFrame._quiAuraContainers and gfFrame._quiAuraContainers[1]
+if not gfContainer or gfContainer:GetFrameStrata() ~= gfFrame.healthBar:GetFrameStrata() then
+    fail("group frames: aura container must share the health bar's frame strata")
+end
+if gfContainer:GetFrameLevel() <= gfFrame.healthBar:GetFrameLevel() then
+    fail("group frames: aura container must render above the health bar")
+end
 
 local npRecords, _npPlate, runNP = LoadNameplates()
 runNP()
