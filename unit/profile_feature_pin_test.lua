@@ -36,15 +36,15 @@ local h = env.LoadHarness({
 local core = h.QUICore
 local pins = h.ns.Settings.Pins
 local source = h.db.profiles.Source
+local activeSpecID = 105
+h.ns.Helpers.GetCurrentSpecID = function() return activeSpecID end
 
 assert(pins:IsPathPinnable("auraDisplays.displays.1.visibility", "dropdown", "always") == false)
 assert(pins:IsPathPinnable("auraDisplays.displays.1.layout.spacing", "slider", 2) == false)
 assert(pins:IsPathPinnable("auraDisplays.enabled", "checkbox", true) == true)
 
-local auraOK, auraError = core:PinProfileSelection("Source", "auraDisplays")
-assert(auraOK == true, tostring(auraError))
-local groupOK, groupError = core:PinProfileSelection("Source", "groupFrames")
-assert(groupOK == true, tostring(groupError))
+local legacyStore = h.db.global.profileFeaturePins
+legacyStore.profiles.Target = { auraDisplays = "Source", groupFrames = "Source" }
 assert(h.db.global.profileFeaturePins.profiles.Target.auraDisplays == "Source")
 assert(h.db.global.profileFeaturePins.profiles.Target.groupFrames == "Source")
 assert(h.db.global.profileFeaturePins.profiles.Other == nil)
@@ -100,20 +100,79 @@ assert(source.quiGroupFrames.clickCast.source == true)
 assert(source.quiGroupFrames.clickCast.keep == nil)
 assert(source.frameAnchoring.partyFrames.offsetX == 32)
 
-local otherPinOK, otherPinError = pins:SetProfileFeatureSource("Source", "groupFrames", h.db)
-assert(otherPinOK == true, tostring(otherPinError))
+legacyStore.profiles.Other = { groupFrames = "Source" }
 assert(pins:ApplyProfileFeaturePins(h.db) == true)
 assert(h.db.profile.quiGroupFrames.party.general.fontSize == 52)
 assert(h.db.profile.frameAnchoring.partyFrames.offsetX == 32)
 
-local unsupportedOK, unsupportedError = core:PinProfileSelection("Source", "theme")
+local unsupportedOK, unsupportedError = core:PinCurrentProfileSelection("theme")
 assert(unsupportedOK == false and unsupportedError:find("Only Aura", 1, true))
-local selfOK, selfError = pins:SetProfileFeatureSource("Other", "groupFrames", h.db)
-assert(selfOK == false and selfError:find("current", 1, true))
-local chainedOK, chainedError = pins:SetProfileFeatureSource("Target", "groupFrames", h.db, "Other")
-assert(chainedOK == false and chainedError:find("not pinned", 1, true))
 
 pins:DropProfile("Source", h.db)
+assert(core:GetProfileFeatureSource("groupFrames") == nil)
+
+h.db.profile.auraDisplays = {
+    displays = { {
+        id = "global-source",
+        auras = {
+            elements = {
+                ["*"] = { { iconSize = 14 } },
+                [105] = { {
+                    iconSize = 80,
+                    spacing = 6,
+                    rowSpacing = 7,
+                    durationText = { size = 18 },
+                    stackText = { size = 19 },
+                } },
+            },
+        },
+    } },
+}
+h.db.profile.quiGroupFrames = {
+    party = {
+        targetedSpells = { iconSize = 48 },
+        auras = { elements = { ["*"] = { { iconSize = 12 } }, [105] = { { iconSize = 52 } } } },
+    },
+    raid = {
+        targetedSpells = { iconSize = 49 },
+        auras = { elements = { ["*"] = { { iconSize = 13 } }, [105] = { { iconSize = 53 } } } },
+    },
+}
+
+local globalAuraOK, globalAuraError = core:PinCurrentProfileSelection("auraDisplays")
+assert(globalAuraOK == true, tostring(globalAuraError))
+local globalGroupOK, globalGroupError = core:PinCurrentProfileSelection("groupFrames")
+assert(globalGroupOK == true, tostring(globalGroupError))
+local globalStore = h.db.global.profileFeaturePins.sources
+assert(globalStore.auraDisplays.profile == "Other" and globalStore.auraDisplays.specID == 105)
+assert(globalStore.groupFrames.profile == "Other" and globalStore.groupFrames.specID == 105)
+assert(h.db.global.profileFeaturePins.profiles.Target == nil)
+
+activeSpecID = 104
+h.db:SetProfile("Target")
+assert(pins:ApplyProfileFeaturePins(h.db) == true)
+local targetAura = h.db.profile.auraDisplays.displays[1].auras.elements[104][1]
+assert(targetAura.iconSize == 80 and targetAura.spacing == 6 and targetAura.rowSpacing == 7,
+    "global Aura pin did not map the source spec's icon layout sizes")
+assert(targetAura.durationText.size == 18 and targetAura.stackText.size == 19,
+    "global Aura pin did not map the source spec's text sizes")
+assert(h.db.profile.quiGroupFrames.party.targetedSpells.iconSize == 48)
+assert(h.db.profile.quiGroupFrames.raid.targetedSpells.iconSize == 49)
+assert(h.db.profile.quiGroupFrames.party.auras.elements[104][1].iconSize == 52)
+assert(h.db.profile.quiGroupFrames.raid.auras.elements[104][1].iconSize == 53)
+
+h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize = 91
+assert(pins:SyncProfileFeatureSources(h.db, "auraDisplays") == true)
+assert(h.db.profiles.Other.auraDisplays.displays[1].auras.elements[105][1].iconSize == 91,
+    "global Aura edits did not sync back to the pinned source spec")
+
+activeSpecID = 105
+h.db:SetProfile("Other")
+assert(pins:ApplyProfileFeaturePins(h.db) == false, "global source profile must not overwrite itself")
+local globalUnpinOK, globalUnpinError = core:UnpinProfileSelection("auraDisplays")
+assert(globalUnpinOK == true, tostring(globalUnpinError))
+assert(core:GetProfileFeatureSource("auraDisplays") == nil)
+pins:DropProfile("Other", h.db)
 assert(core:GetProfileFeatureSource("groupFrames") == nil)
 
 local mainFile = assert(io.open("core/main.lua", "rb"))
