@@ -43,8 +43,11 @@ assert(pins:IsPathPinnable("auraDisplays.displays.1.visibility", "dropdown", "al
 assert(pins:IsPathPinnable("auraDisplays.displays.1.layout.spacing", "slider", 2) == false)
 assert(pins:IsPathPinnable("auraDisplays.enabled", "checkbox", true) == true)
 
+local auraOK, auraError = core:PinProfileSelection("Source", "auraDisplays")
+assert(auraOK == true, tostring(auraError))
+local groupOK, groupError = core:PinProfileSelection("Source", "groupFrames")
+assert(groupOK == true, tostring(groupError))
 local legacyStore = h.db.global.profileFeaturePins
-legacyStore.profiles.Target = { auraDisplays = "Source", groupFrames = "Source" }
 assert(h.db.global.profileFeaturePins.profiles.Target.auraDisplays == "Source")
 assert(h.db.global.profileFeaturePins.profiles.Target.groupFrames == "Source")
 assert(h.db.global.profileFeaturePins.profiles.Other == nil)
@@ -178,7 +181,17 @@ assert(refreshedCategories[1] == "groupFrames" and refreshedCategories[2] == "au
     "spec change did not refresh the globally pinned features")
 
 h.db:SetProfile("Other")
-assert(pins:ApplyProfileFeaturePins(h.db) == false, "global source profile must not overwrite itself")
+h.db.profile.auraDisplays.displays[1].auras.elements[103] = nil
+assert(pins:ApplyProfileFeaturePins(h.db) == true)
+assert(h.db.profile.auraDisplays.displays[1].auras.elements[103][1].iconSize == 91,
+    "source profile load did not map the canonical bucket into the active spec")
+h.db.profile.auraDisplays.displays[1].auras.elements[103][1].iconSize = 92
+activeSpecID = 104
+assert(pins:HandleProfileFeatureSpecChanged(h.db) == true)
+assert(h.db.profile.auraDisplays.displays[1].auras.elements[105][1].iconSize == 92,
+    "source profile spec change did not sync edits into the canonical source bucket")
+assert(h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize == 92,
+    "source profile spec change did not map the canonical bucket into the new spec")
 local globalUnpinOK, globalUnpinError = core:UnpinProfileSelection("auraDisplays")
 assert(globalUnpinOK == true, tostring(globalUnpinError))
 assert(core:GetProfileFeatureSource("auraDisplays") == nil)
