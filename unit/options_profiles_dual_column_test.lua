@@ -304,6 +304,31 @@ assert(ns.QUI_ProfileCopyOptions.HasSourceProfile() == false,
     "profile copy must be unavailable with only the active profile")
 assert(ns.QUI_ProfileCopyOptions.CreateCard(NewFrame(), {}) == nil,
     "profile copy must not render with only the active profile")
+local soloFixed = ns.QUI_ProfileCopyOptions.CreateCard(NewFrame(), {
+    fixedCategoryID = "auraDisplays",
+    fixedCategoryLabel = "Aura Displays",
+})
+local soloCard = cards[#cards]
+assert(soloFixed and soloFixed.pinButton._buttonText == "Pin across all profiles",
+    "global pin controls must remain available with one profile")
+assert(soloCard.rows[2].left._widget._enabled == false,
+    "one-time copy must be disabled when no source profile exists")
+pinnedSources.auraDisplays = "Default"
+soloFixed.RefreshSources()
+assert(soloFixed.pinButton._buttonText == "Unpin",
+    "a remaining global pin must be removable with one profile")
+soloFixed.pinButton._onClick()
+assert(pinnedSources.auraDisplays == nil)
+for _, path in ipairs({
+    "QUI_GroupFrames/groupframes/settings/group_frames_schema.lua",
+    "modules/trackers/settings/aura_displays_content.lua",
+}) do
+    local file = assert(io.open(path, "rb"))
+    local source = file:read("*a")
+    file:close()
+    assert(not source:find("profileCopy.HasSourceProfile()", 1, true),
+        path .. " must not hide fixed global pin controls when only one profile exists")
+end
 headers = {}
 cards = {}
 Profiles.BuildSpecProfilesContent(NewFrame())

@@ -162,11 +162,21 @@ assert(h.db.profile.quiGroupFrames.party.auras.elements[104][1].iconSize == 52)
 assert(h.db.profile.quiGroupFrames.raid.auras.elements[104][1].iconSize == 53)
 
 h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize = 91
-assert(pins:SyncProfileFeatureSources(h.db, "auraDisplays") == true)
+local refreshedCategories
+h.ns.Registry = {
+    RefreshByCategories = function(_, categories)
+        refreshedCategories = categories
+    end,
+}
+activeSpecID = 103
+assert(pins:HandleProfileFeatureSpecChanged(h.db) == true)
 assert(h.db.profiles.Other.auraDisplays.displays[1].auras.elements[105][1].iconSize == 91,
-    "global Aura edits did not sync back to the pinned source spec")
+    "spec change did not sync the previous active bucket back to the source spec")
+assert(h.db.profile.auraDisplays.displays[1].auras.elements[103][1].iconSize == 91,
+    "spec change did not apply the pinned source bucket to the new active spec")
+assert(refreshedCategories[1] == "groupFrames" and refreshedCategories[2] == "auraDisplays",
+    "spec change did not refresh the globally pinned features")
 
-activeSpecID = 105
 h.db:SetProfile("Other")
 assert(pins:ApplyProfileFeaturePins(h.db) == false, "global source profile must not overwrite itself")
 local globalUnpinOK, globalUnpinError = core:UnpinProfileSelection("auraDisplays")
@@ -217,5 +227,13 @@ local copyStart = assert(profilesSource:find("local copyDropdown", resetCall, tr
 local copySync = assert(profilesSource:find("core:SyncProfileFeatureSources()", copyStart, true))
 local copyCall = assert(profilesSource:find("dbRef:CopyProfile(value)", copySync, true))
 assert(copySync < copyCall)
+
+local auraContextFile = assert(io.open("core/aura_context.lua", "rb"))
+local auraContextSource = auraContextFile:read("*a")
+auraContextFile:close()
+local specEvent = assert(auraContextSource:find('f:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")', 1, true))
+local specPinApply = assert(auraContextSource:find("pins:HandleProfileFeatureSpecChanged()", specEvent, true))
+local specAuraRefresh = assert(auraContextSource:find("RefreshAuraSurfaces()", specPinApply, true))
+assert(specEvent < specPinApply and specPinApply < specAuraRefresh)
 
 print("ok profile feature pin")
