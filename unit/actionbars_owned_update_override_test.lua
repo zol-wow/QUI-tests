@@ -317,6 +317,76 @@ check("out of combat the ping attribute update passes straight through to Blizza
     pingUpdateCounts[pingBtn] == 2,
     "pingUpdates=" .. tostring(pingUpdateCounts[pingBtn]))
 
+local originalLayout = noop
+local layoutWrites = 0
+local microMenu = NewFrame()
+local baseFrameMT = getmetatable(microMenu)
+setmetatable(microMenu, {
+    __index = function(self, key)
+        if key == "Layout" then return originalLayout end
+        return baseFrameMT.__index(self, key)
+    end,
+    __newindex = function(self, key, value)
+        if key == "Layout" then layoutWrites = layoutWrites + 1 end
+        rawset(self, key, value)
+    end,
+})
+local oldGridSettings = {}
+microMenu.oldGridSettings = oldGridSettings
+rawset(_G, "MicroMenu", microMenu)
+local microMenuContainer = NewFrame()
+microMenuContainer.system = false
+rawset(_G, "MicroMenuContainer", microMenuContainer)
+rawset(_G, "HelpOpenWebTicketButton", false)
+microMenu.parent = microMenuContainer
+local layoutCalls = 0
+microMenuContainer.Layout = function()
+    layoutCalls = layoutCalls + 1
+    assert(microMenu:GetParent() ~= microMenuContainer,
+        "MicroMenu must be detached before native child layout re-enters")
+end
+local function NewMicroButton()
+    local button = NewFrame()
+    button.parent = microMenu
+    button.SetParent = function(self, parent)
+        self.parent = parent
+        microMenuContainer:Layout()
+    end
+    return button
+end
+for _, name in ipairs(env.MICRO_BUTTON_NAMES) do
+    rawset(_G, name, NewMicroButton())
+end
+rawset(_G, "HelpMicroButton", NewMicroButton())
+
+env.BuildBar("microbar")
+
+check("microbar build detaches Blizzard's layout owner before moving its children",
+    microMenu:GetParent() == UIParent and layoutCalls > 0,
+    "layoutCalls=" .. tostring(layoutCalls))
+check("microbar build leaves Blizzard's secure Layout method untouched",
+    layoutWrites == 0 and microMenu.Layout == originalLayout,
+    "writes=" .. tostring(layoutWrites))
+check("microbar reclaim leaves Blizzard's secure layout cache untouched",
+    microMenu.oldGridSettings == oldGridSettings)
+
+local externalMicroMenuOwner = NewFrame()
+microMenu.parent = externalMicroMenuOwner
+for _, name in ipairs(env.MICRO_BUTTON_NAMES) do
+    _G[name].parent = microMenu
+end
+_G.HelpMicroButton.parent = microMenu
+env.BuildBar("microbar")
+
+check("microbar refresh preserves Blizzard's temporary external owner",
+    microMenu:GetParent() == externalMicroMenuOwner)
+local externalChildrenPreserved = _G.HelpMicroButton:GetParent() == microMenu
+for _, name in ipairs(env.MICRO_BUTTON_NAMES) do
+    externalChildrenPreserved = externalChildrenPreserved and _G[name]:GetParent() == microMenu
+end
+check("microbar refresh preserves Blizzard-owned micro button children",
+    externalChildrenPreserved)
+
 print(string.format("actionbars_owned_update_override_test: checks complete, %d failed", fails))
 if fails > 0 then os.exit(1) end
 print("OK: actionbars_owned_update_override_test")
