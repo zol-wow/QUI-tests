@@ -3709,6 +3709,7 @@ return {
     ["UnitIsPVPFreeForAll"] = { secretArguments = "AllowedWhenUntainted" },
     ["UnitIsPVPSanctuary"] = { secretArguments = "AllowedWhenUntainted" },
     ["UnitIsPlayer"] = { secretArguments = "AllowedWhenUntainted" },
+    ["UnitIsPlayerControlledOrGroupMember"] = { secretArguments = "AllowedWhenUntainted" },
     ["UnitIsPossessed"] = { secretWhenRestricted = { "SecretWhenUnitPossessionRestricted" }, secretArguments = "AllowedWhenUntainted" },
     ["UnitIsQuestBoss"] = { secretArguments = "AllowedWhenUntainted" },
     ["UnitIsRaidOfficer"] = { secretWhenRestricted = { "SecretWhenUnitIdentityRestricted" }, secretArguments = "AllowedWhenUntainted" },
