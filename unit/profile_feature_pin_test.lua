@@ -164,15 +164,18 @@ assert(h.db.profile.quiGroupFrames.raid.targetedSpells.iconSize == 49)
 assert(h.db.profile.quiGroupFrames.party.auras.elements[104][1].iconSize == 52)
 assert(h.db.profile.quiGroupFrames.raid.auras.elements[104][1].iconSize == 53)
 
+targetAura.iconSize = 82
 local optOutOK, optOutError = core:SetProfileFeaturePinOptOut("auraDisplays", true)
 assert(optOutOK == true, tostring(optOutError))
+assert(h.db.profiles.Other.auraDisplays.displays[1].auras.elements[105][1].iconSize == 82,
+    "opting out must sync the last pinned edit into the global source")
 assert(core:IsProfileFeaturePinOptedOut("auraDisplays") == true)
 assert(core:GetProfileFeatureSource("auraDisplays") == "Other",
     "configured source lookup must remain backward-compatible while opted out")
 assert(pins:GetEffectiveProfileFeatureSource("auraDisplays", h.db) == nil)
 h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize = 96
 assert(pins:SyncProfileFeatureSources(h.db, "auraDisplays") == false)
-assert(h.db.profiles.Other.auraDisplays.displays[1].auras.elements[105][1].iconSize == 80,
+assert(h.db.profiles.Other.auraDisplays.displays[1].auras.elements[105][1].iconSize == 82,
     "opted-out profile edits must not sync into the global source")
 assert(pins:ApplyProfileFeaturePins(h.db, { "auraDisplays" }) == false)
 assert(h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize == 96,
@@ -180,7 +183,7 @@ assert(h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize == 
 local rejoinOK, rejoinError = core:SetProfileFeaturePinOptOut("auraDisplays", false)
 assert(rejoinOK == true, tostring(rejoinError))
 assert(core:IsProfileFeaturePinOptedOut("auraDisplays") == false)
-assert(h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize == 80,
+assert(h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize == 82,
     "rejoining must apply the pinned source bucket")
 
 h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize = 91
