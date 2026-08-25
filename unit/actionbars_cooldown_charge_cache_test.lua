@@ -729,6 +729,29 @@ ns.ActionBarsEnv.FadeShowTextures(rangeButtonState, rangeButton)
 assert(not rangeOverlay:IsShown(),
     "a faded bar should not restore a range tint cleared while hidden")
 
+ns.ActionBarsEnv.FadeHideTextures(rangeButtonState, rangeButton)
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, false, true)
+assert(not rangeOverlay:IsShown(),
+    "a range tint created during login should remain hidden with its bar")
+ns.ActionBarsEnv.FadeShowTextures(rangeButtonState, rangeButton)
+assert(rangeOverlay:IsShown(),
+    "a range tint created while hidden should appear when its bar returns")
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, true, true)
+
+actionBars.containers.bar1 = NewFrame()
+actionBars.SetBarAlpha("bar1", 0.5)
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, false, true)
+assert(not rangeOverlay:IsShown(),
+    "a range tint created during a partial fade should remain hidden")
+actionBars.SetBarAlpha("bar1", 1)
+assert(rangeOverlay:IsShown(),
+    "a range tint created during a partial fade should appear at full alpha")
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, true, true)
+
 usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
     "ACTION_RANGE_CHECK_UPDATE", 301, false, true)
 actionBars.containers.bar1 = NewFrame()
