@@ -280,9 +280,7 @@ do
     assert(#pending == 0, "buff RefreshLayout bypasses the generic delayed scheduler")
 end
 
--- Buff pool acquisition is latency-sensitive too. A newly acquired native
--- BuffIcon item can flash at Blizzard's native position if we wait for the
--- generic delayed dirty flush. Reference-style hooks re-claim immediately.
+-- Buff pool acquisition queues through the generic delayed dirty flush.
 do
     local installs = {}
     local refreshes = {}
@@ -290,26 +288,42 @@ do
     local function hook(owner, method, fn)
         installs[#installs + 1] = { owner = owner, method = method, fn = fn }
     end
-    local viewer = { RefreshLayout = function() end, OnAcquireItemFrame = function() end }
-    local immediate = H.New({
+    local pool = { Acquire = function() end }
+    local viewer = {
+        RefreshLayout = function() end,
+        OnAcquireItemFrame = function() end,
+        itemFramePool = pool,
+    }
+    local deferred = H.New({
         refresh = function(k) refreshes[#refreshes + 1] = k end,
         keys = { "buff" },
         hooksecurefunc = hook,
         schedule = function(fn) pending[#pending + 1] = fn end,
-        immediateAcquireKeys = { buff = true },
     })
-    immediate:InstallViewerHooks(function() return viewer end)
+    deferred:InstallViewerHooks(function() return viewer end)
 
-    local acquireHook
+    local acquireHook, poolAcquireHook
     for _, h in ipairs(installs) do
         if h.owner == viewer and h.method == "OnAcquireItemFrame" then acquireHook = h.fn end
+        if h.owner == pool and h.method == "Acquire" then poolAcquireHook = h.fn end
     end
-    assert(type(acquireHook) == "function", "immediate acquire test installs OnAcquireItemFrame hook")
+    assert(type(acquireHook) == "function", "deferred acquire test installs OnAcquireItemFrame hook")
+    assert(type(poolAcquireHook) == "function", "deferred acquire test installs pool Acquire hook")
 
     acquireHook(viewer, { OnCooldownIDSet = function() end })
+    assert(#refreshes == 0, "buff OnAcquireItemFrame does not refresh synchronously")
+    assert(#pending == 1, "buff OnAcquireItemFrame uses the delayed dirty scheduler")
+    pending[1]()
     assert(#refreshes == 1 and refreshes[1] == "buff",
-        "buff OnAcquireItemFrame refreshes immediately")
-    assert(#pending == 0, "buff OnAcquireItemFrame bypasses the generic delayed scheduler")
+        "buff OnAcquireItemFrame refreshes when the dirty scheduler flushes")
+
+    refreshes, pending = {}, {}
+    poolAcquireHook(pool)
+    assert(#refreshes == 0, "buff pool Acquire does not refresh synchronously")
+    assert(#pending == 1, "buff pool Acquire uses the delayed dirty scheduler")
+    pending[1]()
+    assert(#refreshes == 1 and refreshes[1] == "buff",
+        "buff pool Acquire refreshes when the dirty scheduler flushes")
 end
 
 -- Global CooldownViewer item mixin hooks catch Blizzard item mutations even
@@ -328,7 +342,6 @@ do
         keys = { "buff", "trackedBar" },
         hooksecurefunc = hook,
         schedule = function(fn) pending[#pending + 1] = fn end,
-        immediateAcquireKeys = { buff = true, trackedBar = true },
         getMixinForKey = function(key)
             if key == "buff" then return buffMixin end
             if key == "trackedBar" then return trackedBarMixin end

@@ -43,6 +43,8 @@ assert(containers:find("ns.CDMBuffLayout.LayoutBars()", 1, true),
     "trackedBar lifecycle hook must refresh the owned Buff Bars layout")
 assert(containers:find("immediateRefreshLayoutKeys = { trackedBar = true }", 1, true),
     "trackedBar RefreshLayout must use the immediate lifecycle path")
+assert(not containers:find("immediateAcquireKeys", 1, true),
+    "Buff and trackedBar acquisition must use the delayed lifecycle path")
 assert(containers:find("CooldownViewerSettings.OnShow", 1, true)
     and containers:find("CooldownViewerSettings.OnHide", 1, true),
     "CooldownViewerSettings show/hide must resync native reanchor and trackedBar lifecycle hooks")
@@ -86,5 +88,11 @@ assert(barRenderer:find('containerKey == "trackedBar"', 1, true),
     "runtime entry override must be scoped to trackedBar only")
 assert(not barRenderer:find("NameText:GetText()", 1, true),
     "bar renderer must keep rendered text opaque and pass secret values only to C sinks")
+
+local realEnv = readAll("QUI_CDM/cdm/cdm_reanchor_realenv.lua")
+assert(not realEnv:find("_InstallBarReskinHooks", 1, true)
+    and not realEnv:find('hooksecurefunc(live, "SetBarContent"', 1, true)
+    and not realEnv:find('hooksecurefunc(live, "SetBarWidth"', 1, true),
+    "owned tracked bars must not install native tracked-bar reskin hooks")
 
 print("OK: cdm_trackedbar_owned_layout_test")
