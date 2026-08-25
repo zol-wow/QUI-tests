@@ -27,11 +27,25 @@ local seed = {
             },
             Source = {
                 auraDisplays = {
-                    displays = { { id = "source", name = "Source" } },
+                    displays = { {
+                        id = "source",
+                        name = "Source",
+                        auras = {
+                            elements = {
+                                ["*"] = { {
+                                    iconSize = 57,
+                                    spacing = 6,
+                                    rowSpacing = 7,
+                                    durationText = { size = 18 },
+                                    stackText = { size = 19 },
+                                } },
+                            },
+                        },
+                    } },
                 },
                 quiGroupFrames = {
-                    party = { general = { fontSize = 31 } },
-                    raid = { general = { fontSize = 42 } },
+                    party = { general = { fontSize = 31 }, targetedSpells = { iconSize = 61 } },
+                    raid = { general = { fontSize = 42 }, targetedSpells = { iconSize = 62 } },
                     clickCast = { sourceLegacy = true },
                 },
                 raidBuffs = { iconSize = 55 },
@@ -81,6 +95,11 @@ local auraOK, auraMessage = core:CopyProfileSelection(" Source ", { "auraDisplay
 assert(auraOK == true, tostring(auraMessage))
 assert(h.db.profile.auraDisplays.enabled == true, "inactive source defaults were not materialized")
 assert(h.db.profile.auraDisplays.displays[1].id == "source", "source aura displays were not copied")
+local copiedAuraElement = h.db.profile.auraDisplays.displays[1].auras.elements["*"][1]
+assert(copiedAuraElement.iconSize == 57 and copiedAuraElement.spacing == 6 and copiedAuraElement.rowSpacing == 7,
+    "aura icon layout sizes were not copied")
+assert(copiedAuraElement.durationText.size == 18 and copiedAuraElement.stackText.size == 19,
+    "aura text sizes were not copied")
 assert(h.db.profile.auraDisplays.displays[2] == nil, "aura display replacement retained stale target entries")
 assert(h.db.profile.frameAnchoring.auraDisplay_old == nil, "stale target aura anchor survived")
 assert(h.db.profile.frameAnchoring.auraDisplay_stale == nil, "second stale target aura anchor survived")
@@ -100,6 +119,8 @@ h.db.profile.frameAnchoring.missingRaidBuffs = { offsetX = 23 }
 local partyOK, partyMessage = core:CopyProfileSelection("Source", { "groupFramesParty" })
 assert(partyOK == true, tostring(partyMessage))
 assert(h.db.profile.quiGroupFrames.party.general.fontSize == 31, "party settings were not copied")
+assert(h.db.profile.quiGroupFrames.party.targetedSpells.iconSize == 61,
+    "party targeted-spell icon size was not copied")
 assert(h.db.profile.quiGroupFrames.party.general.font == "Quazii", "party defaults were not materialized")
 assert(h.db.profile.quiGroupFrames.party.staleOnly == nil, "party replacement retained stale target settings")
 assert(h.db.profile.frameAnchoring.partyFrames.offsetX == 11, "party anchor was not copied")
@@ -116,6 +137,8 @@ h.db.profile.frameAnchoring.missingRaidBuffs = { offsetX = 33 }
 local raidOK, raidMessage = core:CopyProfileSelection("Source", { "groupFramesRaid" })
 assert(raidOK == true, tostring(raidMessage))
 assert(h.db.profile.quiGroupFrames.raid.general.fontSize == 42, "raid settings were not copied")
+assert(h.db.profile.quiGroupFrames.raid.targetedSpells.iconSize == 62,
+    "raid targeted-spell icon size was not copied")
 assert(h.db.profile.frameAnchoring.partyFrames.offsetX == 30, "raid copy changed the party anchor")
 assert(h.db.profile.frameAnchoring.raidFrames.offsetX == 12, "raid anchor was not copied")
 assert(h.db.profile.frameAnchoring.spotlightFrames.offsetX == 13, "spotlight anchor was not copied")

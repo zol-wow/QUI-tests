@@ -157,15 +157,15 @@ function core:CopyProfileSelection(sourceName, categoryIDs)
     return true, "Copied settings."
 end
 function core:GetProfileFeatureSource(categoryID)
-    return pinnedSources[db:GetCurrentProfile() .. ":" .. categoryID]
+    return pinnedSources[categoryID]
 end
-function core:PinProfileSelection(sourceName, categoryID)
-    pinnedSources[db:GetCurrentProfile() .. ":" .. categoryID] = sourceName
-    pinnedCall = { sourceName = sourceName, categoryID = categoryID }
+function core:PinCurrentProfileSelection(categoryID)
+    pinnedSources[categoryID] = db:GetCurrentProfile()
+    pinnedCall = { categoryID = categoryID }
     return true
 end
 function core:UnpinProfileSelection(categoryID)
-    pinnedSources[db:GetCurrentProfile() .. ":" .. categoryID] = nil
+    pinnedSources[categoryID] = nil
     unpinnedCall = categoryID
     return true
 end
@@ -282,23 +282,21 @@ assert(fixedCard.rows[2].right._settingRowLabel == "Pinned Settings",
 assert(fixedCard.rows[2].right._desc == nil,
     "pinned settings help must not render beneath the label in the narrow paired row")
 assert(fixedCopy.pinButton._quiTooltipDescription
-        == "Pinned settings stay synced with the source profile. Edits made here update the source when you switch profiles, reload, or unpin.",
+        == "Capture the current value and keep it across profile switches.",
     "pinned settings help must remain available as a tooltip")
-assert(fixedCopy.pinButton._buttonText == "Pin to Current Profile")
+assert(fixedCopy.pinButton._buttonText == "Pin across all profiles")
 assert(fixedCard.rows[2].left._widget._enabled == true)
 
 fixedCopy.pinButton._onClick()
-assert(confirmation and confirmation.isDestructive and type(confirmation.onAccept) == "function",
-    "pinning must require overwrite confirmation")
-confirmation.onAccept()
-assert(pinnedCall and pinnedCall.sourceName == "Raid" and pinnedCall.categoryID == "auraDisplays")
+assert(pinnedCall and pinnedCall.categoryID == "auraDisplays")
 assert(fixedCopy.pinButton._buttonText == "Unpin")
+assert(fixedCopy.pinButton._quiTooltipDescription == "Click to unpin. Edits affect all profiles.")
 assert(fixedCard.rows[2].left._widget._enabled == false,
     "one-time copy must be disabled while the feature is pinned")
 
 fixedCopy.pinButton._onClick()
 assert(unpinnedCall == "auraDisplays")
-assert(fixedCopy.pinButton._buttonText == "Pin to Current Profile")
+assert(fixedCopy.pinButton._buttonText == "Pin across all profiles")
 assert(fixedCard.rows[2].left._widget._enabled == true)
 
 db.GetProfiles = function() return { "Default" } end
