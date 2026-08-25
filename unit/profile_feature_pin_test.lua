@@ -192,6 +192,10 @@ assert(h.db.profile.auraDisplays.displays[1].auras.elements[105][1].iconSize == 
     "source profile spec change did not sync edits into the canonical source bucket")
 assert(h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize == 92,
     "source profile spec change did not map the canonical bucket into the new spec")
+h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize = 93
+assert(pins:SyncProfileFeatureSources(h.db, "auraDisplays") == true)
+assert(h.db.profile.auraDisplays.displays[1].auras.elements[105][1].iconSize == 93,
+    "source profile shutdown sync did not preserve edits from the active mapped spec")
 local globalUnpinOK, globalUnpinError = core:UnpinProfileSelection("auraDisplays")
 assert(globalUnpinOK == true, tostring(globalUnpinError))
 assert(core:GetProfileFeatureSource("auraDisplays") == nil)
