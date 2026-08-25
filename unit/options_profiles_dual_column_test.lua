@@ -79,6 +79,20 @@ function gui:CreateFormEditBox()
     return e
 end
 function gui:CreateFormCheckbox() return NewFrame() end
+function gui:CreateFormToggle(_parent, _label, dbKey, dbTable, onChange)
+    local toggle = NewFrame()
+    function toggle:GetValue() return dbTable[dbKey] and true or false end
+    function toggle:SetValue(value, skipCallback)
+        dbTable[dbKey] = value and true or false
+        if onChange and not skipCallback then onChange(dbTable[dbKey]) end
+    end
+    function toggle:SetEnabled(enabled) self._enabled = enabled and true or false end
+    toggle._onClick = function()
+        if toggle._enabled == false then return end
+        toggle:SetValue(not toggle:GetValue())
+    end
+    return toggle
+end
 function gui:SetTooltipInfo(frame, description, label)
     frame._quiTooltipDescription = description
     frame._quiTooltipLabel = label
@@ -129,6 +143,7 @@ function db:SetDualSpecProfile() end
 
 local copied
 local pinnedSources = {}
+local pinOptOuts = {}
 local pinnedCall
 local unpinnedCall
 local core = { db = db }
@@ -159,6 +174,20 @@ end
 function core:GetProfileFeatureSource(categoryID)
     return pinnedSources[categoryID]
 end
+function core:GetGlobalProfileFeatureSource(categoryID)
+    return pinnedSources[categoryID]
+end
+function core:IsProfileFeaturePinOptedOut(categoryID)
+    local profileOptOuts = pinOptOuts[db:GetCurrentProfile()]
+    return profileOptOuts and profileOptOuts[categoryID] == true or false
+end
+function core:SetProfileFeaturePinOptOut(categoryID, optedOut)
+    local profileName = db:GetCurrentProfile()
+    pinOptOuts[profileName] = pinOptOuts[profileName] or {}
+    pinOptOuts[profileName][categoryID] = optedOut and true or nil
+    if next(pinOptOuts[profileName]) == nil then pinOptOuts[profileName] = nil end
+    return true
+end
 function core:PinCurrentProfileSelection(categoryID)
     pinnedSources[categoryID] = db:GetCurrentProfile()
     pinnedCall = { categoryID = categoryID }
@@ -166,6 +195,10 @@ function core:PinCurrentProfileSelection(categoryID)
 end
 function core:UnpinProfileSelection(categoryID)
     pinnedSources[categoryID] = nil
+    for profileName, profileOptOut in pairs(pinOptOuts) do
+        profileOptOut[categoryID] = nil
+        if next(profileOptOut) == nil then pinOptOuts[profileName] = nil end
+    end
     unpinnedCall = categoryID
     return true
 end
@@ -277,27 +310,63 @@ local fixedCopy = ns.QUI_ProfileCopyOptions.CreateCard(NewFrame(), {
 assert(fixedCopy.categoryDropdown == nil and fixedCopy.frame:GetHeight() == 64,
     "fixed-category copy cards must omit the category dropdown and stay two rows tall")
 local fixedCard = cards[#cards]
-assert(fixedCard.rows[2].right._settingRowLabel == "Pinned Settings",
-    "supported fixed-category cards must pair the pin action with Copy Settings")
-assert(fixedCard.rows[2].right._desc == nil,
+assert(fixedCard.rows[1].left._settingRowLabel == "Source Profile"
+        and fixedCard.rows[1].right._settingRowLabel == "Current Profile",
+    "fixed-category row 1 must pair the source profile with the current-profile copy")
+assert(fixedCard.rows[2].left._settingRowLabel == "Pinned Settings"
+        and fixedCard.rows[2].right._settingRowLabel == "Ignore",
+    "fixed-category row 2 must pair the global pin with the current-profile override")
+assert(fixedCard.rows[2].left._desc == nil,
     "pinned settings help must not render beneath the label in the narrow paired row")
 assert(fixedCopy.pinButton._quiTooltipDescription
         == "Capture the current value and keep it across profile switches.",
     "pinned settings help must remain available as a tooltip")
 assert(fixedCopy.pinButton._buttonText == "Pin across all profiles")
-assert(fixedCard.rows[2].left._widget._enabled == true)
+assert(fixedCard.rows[1].right._widget._enabled == true)
+assert(fixedCopy.profilePinToggle:GetValue() == false
+    and fixedCopy.profilePinToggle._enabled == false,
+    "profile opt-out must stay disabled until a global pin exists")
 
 fixedCopy.pinButton._onClick()
 assert(pinnedCall and pinnedCall.categoryID == "auraDisplays")
 assert(fixedCopy.pinButton._buttonText == "Unpin")
 assert(fixedCopy.pinButton._quiTooltipDescription == "Click to unpin. Edits affect all profiles.")
-assert(fixedCard.rows[2].left._widget._enabled == false,
+assert(fixedCard.rows[1].right._widget._enabled == false,
     "one-time copy must be disabled while the feature is pinned")
+assert(fixedCopy.profilePinToggle._enabled == false,
+    "the global source must not ignore its own pin")
 
+db._current = "Raid"
+fixedCopy.RefreshSources()
+assert(fixedCopy.pinButton._buttonText == "Unpin",
+    "global unpin must remain available from a destination profile")
+assert(fixedCopy.profilePinToggle:GetValue() == false
+    and fixedCopy.profilePinToggle._enabled == true)
+fixedCopy.profilePinToggle._onClick()
+assert(pinOptOuts.Raid and pinOptOuts.Raid.auraDisplays == true)
+assert(fixedCopy.profilePinToggle:GetValue() == true,
+    "Ignore must stay visibly enabled while the current profile opts out")
+assert(fixedCard.rows[1].right._widget._enabled == true,
+    "one-time copy must be available while this profile ignores the pin")
+
+confirmation = nil
+fixedCopy.profilePinToggle._onClick()
+assert(confirmation and confirmation.isDestructive and type(confirmation.onAccept) == "function",
+    "rejoining a pin must confirm before overwriting this profile's settings")
+assert(pinOptOuts.Raid and pinOptOuts.Raid.auraDisplays == true)
+assert(fixedCopy.profilePinToggle:GetValue() == true,
+    "Ignore must remain visibly enabled until rejoin is confirmed")
+confirmation.onAccept()
+assert(pinOptOuts.Raid == nil)
+assert(fixedCopy.profilePinToggle:GetValue() == false)
+assert(fixedCard.rows[1].right._widget._enabled == false)
+
+db._current = "Default"
+fixedCopy.RefreshSources()
 fixedCopy.pinButton._onClick()
 assert(unpinnedCall == "auraDisplays")
 assert(fixedCopy.pinButton._buttonText == "Pin across all profiles")
-assert(fixedCard.rows[2].left._widget._enabled == true)
+assert(fixedCard.rows[1].right._widget._enabled == true)
 
 db.GetProfiles = function() return { "Default" } end
 assert(ns.QUI_ProfileCopyOptions.HasSourceProfile() == false,
@@ -311,12 +380,14 @@ local soloFixed = ns.QUI_ProfileCopyOptions.CreateCard(NewFrame(), {
 local soloCard = cards[#cards]
 assert(soloFixed and soloFixed.pinButton._buttonText == "Pin across all profiles",
     "global pin controls must remain available with one profile")
-assert(soloCard.rows[2].left._widget._enabled == false,
+assert(soloCard.rows[1].right._widget._enabled == false,
     "one-time copy must be disabled when no source profile exists")
 pinnedSources.auraDisplays = "Default"
 soloFixed.RefreshSources()
 assert(soloFixed.pinButton._buttonText == "Unpin",
     "a remaining global pin must be removable with one profile")
+assert(soloFixed.profilePinToggle._enabled == false,
+    "a sole source profile must not expose an opt-out")
 soloFixed.pinButton._onClick()
 assert(pinnedSources.auraDisplays == nil)
 for _, path in ipairs({

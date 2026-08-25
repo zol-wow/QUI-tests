@@ -164,6 +164,25 @@ assert(h.db.profile.quiGroupFrames.raid.targetedSpells.iconSize == 49)
 assert(h.db.profile.quiGroupFrames.party.auras.elements[104][1].iconSize == 52)
 assert(h.db.profile.quiGroupFrames.raid.auras.elements[104][1].iconSize == 53)
 
+local optOutOK, optOutError = core:SetProfileFeaturePinOptOut("auraDisplays", true)
+assert(optOutOK == true, tostring(optOutError))
+assert(core:IsProfileFeaturePinOptedOut("auraDisplays") == true)
+assert(core:GetProfileFeatureSource("auraDisplays") == "Other",
+    "configured source lookup must remain backward-compatible while opted out")
+assert(pins:GetEffectiveProfileFeatureSource("auraDisplays", h.db) == nil)
+h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize = 96
+assert(pins:SyncProfileFeatureSources(h.db, "auraDisplays") == false)
+assert(h.db.profiles.Other.auraDisplays.displays[1].auras.elements[105][1].iconSize == 80,
+    "opted-out profile edits must not sync into the global source")
+assert(pins:ApplyProfileFeaturePins(h.db, { "auraDisplays" }) == false)
+assert(h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize == 96,
+    "global apply must not overwrite an opted-out profile")
+local rejoinOK, rejoinError = core:SetProfileFeaturePinOptOut("auraDisplays", false)
+assert(rejoinOK == true, tostring(rejoinError))
+assert(core:IsProfileFeaturePinOptedOut("auraDisplays") == false)
+assert(h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize == 80,
+    "rejoining must apply the pinned source bucket")
+
 h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize = 91
 local refreshedCategories
 h.ns.Registry = {
@@ -196,11 +215,45 @@ h.db.profile.auraDisplays.displays[1].auras.elements[104][1].iconSize = 93
 assert(pins:SyncProfileFeatureSources(h.db, "auraDisplays") == true)
 assert(h.db.profile.auraDisplays.displays[1].auras.elements[105][1].iconSize == 93,
     "source profile shutdown sync did not preserve edits from the active mapped spec")
+
+local sourceOptOutOK, sourceOptOutError = core:SetProfileFeaturePinOptOut("auraDisplays", true)
+assert(sourceOptOutOK == false and sourceOptOutError:find("source profile", 1, true),
+    "the global source must not be allowed to ignore its own pin")
+
+activeSpecID = 104
+h.db:SetProfile("Target")
+assert(pins:ApplyProfileFeaturePins(h.db) == true)
+assert(core:SetProfileFeaturePinOptOut("auraDisplays", true) == true)
+assert(core:SetProfileFeaturePinOptOut("groupFrames", true) == true)
+h.db.profile.auraDisplays.displays[1].auras.elements[103] = { { iconSize = 123 } }
+h.db.profile.quiGroupFrames.party.auras.elements[103] = { { iconSize = 124 } }
+activeSpecID = 103
+refreshedCategories = nil
+assert(pins:HandleProfileFeatureSpecChanged(h.db) == false,
+    "spec changes must skip categories opted out by the active profile")
+assert(h.db.profile.auraDisplays.displays[1].auras.elements[103][1].iconSize == 123)
+assert(h.db.profile.quiGroupFrames.party.auras.elements[103][1].iconSize == 124)
+assert(refreshedCategories == nil, "opted-out categories must not be refreshed on spec change")
+local independentCopyOK, independentCopyError = core:CopyProfileSelection("Other", { "auraDisplays" })
+assert(independentCopyOK == true, tostring(independentCopyError))
+assert(core:SetProfileFeaturePinOptOut("auraDisplays", false) == true)
+assert(core:SetProfileFeaturePinOptOut("groupFrames", false) == true)
+assert(h.db.profile.auraDisplays.displays[1].auras.elements[103][1].iconSize == 93,
+    "rejoining after an independent copy must restore the global Aura settings")
+assert(h.db.profile.quiGroupFrames.party.auras.elements[103][1].iconSize == 52,
+    "rejoining must restore the global Group Frame settings")
+
+assert(core:SetProfileFeaturePinOptOut("auraDisplays", true) == true)
 local globalUnpinOK, globalUnpinError = core:UnpinProfileSelection("auraDisplays")
 assert(globalUnpinOK == true, tostring(globalUnpinError))
 assert(core:GetProfileFeatureSource("auraDisplays") == nil)
+assert(h.db.global.profileFeaturePins.optOuts.Target == nil,
+    "global unpin must clear dormant per-profile opt-outs")
+assert(core:SetProfileFeaturePinOptOut("groupFrames", true) == true)
 pins:DropProfile("Other", h.db)
 assert(core:GetProfileFeatureSource("groupFrames") == nil)
+assert(h.db.global.profileFeaturePins.optOuts.Target == nil,
+    "deleting a global source must clear that category's opt-outs")
 
 local mainFile = assert(io.open("core/main.lua", "rb"))
 local mainSource = mainFile:read("*a")
