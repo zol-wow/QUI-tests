@@ -50,10 +50,18 @@ _G.C_EditMode = {
 
 local popupsShown = {}
 _G.StaticPopupDialogs = {}
-_G.StaticPopup_Show = function(which) popupsShown[#popupsShown + 1] = which end
-_G.ReloadUI = function() end
+_G.StaticPopup_Show = function(which)
+    popupsShown[#popupsShown + 1] = which
+    return {}
+end
+local reloads = 0
+_G.ReloadUI = function() reloads = reloads + 1 end
 _G.QUI_IsCDMMasterEnabled = function() return true end
-_G.C_Timer = { After = function(_, fn) fn() end }
+local timerDelays = {}
+_G.C_Timer = { After = function(delay, fn)
+    timerDelays[#timerDelays + 1] = delay
+    fn()
+end }
 
 local ns = {}
 local loadChunk = dofile("tests/helpers/load_cdm_consolidated_chunk.lua")
@@ -159,6 +167,11 @@ layoutInfoToReturn = {
 eventHandler(nil, "PLAYER_ENTERING_WORLD")
 assert(#savedLayouts == 1, "changed layout -> SaveLayouts called once")
 assert(#popupsShown == 1, "changed layout -> reload prompt shown")
+assert(timerDelays[1] == 0, "reload gate opens on the next frame after SaveLayouts")
+local reloadDialog = assert(_G.StaticPopupDialogs["QUI_CDM_EDITMODE_RELOAD"],
+    "changed layout registers the reload dialog")
+assert(reloadDialog.hideOnEscape == false and reloadDialog.button2 == nil,
+    "reload dialog cannot be dismissed with Escape or a cancel button")
 
 -- one-shot latch: a second PEW must not re-run enforcement
 eventHandler(nil, "PLAYER_ENTERING_WORLD")
@@ -237,6 +250,42 @@ do
     eventHandler(nil, "PLAYER_ENTERING_WORLD")
     assert(#savedLayouts == 0 and #popupsShown == 0, "settled layout -> no save, no prompt")
     assert(_G.QUIDB.cdmEditModeSavePending == nil, "settled layout re-arms the loop breaker")
+    _G.QUIDB = nil
+end
+
+do
+    local ns7 = {}
+    savedLayouts, popupsShown = {}, {}
+    _G.QUIDB = {}
+    layoutInfoToReturn = staleLayout()
+    local popupDialogs, popupShow = _G.StaticPopupDialogs, _G.StaticPopup_Show
+    _G.StaticPopupDialogs, _G.StaticPopup_Show = nil, nil
+    local reloadsBefore = reloads
+    loadChunk("QUI_CDM/cdm/cdm_editmode_policy.lua", "cdm_editmode_policy.lua")("QUI", ns7)
+    eventHandler(nil, "PLAYER_ENTERING_WORLD")
+    assert(#savedLayouts == 1, "missing popup path still saves the corrected layout once")
+    assert(reloads == reloadsBefore + 1, "missing popup path falls back to direct ReloadUI")
+    _G.StaticPopupDialogs, _G.StaticPopup_Show = popupDialogs, popupShow
+    _G.QUIDB = nil
+end
+
+do
+    local nsNoSlot = {}
+    savedLayouts, popupsShown = {}, {}
+    _G.QUIDB = {}
+    layoutInfoToReturn = staleLayout()
+    local popupShow = _G.StaticPopup_Show
+    _G.StaticPopup_Show = function(which)
+        popupsShown[#popupsShown + 1] = which
+        return nil
+    end
+    local reloadsBefore = reloads
+    loadChunk("QUI_CDM/cdm/cdm_editmode_policy.lua", "cdm_editmode_policy.lua")("QUI", nsNoSlot)
+    eventHandler(nil, "PLAYER_ENTERING_WORLD")
+    assert(#savedLayouts == 1, "unavailable popup slot still saves the corrected layout once")
+    assert(#popupsShown == 1, "unavailable popup slot attempts the reload prompt once")
+    assert(reloads == reloadsBefore + 1, "unavailable popup slot falls back to one direct ReloadUI")
+    _G.StaticPopup_Show = popupShow
     _G.QUIDB = nil
 end
 
