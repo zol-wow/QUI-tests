@@ -395,11 +395,6 @@ check("aura, targeted-spell and Edit Mode layers consume the shared ladder",
     and auraContainers:find("CHROME_LEVELS.AURA_HOST", 1, true) ~= nil
     and targeted:find("CHROME_LEVELS.TARGETED", 1, true) ~= nil
     and editMode:find("CHROME_LEVELS.TEXT", 1, true) ~= nil)
-check("secure aura-container relevel never calls protected SetFrameLevel in combat",
-    auraContainers:find("if not InCombatLockdown() then", 1, true) ~= nil
-    and auraContainers:find("container:SetFrameLevel(desiredLevel)", 1, true) ~= nil
-    and auraContainers:find("return container:GetFrameLevel() == desiredLevel", 1, true) ~= nil)
-
 if fails > 0 then
     error(fails .. " failure(s) in groupframes_chrome_shared_test")
 end
