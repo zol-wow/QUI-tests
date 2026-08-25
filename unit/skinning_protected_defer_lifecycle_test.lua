@@ -67,5 +67,7 @@ assertContains(overrideSource, "FrameXML OverrideActionBarMixin:UpdateSkin reset
     "OverrideActionBar defer helper must document the FrameXML lifecycle reason")
 assertAbsent(overrideSource, "if not bar or SkinBase.IsSkinned(bar) then return end",
     "OverrideActionBar UpdateSkin can reset an already-skinned bar, so post-update reskinning must stay idempotent")
+assertAbsent(overrideSource, "MicroMenu",
+    "OverrideActionBar skinning must leave the native MicroMenu lifecycle and layout state Blizzard-owned")
 
 print("OK: skinning_protected_defer_lifecycle_test")

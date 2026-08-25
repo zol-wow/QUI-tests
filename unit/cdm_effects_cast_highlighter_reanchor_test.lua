@@ -164,7 +164,7 @@ local effectsSettings = {
 }
 local containerSettings = {
     essential = { pressedEffect = "qui" },
-    buff = { pressedEffect = "off" },
+    buff = { pressedEffect = "qui" },
     customRotation = { pressedEffect = "qui" },
 }
 
@@ -366,7 +366,6 @@ local showCount = pushedTexture.showCount
 pressedState(nativeButton, { [1001] = true }, true)
 assert(pushedTexture.showCount == showCount, "Off mode should not show a pressed effect")
 
-containerSettings.buff.pressedEffect = "qui"
 local buffButton = {}
 highlighter.PrepareActionButton(buffButton)
 pressedState(buffButton, { [1001] = true }, true)
@@ -374,11 +373,9 @@ local buffTexture
 for _, texture in ipairs(createdTextures) do
     if texture.parent and texture.parent.parent == buffIcon then buffTexture = texture end
 end
-assert(buffTexture, "buff pressed texture should be prewarmed")
-assert(buffTexture.parent.parent == buffIcon and buffTexture.shown == true,
-    "an Off duplicate must not block an enabled Buff Icon pressed effect")
+assert(not buffTexture and pushedTexture.showCount == showCount,
+    "Buff Icons must ignore stale pressed-effect settings")
 pressedState(buffButton, { [1001] = true }, false)
-assert(buffTexture.shown == false, "Buff Icon pressed effects should clear on release")
 
 containerSettings.essential.pressedEffect = "qui"
 pressedState(nativeButton, { [secretValue] = true }, true)

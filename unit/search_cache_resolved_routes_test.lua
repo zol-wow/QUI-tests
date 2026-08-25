@@ -107,10 +107,10 @@ end
 
 assert(checked > 0, "no direct search routes were checked")
 assert(groupTintAnimation, "group-frame health tints must keep their supported animation control")
-assert(cdmPressedProviders.essential and cdmPressedProviders.utility and cdmPressedProviders.buff,
-    "every built-in icon container must expose the Pressed Effect control")
-assert(not cdmPressedProviders.trackedBar,
-    "bar containers must not expose the icon-only Pressed Effect control")
+assert(cdmPressedProviders.essential and cdmPressedProviders.utility,
+    "built-in cooldown icon containers must expose the Pressed Effect control")
+assert(not cdmPressedProviders.buff and not cdmPressedProviders.trackedBar,
+    "aura containers must not expose the cooldown-only Pressed Effect control")
 if #failures > 0 then
     local summary = {}
     for route, count in pairs(counts) do

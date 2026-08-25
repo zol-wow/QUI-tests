@@ -14,13 +14,14 @@ local function check(name, ok, detail)
 end
 
 local ncdm = ns.defaults.profile.ncdm
-for _, key in ipairs({ "essential", "utility", "buff" }) do
+for _, key in ipairs({ "essential", "utility" }) do
     check("top-level " .. key .. " pressed effect default", ncdm[key].pressedEffect == "qui")
     check("container " .. key .. " pressed effect default",
         ncdm.containers[key].pressedEffect == "qui")
 end
-check("bar containers have no pressed effect default",
-    ncdm.trackedBar.pressedEffect == nil and ncdm.containers.trackedBar.pressedEffect == nil)
+check("aura containers have no pressed effect default",
+    ncdm.buff.pressedEffect == nil and ncdm.containers.buff.pressedEffect == nil
+        and ncdm.trackedBar.pressedEffect == nil and ncdm.containers.trackedBar.pressedEffect == nil)
 
 ns.defaults.profile.__unitTestDefaults = {
     enabled = true,

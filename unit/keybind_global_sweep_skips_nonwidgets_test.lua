@@ -100,7 +100,7 @@ local core = {
             viewers = { EssentialCooldownViewer = { showKeybinds = false } },
             ncdm = {
                 enabled = true,
-                essential = { enabled = true, pressedEffect = "off" },
+                essential = { enabled = false, pressedEffect = "qui" },
                 utility = { enabled = false, pressedEffect = "off" },
                 buff = { enabled = true, pressedEffect = "qui" },
                 containers = {},
@@ -155,10 +155,16 @@ assert(loadfile("modules/utility/keybinds.lua"))("QUI", addon)
 
 addon.Keybinds.RebuildCache()
 
+assert(not actionButton.hooks and not methodHooks[actionButton] and not preparedButtons[actionButton],
+    "stale Buff Icon pressed-effect settings must not activate action-button hooks")
+
+core.db.profile.ncdm.essential.enabled = true
+addon.Keybinds.RebuildCache()
+
 assert(actionButton.hooks and actionButton.hooks.OnClick,
-    "buff-only pressed effects must hook action-button click state when keybind text is disabled")
+    "cooldown-icon pressed effects must hook action-button click state when keybind text is disabled")
 assert(methodHooks[actionButton] and methodHooks[actionButton].SetButtonState,
-    "buff-only pressed effects must hook action-button pushed state when keybind text is disabled")
+    "cooldown-icon pressed effects must hook action-button pushed state when keybind text is disabled")
 assert(preparedButtons[actionButton] == true,
     "action-button rebuilds must prepare reusable pressed-effect state out of combat")
 
