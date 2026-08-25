@@ -151,6 +151,8 @@ local function NewFrame()
 end
 
 UIParent = NewFrame()
+QUI_SpellFlyout = false
+SpellFlyout = false
 SlashCmdList = {}
 BINDING_HEADER_QUI_ACTIONBARS = ""
 WOW_PROJECT_MAINLINE = 1
@@ -322,6 +324,7 @@ assert(loadfile("QUI_ActionBars/actionbars/actionbars_glow.lua"))("QUI", ns)
 assert(loadfile("QUI_ActionBars/actionbars/actionbars_events.lua"))("QUI", ns)
 assert(loadfile("QUI_ActionBars/actionbars/actionbars_skinning.lua"))("QUI", ns)
 assert(loadfile("QUI_ActionBars/actionbars/actionbars_usability.lua"))("QUI", ns)
+assert(loadfile("QUI_ActionBars/actionbars/actionbars_mouseover.lua"))("QUI", ns)
 
 local actionBars = assert(ns.ActionBarsOwned, "ActionBarsOwned should be exported")
 
@@ -739,6 +742,21 @@ assert(rangeOverlay:IsShown(),
     "a range tint created while hidden should appear when its bar returns")
 usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
     "ACTION_RANGE_CHECK_UPDATE", 301, true, true)
+
+rangeButton._quiBarKey = "unowned"
+actionBars.nativeButtons.unowned = { rangeButton }
+ns.ActionBarsEnv.SetBarAlpha("unowned", 0.5)
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, false, true)
+assert(not rangeOverlay:IsShown(),
+    "a tint created during a non-owned partial fade should remain hidden")
+ns.ActionBarsEnv.SetBarAlpha("unowned", 1)
+assert(rangeOverlay:IsShown(),
+    "the non-owned fade path should restore a deferred tint at full alpha")
+usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
+    "ACTION_RANGE_CHECK_UPDATE", 301, true, true)
+actionBars.nativeButtons.unowned = nil
+rangeButton._quiBarKey = "bar1"
 
 actionBars.containers.bar1 = NewFrame()
 actionBars.SetBarAlpha("bar1", 0.5)
