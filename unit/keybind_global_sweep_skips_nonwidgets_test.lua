@@ -77,6 +77,16 @@ end
 
 _G.ForeignWidgetWrapper = setmetatable({ type = "label", dframework = true }, hostileMeta)
 
+local opieEditorGetActionCalls = 0
+_G.ABE_MacroInput = {
+    isFrameWidget = true,
+    GetObjectType = function() return "EditBox" end,
+    GetAction = function(_, into)
+        opieEditorGetActionCalls = opieEditorGetActionCalls + 1
+        into[1], into[2] = "imptext", ""
+    end,
+}
+
 local actionButton = {
     isFrameWidget = true,
     action = 7,
@@ -181,6 +191,8 @@ assert(pressedEvents[1].button == actionButton and pressedEvents[1].candidates[4
 assert(hostileTouches == 0,
     "the pairs(_G) sweep must not call methods on non-widget globals (ran foreign code " ..
     hostileTouches .. " time(s))")
+assert(opieEditorGetActionCalls == 0,
+    "the pairs(_G) sweep must not call OPie editor GetAction methods")
 assert(#reportedErrors == 0,
     "the sweep must not surface third-party errors: " .. tostring(reportedErrors[1]))
 assert(addon.Keybinds.GetKeybindForSpell(4242) == "F",
