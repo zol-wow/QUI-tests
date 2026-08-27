@@ -202,8 +202,113 @@ assert(moduleHookSection:find(
 
 assert(not mplusSrc:find("ObjectiveTrackerFrame:Update()", 1, true),
     "M+ timer must not directly update ObjectiveTrackerFrame")
-assert(mplusSrc:find("HideScenarioObjectiveTracker", 1, true),
+assert(mplusSrc:find("SetScenarioObjectiveTrackerSuppressed(true)", 1, true),
     "M+ timer must retain QUI's existing Scenario tracker visibility behavior")
+assert(mplusSrc:find("SetScenarioObjectiveTrackerSuppressed(false)", 1, true)
+    and mplusSrc:find("ScenarioObjectiveTracker:Show()", 1, true),
+    "hiding the M+ timer must restore a Scenario tracker it hid")
+
+local suppressionStart = assert(mplusSrc:find("local scenarioTrackerHiddenByTimer", 1, true),
+    "Scenario tracker suppression state must exist")
+local suppressionEnd = assert(mplusSrc:find("\nlocal DEFAULTS", suppressionStart, true),
+    "Scenario tracker suppression block must end before defaults")
+local suppressionChunk = table.concat({
+    "local ns, ScenarioObjectiveTracker, InCombatLockdown, CreateFrame = ...",
+    mplusSrc:sub(suppressionStart, suppressionEnd - 1),
+    "return SetScenarioObjectiveTrackerSuppressed",
+}, "\n")
+local suppressionFactory = assert(loadstring(suppressionChunk, "scenario_tracker_suppression"))
+local secretShown = {}
+
+local function newSuppressionHarness(initialShown, secret)
+    local combat = false
+    local deferred
+    local trackerFrame = {
+        shown = initialShown,
+        displayable = true,
+        hideCalls = 0,
+        showCalls = 0,
+        parentContainer = { collapsed = false },
+    }
+    function trackerFrame.parentContainer:IsCollapsed() return self.collapsed end
+    function trackerFrame:IsShown()
+        return secret and secretShown or self.shown
+    end
+    function trackerFrame:IsDisplayable() return self.displayable end
+    function trackerFrame:Hide()
+        self.shown = false
+        self.hideCalls = self.hideCalls + 1
+    end
+    function trackerFrame:Show()
+        self.shown = true
+        self.showCalls = self.showCalls + 1
+    end
+    local suppress = suppressionFactory({
+        Helpers = { IsSecretValue = function(value) return value == secretShown end },
+    }, trackerFrame, function() return combat end, function()
+        deferred = { registered = false }
+        function deferred:SetScript(_, callback) self.callback = callback end
+        function deferred:RegisterEvent() self.registered = true end
+        function deferred:UnregisterEvent() self.registered = false end
+        return deferred
+    end)
+    return trackerFrame, suppress, function(value) combat = value end, function()
+        assert(deferred and deferred.registered, "a suppression action must be deferred")
+        deferred.callback(deferred)
+    end
+end
+
+do
+    local trackerFrame, suppress = newSuppressionHarness(true, false)
+    suppress(true)
+    suppress(false)
+    suppress(false)
+    assert(trackerFrame.hideCalls == 1 and trackerFrame.showCalls == 1 and trackerFrame.shown,
+        "a visible Scenario tracker must be hidden and restored exactly once")
+end
+
+for _, makeUnavailable in ipairs({
+    function(frame) frame.displayable = false end,
+    function(frame) frame.parentContainer.collapsed = true end,
+}) do
+    local trackerFrame, suppress = newSuppressionHarness(true, false)
+    suppress(true)
+    makeUnavailable(trackerFrame)
+    suppress(false)
+    assert(trackerFrame.showCalls == 0,
+        "QUI must not restore a natively hidden or collapsed Scenario tracker")
+end
+
+for _, secret in ipairs({ false, true }) do
+    local trackerFrame, suppress = newSuppressionHarness(false, secret)
+    suppress(true)
+    suppress(false)
+    assert(trackerFrame.hideCalls == 0 and trackerFrame.showCalls == 0,
+        "an initially hidden or secret Scenario tracker must not be shown by QUI")
+end
+
+do
+    local trackerFrame, suppress, setCombat, runDeferred = newSuppressionHarness(true, false)
+    setCombat(true)
+    suppress(true)
+    suppress(false)
+    setCombat(false)
+    runDeferred()
+    assert(trackerFrame.hideCalls == 0 and trackerFrame.showCalls == 0,
+        "hiding the M+ timer in combat must cancel its pending Scenario tracker hide")
+end
+
+do
+    local trackerFrame, suppress, setCombat, runDeferred = newSuppressionHarness(true, false)
+    suppress(true)
+    setCombat(true)
+    suppress(false)
+    assert(trackerFrame.showCalls == 0, "Scenario tracker restore must wait for combat to end")
+    setCombat(false)
+    runDeferred()
+    assert(trackerFrame.showCalls == 1 and trackerFrame.shown,
+        "QUI-owned Scenario tracker restore must run once after combat")
+end
 
 assert(anchoringSrc:find(
     '{ key = "objectiveTracker",    frameName = "ObjectiveTrackerFrame"', 1, true),
