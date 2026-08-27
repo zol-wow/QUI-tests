@@ -54,7 +54,7 @@ local scenarioActive = false
 local heightChunk = table.concat({
     "local _G, Helpers, IsScenarioActive = ...",
     extract("tracker_max_height"),
-    "return ApplyTrackerMaxHeight, CaptureBlizzardTrackerHeight",
+    "return ApplyTrackerMaxHeight, CaptureBlizzardTrackerHeight, RestoreBlizzardTrackerHeight",
 }, "\n")
 
 local tracker = { height = 800, setHeightCalls = 0, topModulePadding = 38 }
@@ -67,8 +67,9 @@ function tracker:GetHeight()
 end
 
 local fakeGlobals = { ObjectiveTrackerFrame = tracker }
-local applyHeight, captureBlizzardHeight = assert(loadstring(heightChunk, "tracker_max_height"))(
+local applyHeight, captureBlizzardHeight, restoreHeight = assert(loadstring(heightChunk, "tracker_max_height"))(
     fakeGlobals, fakeHelpers, function() return scenarioActive end)
+captureBlizzardHeight(tracker)
 
 local containerSrc = readAll(
     "tests/framexml/Interface/AddOns/Blizzard_ObjectiveTracker/" ..
@@ -99,14 +100,18 @@ applyHeight({ objectiveTrackerHeight = 420 })
 assert(tracker.setHeightCalls == heightCalls,
     "unchanged max height must not trigger Blizzard's dirty resize path again")
 
-tracker.height = 800
+tracker.height = 840
 captureBlizzardHeight(tracker)
-scenarioActive = true
-assert(applyHeight({ objectiveTrackerHeight = 400 }) == false)
-assert(tracker.height == 800 and tracker.setHeightCalls == heightCalls,
-    "active Scenario layouts must not receive addon-owned height writes")
+applyHeight({ objectiveTrackerHeight = 420 })
+heightCalls = tracker.setHeightCalls
+assert(restoreHeight() == true)
+assert(tracker.height == 840 and tracker.setHeightCalls == heightCalls + 1,
+    "Scenario entry must restore Blizzard's native owner height once")
+local scenarioHeightCalls = tracker.setHeightCalls
+restoreHeight()
+assert(tracker.setHeightCalls == scenarioHeightCalls,
+    "active Scenario layouts must not receive repeated addon-owned height writes")
 
-scenarioActive = false
 applyHeight({ objectiveTrackerHeight = 400 })
 assert(tracker.height == 400,
     "configured max height must resume after the Scenario layout ends")
@@ -135,9 +140,9 @@ local function newWidthFrame(width)
 end
 
 local owner = newWidthFrame(260)
-owner.Header = newWidthFrame(260)
-local quest = newWidthFrame(260)
-quest.Header = newWidthFrame(260)
+owner.Header = newWidthFrame(250)
+local quest = newWidthFrame(270)
+quest.Header = newWidthFrame(280)
 local scenario = newWidthFrame(260)
 local widthGlobals = {
     ObjectiveTrackerFrame = owner,
@@ -147,9 +152,9 @@ local widthGlobals = {
 local widthChunk = table.concat({
     "local _G, Helpers, IsScenarioActive, trackerModules, WIDGET_POOL_TRACKER_NAMES = ...",
     extract("tracker_max_width"),
-    "return ApplyMaxWidth",
+    "return ApplyMaxWidth, RestoreBlizzardTrackerWidths",
 }, "\n")
-local applyWidth = assert(loadstring(widthChunk, "tracker_max_width"))(
+local applyWidth, restoreWidths = assert(loadstring(widthChunk, "tracker_max_width"))(
     widthGlobals, fakeHelpers, function() return scenarioActive end,
     { "ScenarioObjectiveTracker", "QuestObjectiveTracker" },
     { ScenarioObjectiveTracker = true, UIWidgetObjectiveTracker = true })
@@ -166,10 +171,54 @@ applyWidth({ objectiveTrackerWidth = 320 })
 assert(owner.setWidthCalls == ownerWidthCalls,
     "unchanged max width must not trigger Blizzard's dirty resize path again")
 
-scenarioActive = true
-assert(applyWidth({ objectiveTrackerWidth = 240 }) == false)
-assert(owner.width == 320 and owner.setWidthCalls == ownerWidthCalls,
-    "active Scenario layouts must not receive addon-owned width writes")
+assert(restoreWidths() == true)
+assert(owner.width == 260 and owner.Header.width == 250
+    and quest.width == 270 and quest.Header.width == 280
+    and owner.setWidthCalls == ownerWidthCalls + 1,
+    "Scenario entry must restore each tracker frame's cached native width once")
+local scenarioWidthCalls = owner.setWidthCalls
+restoreWidths()
+assert(owner.setWidthCalls == scenarioWidthCalls,
+    "active Scenario layouts must not receive repeated addon-owned width writes")
+
+applyWidth({ objectiveTrackerWidth = 240 })
+assert(owner.width == 240 and quest.width == 240,
+    "configured max width must resume after the Scenario layout ends")
+
+local safeLayoutBlock = assert(src:match(
+    "local scenarioDimensionsRestored = false(.-)local function EnforceSize%(%)"),
+    "safe layout transition block must exist")
+local safeLayoutChunk = table.concat({
+    "local scenarioDimensionsRestored = false",
+    "local pendingProtectedLayoutUpdate = false",
+    "local InCombatLockdown, IsScenarioActive, RestoreBlizzardTrackerHeight, " ..
+        "RestoreBlizzardTrackerWidths, ApplyTrackerMaxHeight, ApplyMaxWidth = ...",
+    safeLayoutBlock,
+    "return ApplyLayoutSettingsSafely, function() return pendingProtectedLayoutUpdate end",
+}, "\n")
+local inCombat = true
+local scenarioRunning = true
+local heightRestores, widthRestores, heightApplies, widthApplies = 0, 0, 0, 0
+local applyLayoutSafely, hasPendingLayout = assert(loadstring(
+    safeLayoutChunk, "safe_tracker_layout"))(
+    function() return inCombat end,
+    function() return scenarioRunning end,
+    function() heightRestores = heightRestores + 1; return true end,
+    function() widthRestores = widthRestores + 1; return true end,
+    function() heightApplies = heightApplies + 1; return true end,
+    function() widthApplies = widthApplies + 1; return true end)
+applyLayoutSafely({})
+assert(hasPendingLayout() and heightRestores == 0 and widthRestores == 0,
+    "Scenario dimensions must not be restored until combat ends")
+inCombat = false
+applyLayoutSafely({})
+applyLayoutSafely({})
+assert(heightRestores == 1 and widthRestores == 1,
+    "Scenario dimensions must be restored exactly once after combat")
+scenarioRunning = false
+applyLayoutSafely({})
+assert(heightApplies == 1 and widthApplies == 1,
+    "configured dimensions must resume after leaving the Scenario")
 
 local postLayout = assert(src:match(
     "local function RunObjectiveTrackerPostLayoutUpdate%(%)" ..
