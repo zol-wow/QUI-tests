@@ -177,6 +177,10 @@ local postLayout = assert(src:match(
     "post-layout objective tracker block must exist")
 assert(postLayout:find("EnforceSize()", 1, true),
     "post-layout updates must retain configured dimensions outside Scenario layouts")
+assert(postLayout:find('ns.SyncManagedHolderSize("objectiveTracker")', 1, true),
+    "deferred tracker updates must keep the managed holder geometry current")
+assert(postLayout:find("RefreshTrackerContent and not inCombat", 1, true),
+    "tracker events must defer full content rescans until combat ends")
 assert(src:find('"PLAYER_ENTERING_WORLD"', 1, true)
     and src:find('"ZONE_CHANGED_NEW_AREA"', 1, true),
     "Scenario-deferred dimensions must retry when the player leaves the Scenario zone")
@@ -207,6 +211,14 @@ assert(anchoringSrc:find(
 assert(anchoringSrc:find(
     'if def.key ~= "objectiveTracker" and frame.HookScript and not state.sizeHooked then', 1, true),
     "the Objective Tracker mover must not hook the owner's OnSizeChanged script")
+assert(anchoringSrc:find("ns.SyncManagedHolderSize = MirrorHolderSize", 1, true),
+    "anchoring must expose its existing holder mirror for safe deferred synchronization")
+local objectiveResolver = assert(anchoringSrc:match(
+    "objectiveTracker = function%(%)" ..
+    "(.-)topCenterWidgets = function%(%)"),
+    "Objective Tracker resolver block must exist")
+assert(objectiveResolver:find('MirrorHolderSize("objectiveTracker")', 1, true),
+    "the always-loaded resolver must refresh holder geometry without master skinning")
 assert(layoutModeSrc:find(
     '{ key = "objectiveTracker", label = ns.L["Objective Tracker"], frame = "ObjectiveTrackerFrame"',
     1, true),
