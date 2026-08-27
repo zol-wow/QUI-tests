@@ -116,12 +116,12 @@ do
             and safeCallPolicies[2] == "best-effort-style" and safeCallPolicies[3] == "best-effort-style")
 end
 
-check("SetState hook routes through the deferred queue",
-    source:find('hooksecurefunc(mixin, "SetState", QueueLineIconStyle)', 1, true) ~= nil)
+check("SetState stays free of global mixin hooks",
+    source:find('hooksecurefunc(mixin, "SetState"', 1, true) == nil)
 check("UpdateHighlight hook routes through the deferred queue",
     source:find('hooksecurefunc(block, "UpdateHighlight", QueueBlockHighlightRestyle)', 1, true) ~= nil)
-check("progress bar hooks route through the deferred queue",
-    source:find("hooksecurefunc(pm.mixin, pm.method, QueueProgressBarStyle)", 1, true) ~= nil)
+check("progress bars stay free of global mixin hooks",
+    source:find("hooksecurefunc(pm.mixin, pm.method", 1, true) == nil)
 
 local iconChunk = table.concat({
     "local GetSettings, IsWidgetPoolBlock, Helpers, _G = ...",
