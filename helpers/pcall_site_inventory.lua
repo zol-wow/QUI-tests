@@ -22,7 +22,6 @@ return {
     "QUI_CDM/cdm/cdm_reanchor_realenv.lua::5",
     "QUI_CDM/cdm/cdm_reanchor_wiring.lua::1",
     "QUI_CDM/cdm/cdm_resolvers.lua::2",
-    "QUI_CDM/cdm/cdm_shared.lua::1",
     "QUI_Chat/chat/channel_registry.lua::1",
     "QUI_Chat/chat/conversation_manager.lua::1",
     "QUI_Chat/chat/copy.lua::2",

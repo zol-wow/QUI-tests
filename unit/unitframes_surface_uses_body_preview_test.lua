@@ -40,6 +40,10 @@ assert(not surface:find('FormatHealthText(', 1, true),
     "RefreshMock must no longer call FormatHealthText (driver writes health text per tick)")
 assert(not surface:find('FormatPowerText(', 1, true),
     "RefreshMock must no longer call FormatPowerText (driver writes power text per tick)")
+assert(not surface:find('mock._castbarMock:SetWidth(w)', 1, true),
+    "RefreshMock must leave castbar preview width to the castbar preview driver")
+assert(not surface:find('mock._castbarMock._barInnerW = w', 1, true),
+    "RefreshMock must leave castbar fill width to the castbar preview driver")
 
 -- T9: the options TOC registers the body preview driver, AFTER the castbar driver.
 local optionsXml = readAll("QUI_Options/QUI_Options.toc")

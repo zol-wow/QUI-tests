@@ -235,7 +235,10 @@ env.UIParent = StubFrame("UIParent", true)
 _G.UIParent = env.UIParent
 
 local frameAnchoring = {}
-ns.Addon = { db = { profile = { frameAnchoring = frameAnchoring } } }
+ns.Addon = { db = { profile = {
+    frameAnchoring = frameAnchoring,
+    quiUnitFrames = { target = { castbar = { width = 340 } } },
+} } }
 
 local ANCHORING = "modules/layout/anchoring.lua"
 local chunk = assert(loadstring(readFile(ANCHORING), "@" .. ANCHORING))
@@ -401,6 +404,8 @@ check("target castbar apply claims layout ownership",
 local firstCastbarPoint = targetCastbar.points[1]
 check("restricted castbar pins to UIParent",
     firstCastbarPoint and firstCastbarPoint.rel == env.UIParent, geomSummary())
+check("auto-width castbar matches its anchor target",
+    targetCastbar.width == targetUnitFrame.width, tostring(targetCastbar.width))
 local firstCastbarX = firstCastbarPoint and firstCastbarPoint.x
 
 targetUnitFrame.left = 60
@@ -411,6 +416,20 @@ check("restricted castbar pin follows parent on reapply",
     movedCastbarPoint and movedCastbarPoint.rel == env.UIParent
         and movedCastbarPoint.x ~= firstCastbarX,
     geomSummary())
+
+frameAnchoring.targetCastbar.autoWidth = false
+targetCastbar.width = 220
+env.QUI_ApplyFrameAnchor("targetCastbar")
+runScheduled()
+check("manual-width castbar uses its configured width with an anchor target",
+    targetCastbar.width == 340, tostring(targetCastbar.width))
+
+frameAnchoring.targetCastbar.parent = "disabled"
+targetCastbar.width = 220
+env.QUI_ApplyFrameAnchor("targetCastbar")
+runScheduled()
+check("manual-width castbar uses its configured width with anchoring disabled",
+    targetCastbar.width == 340, tostring(targetCastbar.width))
 
 ---------------------------------------------------------------------------
 -- (b) hideWithParent visibility reads.

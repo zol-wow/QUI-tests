@@ -53,8 +53,10 @@ assertAbsent(objectiveSource, "C_Timer.After(0.15",
     "ObjectiveTracker protected post-layout updates must not use a fixed 0.15s delay")
 assertContains(objectiveSource, "local function DeferObjectiveTrackerPostLayoutUpdate()",
     "ObjectiveTracker must use a named post-layout defer helper")
-assertContains(objectiveSource, "FrameXML DirtiableMixin:MarkDirty uses RunNextFrame",
-    "ObjectiveTracker defer helper must document the FrameXML lifecycle reason")
+assertAbsent(objectiveSource, 'hooksecurefunc(TrackerFrame, "Update"',
+    "ObjectiveTracker cosmetics must not attach to Blizzard's owner update lifecycle")
+assertAbsent(objectiveSource, 'TrackerFrame:HookScript("OnSizeChanged"',
+    "ObjectiveTracker cosmetics must not enter Blizzard's dirty resize lifecycle")
 
 local overrideSource = readFile("modules/skinning/frames/overrideactionbar.lua")
 assertAbsent(overrideSource, "C_Timer.After(0.15",

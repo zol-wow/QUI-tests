@@ -10,24 +10,22 @@ assert(A.PRIMARY == "Blizzard_CooldownViewer", "primary addon name is Blizzard_C
 assert(A.IsViewerAddon("Blizzard_CooldownViewer"), "recognizes the current viewer addon")
 assert(not A.IsViewerAddon("Blizzard_CooldownManager"), "does not recognize stale manager addon")
 assert(not A.IsViewerAddon("Blizzard_Test"), "rejects unrelated addons")
+assert(A.Load == nil, "QUI_CDM must not expose a Blizzard Cooldown Viewer loader")
 
-local calls = {}
-local ok, loadedName = A.Load(function(name)
-    calls[#calls + 1] = name
-    if name == "Blizzard_CooldownViewer" then
-        error("missing current addon")
-    end
-    return true
-end)
-assert(ok == false and loadedName == nil, "does not fall back to the stale manager addon")
-assert(#calls == 1 and calls[1] == "Blizzard_CooldownViewer", "tries only the current viewer addon")
+local file = assert(io.open("QUI_CDM/cdm/cdm_spelldata.lua", "rb"))
+local source = file:read("*a")
+file:close()
+assert(not source:find("ForceLoadCDM", 1, true),
+    "QUI_CDM must wait for Blizzard_CooldownViewer instead of force-loading it")
+assert(not source:find('LoadAddOn("Blizzard_CooldownViewer")', 1, true),
+    "QUI_CDM must not load Blizzard_CooldownViewer from addon execution")
 
-calls = {}
-ok, loadedName = A.Load(function(name)
-    calls[#calls + 1] = name
-    return true
-end)
-assert(ok == true and loadedName == "Blizzard_CooldownViewer", "uses current addon when it loads")
-assert(#calls == 1, "does not load legacy addon after current addon succeeds")
+file = assert(io.open("QUI_CDM/cdm/cdm_containers.lua", "rb"))
+source = file:read("*a")
+file:close()
+assert(source:find('eventFrame:RegisterEvent("ADDON_LOADED")', 1, true),
+    "QUI_CDM must wait for Blizzard addon loading")
+assert(source:find('event == "ADDON_LOADED" and cooldownViewerLoaded', 1, true),
+    "QUI_CDM must initialize native viewer hooks from ADDON_LOADED")
 
 print("OK: cdm_viewer_addon_test")
