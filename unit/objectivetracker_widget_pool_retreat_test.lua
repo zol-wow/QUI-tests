@@ -180,6 +180,12 @@ assert(postLayout:find("EnforceSize()", 1, true),
 assert(src:find('"PLAYER_ENTERING_WORLD"', 1, true)
     and src:find('"ZONE_CHANGED_NEW_AREA"', 1, true),
     "Scenario-deferred dimensions must retry when the player leaves the Scenario zone")
+local masterHeader = assert(src:match(
+    "local function SkinMasterHeader%(trackerFrame%)(.-)" ..
+    "%-%- <<< QUI_TEST_EXTRACT tracker_max_height"),
+    "master tracker header block must exist")
+assert(masterHeader:find("ScheduleBackdropUpdate()", 1, true),
+    "master collapse must refresh QUI's backdrop after Blizzard updates visibility")
 
 local moduleHookSection = assert(src:match(
     "local DeferredScheduleBackdropUpdate = DeferObjectiveTrackerPostLayoutUpdate(.-)" ..
