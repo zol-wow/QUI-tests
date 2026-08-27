@@ -647,6 +647,110 @@ end
 ns.Helpers.GetProfile = realGetProfile
 if AD.Store() == nil then fail("Store must recover once the profile is back") end
 
+-- Nested groups: parent links with cycle/depth guards, enable chains that
+-- walk ancestors, and rename/delete keeping the tree consistent.
+AD.GetGroup("Nest Parent", true)
+AD.GetGroup("Nest Child", true)
+AD.GetGroup("Nest Leaf", true)
+if AD.SetGroupParent("Nest Child", "Nest Parent") ~= true
+    or AD.SetGroupParent("Nest Leaf", "Nest Child") ~= true then
+    fail("SetGroupParent must link valid parents")
+end
+if AD.GroupParent("Nest Leaf") ~= "Nest Child" then
+    fail("GroupParent must report the direct parent")
+end
+local selfOK, selfReason = AD.SetGroupParent("Nest Parent", "Nest Parent")
+if selfOK ~= false or selfReason ~= "cycle" then
+    fail("a group must not become its own parent")
+end
+local cycleOK, cycleReason = AD.SetGroupParent("Nest Parent", "Nest Leaf")
+if cycleOK ~= false or cycleReason ~= "cycle" then
+    fail("nesting a group under its own descendant must be rejected as a cycle")
+end
+local chain = { "Depth 1" }
+AD.GetGroup("Depth 1", true)
+for i = 2, 6 do
+    chain[i] = "Depth " .. i
+    AD.GetGroup(chain[i], true)
+    if AD.SetGroupParent(chain[i], chain[i - 1]) ~= true then
+        fail("nesting up to the depth cap must succeed at level " .. i)
+    end
+end
+AD.GetGroup("Depth 7", true)
+local depthOK, depthReason = AD.SetGroupParent("Depth 7", "Depth 6")
+if depthOK ~= false or depthReason ~= "depth" then
+    fail("nesting beyond the depth cap must be rejected")
+end
+
+local roots = AD.GroupChildren(nil)
+local sawParent, sawChild = false, false
+for i = 1, #roots do
+    if roots[i] == "Nest Parent" then sawParent = true end
+    if roots[i] == "Nest Child" then sawChild = true end
+end
+if not sawParent or sawChild then
+    fail("GroupChildren(nil) must list root groups only")
+end
+local nestChildren = AD.GroupChildren("Nest Parent")
+if #nestChildren ~= 1 or nestChildren[1] ~= "Nest Child" then
+    fail("GroupChildren must list a group's direct children")
+end
+
+AD.GetGroup("Nest Child B", true)
+if AD.SetGroupParent("Nest Child B", "Nest Parent") ~= true then
+    fail("second child must nest")
+end
+if AD.GroupChildren("Nest Parent")[2] ~= "Nest Child B" then
+    fail("siblings without sort must order by name")
+end
+if AD.MoveGroupWithinParent("Nest Child B", -1) ~= true
+    or AD.GroupChildren("Nest Parent")[1] ~= "Nest Child B" then
+    fail("MoveGroupWithinParent must reorder siblings")
+end
+if AD.MoveGroupWithinParent("Nest Child B", -1) ~= false then
+    fail("moving the first sibling further up must fail")
+end
+
+local nestDisplay = AD.NewDisplay("Nest Display", "Nest Leaf")
+local nestMid = AD.NewDisplay("Nest Mid Display", "Nest Child")
+AD.SetGroupEnabled("Nest Parent", false)
+if AD.GroupEnabled("Nest Leaf") ~= false then
+    fail("a disabled ancestor must disable the whole subtree")
+end
+if AD.DisplayActive(nestDisplay) ~= false then
+    fail("displays in a subtree with a disabled ancestor must be inactive")
+end
+AD.SetGroupEnabled("Nest Parent", true)
+if AD.GroupEnabled("Nest Leaf") ~= true then
+    fail("re-enabling the ancestor must re-enable the subtree")
+end
+
+local treeDisplays = AD.GroupTreeDisplays("Nest Parent")
+if #treeDisplays ~= 2 then
+    fail("GroupTreeDisplays must collect the whole subtree, got " .. #treeDisplays)
+end
+if AD.RootGroupName("Nest Leaf") ~= "Nest Parent" then
+    fail("RootGroupName must walk to the tree root")
+end
+if AD.GroupPathLabel("Nest Leaf") ~= "Nest Parent > Nest Child > Nest Leaf" then
+    fail("GroupPathLabel must join the ancestor chain, got "
+        .. tostring(AD.GroupPathLabel("Nest Leaf")))
+end
+
+if AD.RenameGroup("Nest Child", "Nest Mid") ~= true then
+    fail("renaming a nested group must succeed")
+end
+if AD.GroupParent("Nest Leaf") ~= "Nest Mid" then
+    fail("RenameGroup must re-link child groups to the new name")
+end
+AD.DeleteGroup("Nest Mid")
+if AD.GroupParent("Nest Leaf") ~= "Nest Parent" then
+    fail("DeleteGroup must promote child groups to the deleted group's parent")
+end
+if nestMid.group ~= "Nest Parent" then
+    fail("DeleteGroup must promote member displays to the deleted group's parent")
+end
+
 -- Runtime group integration: grouped displays share one host/mover, then an
 -- ungrouped display returns to UIParent and regains its own mover.
 local function NewFrame(parent)
@@ -747,6 +851,55 @@ if not layoutElements[AD.ANCHOR_PREFIX .. runtimeFirst.id] then
 end
 if runtimeGroupHost.width ~= 10 then
     fail("the remaining one-member group must reflow")
+end
+
+-- Nested runtime: a child group's host flows as a block inside the parent's
+-- layout at its own scale; only the root keeps a Layout Mode mover.
+local runtimeSub = AD.GetGroup("Runtime Sub", true)
+runtimeSub.scale = 2
+if AD.SetGroupParent("Runtime Sub", "Runtime Group") ~= true then
+    fail("runtime child group must nest")
+end
+local runtimeThird = AD.NewDisplay("Runtime Third", "Runtime Sub")
+AD.Refresh()
+local runtimeSubHost = AD.GroupHostFor("Runtime Sub")
+local runtimeThirdHost = AD.HostFor(runtimeThird.id)
+if not runtimeSubHost or runtimeSubHost.parent ~= runtimeGroupHost then
+    fail("a nested group's host must be parented into the root group host")
+end
+if runtimeSubHost.scale ~= 2 or runtimeSubHost.width ~= 10 then
+    fail("a nested group keeps its own scale and natural size")
+end
+if runtimeThirdHost.parent ~= runtimeSubHost then
+    fail("nested displays must live inside their own group's host")
+end
+-- Members flow child-group first: sub (10 natural * 2 scale = 20 effective),
+-- spacing 4, then the remaining display (10) -> 34 x 20.
+if runtimeGroupHost.width ~= 34 or runtimeGroupHost.height ~= 20 then
+    fail(("root group must count the child block's scaled extent, got %sx%s")
+        :format(tostring(runtimeGroupHost.width), tostring(runtimeGroupHost.height)))
+end
+if runtimeSubHost.point[4] ~= 10 or runtimeSecondHost.point[4] ~= 29 then
+    fail("nested blocks and displays must share the parent's flow")
+end
+local runtimeSubKey = AD.GroupAnchorKey("Runtime Sub", false)
+if layoutElements[runtimeSubKey] then
+    fail("nested groups must not register their own Layout Mode mover")
+end
+if not layoutElements[runtimeGroupKey] then
+    fail("the root group must keep its Layout Mode mover")
+end
+
+AD.SetGroupParent("Runtime Sub", nil)
+AD.Refresh()
+if runtimeSubHost.parent ~= UIParent then
+    fail("a detached group must return to UIParent")
+end
+if not layoutElements[runtimeSubKey] then
+    fail("a detached group must regain its own Layout Mode mover")
+end
+if runtimeGroupHost.width ~= 10 then
+    fail("the parent must reflow after the child group detaches")
 end
 
 print("PASS: aura_displays_test")
