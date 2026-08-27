@@ -6,11 +6,15 @@ local function readAll(path)
 end
 
 local source = readAll("modules/alts/views/window.lua")
+local defaults = readAll("core/defaults.lua")
+local finishStart = assert(source:find("local function FinishInteraction()", 1, true))
+local finishEnd = assert(source:find('win:SetScript("OnEvent"', finishStart, true))
 local pressStart = assert(source:find('resize:SetScript("OnMouseDown"', 1, true))
 local releaseStart = assert(source:find('resize:SetScript("OnMouseUp"', 1, true))
 local releaseEnd = assert(source:find("win._resize = resize", releaseStart, true))
 local hideStart = assert(source:find('win:SetScript("OnHide"', releaseEnd, true))
 local hideEnd = assert(source:find("\n    Reskin()", hideStart, true))
+local finish = source:sub(finishStart, finishEnd - 1)
 local press = source:sub(pressStart, releaseStart - 1)
 local release = source:sub(releaseStart, releaseEnd)
 local hide = source:sub(hideStart, hideEnd - 1)
@@ -24,16 +28,23 @@ assert(press:find("InCombatLockdown and InCombatLockdown()", 1, true),
 assert(source:find('win:StartSizing("BOTTOMRIGHT")', 1, true), "resize grip must start bottom-right sizing")
 assert(press:find('interaction = "resize"', 1, true), "resize grip must latch successful sizing")
 assert(release:find('interaction ~= "resize"', 1, true), "resize release must require a latched operation")
-assert(hide:find("interaction = nil", 1, true), "hiding the window must clear the resize latch")
-assert(hide:find("not (InCombatLockdown and InCombatLockdown())", 1, true),
-    "hiding in combat must not call the protected stop method")
-assert(release:find("SaveGeometry(true)", 1, true), "resize release must persist size and position")
+assert(release:find("FinishInteraction()", 1, true), "resize release must use guarded completion")
+assert(hide:find("FinishInteraction()", 1, true), "hiding must use guarded completion")
+assert(finish:find('win:RegisterEvent("PLAYER_REGEN_ENABLED")', 1, true),
+    "combat completion must defer until combat ends")
+assert(source:find('if event == "PLAYER_REGEN_ENABLED" then FinishInteraction() end', 1, true),
+    "deferred completion must resume after combat")
+assert(finish:find('SaveGeometry(active == "resize")', 1, true),
+    "deferred resize completion must persist geometry")
+assert(finish:find('if active == "resize" then RefreshActiveView() end', 1, true),
+    "deferred resize completion must refresh the active table")
 assert(source:find("s.point, s.relativePoint, s.x, s.y", 1, true),
     "resized position must retain its relative anchor across reloads")
 assert(source:find("cfg.relativePoint or cfg.point", 1, true),
     "saved geometry must restore against its original relative anchor")
+assert(defaults:find('window = { point = "CENTER", relativePoint = "CENTER"', 1, true),
+    "relative anchor must have a typed profile default")
 assert(source:find("s.width = math.floor", 1, true), "resized width must persist")
 assert(source:find("s.height = math.floor", 1, true), "resized height must persist")
-assert(release:find("RefreshActiveView()", 1, true), "resize release must refresh the active table")
 
 print("OK: alts_window_resize_test")
