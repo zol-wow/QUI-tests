@@ -440,6 +440,7 @@ return {
           window = {
             height = 540,
             point = "CENTER",
+            relativePoint = "CENTER",
             width = 920,
             x = 0,
             y = 0
