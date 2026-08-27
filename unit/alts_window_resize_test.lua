@@ -9,12 +9,15 @@ local source = readAll("modules/alts/views/window.lua")
 local defaults = readAll("core/defaults.lua")
 local finishStart = assert(source:find("local function FinishInteraction()", 1, true))
 local finishEnd = assert(source:find('win:SetScript("OnEvent"', finishStart, true))
+local eventStart = finishEnd
+local eventEnd = assert(source:find("win._bg = win:CreateTexture", eventStart, true))
 local pressStart = assert(source:find('resize:SetScript("OnMouseDown"', 1, true))
 local releaseStart = assert(source:find('resize:SetScript("OnMouseUp"', 1, true))
 local releaseEnd = assert(source:find("win._resize = resize", releaseStart, true))
 local hideStart = assert(source:find('win:SetScript("OnHide"', releaseEnd, true))
 local hideEnd = assert(source:find("\n    Reskin()", hideStart, true))
 local finish = source:sub(finishStart, finishEnd - 1)
+local event = source:sub(eventStart, eventEnd - 1)
 local press = source:sub(pressStart, releaseStart - 1)
 local release = source:sub(releaseStart, releaseEnd)
 local hide = source:sub(hideStart, hideEnd - 1)
@@ -30,9 +33,15 @@ assert(press:find('interaction = "resize"', 1, true), "resize grip must latch su
 assert(release:find('interaction ~= "resize"', 1, true), "resize release must require a latched operation")
 assert(release:find("FinishInteraction()", 1, true), "resize release must use guarded completion")
 assert(hide:find("FinishInteraction()", 1, true), "hiding must use guarded completion")
+assert(source:find('win:RegisterEvent("PLAYER_REGEN_DISABLED")', 1, true),
+    "active interactions must watch for combat lockdown")
+assert(event:find('event == "PLAYER_REGEN_DISABLED"', 1, true),
+    "combat entry must stop an active interaction before lockdown")
+assert(event:find("StopInteraction()", 1, true),
+    "combat entry must stop moving or sizing at the last safe opportunity")
 assert(finish:find('win:RegisterEvent("PLAYER_REGEN_ENABLED")', 1, true),
     "combat completion must defer until combat ends")
-assert(source:find('if event == "PLAYER_REGEN_ENABLED" then FinishInteraction() end', 1, true),
+assert(event:find('event == "PLAYER_REGEN_ENABLED"', 1, true) and event:find("FinishInteraction()", 1, true),
     "deferred completion must resume after combat")
 assert(finish:find('SaveGeometry(active == "resize")', 1, true),
     "deferred resize completion must persist geometry")
