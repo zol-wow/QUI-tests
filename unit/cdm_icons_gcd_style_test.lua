@@ -408,6 +408,7 @@ local ns = {
 
 dofile("tests/helpers/load_cdm_icon_runtime.lua")(ns)
 assert(loadfile("QUI_CDM/cdm/cdm_icon_renderer.lua"))("QUI", ns)
+local RuntimeQueries = ns.CDMRuntimeQueries
 
 local icon = {
     Cooldown = {
@@ -624,7 +625,10 @@ local priorMirrorResourceBlockedIcon = {
     },
 }
 
+RuntimeQueries.BeginRuntimeQueryBatch()
+priorMirrorResourceBlockedIcon._lastDurationBindingEpoch = RuntimeQueries.GetActiveBatchEpoch()
 applied = ns.CDMIcons.ApplyResolvedCooldown(priorMirrorResourceBlockedIcon)
+RuntimeQueries.EndRuntimeQueryBatch()
 
 assert(applied == true, "renderer should keep an API-confirmed non-GCD mirror cooldown binding")
 assert(priorMirrorAppliedDuration == nil,
