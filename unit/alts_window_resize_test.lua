@@ -37,10 +37,10 @@ assert(source:find('win:RegisterEvent("PLAYER_REGEN_DISABLED")', 1, true),
     "active interactions must watch for combat lockdown")
 assert(event:find('event == "PLAYER_REGEN_DISABLED"', 1, true),
     "combat entry must stop an active interaction before lockdown")
-assert(event:find("StopInteraction()", 1, true),
-    "combat entry must stop moving or sizing at the last safe opportunity")
+assert(event:find("FinishInteraction()", 1, true),
+    "combat entry must finish moving or sizing at the last safe opportunity")
 assert(finish:find('win:RegisterEvent("PLAYER_REGEN_ENABLED")', 1, true),
-    "combat completion must defer until combat ends")
+    "locked completion must retain a post-combat fallback")
 assert(event:find('event == "PLAYER_REGEN_ENABLED"', 1, true) and event:find("FinishInteraction()", 1, true),
     "deferred completion must resume after combat")
 assert(finish:find('SaveGeometry(active == "resize")', 1, true),
