@@ -340,6 +340,163 @@ if state.value.nested then return end
 ]]
 assert_eq(#Analyzer.analyze(source8s, "modules/foo.lua", r5Arity, cfg), 0,
     "past-arity nil spill clears stale member descendants")
+
+r5Arity:addSafeSinkFunction("RejectFirst", { 1 })
+r5Arity:addSafeSinkFunction("RejectSecond", { 2 })
+local positionalSummaryCases = {
+    { "identity has no second result", [=[
+local function id(v) return v end
+bar:SetValue(id(UnitHealthPercent("player")))
+]=], 0 },
+    { "second pair result stays clean", [=[
+local function pair(v) return v, false end
+bar:SetValue(pair(UnitHealthPercent("player")))
+]=], 0 },
+    { "second pair result carries its parameter", [=[
+local function pair(v) return false, v end
+bar:SetValue(pair(UnitHealthPercent("player")))
+]=], 1 },
+    { "scalar call reads only result one", [=[
+local function pair(v) return false, v end
+local value = pair(UnitHealthPercent("player"))
+if value then return end
+]=], 0 },
+    { "expanded temp binding reads result two", [=[
+local function pair(v) return false, v end
+local _, value = pair(UnitHealthPercent("player"))
+if value then return end
+]=], 1 },
+    { "nested summaries retain result positions", [=[
+local function pair(v) return false, v end
+local function outer(v) return pair(v) end
+bar:SetValue(outer(UnitHealthPercent("player")))
+]=], 1 },
+    { "returned varargs stop at supplied arguments", [=[
+local function pass(...) return ... end
+RejectSecond(pass(UnitHealthPercent("player")))
+]=], 0 },
+    { "returned varargs retain supplied arguments", [=[
+local function pass(...) return ... end
+RejectFirst(pass(UnitHealthPercent("player")))
+]=], 1 },
+    { "fixed-prefix varargs keep their positions", [=[
+local function tail(first, ...) return false, ... end
+bar:SetValue(tail(1, UnitHealthPercent("player")))
+]=], 1 },
+    { "non-final vararg expression stays scalar", [=[
+local function first(...) return ..., false end
+RejectFirst(first(UnitHealthPercent("player")))
+]=], 1 },
+    { "parenthesized vararg expression stays scalar", [=[
+local function first(...) return (...) end
+RejectFirst(first(UnitHealthPercent("player")))
+]=], 1 },
+    { "vararg sink argument stays positional", [=[
+local function consume(...) RejectFirst(..., false) end
+consume(UnitHealthPercent("player"))
+]=], 1 },
+    { "vararg temp binding stays positional", [=[
+local function consume(...)
+    local value, other = ..., false
+    RejectFirst(value)
+end
+consume(UnitHealthPercent("player"))
+]=], 1 },
+    { "string-call summary has a finite result", [=[
+local function source(_) return UnitHealthPercent("player") end
+bar:SetValue(source "player")
+]=], 0 },
+    { "string-call summary retains result one", [=[
+local function source(_) return UnitHealthPercent("player") end
+RejectFirst(source "player")
+]=], 1 },
+    { "table-call summary has a finite result", [=[
+local function source(_) return UnitHealthPercent("player") end
+bar:SetValue(source {})
+]=], 0 },
+    { "table-call summary resolves its timeline", [=[
+local function source(_) return UnitHealthPercent("player") end
+RejectFirst(source {})
+]=], 1 },
+    { "pcall wrapper shifts protected results", [=[
+local function id(v) return v end
+local function protect(v) return pcall(id, v) end
+bar:SetValue(protect(UnitHealthPercent("player")))
+]=], 1 },
+    { "xpcall wrapper shifts protected results", [=[
+local function id(v) return v end
+local function protect(v) return xpcall(id, error, v) end
+bar:SetValue(protect(UnitHealthPercent("player")))
+]=], 1 },
+    { "pcall failure result retains thrown input", [=[
+local function boom(v) error(v) end
+local function protect(v) return pcall(boom, v) end
+RejectSecond(protect(UnitHealthPercent("player")))
+]=], 2 },
+    { "xpcall handler retains the error input", [=[
+local function boom(v) error(v) end
+local function handler(v) return v end
+local function protect(v) return xpcall(boom, handler, v) end
+RejectSecond(protect(UnitHealthPercent("player")))
+]=], 2 },
+    { "xpcall handler source taints the error result", [=[
+local function boom() error("boom") end
+local function handler() return UnitHealthPercent("player") end
+local function protect() return xpcall(boom, handler) end
+RejectSecond(protect())
+]=], 1 },
+    { "pcall wrapper preserves callee sink effects", [=[
+local function consume(v) RejectFirst(v) end
+local function protect(v) return pcall(consume, v) end
+protect(UnitHealthPercent("player"))
+]=], 1 },
+    { "xpcall wrapper preserves callee sink effects", [=[
+local function consume(v) RejectFirst(v) end
+local function protect(v) return xpcall(consume, error, v) end
+protect(UnitHealthPercent("player"))
+]=], 1 },
+    { "parenthesized returned call truncates", [=[
+local function id(v) return v end
+local function one(v) return (id(v)) end
+bar:SetValue(one(UnitHealthPercent("player")))
+]=], 0 },
+    { "unknown callable alternative stays conservative", [=[
+local function id(v) return v end
+local fn = id
+if condition then fn = External end
+bar:SetValue(fn(UnitHealthPercent("player")))
+]=], 1 },
+    { "unknown callable alternative sees expanded arguments", [=[
+local function clean() return false end
+local function pair(v) return false, v end
+local fn = clean
+if condition then fn = External end
+RejectFirst(fn(pair(UnitHealthPercent("player"))))
+]=], 1 },
+    { "constructor final call expands all results", [=[
+local function pair(v) return false, v end
+local function wrap(v) return { pair(v) } end
+local values = wrap(UnitHealthPercent("player"))
+RejectFirst(values[2])
+]=], 1 },
+    { "constructor final vararg expands all results", [=[
+local function wrap(...) return { ... } end
+local values = wrap(false, UnitHealthPercent("player"))
+RejectFirst(values[2])
+]=], 1 },
+    { "past summary arity clears stale descendants", [=[
+local function one() return {} end
+local state = { value = {} }
+state.value.nested = UnitHealthPercent("player")
+local _, replacement = one()
+state.value = replacement
+if state.value.nested then return end
+]=], 0 },
+}
+for _, case in ipairs(positionalSummaryCases) do
+    assert_eq(#Analyzer.analyze(case[2], "modules/foo.lua", r5Arity, cfg),
+        case[3], case[1])
+end
 end
 
 print("safe sink test passed")
