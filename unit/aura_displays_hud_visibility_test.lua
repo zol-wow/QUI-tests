@@ -24,7 +24,8 @@ end
 local now = 0
 local inCombat = false
 local mounted = false
-local auraAlpha = 0
+local auraAlpha = 1
+local auraFramesActive = false
 local auraHost = NewFrame()
 auraHost.alpha = 0
 
@@ -72,7 +73,7 @@ local ns = {
     },
     QUI_AuraDisplays = {
         GetVisibilityAlpha = function() return auraAlpha end,
-        GetVisibilityFrames = function() return { auraHost } end,
+        GetVisibilityFrames = function() return auraFramesActive and { auraHost } or {} end,
         IsVisibilityFrameMouseOver = function() return auraHost.mouseOver end,
         SetVisibilityAlpha = function(alpha)
             auraAlpha = alpha
@@ -104,8 +105,21 @@ local function TickFade(targetTime)
 end
 
 ns.RefreshAuraDisplaysVisibility()
-if auraAlpha ~= 0 then fail("out-of-combat Aura Displays must start hidden") end
+if auraAlpha ~= 0 then fail("autohide alpha must stay current without active Aura Displays") end
 
+auraFramesActive = true
+inCombat = true
+ns.RefreshAuraDisplaysVisibility()
+local interruptedFadeFrame = frames[#frames]
+auraFramesActive = false
+inCombat = false
+ns.RefreshAuraDisplaysVisibility()
+if interruptedFadeFrame.scripts.OnUpdate ~= nil then
+    fail("empty Aura Displays must cancel an in-progress fade")
+end
+if auraAlpha ~= 0 then fail("cancelled visibility fades must preserve the empty-state target") end
+
+auraFramesActive = true
 inCombat = true
 ns.RefreshAuraDisplaysVisibility()
 TickFade(0.2)
