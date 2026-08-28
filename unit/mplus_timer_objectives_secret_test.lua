@@ -18,6 +18,10 @@ local s = assert(source:find(beginMark, 1, true), "begin sentinel")
 local e = assert(source:find(endMark, 1, true), "end sentinel")
 local slice = source:sub(s + #beginMark, e - 1)
 
+local textStart = assert(source:find("function MPlusTimer:WriteForcesText(fs)", 1, true))
+local textEnd = assert(source:find("function MPlusTimer:RenderForces()", textStart, true))
+local textSlice = source:sub(textStart, textEnd - 1)
+
 local function NewHarness(criteria, stepInfo)
     local env = setmetatable({
         MPlusTimer = nil,
@@ -41,8 +45,8 @@ local function NewHarness(criteria, stepInfo)
         self.captureObjectives = objectives
     end
 
-    function timer:SetForces(quantity, total, quantityString)
-        self.captureForces = { quantity = quantity, total = total, quantityString = quantityString }
+    function timer:SetForces(quantity)
+        self.captureForces = quantity
     end
 
     local chunk, err = instrument.loadString(slice, "mplus_objectives_secret")
@@ -51,6 +55,39 @@ local function NewHarness(criteria, stepInfo)
     chunk()
 
     return timer
+end
+
+do
+    local timer = {
+        state = {
+            forcesQuantity = 100,
+        },
+    }
+    local env = setmetatable({
+        MPlusTimer = timer,
+    }, { __index = _G })
+    local chunk, err = loadstring(textSlice, "mplus_forces_text")
+    assert(chunk, err)
+    setfenv(chunk, env)
+    chunk()
+
+    local fs = {}
+    function fs:SetFormattedText(pattern, ...)
+        self.text = string.format(pattern, ...)
+    end
+
+    timer:WriteForcesText(fs)
+    assert(fs.text == "100.00%", "forces text uses the weighted percentage only")
+
+    local secretQuantity = sentinel.MakeSecretSentinel()
+    timer.state.forcesQuantity = secretQuantity
+    function fs:SetFormattedText(pattern, ...)
+        self.pattern = pattern
+        self.arguments = { ... }
+    end
+    timer:WriteForcesText(fs)
+    assert(fs.pattern == "%.2f%%")
+    assert(rawequal(fs.arguments[1], secretQuantity), "percentage passed to the sink raw")
 end
 
 do
@@ -76,9 +113,7 @@ do
     assert(timer.state.weightedByIndex[3] == true)
 
     timer:UpdateForces()
-    assert(timer.captureForces.quantity == 42.5)
-    assert(timer.captureForces.total == 300)
-    assert(timer.captureForces.quantityString == "128/300")
+    assert(timer.captureForces == 42.5)
 
     timer.state.timer = 200
     timer:UpdateObjectives()
@@ -125,10 +160,7 @@ do
 
     local ok, err = pcall(function() timer:UpdateForces() end)
     assert(ok, "secret forces fields must not throw: " .. tostring(err))
-    assert(timer.captureForces, "secret fields still reach the sink path")
-    assert(rawequal(timer.captureForces.quantity, secretQuantity), "quantity passed along raw")
-    assert(rawequal(timer.captureForces.total, secretTotal), "totalQuantity passed along raw")
-    assert(rawequal(timer.captureForces.quantityString, secretQuantityString), "quantityString passed along raw")
+    assert(rawequal(timer.captureForces, secretQuantity), "percentage passed along raw")
 end
 
 do

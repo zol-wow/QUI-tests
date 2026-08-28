@@ -41,6 +41,16 @@ assertContains(overrideFrameXML, "function OverrideActionBarMixin:UpdateSkin()",
     "OverrideActionBar UpdateSkin is the owner lifecycle before QUI reskins")
 assertContains(overrideFrameXML, "self:Setup(C_ActionBar.GetOverrideBarSkin(), C_ActionBar.GetOverrideBarIndex());",
     "OverrideActionBar UpdateSkin must be treated as a Blizzard reset point")
+assertContains(overrideFrameXML, "self.HasExit, self.HasPitch = select(6, ...);",
+    "OverrideActionBar must derive exit visibility from Blizzard's vehicle event")
+assertContains(overrideFrameXML, "self.leaveFrame:Show();",
+    "OverrideActionBar must show its leave frame when Blizzard reports an exit")
+
+local overrideFrameXMLLayout = readFile("tests/framexml/Interface/AddOns/Blizzard_OverrideActionBar/OverrideActionBar.xml")
+assertContains(overrideFrameXMLLayout, '<Frame name="$parentLeaveFrame" parentKey="leaveFrame" useParentLevel="true">',
+    "OverrideActionBar must expose its Blizzard-owned leave frame")
+assertContains(overrideFrameXMLLayout, '<Button name="$parentLeaveButton" parentKey="LeaveButton">',
+    "OverrideActionBar leave button must remain a child of the Blizzard-owned leave frame")
 
 local actionBarController = readFile("tests/framexml/Interface/AddOns/Blizzard_ActionBarController/ActionBarController.lua")
 assertContains(actionBarController, "OverrideActionBar:UpdateSkin();",
@@ -71,5 +81,9 @@ assertAbsent(overrideSource, "if not bar or SkinBase.IsSkinned(bar) then return 
     "OverrideActionBar UpdateSkin can reset an already-skinned bar, so post-update reskinning must stay idempotent")
 assertAbsent(overrideSource, "MicroMenu",
     "OverrideActionBar skinning must leave the native MicroMenu lifecycle and layout state Blizzard-owned")
+assertAbsent(overrideSource, "bar.leaveFrame:SetAlpha(",
+    "OverrideActionBar skinning must not hide the Blizzard-owned leave button through its parent alpha")
+assertAbsent(overrideSource, "bar.LeaveButton:Show()",
+    "OverrideActionBar skinning must leave exit availability and visibility Blizzard-owned")
 
 print("OK: skinning_protected_defer_lifecycle_test")
