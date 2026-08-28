@@ -299,6 +299,47 @@ C_VoiceChat.SpeakText(1, "text", 1, 1,
 ]]
 assert_eq(#Analyzer.analyze(source8p, "modules/foo.lua", r5, cfg), 0,
     "function NeverSecret position receives only the clean pcall status")
+
+local source8Unknown = [[
+bar:SetValue(C_Spell.GetSpellCooldownDuration(1))
+]]
+assert_eq(#Analyzer.analyze(source8Unknown, "modules/foo.lua", r5, cfg), 1,
+    "unknown source arity keeps conservative direct expansion")
+
+local r5Arity = Registry.new()
+r5Arity:addSource("UnitHealthPercent", 1)
+r5Arity:addSafeSinkMethod("SetValue", { 2 })
+local source8q = [[
+bar:SetValue(UnitHealthPercent("player"))
+]]
+assert_eq(#Analyzer.analyze(source8q, "modules/foo.lua", r5Arity, cfg), 0,
+    "single-return source does not spill into a later NeverSecret position")
+
+local source8r = [[
+bar:SetValue(pcall(UnitHealthPercent, "player"))
+]]
+assert_eq(#Analyzer.analyze(source8r, "modules/foo.lua", r5Arity, cfg), 1,
+    "single-return protected source reaches its one runtime result position")
+
+r5Arity:addSafeSinkFunction("RejectThird", { 3 })
+for _, call in ipairs({
+    'pcall(UnitHealthPercent, "player")',
+    'xpcall(UnitHealthPercent, handler, "player")',
+}) do
+    assert_eq(#Analyzer.analyze("RejectThird(" .. call .. ")",
+        "modules/foo.lua", r5Arity, cfg), 0,
+        "protected one-return source has no third runtime result")
+end
+
+local source8s = [[
+local state = {}
+state.value = { nested = UnitHealthPercent("player") }
+local first
+first, state.value = UnitHealthPercent("player")
+if state.value.nested then return end
+]]
+assert_eq(#Analyzer.analyze(source8s, "modules/foo.lua", r5Arity, cfg), 0,
+    "past-arity nil spill clears stale member descendants")
 end
 
 print("safe sink test passed")

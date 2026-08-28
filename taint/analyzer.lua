@@ -3531,6 +3531,8 @@ local function multiReturnTaint(expr, resultIndex, registry)
         local fnArg = call.Arguments and call.Arguments[1]
         local fnName = fnArg and callTargetName(fnArg)
         if fnName and registry:isSource(fnName) then
+            local arity = registry:sourceReturnArity(fnName)
+            if arity and resultIndex > arity + 1 then return false, "nil" end
             return resultIndex > 1 -- first result is the clean success boolean
         end
         if fnName and isElementSecretCallName(fnName, registry) then
@@ -3539,6 +3541,8 @@ local function multiReturnTaint(expr, resultIndex, registry)
             return false, "nil"
         end
     elseif name and registry:isSource(name) then
+        local arity = registry:sourceReturnArity(name)
+        if arity and resultIndex > arity then return false, "nil" end
         return true
     elseif name and isElementSecretCallName(name, registry) then
         return false, resultIndex == 1 and "element" or "nil"

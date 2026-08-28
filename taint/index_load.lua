@@ -70,7 +70,8 @@ function M.populate(registry, indexTable, cfg, warn)
             include = true
         end
         if include then
-            registry:addSource(funcName)
+            registry:addSource(funcName,
+                type(meta) == "table" and meta.returnArity or nil)
         end
         -- Precondition-guarded APIs are NOT taint sources — the hazard is a
         -- hard ERROR under restrictions, not a secret return — so they

@@ -24,6 +24,12 @@ local TestSpell =
             Returns = { { Name = "value", Type = "number", IsSecret = true } },
         },
         {
+            Name = "VariadicSecretReturn",
+            Type = "Function",
+            SecretReturns = true,
+            Returns = {},
+        },
+        {
             Name = "GuardedGetter",
             Type = "Function",
             RequiresUnitAuraAccess = true,

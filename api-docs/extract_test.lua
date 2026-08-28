@@ -23,6 +23,8 @@ local index = Extract.fromCorpus("tests/api-docs/synthetic-corpus")
 assert_true(index["C_Test.GetSecretValue"], "secret-flagged function indexed")
 assert_eq(index["C_Test.GetSecretValue"].secretWhenCooldownsRestricted, true,
     "secretWhenCooldownsRestricted flag captured")
+assert_eq(index["C_Test.GetSecretValue"].returnArity, 1,
+    "documented return arity captured")
 
 -- Clean function (no flags) must NOT appear in the index
 assert_true(not index["C_Test.GetCleanValue"], "clean function NOT indexed (no flag)")
@@ -33,6 +35,8 @@ assert_eq(index["C_Test.RestrictedReturn"].isSecretReturn, true,
     "isSecretReturn captured")
 assert_eq(index["C_Test.RestrictedReturn"].secretArguments, "Restricted",
     "secretArguments captured")
+assert_eq(index["C_Test.VariadicSecretReturn"].returnArity, nil,
+    "explicit empty Returns table keeps unknown arity")
 
 -- Precondition-guarded function (RequiresUnitAuraAccess hard-errors under
 -- restrictions) must be indexed regardless of its SecretArguments value.
@@ -159,6 +163,8 @@ do
     assert(c, "ConditionalSecretContents collision entry present")
     assert(c.conditionalSecretContents == true,
         "conditionalSecretContents survives cross-system merge when only one entry has it")
+    assert(c.returnArity == 1,
+        "cross-system merge keeps the largest documented return arity")
 end
 
 print("extract test passed")

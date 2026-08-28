@@ -157,7 +157,7 @@ local function mergeInto(index, key, entry)
     end
 end
 
-local function processTable(tbl, index)
+local function processTable(tbl, index, returnArities)
     -- Blizzard doc tables expose two names: tbl.Name (bare, e.g. "Spell") and
     -- tbl.Namespace (the runtime accessor, e.g. "C_Spell"). Code calls the
     -- function via the namespace form when one exists. A System WITHOUT a
@@ -173,6 +173,23 @@ local function processTable(tbl, index)
     local isScriptObject = (tbl.Type == "ScriptObject")
     if type(tbl.Functions) == "table" then
         for _, fn in ipairs(tbl.Functions) do
+            local key = moduleName and (moduleName .. "." .. fn.Name) or fn.Name
+            local returnArity
+            if fn.Returns == nil then
+                returnArity = 0
+            elseif type(fn.Returns) == "table" and #fn.Returns > 0 then
+                returnArity = #fn.Returns
+            else
+                returnArity = false
+            end
+            local previousArity = returnArities[key]
+            if previousArity == nil then
+                returnArities[key] = returnArity
+            elseif previousArity == false or returnArity == false then
+                returnArities[key] = false
+            elseif returnArity > previousArity then
+                returnArities[key] = returnArity
+            end
             local entry = {}
             local hasFlag = false
             -- ALL SecretWhen*Restricted-style flags, generically. The old
@@ -266,12 +283,7 @@ local function processTable(tbl, index)
                 entry.scriptObject = true
             end
             if hasFlag then
-                if moduleName then
-                    mergeInto(index, moduleName .. "." .. fn.Name, entry)
-                else
-                    -- Namespace-less system: the function is a bare global.
-                    mergeInto(index, fn.Name, entry)
-                end
+                mergeInto(index, key, entry)
             end
         end
     end
@@ -424,8 +436,15 @@ function M.fromCorpus(corpusDir)
     end
 
     local index = {}
+    local returnArities = {}
     for _, tbl in ipairs(captured) do
-        processTable(tbl, index)
+        processTable(tbl, index, returnArities)
+    end
+    for key, entry in pairs(index) do
+        local returnArity = returnArities[key]
+        if type(returnArity) == "number" then
+            entry.returnArity = returnArity
+        end
     end
     return index
 end
@@ -485,6 +504,9 @@ function M.renderLua(index)
         end
         if entry.scriptObject then
             fields[#fields + 1] = "scriptObject = true"
+        end
+        if entry.returnArity ~= nil then
+            fields[#fields + 1] = "returnArity = " .. tostring(entry.returnArity)
         end
         if entry.isSecretReturn then
             fields[#fields + 1] = "isSecretReturn = true"
