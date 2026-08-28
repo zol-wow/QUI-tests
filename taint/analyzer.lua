@@ -4870,7 +4870,10 @@ walkExpr = function(expr, taintSet, fieldTaintSet, findings, registry, filePath)
                             and selectVarargTaint(a, nil) then
                             argHadSource = true
                         end
-                        local rejects = kind == "function"
+                        local rejects = kind == "method"
+                            and registry:safeSinkMethodRejectsArgument(
+                                getMethodNameFromQualified(name), i)
+                            or kind == "function"
                             and registry:safeSinkFunctionRejectsArgument(name, i)
                         if rejects and (argHadSource
                             or isValueTainted(a, taintSet, fieldTaintSet, registry)) then
@@ -10107,7 +10110,10 @@ local function collectIntraFileFunctionSummaries(ast, registry)
                         and registry:isSafeSinkFunction(name)))
                 if safe then
                     for index, dep in ipairs(args) do
-                        local rejects = kind == "function"
+                        local rejects = kind == "method"
+                            and registry:safeSinkMethodRejectsArgument(
+                                getMethodNameFromQualified(name), index)
+                            or kind == "function"
                             and registry:safeSinkFunctionRejectsArgument(name, index)
                         if rejects then markSink(dep) end
                     end

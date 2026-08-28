@@ -111,7 +111,8 @@ do
     local mini = {
         -- widget method, some system allows tainted → sink (method track)
         ["TestSinkText"] = { secretArguments = "AllowedWhenUntainted",
-                            secretArgumentsAnyTainted = true, scriptObject = true },
+                            secretArgumentsAnyTainted = true,
+                            neverSecretArguments = { 2 }, scriptObject = true },
         -- widget method, no system allows tainted → documented reject (method track)
         ["TestRejectShown"] = { secretArguments = "AllowedWhenUntainted", scriptObject = true },
         -- DurationObject arg → sink even though AllowedWhenUntainted
@@ -130,6 +131,10 @@ do
     IndexLoad.populate(rIdx, mini, cfg, function() end)
 
     assert_true(rIdx:isSafeSinkMethod("TestSinkText"), "anyTainted widget method → sink")
+    assert_true(rIdx:safeSinkMethodRejectsArgument("TestSinkText", 2),
+        "widget NeverSecret argument rejects taint")
+    assert_false(rIdx:safeSinkMethodRejectsArgument("TestSinkText", 1),
+        "widget secret-capable argument accepts taint")
     assert_false(rIdx:isSafeSinkMethod("TestRejectShown"), "untainted-only method is NOT a sink")
     assert_true(rIdx:docArgRestrictionMethod("TestRejectShown") == "AllowedWhenUntainted",
         "untainted-only method lands in the documented reject-set")
