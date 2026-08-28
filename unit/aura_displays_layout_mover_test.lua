@@ -110,6 +110,7 @@ C_Timer = { After = function() end, NewTicker = function() return newFrame() end
 GetInstanceInfo = function() return nil, "none" end
 InCombatLockdown = function() return false end
 LibStub = function() return nil end
+wipe = function(value) for key in pairs(value) do value[key] = nil end end
 local secretMouseOver = {}
 issecretvalue = function(value) return value == secretMouseOver end
 
@@ -131,6 +132,10 @@ local host = AD.HostFor(display.id)
 if not host or host:GetAlpha() ~= 0 then
     fail("setup must produce an alpha-zero Aura Display host")
 end
+local visibilityFrames = AD.GetVisibilityFrames()
+if #visibilityFrames ~= 0 then
+    fail("inactive Aura Displays must not enter the visibility frame list")
+end
 
 local mover = LM._handles[key]
 if not mover then fail("an inactive Aura Display must retain a Layout Mode mover") end
@@ -151,6 +156,11 @@ AD.Refresh()
 if host:GetAlpha() ~= 0.35 then
     fail("an active Aura Display must compose its gameplay alpha with HUD visibility")
 end
+local activeVisibilityFrames = AD.GetVisibilityFrames()
+if activeVisibilityFrames ~= visibilityFrames
+    or #activeVisibilityFrames ~= 1 or activeVisibilityFrames[1] ~= host then
+    fail("Aura Display visibility must reuse its active-host list")
+end
 
 host._mouseOver = true
 if not AD.IsVisibilityFrameMouseOver() then
@@ -165,6 +175,12 @@ host._mouseOver = false
 AD.SetVisibilityAlpha(0)
 if host:GetAlpha() ~= 0 then
     fail("HUD autohide must fade an active Aura Display to zero")
+end
+
+ns.QUI_AuraWizard.PlayerRole = function() return "TANK" end
+AD.Refresh()
+if AD.GetVisibilityFrames() ~= visibilityFrames or #visibilityFrames ~= 0 then
+    fail("reused Aura Display visibility lists must clear stale hosts")
 end
 
 print("PASS: aura_displays_layout_mover_test")
