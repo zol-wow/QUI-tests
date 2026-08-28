@@ -137,8 +137,16 @@ end
 function Registry:addSource(name)           self.sources[name]           = true end
 function Registry:isSource(name)            return self.sources[name]           == true end
 
-function Registry:addSafeSinkMethod(name)   self.safeSinkMethods[name]   = true end
-function Registry:isSafeSinkMethod(name)    return self.safeSinkMethods[name]   == true end
+function Registry:addSafeSinkMethod(name, rejected)
+    self.safeSinkMethods[name] = rejected or true
+end
+function Registry:isSafeSinkMethod(name) return self.safeSinkMethods[name] ~= nil end
+function Registry:safeSinkMethodRejectsArgument(name, position)
+    local rejected = self.safeSinkMethods[name]
+    if type(rejected) ~= "table" then return false end
+    for _, value in ipairs(rejected) do if value == position then return true end end
+    return false
+end
 
 function Registry:addSafeSinkFunction(name, rejected)
     self.safeSinkFunctions[name] = rejected or true

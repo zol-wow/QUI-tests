@@ -162,7 +162,7 @@ function M.populate(registry, indexTable, cfg, warn)
                 if dotted then
                     registry:addSafeSinkFunction(funcName, meta.neverSecretArguments)
                 else
-                    registry:addSafeSinkMethod(funcName)
+                    registry:addSafeSinkMethod(funcName, meta.neverSecretArguments)
                     if not meta.scriptObject then
                         registry:addSafeSinkFunction(funcName, meta.neverSecretArguments)
                     end

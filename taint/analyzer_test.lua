@@ -148,6 +148,7 @@ r5:addSource("C_Spell.GetSpellCooldownDuration")
 -- safe-sink branch rather than the round-13 default-reject fall-through.
 r5:addSafeSinkMethod("SetCooldownFromDurationObject")
 r5:addSafeSinkMethod("SetText")
+r5:addSafeSinkMethod("SetValue", { 2 })
 r5:addSafeSinkFunction("C_VoiceChat.SpeakText", { 1, 3, 4, 5 })
 r5:addSource("C_UnitAuras.GetUnitAuraBySpellID")
 r5:addSafeSinkFunction("C_UnitAuras.GetUnitAuraBySpellID", { 1 })
@@ -219,6 +220,29 @@ getAura(C_Spell.GetSpellCooldownDuration(1))
 ]]
 assert_eq(#Analyzer.analyze(source8f, "modules/foo.lua", r5, cfg), 1,
     "source API positional rejection propagates through function summaries")
+
+local source8g = [[
+local secret = C_Spell.GetSpellCooldownDuration(1)
+bar:SetValue(1, secret)
+]]
+assert_eq(#Analyzer.analyze(source8g, "modules/foo.lua", r5, cfg), 1,
+    "widget NeverSecret argument rejects taint")
+
+local source8h = [[
+local secret = C_Spell.GetSpellCooldownDuration(1)
+bar:SetValue(secret, false)
+]]
+assert_eq(#Analyzer.analyze(source8h, "modules/foo.lua", r5, cfg), 0,
+    "widget secret-capable argument accepts taint")
+
+local source8i = [[
+local function setInterpolation(bar, interpolation)
+    bar:SetValue(1, interpolation)
+end
+setInterpolation(bar, C_Spell.GetSpellCooldownDuration(1))
+]]
+assert_eq(#Analyzer.analyze(source8i, "modules/foo.lua", r5, cfg), 1,
+    "widget positional rejection propagates through function summaries")
 end
 
 print("safe sink test passed")
