@@ -141,9 +141,13 @@ function Registry:addSafeSinkMethod(name, rejected)
     self.safeSinkMethods[name] = rejected or true
 end
 function Registry:isSafeSinkMethod(name) return self.safeSinkMethods[name] ~= nil end
-function Registry:safeSinkMethodRejectsArgument(name, position)
+function Registry:safeSinkMethodRejectedArguments(name)
     local rejected = self.safeSinkMethods[name]
-    if type(rejected) ~= "table" then return false end
+    return type(rejected) == "table" and rejected or nil
+end
+function Registry:safeSinkMethodRejectsArgument(name, position)
+    local rejected = self:safeSinkMethodRejectedArguments(name)
+    if not rejected then return false end
     for _, value in ipairs(rejected) do if value == position then return true end end
     return false
 end
@@ -152,9 +156,13 @@ function Registry:addSafeSinkFunction(name, rejected)
     self.safeSinkFunctions[name] = rejected or true
 end
 function Registry:isSafeSinkFunction(name) return self.safeSinkFunctions[name] ~= nil end
-function Registry:safeSinkFunctionRejectsArgument(name, position)
+function Registry:safeSinkFunctionRejectedArguments(name)
     local rejected = self.safeSinkFunctions[name]
-    if type(rejected) ~= "table" then return false end
+    return type(rejected) == "table" and rejected or nil
+end
+function Registry:safeSinkFunctionRejectsArgument(name, position)
+    local rejected = self:safeSinkFunctionRejectedArguments(name)
+    if not rejected then return false end
     for _, value in ipairs(rejected) do if value == position then return true end end
     return false
 end
