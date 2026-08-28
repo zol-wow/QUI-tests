@@ -10,8 +10,10 @@ local r = Registry.new()
 assert_false(r:isSource("C_Spell.GetSpellCharges"), "no built-in sources")
 
 -- Add a source manually (api-index integration in later task)
-r:addSource("C_Spell.GetSpellCharges")
+r:addSource("C_Spell.GetSpellCharges", 2)
 assert_true(r:isSource("C_Spell.GetSpellCharges"), "added source detected")
+assert_true(r:sourceReturnArity("C_Spell.GetSpellCharges") == 2,
+    "source return arity retained")
 
 -- Safe sinks: method names (any obj:Method) + qualified names (Module.fn)
 -- MINIMAL hand-kept seed: argless visibility/geometry methods only.
@@ -127,6 +129,8 @@ do
         ["TestGlobalReject"] = { secretArguments = "AllowedWhenUntainted" },
         -- event entries never touch sink tracks
         ["event:TEST_EVENT"] = { secretPayload = true },
+        ["C_Test.Source"] = { isSecretReturn = true, returnArity = 1 },
+        ["C_Test.VariadicSource"] = { isSecretReturn = true },
     }
     IndexLoad.populate(rIdx, mini, cfg, function() end)
 
@@ -151,6 +155,11 @@ do
         "bare non-ScriptObject key registers on both tracks")
     assert_true(not rIdx:isSafeSinkMethod("event:TEST_EVENT") and not rIdx:isSource("event:TEST_EVENT"),
         "event keys never register as sinks")
+    assert_true(rIdx:sourceReturnArity("C_Test.Source") == 1,
+        "index source retains documented return arity")
+    assert_true(rIdx:isSource("C_Test.VariadicSource")
+        and rIdx:sourceReturnArity("C_Test.VariadicSource") == nil,
+        "unknown source arity stays conservative")
 end
 
 print("index_load population test passed")

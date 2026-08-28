@@ -79,6 +79,7 @@ Registry.__index = Registry
 function M.new()
     local self = setmetatable({}, Registry)
     self.sources           = {}
+    self.sourceReturnArities = {}
     self.safeSinkMethods   = {}
     self.safeSinkFunctions = {}
     self.docArgRestrictedMethods   = {}
@@ -134,8 +135,15 @@ function M.new()
     return self
 end
 
-function Registry:addSource(name)           self.sources[name]           = true end
+function Registry:addSource(name, returnArity)
+    self.sources[name] = true
+    if type(returnArity) == "number" then
+        self.sourceReturnArities[name] = math.max(
+            self.sourceReturnArities[name] or 0, returnArity)
+    end
+end
 function Registry:isSource(name)            return self.sources[name]           == true end
+function Registry:sourceReturnArity(name)   return self.sourceReturnArities[name] end
 
 function Registry:addSafeSinkMethod(name, rejected)
     self.safeSinkMethods[name] = rejected or true
