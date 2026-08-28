@@ -40,6 +40,7 @@ assert(not mapBlock:find("reassertOnDrift", 1, true), "WorldMapFrame must keep t
 ---------------------------------------------------------------------------
 
 local function noop() end
+local lastRaised
 
 local frameMeta = {}
 frameMeta.__index = function(_, key)
@@ -96,6 +97,8 @@ frameMeta.__index = function(_, key)
         return function(self) self.shown = true end
     elseif key == "Hide" then
         return function(self) self.shown = false end
+    elseif key == "Raise" then
+        return function(self) lastRaised = self end
     end
     return noop
 end
@@ -249,8 +252,10 @@ end
 
 MailFrame.shown = true
 blizzardRestamp(MailFrame)
+lastRaised = WorldMapFrame
 tick(mailWatcher)
 assertAtSaved(MailFrame, "show transition")
+assert(lastRaised == MailFrame, "newly shown mail must finish above previously open panels")
 tick(mailWatcher, 5) -- burn the transition re-assert burst
 
 ---------------------------------------------------------------------------
@@ -375,7 +380,9 @@ assert(GossipFrame.hookedScripts.OnHide, "non-secure mover roots should hook OnH
 rawset(GossipFrame, "IsShown", function() error("secret-capable read on a tainted stack") end)
 
 QuestFrame.shown = true
+lastRaised = MailFrame
 QuestFrame.hookedScripts.OnShow(QuestFrame)
+assert(lastRaised == QuestFrame, "newly shown non-secure panels must finish on top")
 GossipFrame.shown = true
 GossipFrame.hookedScripts.OnShow(GossipFrame)
 
