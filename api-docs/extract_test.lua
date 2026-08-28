@@ -47,6 +47,12 @@ assert_eq(index["C_Test.GuardedGetter"].secretArguments, "AllowedWhenTainted",
     "AllowedWhenTainted now captured verbatim, not omitted")
 assert_true(index["C_Test.GuardedGetter"].secretArgumentsAnyTainted == true,
     "AllowedWhenTainted mirrors into secretArgumentsAnyTainted")
+assert_eq(index["C_Test.GuardedGetter"].conditionalSecretArguments[1], 2,
+    "ConditionalSecret argument position captured")
+assert_eq(index["C_Test.GuardedGetter"].neverSecretArguments[1], 1,
+    "first NeverSecret argument position captured")
+assert_eq(index["C_Test.GuardedGetter"].neverSecretArguments[2], 3,
+    "second NeverSecret argument position captured")
 
 -- Events: event-level Secret* flag and secretizable payload fields
 assert_true(index["event:TEST_SECRET_EVENT"], "secret-flagged event indexed")
@@ -55,6 +61,10 @@ assert_eq(index["event:TEST_SECRET_EVENT"].eventFlags[1], "SecretInActivePvPMatc
 assert_true(index["event:TEST_SECRET_PAYLOAD_EVENT"], "secret-payload event indexed")
 assert_eq(index["event:TEST_SECRET_PAYLOAD_EVENT"].secretPayload, true,
     "secretPayload captured")
+assert_true(index["event:TEST_CONDITIONAL_SECRET_PAYLOAD_EVENT"],
+    "ConditionalSecret payload event indexed")
+assert_eq(index["event:TEST_CONDITIONAL_SECRET_PAYLOAD_EVENT"].secretPayload, true,
+    "ConditionalSecret payload captured")
 assert_true(not index["event:TEST_CLEAN_EVENT"], "clean event NOT indexed")
 
 -- Doc files that reference Enum.* / Constants.* inside table constructors

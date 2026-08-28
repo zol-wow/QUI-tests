@@ -28,6 +28,12 @@ local TestSpell =
             Type = "Function",
             RequiresUnitAuraAccess = true,
             SecretArguments = "AllowedWhenTainted",
+            Arguments =
+            {
+                { Name = "voiceID", Type = "number", NeverSecret = true },
+                { Name = "text", Type = "cstring", ConditionalSecret = true },
+                { Name = "rate", Type = "number", NeverSecret = true },
+            },
             Returns = { { Name = "value", Type = "number", Nilable = false } },
         },
     },
@@ -51,6 +57,15 @@ local TestSpell =
             Payload =
             {
                 { Name = "spellID", Type = "number", Nilable = false, SecretWhenUnitSpellCastRestricted = true },
+            },
+        },
+        {
+            Name = "TestConditionalSecretPayloadEvent",
+            Type = "Event",
+            LiteralName = "TEST_CONDITIONAL_SECRET_PAYLOAD_EVENT",
+            Payload =
+            {
+                { Name = "bookmarkName", Type = "cstring", Nilable = false, ConditionalSecret = true },
             },
         },
         {

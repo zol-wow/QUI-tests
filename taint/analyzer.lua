@@ -4849,15 +4849,6 @@ walkExpr = function(expr, taintSet, fieldTaintSet, findings, registry, filePath)
                 end
                 return false
             end
-            -- Source call: walk arguments for nested sinks but do not emit here
-            if registry:isSource(name) then
-                if expr.Arguments then
-                    for _, a in ipairs(expr.Arguments) do
-                        walkExpr(a, taintSet, fieldTaintSet, findings, registry, filePath)
-                    end
-                end
-                return true
-            end
             -- Safe sink: tainted args are acceptable; still recurse into
             -- argument expressions to catch any nested unsafe sub-expressions
             -- (e.g. frame:SetText(tonumber(x)) — SetText is safe but tonumber is not).
@@ -4867,11 +4858,39 @@ walkExpr = function(expr, taintSet, fieldTaintSet, findings, registry, filePath)
             if (kind == "method" and registry:isSafeSinkMethod(getMethodNameFromQualified(name))) or
                (kind == "function" and registry:isSafeSinkFunction(name)) then
                 if expr.Arguments then
+                    local nArgs = #expr.Arguments
+                    for i, a in ipairs(expr.Arguments) do
+                        local argHadSource = walkExpr(a, taintSet, fieldTaintSet,
+                            findings, registry, filePath)
+                        if argHadSource and isProtectedCallExpr(a)
+                            and (i < nArgs or a.AstType == "Parentheses") then
+                            argHadSource = false
+                        end
+                        if i == nArgs and a.AstType ~= "Parentheses"
+                            and selectVarargTaint(a, nil) then
+                            argHadSource = true
+                        end
+                        local rejects = kind == "function"
+                            and registry:safeSinkFunctionRejectsArgument(name, i)
+                        if rejects and (argHadSource
+                            or isValueTainted(a, taintSet, fieldTaintSet, registry)) then
+                            emit(findings, filePath, nodeLine(expr), 1,
+                                "<consumer:" .. name .. ">", "<tainted-local>",
+                                "tainted value passed to " .. name .. " argument " .. i
+                                    .. " — documented NeverSecret")
+                        end
+                    end
+                end
+                return registry:isSource(name) or registry:isSecretReturning(name)
+            end
+            -- Source call: walk arguments for nested sinks but do not emit here
+            if registry:isSource(name) then
+                if expr.Arguments then
                     for _, a in ipairs(expr.Arguments) do
                         walkExpr(a, taintSet, fieldTaintSet, findings, registry, filePath)
                     end
                 end
-                return registry:isSecretReturning(name)
+                return true
             end
             -- Unwrap: emit review finding, but do NOT propagate taint forward
             if registry:isUnwrap(name) then
@@ -10080,6 +10099,19 @@ local function collectIntraFileFunctionSummaries(ast, registry)
                     args[index] = evalExpr(arg, current)
                 end
                 local name, kind = callTargetName(expr.Base)
+                local safe = name and (
+                    (kind == "method"
+                        and registry:isSafeSinkMethod(
+                            getMethodNameFromQualified(name)))
+                    or (kind == "function"
+                        and registry:isSafeSinkFunction(name)))
+                if safe then
+                    for index, dep in ipairs(args) do
+                        local rejects = kind == "function"
+                            and registry:safeSinkFunctionRejectsArgument(name, index)
+                        if rejects then markSink(dep) end
+                    end
+                end
                 if name and registry:isSource(name) then
                     local dep = newDep()
                     dep.source = true
@@ -10115,12 +10147,6 @@ local function collectIntraFileFunctionSummaries(ast, registry)
                         return dep
                     end
                 end
-                local safe = name and (
-                    (kind == "method"
-                        and registry:isSafeSinkMethod(
-                            getMethodNameFromQualified(name)))
-                    or (kind == "function"
-                        and registry:isSafeSinkFunction(name)))
                 if name and UNSAFE_BUILTIN_FUNCTIONS[name] and not safe then
                     for _, dep in ipairs(args) do markSink(dep) end
                 end
