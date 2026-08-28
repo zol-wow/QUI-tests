@@ -310,10 +310,12 @@ assert(swipeWrites[1].op == "swipe" and swipeWrites[1].value == true,
     "recharge swipe style should draw the recharge swipe")
 assert(swipeWrites[2].op == "edge" and swipeWrites[2].value == false,
     "recharge swipe style should hide the cooldown edge")
-assert(swipeWrites[3].op == "texture",
-    "recharge swipe style should restore the owned swipe texture")
-assert(swipeWrites[4].op == "color" and swipeWrites[4].a == 0.6,
+assert(swipeWrites[3].op == "color" and swipeWrites[3].a == 0.6,
     "recharge swipe style should tint the recharge swipe")
+for _, write in ipairs(swipeWrites) do
+    assert(write.op ~= "texture",
+        "custom-bar styling should leave swipe texture ownership to the swipe styling module")
+end
 
 local realCooldownIcon, realCooldownWrites = makeIcon({
     type = "spell", id = 101, spellID = 101, viewerType = "custom",
@@ -341,8 +343,12 @@ policy:ApplySwipeStyle(combatAuraIcon, trackerSettings.custom, {
 })
 assert(combatAuraWrites[1].op == "edge" and combatAuraWrites[1].value == false,
     "resolved aura mode should keep the aura swipe path in combat")
-assert(combatAuraWrites[4].op == "swipe" and combatAuraWrites[4].value == true,
+assert(combatAuraWrites[3].op == "swipe" and combatAuraWrites[3].value == true,
     "resolved aura mode should draw its swipe without custom active-state truth")
+for _, write in ipairs(combatAuraWrites) do
+    assert(write.op ~= "texture",
+        "custom-bar aura styling should leave swipe texture ownership to the swipe styling module")
+end
 assert(auraDurationApplied == combatAuraDuration,
     "resolved aura mode should rebind its cached DurationObject")
 
