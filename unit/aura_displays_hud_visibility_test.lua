@@ -23,6 +23,7 @@ end
 
 local now = 0
 local inCombat = false
+local mounted = false
 local auraAlpha = 0
 local auraHost = NewFrame()
 auraHost.alpha = 0
@@ -66,12 +67,13 @@ local ns = {
         IsPlayerFlying = function() return false end,
         IsPlayerInDungeonOrRaid = function() return false end,
         IsPlayerInVehicle = function() return false end,
-        IsPlayerMounted = function() return false end,
+        IsPlayerMounted = function() return mounted end,
         IsPlayerSkyriding = function() return false end,
     },
     QUI_AuraDisplays = {
         GetVisibilityAlpha = function() return auraAlpha end,
         GetVisibilityFrames = function() return { auraHost } end,
+        IsVisibilityFrameMouseOver = function() return auraHost.mouseOver end,
         SetVisibilityAlpha = function(alpha)
             auraAlpha = alpha
             auraHost:SetAlpha(alpha)
@@ -109,9 +111,23 @@ ns.RefreshAuraDisplaysVisibility()
 TickFade(0.2)
 if auraAlpha ~= 1 then fail("combat visibility must reveal Aura Displays") end
 
-inCombat = false
+mounted = true
+profile.auraDisplays.hudVisibility.showWhenMounted = true
+profile.auraDisplays.hudVisibility.hideWhenMounted = true
 ns.RefreshAuraDisplaysVisibility()
 TickFade(0.4)
+if auraAlpha ~= 0 then fail("location hide rules must override conditional show rules") end
+
+mounted = false
+profile.auraDisplays.hudVisibility.showWhenMounted = false
+profile.auraDisplays.hudVisibility.hideWhenMounted = false
+ns.RefreshAuraDisplaysVisibility()
+TickFade(0.6)
+if auraAlpha ~= 1 then fail("clearing a location hide rule must restore the active show rule") end
+
+inCombat = false
+ns.RefreshAuraDisplaysVisibility()
+TickFade(0.8)
 if auraAlpha ~= 0 then fail("leaving combat must autohide Aura Displays") end
 
 profile.auraDisplays.hudVisibility.showInCombat = false
@@ -125,12 +141,12 @@ end
 
 auraHost.mouseOver = true
 detector.scripts.OnUpdate(detector, 0.1)
-TickFade(0.6)
+TickFade(1.0)
 if auraAlpha ~= 1 then fail("mouseover must reveal Aura Displays") end
 
 auraHost.mouseOver = false
 detector.scripts.OnUpdate(detector, 0.1)
-TickFade(0.8)
+TickFade(1.2)
 if auraAlpha ~= 0 then fail("leaving the Aura Display must restore autohide") end
 
 print("PASS: aura_displays_hud_visibility_test")

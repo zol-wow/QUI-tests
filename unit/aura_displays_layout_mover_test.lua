@@ -7,6 +7,7 @@ local function newFrame(parent)
     local frame = {
         _alpha = 1,
         _height = 30,
+        _mouseOver = false,
         _parent = parent,
         _shown = true,
         _width = 100,
@@ -32,6 +33,7 @@ local function newFrame(parent)
     function frame:GetWidth() return self._width end
     function frame:Hide() self._shown = false end
     function frame:IsShown() return self._shown end
+    function frame:IsMouseOver() return self._mouseOver end
     function frame:RegisterForDrag() end
     function frame:SetAllPoints() end
     function frame:SetAlpha(alpha) self._alpha = alpha end
@@ -108,6 +110,8 @@ C_Timer = { After = function() end, NewTicker = function() return newFrame() end
 GetInstanceInfo = function() return nil, "none" end
 InCombatLockdown = function() return false end
 LibStub = function() return nil end
+local secretMouseOver = {}
+issecretvalue = function(value) return value == secretMouseOver end
 
 assert(loadfile("modules/layout/layoutmode.lua"))("QUI", ns)
 assert(loadfile("modules/trackers/aura_displays.lua"))("QUI", ns)
@@ -147,6 +151,16 @@ AD.Refresh()
 if host:GetAlpha() ~= 0.35 then
     fail("an active Aura Display must compose its gameplay alpha with HUD visibility")
 end
+
+host._mouseOver = true
+if not AD.IsVisibilityFrameMouseOver() then
+    fail("an active hovered Aura Display must satisfy mouseover visibility")
+end
+host._mouseOver = secretMouseOver
+if AD.IsVisibilityFrameMouseOver() then
+    fail("secret Aura Display mouseover state must fail closed")
+end
+host._mouseOver = false
 
 AD.SetVisibilityAlpha(0)
 if host:GetAlpha() ~= 0 then
