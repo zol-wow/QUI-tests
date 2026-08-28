@@ -527,6 +527,29 @@ do
         world.absorbs = 0
         world.incomingHeals = 0
     end)
+
+    test("a fresh plate whose unit already has an absorb shows the bar on first update", function()
+        -- Regression: the show path was gated on npAbsorbHidden == true, so a
+        -- freshly built plate (bar hidden, flag nil) never showed the bar until
+        -- a readable-zero update primed the flag. Under 12.1 combat secrets the
+        -- amount never reads as zero, so the bar stayed hidden all fight.
+        world.absorbs = 700
+        world.units.nameplateS = {
+            canAttack = true, level = 80, health = 80, maxHealth = 100, name = "Shielded",
+        }
+        local baseS = NewFrame(UIParent)
+        baseS.unitToken = "nameplateS"
+        local plateS = NP.Driver.BuildEnemyPlate("nameplateS", baseS)
+        if not plateS then fail("BuildEnemyPlate must return a plate for the shielded fixture") end
+        PumpDeferred()
+
+        if not plateS.absorbBar._shown then
+            fail("a plate must show the absorb bar when the unit's first reading is already non-zero; "
+                .. "the show path must treat the nil flag state as hidden")
+        end
+
+        world.absorbs = 0
+    end)
 end
 
 do
