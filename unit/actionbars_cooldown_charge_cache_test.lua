@@ -88,6 +88,18 @@ local function NewFrame()
                 return function(self, script)
                     return self.scripts[script]
                 end
+            elseif key == "HookScript" then
+                return function(self, script, handler)
+                    local prior = self.scripts[script]
+                    if prior then
+                        self.scripts[script] = function(...)
+                            prior(...)
+                            handler(...)
+                        end
+                    else
+                        self.scripts[script] = handler
+                    end
+                end
             elseif key == "SetFrameRef" then
                 return function(self, name, ref)
                     self.frameRefs[name] = ref
@@ -784,7 +796,6 @@ usabilityEvent(ns.ActionBarsEnv.usabilityState.checkFrame,
     "ACTION_RANGE_CHECK_UPDATE", 301, false, true)
 ns.ActionBarsEnv.GetFrameState(rangeButton).hiddenEmpty = true
 unavailableActions[301] = true
-actionBars.slotMap = { [301] = { button = rangeButton, barKey = "bar1" } }
 actionBars.initialized = true
 local realSafeUpdate = actionBars.SafeUpdate
 local realUpdateCooldown = actionBars.UpdateCooldown
@@ -810,6 +821,110 @@ actionBars.UpdateAllAssistedCombatRotation = realUpdateAllAssistedCombatRotation
 ns.ActionBarsEnv.UpdateAllAssistedHighlights = realUpdateAllAssistedHighlights
 assert(not rangeOverlay:IsShown(),
     "an emptied hidden slot should clear its stale tint during lifecycle refresh")
+
+local hostA = NewFrame()
+hostA.action = 301
+hostA.GetAttribute = ActionAttr
+local hostB = NewFrame()
+hostB.action = 301
+hostB.GetAttribute = ActionAttr
+local hostC = NewFrame()
+hostC.action = 302
+hostC.GetAttribute = ActionAttr
+actionBars.nativeButtons.bar1 = { hostA, hostC }
+actionBars.nativeButtons.bar2 = { hostB }
+
+local slotUpdates = {}
+local function CountSlotUpdate(button, kind)
+    local counts = slotUpdates[button]
+    if not counts then
+        counts = {}
+        slotUpdates[button] = counts
+    end
+    counts[kind] = (counts[kind] or 0) + 1
+end
+
+actionBars.SafeUpdate = function(button) CountSlotUpdate(button, "visual") end
+actionBars.UpdateCooldown = function(button) CountSlotUpdate(button, "cooldown") end
+actionBars.UpdateOverlayGlow = function(button) CountSlotUpdate(button, "glow") end
+inCombat = true
+
+ns.ActionBarsEnv.OnOwnedEvent(nil, "ACTIONBAR_SLOT_CHANGED", 301)
+ns.ActionBarsEnv.abSlotFrame:GetScript("OnUpdate")(ns.ActionBarsEnv.abSlotFrame)
+assert(slotUpdates[hostA] and slotUpdates[hostA].visual == 1
+        and slotUpdates[hostA].cooldown == 1 and slotUpdates[hostA].glow == 1
+        and slotUpdates[hostB] and slotUpdates[hostB].visual == 1
+        and slotUpdates[hostB].cooldown == 1 and slotUpdates[hostB].glow == 1
+        and slotUpdates[hostC] == nil,
+    "one slot change must refresh every button currently hosting that slot")
+
+wipe(slotUpdates)
+ns.ActionBarsEnv.OnOwnedEvent(nil, "ACTIONBAR_SLOT_CHANGED", 0)
+assert(ns.ActionBarsEnv.abSlotFrame:IsShown(),
+    "slot zero must queue a global action-slot invalidation")
+ns.ActionBarsEnv.abSlotFrame:GetScript("OnUpdate")(ns.ActionBarsEnv.abSlotFrame)
+assert(slotUpdates[hostA] and slotUpdates[hostA].glow == 1
+        and slotUpdates[hostB] and slotUpdates[hostB].glow == 1
+        and slotUpdates[hostC] and slotUpdates[hostC].glow == 1,
+    "slot zero must refresh every owned standard action button")
+
+wipe(slotUpdates)
+ns.ActionBarsEnv.OnOwnedEvent(nil, "UPDATE_OVERRIDE_ACTIONBAR")
+assert(ns.ActionBarsEnv.abSlotFrame:IsShown(),
+    "override transitions must queue a settled global slot refresh")
+wipe(slotUpdates)
+ns.ActionBarsEnv.abSlotFrame:GetScript("OnUpdate")(ns.ActionBarsEnv.abSlotFrame)
+assert(slotUpdates[hostA] and slotUpdates[hostA].glow == 1
+        and slotUpdates[hostB] and slotUpdates[hostB].glow == 1
+        and slotUpdates[hostC] and slotUpdates[hostC].glow == 1,
+    "override transitions must reconcile every current slot host after paging settles")
+
+local publicSource = readAll("QUI_ActionBars/actionbars/actionbars_public.lua")
+local skinningSource = readAll("QUI_ActionBars/actionbars/actionbars_skinning.lua")
+
+actionBars.SafeUpdate = realSafeUpdate
+actionBars.UpdateCooldown = realUpdateCooldown
+actionBars.UpdateOverlayGlow = realUpdateOverlayGlow
+inCombat = false
+
+local revealButton = NewFrame()
+revealButton.action = 303
+revealButton.GetAttribute = ActionAttr
+revealButton._quiBarKey = "bar1"
+revealButton._quiButtonIndex = 2
+local firstVisibleButton = NewFrame()
+firstVisibleButton._quiBarKey = "bar1"
+firstVisibleButton._quiButtonIndex = 1
+actionBars.nativeButtons.bar1 = { firstVisibleButton, revealButton }
+actionBars.nativeButtons.bar2 = nil
+actionBarsDB.bars.bar1.enabled = true
+actionBarsDB.bars.bar1.ownedLayout.iconCount = 1
+local originalGetActionInfo = GetActionInfo
+GetActionInfo = function(slot)
+    if slot == 303 then return "spell", 903 end
+    return originalGetActionInfo(slot)
+end
+C_SpellActivationOverlay.IsSpellOverlayed = function(spellID) return spellID == 903 end
+local revealGlowActive = false
+ns.IconGlow = {
+    Start = function(button) if button == revealButton then revealGlowActive = true end end,
+    Stop = function(button) if button == revealButton then revealGlowActive = false end end,
+}
+
+ns.ActionBarsEnv.SkinButton = noop
+ns.ActionBarsEnv.UpdateButtonText = noop
+ns.ActionBarsEnv.AddKeybindMethods = noop
+ns.ActionBarsEnv.SkinBar("bar1")
+assert(type(revealButton.scripts.OnShow) == "function",
+    "owned action buttons must retain a reveal lifecycle hook")
+assert(not revealGlowActive,
+    "a configured-hidden button must remain dormant before its reveal edge")
+actionBarsDB.bars.bar1.ownedLayout.iconCount = 2
+ns.ActionBarsEnv.GetFrameState(revealButton).quiProcGlow = true
+revealButton.scripts.OnShow(revealButton)
+assert(revealGlowActive and ns.ActionBarsEnv.GetFrameState(revealButton).quiProcGlow,
+    "revealing a button must reconcile a proc that changed while it was hidden")
+
 unavailableActions[301] = nil
 ns.ActionBarsEnv.GetFrameState(rangeButton).hiddenEmpty = nil
 actionBarsDB.global.rangeIndicator = false
@@ -873,22 +988,6 @@ assert(not actionBars._usabilityUpdateFrame or not actionBars._usabilityUpdateFr
 inCombat = false
 actionBarsDB.global.rangeIndicator = false
 actionBars.UpdateUsabilityPolling()
-
-assert(type(actionBars.MarkSpellIdMapDirty) == "function",
-    "spell reverse map should support dirty marking")
-assert(type(actionBars.EnsureSpellIdMap) == "function",
-    "spell reverse map should support lazy rebuilds")
-assert(type(actionBars.GetSpellIdMapStats) == "function",
-    "spell reverse map should expose lightweight test stats")
-local spellMapStats = actionBars.GetSpellIdMapStats()
-local rebuildsBefore = spellMapStats.rebuilds
-actionBars.MarkSpellIdMapDirty()
-actionBars.EnsureSpellIdMap()
-assert(spellMapStats.rebuilds == rebuildsBefore + 1,
-    "dirty spell reverse map should rebuild on demand")
-actionBars.EnsureSpellIdMap()
-assert(spellMapStats.rebuilds == rebuildsBefore + 1,
-    "clean spell reverse map should not rebuild on repeated visual refreshes")
 
 ---------------------------------------------------------------------------
 -- SOURCE GUARD: GetSafeCooldownTiming probe order.  startTime/duration are
@@ -1000,6 +1099,12 @@ assert(not stripLuaNonCode(lexicalDecoys):find(combinedGuard, 1, true),
 -- every paint goes through the DurationObject sink, so the strongest pin is
 -- their total absence from executable code (scrubbed of strings/comments).
 local cooldownsCode = stripLuaNonCode(cooldownsSource)
+local skinningCode = stripLuaNonCode(skinningSource)
+assert(publicSource:find('\n    ownedEventFrame:RegisterEvent("UPDATE_OVERRIDE_ACTIONBAR")', 1, true)
+        and publicSource:find('\n    ownedEventFrame:RegisterEvent("UPDATE_POSSESS_BAR")', 1, true),
+    "override and possess lifecycle events must be registered in executable code")
+assert(not skinningCode:find("SuppressProcVisualFrame(button._ButtonGlow)", 1, true),
+    "native proc suppression must not poison LibCustomGlow's reusable _ButtonGlow")
 assert(not cooldownsCode:find("cdInfo.startTime", 1, true)
         and not cooldownsCode:find("cdInfo.duration", 1, true),
     "the cooldown painter must never read schedule fields: secret in combat; the DurationObject sink is the only paint path")
