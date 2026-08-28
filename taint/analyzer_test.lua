@@ -243,6 +243,62 @@ setInterpolation(bar, C_Spell.GetSpellCooldownDuration(1))
 ]]
 assert_eq(#Analyzer.analyze(source8i, "modules/foo.lua", r5, cfg), 1,
     "widget positional rejection propagates through function summaries")
+
+local source8j = [[
+bar:SetValue(pcall(C_Spell.GetSpellCooldownDuration, 1))
+]]
+assert_eq(#Analyzer.analyze(source8j, "modules/foo.lua", r5, cfg), 1,
+    "expanded pcall result reaches the widget NeverSecret position")
+
+local source8k = [[
+bar:SetValue(1, pcall(C_Spell.GetSpellCooldownDuration, 1))
+]]
+assert_eq(#Analyzer.analyze(source8k, "modules/foo.lua", r5, cfg), 0,
+    "pcall status in the widget NeverSecret position stays clean")
+
+local source8l = [[
+local function setValue(value, interpolation)
+    bar:SetValue(value, interpolation)
+end
+setValue(pcall(C_Spell.GetSpellCooldownDuration, 1))
+]]
+assert_eq(#Analyzer.analyze(source8l, "modules/foo.lua", r5, cfg), 1,
+    "expanded pcall results map to wrapper sink parameters")
+
+local source8m = [[
+local function setInterpolation(interpolation)
+    bar:SetValue(1, interpolation)
+end
+setInterpolation(pcall(C_Spell.GetSpellCooldownDuration, 1))
+]]
+assert_eq(#Analyzer.analyze(source8m, "modules/foo.lua", r5, cfg), 0,
+    "wrapper sink receives only the clean pcall status parameter")
+
+local source8n = [[
+local function pair(value)
+    return false, value
+end
+local function setValue(value)
+    bar:SetValue(pair(value))
+end
+setValue(C_Spell.GetSpellCooldownDuration(1))
+]]
+assert_eq(#Analyzer.analyze(source8n, "modules/foo.lua", r5, cfg), 1,
+    "expanded local returns map to summary sink positions")
+
+local source8o = [[
+C_VoiceChat.SpeakText(1,
+    pcall(C_Spell.GetSpellCooldownDuration, 1))
+]]
+assert_eq(#Analyzer.analyze(source8o, "modules/foo.lua", r5, cfg), 1,
+    "expanded pcall result reaches a function NeverSecret position")
+
+local source8p = [[
+C_VoiceChat.SpeakText(1, "text", 1, 1,
+    pcall(C_Spell.GetSpellCooldownDuration, 1))
+]]
+assert_eq(#Analyzer.analyze(source8p, "modules/foo.lua", r5, cfg), 0,
+    "function NeverSecret position receives only the clean pcall status")
 end
 
 print("safe sink test passed")

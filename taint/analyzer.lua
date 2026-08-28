@@ -3546,6 +3546,27 @@ local function multiReturnTaint(expr, resultIndex, registry)
     return nil
 end
 
+local function expandsFinalArgument(expr)
+    if type(expr) ~= "table" or expr.AstType == "Parentheses" then return false end
+    local t = expr.AstType
+    return t == "CallExpr" or t == "StringCallExpr"
+        or t == "TableCallExpr" or t == "DotsExpr"
+end
+
+local function runtimeArgumentTainted(arguments, taints, position, registry)
+    local count = #(arguments or {})
+    if count == 0 or position < count then
+        return taints[position] == true
+    end
+    local last = arguments[count]
+    if not expandsFinalArgument(last) then
+        return position == count and taints[count] == true
+    end
+    local positional = multiReturnTaint(last, position - count + 1, registry)
+    if positional ~= nil then return positional end
+    return taints[count] == true
+end
+
 local function walkConditionExpr(expr, taintSet, fieldTaintSet, findings, registry, filePath)
     local inner = stripParens(expr)
     if isTaintedRef(inner, taintSet, fieldTaintSet, registry) then
@@ -4825,18 +4846,22 @@ walkExpr = function(expr, taintSet, fieldTaintSet, findings, registry, filePath)
             local summary, summaryResolved =
                 resolveIntraFileFunctionSummary(summaryModel, summaryBinder, expr)
             if summaryResolved then
+                local arguments = expr.Arguments or {}
+                local nArgs = #arguments
                 local argTainted = {}
-                for i, arg in ipairs(expr.Arguments or {}) do
+                for i, arg in ipairs(arguments) do
                     local hadSource = walkExpr(arg, taintSet, fieldTaintSet,
                         findings, registry, filePath)
-                    if hadSource and isProtectedCallExpr(arg) then
+                    if hadSource and isProtectedCallExpr(arg)
+                        and (i < nArgs or arg.AstType == "Parentheses") then
                         hadSource = false
                     end
                     argTainted[i] = hadSource
                         or isValueTainted(arg, taintSet, fieldTaintSet, registry)
                 end
                 for index in pairs(summary.sinkParams or {}) do
-                    if argTainted[index] then
+                    if runtimeArgumentTainted(
+                        arguments, argTainted, index, registry) then
                         emit(findings, filePath, nodeLine(expr), 1,
                             "<call:" .. name .. ">", "<tainted-local>",
                             "tainted argument reaches an unsafe operation in "
@@ -4845,7 +4870,8 @@ walkExpr = function(expr, taintSet, fieldTaintSet, findings, registry, filePath)
                 end
                 if summary.returnSource then return true end
                 for index in pairs(summary.returnParams or {}) do
-                    if argTainted[index] then return true end
+                    if runtimeArgumentTainted(
+                        arguments, argTainted, index, registry) then return true end
                 end
                 return false
             end
@@ -4857,31 +4883,32 @@ walkExpr = function(expr, taintSet, fieldTaintSet, findings, registry, filePath)
             -- decides what to do with that based on context.
             if (kind == "method" and registry:isSafeSinkMethod(getMethodNameFromQualified(name))) or
                (kind == "function" and registry:isSafeSinkFunction(name)) then
-                if expr.Arguments then
-                    local nArgs = #expr.Arguments
-                    for i, a in ipairs(expr.Arguments) do
+                local arguments = expr.Arguments or {}
+                local nArgs = #arguments
+                local argTainted = {}
+                for i, a in ipairs(arguments) do
                         local argHadSource = walkExpr(a, taintSet, fieldTaintSet,
                             findings, registry, filePath)
                         if argHadSource and isProtectedCallExpr(a)
                             and (i < nArgs or a.AstType == "Parentheses") then
                             argHadSource = false
                         end
-                        if i == nArgs and a.AstType ~= "Parentheses"
-                            and selectVarargTaint(a, nil) then
-                            argHadSource = true
-                        end
-                        local rejects = kind == "method"
-                            and registry:safeSinkMethodRejectsArgument(
-                                getMethodNameFromQualified(name), i)
-                            or kind == "function"
-                            and registry:safeSinkFunctionRejectsArgument(name, i)
-                        if rejects and (argHadSource
-                            or isValueTainted(a, taintSet, fieldTaintSet, registry)) then
-                            emit(findings, filePath, nodeLine(expr), 1,
-                                "<consumer:" .. name .. ">", "<tainted-local>",
-                                "tainted value passed to " .. name .. " argument " .. i
-                                    .. " — documented NeverSecret")
-                        end
+                    argTainted[i] = argHadSource
+                        or isValueTainted(a, taintSet, fieldTaintSet, registry)
+                end
+                local rejected = kind == "method"
+                    and registry:safeSinkMethodRejectedArguments(
+                        getMethodNameFromQualified(name))
+                    or kind == "function"
+                    and registry:safeSinkFunctionRejectedArguments(name)
+                for _, position in ipairs(rejected or {}) do
+                    if runtimeArgumentTainted(
+                        arguments, argTainted, position, registry) then
+                        emit(findings, filePath, nodeLine(expr), 1,
+                            "<consumer:" .. name .. ">", "<tainted-local>",
+                            "tainted value passed to " .. name .. " argument "
+                                .. position .. " — documented NeverSecret")
+                        break
                     end
                 end
                 return registry:isSource(name) or registry:isSecretReturning(name)
@@ -10024,6 +10051,24 @@ local function collectIntraFileFunctionSummaries(ast, registry)
                 if not safeParams[index] then sinkParams[index] = true end
             end
         end
+        local function runtimeArgumentDep(arguments, deps, position)
+            local count = #(arguments or {})
+            if count == 0 or position < count then
+                return deps[position] or newDep()
+            end
+            local last = arguments[count]
+            if not expandsFinalArgument(last) then
+                return position == count and deps[count] or newDep()
+            end
+            local positional = multiReturnTaint(
+                last, position - count + 1, registry)
+            if positional ~= nil then
+                local dep = newDep()
+                dep.source = positional
+                return dep
+            end
+            return deps[count] or newDep()
+        end
         local function copyFunctionValues(values)
             local copy = {}
             for value in pairs(values or {}) do copy[value] = true end
@@ -10109,13 +10154,14 @@ local function collectIntraFileFunctionSummaries(ast, registry)
                     or (kind == "function"
                         and registry:isSafeSinkFunction(name)))
                 if safe then
-                    for index, dep in ipairs(args) do
-                        local rejects = kind == "method"
-                            and registry:safeSinkMethodRejectsArgument(
-                                getMethodNameFromQualified(name), index)
-                            or kind == "function"
-                            and registry:safeSinkFunctionRejectsArgument(name, index)
-                        if rejects then markSink(dep) end
+                    local rejected = kind == "method"
+                        and registry:safeSinkMethodRejectedArguments(
+                            getMethodNameFromQualified(name))
+                        or kind == "function"
+                        and registry:safeSinkFunctionRejectedArguments(name)
+                    for _, position in ipairs(rejected or {}) do
+                        markSink(runtimeArgumentDep(
+                            expr.Arguments, args, position))
                     end
                 end
                 if name and registry:isSource(name) then
@@ -10143,12 +10189,14 @@ local function collectIntraFileFunctionSummaries(ast, registry)
                     end
                     if resolved then
                         for index in pairs(calleeEffects.sinkParams) do
-                            markSink(args[index])
+                            markSink(runtimeArgumentDep(
+                                expr.Arguments, args, index))
                         end
                         local dep = newDep()
                         dep.source = calleeEffects.returnSource == true
                         for index in pairs(calleeEffects.returnParams) do
-                            unionInto(dep, args[index])
+                            unionInto(dep, runtimeArgumentDep(
+                                expr.Arguments, args, index))
                         end
                         return dep
                     end
