@@ -1157,6 +1157,9 @@ end
 local walkExpr
 local walkStatements
 local resolveIntraFileFunctionSummary
+local summaryCallReturnTainted
+local summaryCallReturnPresent
+local summaryCallAnyReturnTainted
 local detectUnsafeProbeOrder  -- defined with the round-7e proof machinery below
 local purgeMutableSafeRefs
 -- Round-8: the taint walk consults the precondition-scan machinery (gate
@@ -3038,6 +3041,7 @@ local function newAliasFlowContext(parent)
         refreshMayAliasEdge = refreshMayAliasEdge,
         bindingValueEscaped = fnBindingValueEscaped,
         functionSummaries = parent and parent.functionSummaries or nil,
+        callReturnModels = parent and parent.callReturnModels or {},
         txnAllocator = parent and parent.txnAllocator or { serial = 0 },
     }
     for k, v in pairs(parent and parent.chainAlias or {}) do
@@ -3429,6 +3433,7 @@ local function walkFunctionBody(funcNode, taintSet, fieldTaintSet, findings, reg
             aliasPoisoned = inheritedFlow.aliasPoisoned,
             bindingValueEscaped = inheritedFlow.bindingValueEscaped,
             functionSummaries = inheritedFlow.functionSummaries,
+            callReturnModels = inheritedFlow.callReturnModels,
             txnAllocator = inheritedFlow.txnAllocator,
         }
     else
@@ -3516,6 +3521,7 @@ end
 -- update). Element shapes report taint FALSE, never nil: the container
 -- reference itself is never secret (marker track), and the origin
 -- fallback must not re-taint it.
+local expandsFinalArgument
 local function multiReturnTaint(expr, resultIndex, registry)
     local selected = selectVarargTaint(expr, resultIndex)
     if selected ~= nil then return selected end
@@ -3525,7 +3531,24 @@ local function multiReturnTaint(expr, resultIndex, registry)
         return false, "nil"
     end
     local call = stripParens(expr)
-    if type(call) ~= "table" or call.AstType ~= "CallExpr" then return nil end
+    if type(call) == "table" and call.AstType == "DotsExpr" then
+        local ctx = fnEventCtx
+        if ctx and ctx.varargSecret and not ctx.suppressSpill then
+            return ctx.varargSecret[resultIndex] == true
+        end
+        return nil
+    end
+    if type(call) ~= "table"
+        or (call.AstType ~= "CallExpr"
+            and call.AstType ~= "StringCallExpr"
+            and call.AstType ~= "TableCallExpr") then
+        return nil
+    end
+    local summaryModel = fnEventCtx and fnEventCtx.callReturnModels
+        and fnEventCtx.callReturnModels[call]
+    if summaryModel then
+        return summaryCallReturnTainted(summaryModel, resultIndex, registry)
+    end
     local name = callTargetName(call.Base)
     if name == "pcall" or name == "xpcall" then
         local fnArg = call.Arguments and call.Arguments[1]
@@ -3550,7 +3573,47 @@ local function multiReturnTaint(expr, resultIndex, registry)
     return nil
 end
 
-local function expandsFinalArgument(expr)
+local function multiReturnPresent(expr, resultIndex, registry)
+    if type(expr) == "table" and expr.AstType == "Parentheses" then
+        return resultIndex == 1
+    end
+    local call = stripParens(expr)
+    if type(call) == "table" and call.AstType == "DotsExpr" then return true end
+    if type(call) ~= "table"
+        or (call.AstType ~= "CallExpr"
+            and call.AstType ~= "StringCallExpr"
+            and call.AstType ~= "TableCallExpr") then
+        return nil
+    end
+    local summaryModel = fnEventCtx and fnEventCtx.callReturnModels
+        and fnEventCtx.callReturnModels[call]
+    if summaryModel then
+        return summaryCallReturnPresent(summaryModel, resultIndex, registry)
+    end
+    local name = callTargetName(call.Base)
+    if name == "pcall" or name == "xpcall" then
+        local fnArg = call.Arguments and call.Arguments[1]
+        local fnName = fnArg and callTargetName(fnArg)
+        if fnName and registry:isSource(fnName) then
+            local arity = registry:sourceReturnArity(fnName)
+            return arity == nil or resultIndex <= arity + 1
+        end
+        if fnName and isElementSecretCallName(fnName, registry) then
+            return resultIndex <= 2
+        end
+        return nil
+    end
+    if name and registry:isSource(name) then
+        local arity = registry:sourceReturnArity(name)
+        return arity == nil or resultIndex <= arity
+    end
+    if name and isElementSecretCallName(name, registry) then
+        return resultIndex == 1
+    end
+    return nil
+end
+
+expandsFinalArgument = function(expr)
     if type(expr) ~= "table" or expr.AstType == "Parentheses" then return false end
     local t = expr.AstType
     return t == "CallExpr" or t == "StringCallExpr"
@@ -3569,6 +3632,99 @@ local function runtimeArgumentTainted(arguments, taints, position, registry)
     local positional = multiReturnTaint(last, position - count + 1, registry)
     if positional ~= nil then return positional end
     return taints[count] == true
+end
+
+local function runtimeArgumentsAnyTaintedFrom(
+        arguments, taints, start, registry)
+    local count = #(arguments or {})
+    if count == 0 then return false end
+    for position = start, count - 1 do
+        if taints[position] then return true end
+    end
+    local last = arguments[count]
+    if not expandsFinalArgument(last) then
+        return start <= count and taints[count] == true
+    end
+    local relative = math.max(1, start - count + 1)
+    local model = fnEventCtx and fnEventCtx.callReturnModels
+        and fnEventCtx.callReturnModels[last]
+    if model then
+        return summaryCallAnyReturnTainted(model, relative, registry)
+    end
+    if last.AstType == "DotsExpr" then
+        local secrets = fnEventCtx and fnEventCtx.varargSecret
+        if secrets then
+            for position in pairs(secrets) do
+                if position >= relative then return true end
+            end
+            return false
+        end
+        return taints[count] == true
+    end
+    local name = callTargetName(last.Base)
+    if name == "pcall" or name == "xpcall" then
+        local fnArg = last.Arguments and last.Arguments[1]
+        local fnName = fnArg and callTargetName(fnArg)
+        if fnName and registry:isSource(fnName) then
+            local arity = registry:sourceReturnArity(fnName)
+            return arity == nil or relative <= arity + 1
+        end
+    elseif name and registry:isSource(name) then
+        local arity = registry:sourceReturnArity(name)
+        return arity == nil or relative <= arity
+    end
+    return taints[count] == true
+end
+
+summaryCallReturnTainted = function(model, position, registry)
+    if not summaryCallReturnPresent(model, position, registry) then
+        return false, "nil"
+    end
+    local dep = model.summary.positionDep(position)
+    if dep.source then return true end
+    for index in pairs(dep.params or {}) do
+        if runtimeArgumentTainted(
+            model.arguments, model.taints, index, registry) then
+            return true
+        end
+    end
+    if dep.paramFrom and runtimeArgumentsAnyTaintedFrom(
+        model.arguments, model.taints, dep.paramFrom, registry) then
+        return true
+    end
+    if dep.allParams and runtimeArgumentsAnyTaintedFrom(
+        model.arguments, model.taints, 1, registry) then
+        return true
+    end
+    return false
+end
+
+summaryCallAnyReturnTainted = function(model, start, registry)
+    local dep = model.summary.allDepFrom(start)
+    if dep.source then return true end
+    for index in pairs(dep.params or {}) do
+        if runtimeArgumentTainted(
+            model.arguments, model.taints, index, registry) then
+            return true
+        end
+    end
+    if dep.paramFrom and runtimeArgumentsAnyTaintedFrom(
+        model.arguments, model.taints, dep.paramFrom, registry) then
+        return true
+    end
+    return dep.allParams == true and runtimeArgumentsAnyTaintedFrom(
+        model.arguments, model.taints, 1, registry)
+end
+
+summaryCallReturnPresent = function(model, position, registry)
+    return model.summary.positionPresent(position, function(index)
+        local count = #(model.arguments or {})
+        if count == 0 or index < count then return index <= count end
+        local last = model.arguments[count]
+        if not expandsFinalArgument(last) then return index == count end
+        local present = multiReturnPresent(last, index - count + 1, registry)
+        return present == nil or present
+    end)
 end
 
 local function walkConditionExpr(expr, taintSet, fieldTaintSet, findings, registry, filePath)
@@ -4836,7 +4992,6 @@ walkExpr = function(expr, taintSet, fieldTaintSet, findings, registry, filePath)
                         return true  -- result is tainted (conservative: includes the ok bool)
                     end
                 end
-                -- fnArg is not a source — fall through to normal argument recursion
             end
             -- Unique local same-file wrappers carry a compact parameter /
             -- return summary.  Evaluate each actual argument once, surface
@@ -4863,21 +5018,32 @@ walkExpr = function(expr, taintSet, fieldTaintSet, findings, registry, filePath)
                     argTainted[i] = hadSource
                         or isValueTainted(arg, taintSet, fieldTaintSet, registry)
                 end
+                local callModel = {
+                    summary = summary,
+                    arguments = arguments,
+                    taints = argTainted,
+                }
+                fnEventCtx.callReturnModels[expr] = callModel
+                local reachesSink = false
                 for index in pairs(summary.sinkParams or {}) do
-                    if runtimeArgumentTainted(
-                        arguments, argTainted, index, registry) then
-                        emit(findings, filePath, nodeLine(expr), 1,
-                            "<call:" .. name .. ">", "<tainted-local>",
-                            "tainted argument reaches an unsafe operation in "
-                                .. name)
-                    end
+                    reachesSink = reachesSink or runtimeArgumentTainted(
+                        arguments, argTainted, index, registry)
                 end
-                if summary.returnSource then return true end
-                for index in pairs(summary.returnParams or {}) do
-                    if runtimeArgumentTainted(
-                        arguments, argTainted, index, registry) then return true end
+                if summary.sinkParamFrom then
+                    reachesSink = reachesSink or runtimeArgumentsAnyTaintedFrom(
+                        arguments, argTainted, summary.sinkParamFrom, registry)
                 end
-                return false
+                if summary.sinkAllParams then
+                    reachesSink = reachesSink or runtimeArgumentsAnyTaintedFrom(
+                        arguments, argTainted, 1, registry)
+                end
+                if reachesSink then
+                    emit(findings, filePath, nodeLine(expr), 1,
+                        "<call:" .. name .. ">", "<tainted-local>",
+                        "tainted argument reaches an unsafe operation in "
+                            .. name)
+                end
+                return summaryCallReturnTainted(callModel, 1, registry)
             end
             -- Safe sink: tainted args are acceptable; still recurse into
             -- argument expressions to catch any nested unsafe sub-expressions
@@ -9626,6 +9792,12 @@ local function collectIntraFileFunctionSummaries(ast, registry)
 
     local function pointFor(node)
         local line, char = nodeLocation(node)
+        if line == 0 and node and node.Base then
+            line, char = nodeLocation(node.Base)
+        end
+        if line == 0 and node and node.Arguments and node.Arguments[1] then
+            line, char = nodeLocation(node.Arguments[1])
+        end
         return { line = line, char = char }
     end
 
@@ -9883,13 +10055,15 @@ local function collectIntraFileFunctionSummaries(ast, registry)
     end
 
     local function newDep()
-        return { source = false, params = {} }
+        return { source = false, params = {}, allParams = false }
     end
     local function copyDep(dep)
         local copy = newDep()
         if dep then
             copy.source = dep.source == true
             for index in pairs(dep.params or {}) do copy.params[index] = true end
+            copy.paramFrom = dep.paramFrom
+            copy.allParams = dep.allParams == true
         end
         return copy
     end
@@ -9897,6 +10071,11 @@ local function collectIntraFileFunctionSummaries(ast, registry)
         if not source then return target end
         if source.source then target.source = true end
         for index in pairs(source.params or {}) do target.params[index] = true end
+        if source.paramFrom then
+            target.paramFrom = math.min(
+                target.paramFrom or source.paramFrom, source.paramFrom)
+        end
+        if source.allParams then target.allParams = true end
         return target
     end
     local function cloneEnv(env)
@@ -9907,6 +10086,11 @@ local function collectIntraFileFunctionSummaries(ast, registry)
     local function depEqual(left, right)
         if (left and left.source or false)
             ~= (right and right.source or false) then
+            return false
+        end
+        if (left and left.paramFrom) ~= (right and right.paramFrom)
+            or (left and left.allParams or false)
+                ~= (right and right.allParams or false) then
             return false
         end
         for index in pairs(left and left.params or {}) do
@@ -9940,12 +10124,100 @@ local function collectIntraFileFunctionSummaries(ast, registry)
         end
         return merged
     end
+    local effectPositionDep
+    local effectPositionPresent
+    local effectAllDepFrom
     local function newEffects()
-        return {
+        local effects = {
             returnSource = false,
             returnParams = {},
             sinkParams = {},
+            sinkAllParams = false,
+            returnPositions = {},
+            returnArity = 0,
+            returnArityUnknown = false,
+            returnVarargs = {},
+            returnCalls = {},
+            returnUnknown = newDep(),
         }
+        effects.positionDep = function(position)
+            return effectPositionDep(effects, position)
+        end
+        effects.positionPresent = function(position, paramPresent)
+            return effectPositionPresent(effects, position, paramPresent)
+        end
+        effects.allDepFrom = function(position)
+            return effectAllDepFrom(effects, position)
+        end
+        return effects
+    end
+    effectPositionDep = function(effects, position)
+        local dep = copyDep(effects.returnPositions[position])
+        for _, vararg in ipairs(effects.returnVarargs or {}) do
+            if position >= vararg.resultStart then
+                dep.params[vararg.paramStart + position - vararg.resultStart] = true
+            end
+        end
+        for _, call in ipairs(effects.returnCalls or {}) do
+            if position >= call.resultStart then
+                unionInto(dep, call.model.positionDep(
+                    position - call.resultStart + 1))
+            end
+        end
+        if effects.returnArityUnknown and effects.returnUnknownStart
+            and position >= effects.returnUnknownStart then
+            unionInto(dep, effects.returnUnknown)
+            if effects.returnUnknownAllParams then dep.allParams = true end
+        end
+        return dep
+    end
+    effectAllDepFrom = function(effects, start)
+        local dep = newDep()
+        for position, value in pairs(effects.returnPositions or {}) do
+            if position >= start then unionInto(dep, value) end
+        end
+        for _, vararg in ipairs(effects.returnVarargs or {}) do
+            dep.paramFrom = math.min(dep.paramFrom or math.huge,
+                vararg.paramStart + math.max(0, start - vararg.resultStart))
+        end
+        for _, call in ipairs(effects.returnCalls or {}) do
+            unionInto(dep, call.model.allDepFrom(
+                math.max(1, start - call.resultStart + 1)))
+        end
+        if effects.returnUnknownStart then
+            unionInto(dep, effects.returnUnknown)
+            if effects.returnUnknownAllParams then dep.allParams = true end
+        end
+        return dep
+    end
+    effectPositionPresent = function(effects, position, paramPresent)
+        if position <= effects.returnArity then return true end
+        if effects.returnUnknownStart
+            and position >= effects.returnUnknownStart then
+            return true
+        end
+        for _, vararg in ipairs(effects.returnVarargs or {}) do
+            if position >= vararg.resultStart
+                and paramPresent(vararg.paramStart
+                    + position - vararg.resultStart) then
+                return true
+            end
+        end
+        for _, call in ipairs(effects.returnCalls or {}) do
+            if position >= call.resultStart
+                and call.model.positionPresent(
+                    position - call.resultStart + 1, paramPresent) then
+                return true
+            end
+        end
+        return false
+    end
+    local function unknownEffects(start)
+        local effects = newEffects()
+        effects.returnArityUnknown = true
+        effects.returnUnknownStart = start or 1
+        effects.returnUnknownAllParams = true
+        return effects
     end
     local function unionEffects(target, source)
         if source.returnSource then target.returnSource = true end
@@ -9954,6 +10226,35 @@ local function collectIntraFileFunctionSummaries(ast, registry)
         end
         for index in pairs(source.sinkParams or {}) do
             target.sinkParams[index] = true
+        end
+        if source.sinkParamFrom then
+            target.sinkParamFrom = math.min(
+                target.sinkParamFrom or source.sinkParamFrom,
+                source.sinkParamFrom)
+        end
+        target.sinkAllParams = target.sinkAllParams
+            or source.sinkAllParams == true
+        for position, dep in pairs(source.returnPositions or {}) do
+            target.returnPositions[position] = unionInto(
+                target.returnPositions[position] or newDep(), dep)
+        end
+        target.returnArity = math.max(
+            target.returnArity or 0, source.returnArity or 0)
+        target.returnArityUnknown = target.returnArityUnknown
+            or source.returnArityUnknown == true
+        target.returnUnknownAllParams = target.returnUnknownAllParams
+            or source.returnUnknownAllParams == true
+        for _, vararg in ipairs(source.returnVarargs or {}) do
+            target.returnVarargs[#target.returnVarargs + 1] = vararg
+        end
+        for _, call in ipairs(source.returnCalls or {}) do
+            target.returnCalls[#target.returnCalls + 1] = call
+        end
+        if source.returnUnknownStart then
+            target.returnUnknownStart = math.min(
+                target.returnUnknownStart or source.returnUnknownStart,
+                source.returnUnknownStart)
+            unionInto(target.returnUnknown, source.returnUnknown)
         end
         return target
     end
@@ -10028,11 +10329,16 @@ local function collectIntraFileFunctionSummaries(ast, registry)
 
     local function analyzeSummary(summary, times, stack, inheritedFunctions)
         local effects = newEffects()
-        if not summary.usable or stack[summary] then return effects end
+        if not summary.usable or stack[summary] then
+            effects.returnArityUnknown = true
+            effects.returnUnknownStart = 1
+            return effects
+        end
         stack[summary] = true
         local returnDep = newDep()
         local sinkParams, safeParams = {}, {}
         local env = {}
+        local callReturnDeps = {}
         -- Per-invocation function values model deterministic assignments made
         -- while this wrapper is actually running. In particular, rebinding an
         -- upvalue and then calling it in the same wrapper must override the
@@ -10050,12 +10356,40 @@ local function collectIntraFileFunctionSummaries(ast, registry)
 
         local evalExpr
         local walkList
+        local runtimeArgumentDep
+        local runtimeArgumentPresent
+        local runtimeArgumentsDepFrom
+        local callPositionDep
+        local callPositionPresent
+        local callAllDepFrom
         local function markSink(dep)
             for index in pairs(dep and dep.params or {}) do
                 if not safeParams[index] then sinkParams[index] = true end
             end
+            if dep and dep.paramFrom then
+                effects.sinkParamFrom = math.min(
+                    effects.sinkParamFrom or dep.paramFrom, dep.paramFrom)
+            end
+            if dep and dep.allParams then effects.sinkAllParams = true end
         end
-        local function runtimeArgumentDep(arguments, deps, position)
+        local function callModel(callEffects, arguments, deps)
+            local call = {
+                effects = callEffects,
+                arguments = arguments or {},
+                deps = deps or {},
+            }
+            call.positionDep = function(position)
+                return callPositionDep(call, position)
+            end
+            call.positionPresent = function(position, outerPresent)
+                return callPositionPresent(call, position, outerPresent)
+            end
+            call.allDepFrom = function(position)
+                return callAllDepFrom(call, position)
+            end
+            return call
+        end
+        runtimeArgumentDep = function(arguments, deps, position)
             local count = #(arguments or {})
             if count == 0 or position < count then
                 return deps[position] or newDep()
@@ -10064,14 +10398,118 @@ local function collectIntraFileFunctionSummaries(ast, registry)
             if not expandsFinalArgument(last) then
                 return position == count and deps[count] or newDep()
             end
+            local relative = position - count + 1
+            local call = callReturnDeps[last]
+            if call then return call.positionDep(relative) end
+            if last.AstType == "DotsExpr" then
+                local dep = newDep()
+                dep.params[#(summary.node.Arguments or {}) + relative] = true
+                return dep
+            end
             local positional = multiReturnTaint(
-                last, position - count + 1, registry)
+                last, relative, registry)
             if positional ~= nil then
                 local dep = newDep()
                 dep.source = positional
                 return dep
             end
             return deps[count] or newDep()
+        end
+        runtimeArgumentPresent = function(arguments, position, outerPresent)
+            local count = #(arguments or {})
+            if count == 0 or position < count then return position <= count end
+            local last = arguments[count]
+            if not expandsFinalArgument(last) then return position == count end
+            local relative = position - count + 1
+            local call = callReturnDeps[last]
+            if call then return call.positionPresent(relative, outerPresent) end
+            if last.AstType == "DotsExpr" then
+                return not outerPresent or outerPresent(
+                    #(summary.node.Arguments or {}) + relative)
+            end
+            local present = multiReturnPresent(last, relative, registry)
+            return present == nil or present
+        end
+        runtimeArgumentsDepFrom = function(arguments, deps, start)
+            local dep = newDep()
+            local count = #(arguments or {})
+            if count == 0 then return dep end
+            for position = start, count - 1 do
+                unionInto(dep, deps[position])
+            end
+            local last = arguments[count]
+            if not expandsFinalArgument(last) then
+                if start <= count then unionInto(dep, deps[count]) end
+                return dep
+            end
+            local relative = math.max(1, start - count + 1)
+            local call = callReturnDeps[last]
+            if call then
+                return unionInto(dep, call.allDepFrom(relative))
+            end
+            if last.AstType == "DotsExpr" then
+                dep.paramFrom = #(summary.node.Arguments or {}) + relative
+                return dep
+            end
+            local name = callTargetName(last.Base)
+            if name == "pcall" or name == "xpcall" then
+                local fnArg = last.Arguments and last.Arguments[1]
+                local fnName = fnArg and callTargetName(fnArg)
+                if fnName and registry:isSource(fnName) then
+                    local arity = registry:sourceReturnArity(fnName)
+                    if arity == nil or (arity > 0 and relative <= arity + 1) then
+                        dep.source = true
+                    end
+                    return dep
+                end
+            elseif name and registry:isSource(name) then
+                local arity = registry:sourceReturnArity(name)
+                dep.source = arity == nil or relative <= arity
+                return dep
+            end
+            return unionInto(dep, deps[count])
+        end
+        callPositionDep = function(call, position)
+            local raw = call.effects.positionDep(position)
+            local dep = newDep()
+            dep.source = raw.source == true
+            for index in pairs(raw.params or {}) do
+                unionInto(dep, runtimeArgumentDep(
+                    call.arguments, call.deps, index))
+            end
+            if raw.paramFrom then
+                unionInto(dep, runtimeArgumentsDepFrom(
+                    call.arguments, call.deps, raw.paramFrom))
+            end
+            if raw.allParams then
+                unionInto(dep, runtimeArgumentsDepFrom(
+                    call.arguments, call.deps, 1))
+            end
+            return dep
+        end
+        callPositionPresent = function(call, position, outerPresent)
+            return call.effects.positionPresent(position, function(index)
+                return runtimeArgumentPresent(
+                    call.arguments, index, outerPresent)
+            end)
+        end
+        callAllDepFrom = function(call, position)
+            local raw = call.effects.allDepFrom(position)
+            local dep = newDep()
+            dep.source = raw.source == true
+            for index in pairs(raw.params or {}) do
+                unionInto(dep, runtimeArgumentDep(
+                    call.arguments, call.deps, index))
+            end
+            if raw.paramFrom then
+                unionInto(dep, runtimeArgumentsDepFrom(
+                    call.arguments, call.deps, raw.paramFrom))
+            end
+            if raw.allParams then
+                unionInto(dep, runtimeArgumentsDepFrom(
+                    call.arguments, call.deps, 1))
+            end
+            return dep
         end
         local function copyFunctionValues(values)
             local copy = {}
@@ -10099,14 +10537,60 @@ local function collectIntraFileFunctionSummaries(ast, registry)
         end
         local function effectsForFunctionValues(values, callTimes)
             local valueEffects = newEffects()
+            local unknown, known
             for value in pairs(values or {}) do
-                if value ~= UNKNOWN_VALUE then
+                if value == UNKNOWN_VALUE then
+                    unknown = true
+                else
+                    known = true
                     unionEffects(valueEffects,
                         analyzeSummary(value, callTimes, stack,
                             runtimeFunctionValues))
                 end
             end
-            return valueEffects
+            if unknown and known then
+                unionEffects(valueEffects, unknownEffects())
+            elseif unknown then
+                valueEffects.returnArityUnknown = true
+                valueEffects.returnUnknownStart = 1
+            end
+            return valueEffects, known == true or unknown == true
+        end
+        local function sourceEffects(name, offset)
+            local source = newEffects()
+            local arity = registry:sourceReturnArity(name)
+            source.returnSource = true
+            source.returnArity = offset + (arity or 0)
+            for position = 1, offset do
+                source.returnPositions[position] = newDep()
+            end
+            if arity then
+                for position = 1, arity do
+                    source.returnPositions[offset + position] = {
+                        source = true,
+                        params = {},
+                    }
+                end
+            else
+                source.returnArityUnknown = true
+                source.returnUnknownStart = offset + 1
+                source.returnUnknown.source = true
+            end
+            return source
+        end
+        local function protectedEffects(
+                calleeEffects, arguments, deps, failure)
+            local protected = newEffects()
+            protected.returnArity = math.max(
+                2, 1 + calleeEffects.returnArity)
+            protected.returnArityUnknown = calleeEffects.returnArityUnknown
+            protected.returnPositions[1] = newDep()
+            protected.returnPositions[2] = copyDep(failure)
+            protected.returnCalls[1] = {
+                resultStart = 2,
+                model = callModel(calleeEffects, arguments, deps),
+            }
+            return protected
         end
         evalExpr = function(expr, current)
             if type(expr) ~= "table" then return newDep() end
@@ -10115,7 +10599,12 @@ local function collectIntraFileFunctionSummaries(ast, registry)
             if t == "VarExpr" then
                 return copyDep(current[expr.Variable])
             end
-            if t == "DotsExpr" or t == "Function" then return newDep() end
+            if t == "DotsExpr" then
+                local dep = newDep()
+                dep.params[#(summary.node.Arguments or {}) + 1] = true
+                return dep
+            end
+            if t == "Function" then return newDep() end
             if t == "BinopExpr" then
                 local dep = unionInto(evalExpr(expr.Lhs, current),
                     evalExpr(expr.Rhs, current))
@@ -10138,9 +10627,17 @@ local function collectIntraFileFunctionSummaries(ast, registry)
             end
             if t == "ConstructorExpr" then
                 local dep = newDep()
-                for _, entry in ipairs(expr.EntryList or {}) do
+                local entries = expr.EntryList or {}
+                for index, entry in ipairs(entries) do
                     if entry.Key then markSink(evalExpr(entry.Key, current)) end
-                    unionInto(dep, evalExpr(entry.Value, current))
+                    local value = evalExpr(entry.Value, current)
+                    if index == #entries and not entry.Key
+                        and expandsFinalArgument(entry.Value) then
+                        unionInto(dep, runtimeArgumentsDepFrom(
+                            { entry.Value }, { value }, 1))
+                    else
+                        unionInto(dep, value)
+                    end
                 end
                 return dep
             end
@@ -10168,10 +10665,96 @@ local function collectIntraFileFunctionSummaries(ast, registry)
                             expr.Arguments, args, position))
                     end
                 end
+                if name == "pcall" or name == "xpcall" then
+                    local fnArg = expr.Arguments and expr.Arguments[1]
+                    local fnName = fnArg and callTargetName(fnArg)
+                    local protected
+                    if fnName and registry:isSource(fnName) then
+                        protected = sourceEffects(fnName, 1)
+                    else
+                        local binder = fnArg and fnArg.AstType == "VarExpr"
+                            and fnArg.Variable
+                        if binder then
+                            local callTimes = cloneTimes(times)
+                            callTimes[summary.node] = pointFor(expr)
+                            local calleeEffects, resolved
+                            local runtimeValues = runtimeFunctionValues[binder]
+                            if runtimeValues then
+                                calleeEffects, resolved = effectsForFunctionValues(
+                                    runtimeValues, callTimes)
+                            else
+                                calleeEffects, resolved = resolveBinderEffects(
+                                    binder, callTimes, pointFor(expr), stack,
+                                    runtimeFunctionValues)
+                            end
+                            if resolved then
+                                local first = name == "pcall" and 2 or 3
+                                local actuals, actualDeps = {}, {}
+                                for index = first, #(expr.Arguments or {}) do
+                                    actuals[#actuals + 1] = expr.Arguments[index]
+                                    actualDeps[#actualDeps + 1] = args[index]
+                                end
+                                local failure = newDep()
+                                for index in pairs(
+                                        calleeEffects.sinkParams or {}) do
+                                    local sinkDep = runtimeArgumentDep(
+                                        actuals, actualDeps, index)
+                                    markSink(sinkDep)
+                                    unionInto(failure, sinkDep)
+                                end
+                                if calleeEffects.sinkParamFrom then
+                                    local sinkDep = runtimeArgumentsDepFrom(
+                                        actuals, actualDeps,
+                                        calleeEffects.sinkParamFrom)
+                                    markSink(sinkDep)
+                                    unionInto(failure, sinkDep)
+                                end
+                                if calleeEffects.sinkAllParams then
+                                    local sinkDep = runtimeArgumentsDepFrom(
+                                        actuals, actualDeps, 1)
+                                    markSink(sinkDep)
+                                    unionInto(failure, sinkDep)
+                                end
+                                if name == "xpcall" then
+                                    local handler = expr.Arguments
+                                        and expr.Arguments[2]
+                                    local handlerBinder = handler
+                                        and handler.AstType == "VarExpr"
+                                        and handler.Variable
+                                    if handlerBinder then
+                                        local handlerEffects, handlerResolved =
+                                            resolveBinderEffects(handlerBinder,
+                                                callTimes, pointFor(expr), stack,
+                                                runtimeFunctionValues)
+                                        if handlerResolved then
+                                            local handlerDep =
+                                                handlerEffects.positionDep(1)
+                                            if handlerDep.source then
+                                                failure.source = true
+                                            end
+                                        end
+                                    end
+                                end
+                                protected = protectedEffects(
+                                    calleeEffects, actuals, actualDeps, failure)
+                            end
+                        end
+                    end
+                    if protected then
+                        local call = {
+                            effects = protected,
+                            positionDep = protected.positionDep,
+                            positionPresent = protected.positionPresent,
+                            allDepFrom = protected.allDepFrom,
+                        }
+                        callReturnDeps[expr] = call
+                        return call.positionDep(1)
+                    end
+                end
                 if name and registry:isSource(name) then
-                    local dep = newDep()
-                    dep.source = true
-                    return dep
+                    local call = callModel(sourceEffects(name, 0), {}, {})
+                    callReturnDeps[expr] = call
+                    return call.positionDep(1)
                 end
                 local calleeBinder = expr.Base
                     and expr.Base.AstType == "VarExpr"
@@ -10183,9 +10766,8 @@ local function collectIntraFileFunctionSummaries(ast, registry)
                         runtimeFunctionValues[calleeBinder]
                     local calleeEffects, resolved
                     if runtimeValues then
-                        calleeEffects = effectsForFunctionValues(
+                        calleeEffects, resolved = effectsForFunctionValues(
                             runtimeValues, callTimes)
-                        resolved = true
                     else
                         calleeEffects, resolved = resolveBinderEffects(
                             calleeBinder, callTimes, pointFor(expr), stack,
@@ -10196,22 +10778,33 @@ local function collectIntraFileFunctionSummaries(ast, registry)
                             markSink(runtimeArgumentDep(
                                 expr.Arguments, args, index))
                         end
-                        local dep = newDep()
-                        dep.source = calleeEffects.returnSource == true
-                        for index in pairs(calleeEffects.returnParams) do
-                            unionInto(dep, runtimeArgumentDep(
-                                expr.Arguments, args, index))
+                        if calleeEffects.sinkParamFrom then
+                            markSink(runtimeArgumentsDepFrom(
+                                expr.Arguments, args,
+                                calleeEffects.sinkParamFrom))
                         end
-                        return dep
+                        if calleeEffects.sinkAllParams then
+                            markSink(runtimeArgumentsDepFrom(
+                                expr.Arguments, args, 1))
+                        end
+                        local call = callModel(
+                            calleeEffects, expr.Arguments, args)
+                        callReturnDeps[expr] = call
+                        return call.positionDep(1)
                     end
                 end
                 if name and UNSAFE_BUILTIN_FUNCTIONS[name] and not safe then
                     for _, dep in ipairs(args) do markSink(dep) end
                 end
                 if name and registry:isSecretReturning(name) then
-                    local dep = newDep()
-                    dep.source = true
-                    return dep
+                    local secret = newEffects()
+                    secret.returnSource = true
+                    secret.returnArityUnknown = true
+                    secret.returnUnknownStart = 1
+                    secret.returnUnknown.source = true
+                    local call = callModel(secret, {}, {})
+                    callReturnDeps[expr] = call
+                    return call.positionDep(1)
                 end
                 return newDep()
             end
@@ -10228,8 +10821,8 @@ local function collectIntraFileFunctionSummaries(ast, registry)
                         rhsFunctions[index] = functionValuesForExpr(rhs)
                     end
                     for index, binder in ipairs(stmt.LocalList or {}) do
-                        current[binder] =
-                            copyDep(rhsDeps[index] or newDep())
+                        current[binder] = runtimeArgumentDep(
+                            stmt.InitList, rhsDeps, index)
                         runtimeFunctionValues[binder] =
                             rhsFunctions[index]
                             or { [UNKNOWN_VALUE] = true }
@@ -10243,8 +10836,8 @@ local function collectIntraFileFunctionSummaries(ast, registry)
                     for index, rawLhs in ipairs(stmt.Lhs or {}) do
                         local lhs = stripAssignmentParens(rawLhs)
                         if lhs and lhs.AstType == "VarExpr" and lhs.Variable then
-                            current[lhs.Variable] =
-                                copyDep(rhsDeps[index] or newDep())
+                            current[lhs.Variable] = runtimeArgumentDep(
+                                stmt.Rhs, rhsDeps, index)
                             runtimeFunctionValues[lhs.Variable] =
                                 rhsFunctions[index]
                                 or { [UNKNOWN_VALUE] = true }
@@ -10330,8 +10923,49 @@ local function collectIntraFileFunctionSummaries(ast, registry)
                     end
                     current = head
                 elseif t == "ReturnStatement" then
-                    for _, value in ipairs(stmt.Arguments or {}) do
-                        unionInto(returnDep, evalExpr(value, current))
+                    local values = stmt.Arguments or {}
+                    local deps = {}
+                    for index, value in ipairs(values) do
+                        deps[index] = evalExpr(value, current)
+                        unionInto(returnDep, deps[index])
+                    end
+                    for index, value in ipairs(values) do
+                        local final = index == #values
+                        if final and expandsFinalArgument(value) then
+                            if value.AstType == "DotsExpr" then
+                                effects.returnArityUnknown = true
+                                effects.returnVarargs[#effects.returnVarargs + 1] = {
+                                    resultStart = index,
+                                    paramStart = #(summary.node.Arguments or {}) + 1,
+                                }
+                            else
+                                local call = callReturnDeps[value]
+                                if call then
+                                    effects.returnCalls[#effects.returnCalls + 1] = {
+                                        resultStart = index,
+                                        model = call,
+                                    }
+                                    effects.returnArity = math.max(
+                                        effects.returnArity,
+                                        index - 1 + call.effects.returnArity)
+                                    effects.returnArityUnknown =
+                                        effects.returnArityUnknown
+                                        or call.effects.returnArityUnknown
+                                else
+                                    effects.returnArityUnknown = true
+                                    effects.returnUnknownStart = math.min(
+                                        effects.returnUnknownStart or index,
+                                        index)
+                                    unionInto(effects.returnUnknown, deps[index])
+                                end
+                            end
+                        else
+                            effects.returnPositions[index] = unionInto(
+                                effects.returnPositions[index] or newDep(),
+                                deps[index])
+                            effects.returnArity = math.max(
+                                effects.returnArity, index)
+                        end
                     end
                     break
                 elseif t == "CallStatement" and stmt.Expression then
@@ -10359,11 +10993,21 @@ local function collectIntraFileFunctionSummaries(ast, registry)
         local values, resolved = resolveValues(
             binder, times, fallbackPoint, {})
         if not resolved then return effects, false end
+        local unknown, known
         for value in pairs(values) do
-            if value ~= UNKNOWN_VALUE then
+            if value == UNKNOWN_VALUE then
+                unknown = true
+            else
+                known = true
                 unionEffects(effects, analyzeSummary(
                     value, times, stack, inheritedFunctions))
             end
+        end
+        if unknown and known then
+            unionEffects(effects, unknownEffects())
+        elseif unknown then
+            effects.returnArityUnknown = true
+            effects.returnUnknownStart = 1
         end
         return effects, true
     end
