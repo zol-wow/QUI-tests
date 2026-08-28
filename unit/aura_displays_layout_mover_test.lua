@@ -65,6 +65,7 @@ local function newFrame(parent)
 end
 
 local profile = {}
+local layoutActive = true
 local ns = {
     Addon = { AuraSkin = {} },
     AuraElements = {
@@ -90,7 +91,7 @@ ns.Helpers = {
         return profile[name]
     end,
     GetProfile = function() return profile end,
-    IsLayoutModeActive = function() return true end,
+    IsLayoutModeActive = function() return layoutActive end,
 }
 
 ns.SafeCall = function(_, callback, ...)
@@ -133,5 +134,23 @@ if mover._isChildOverlay ~= false then
     fail("an inactive Aura Display must use a visibility-independent proxy mover")
 end
 if not mover:IsShown() then fail("the Aura Display proxy mover must remain shown") end
+
+AD.SetVisibilityAlpha(0.35)
+if host:GetAlpha() ~= 0 then
+    fail("HUD visibility alpha must not reveal an inactive Aura Display")
+end
+
+layoutActive = false
+LM.isActive = false
+ns.QUI_AuraWizard.PlayerRole = function() return "HEALER" end
+AD.Refresh()
+if host:GetAlpha() ~= 0.35 then
+    fail("an active Aura Display must compose its gameplay alpha with HUD visibility")
+end
+
+AD.SetVisibilityAlpha(0)
+if host:GetAlpha() ~= 0 then
+    fail("HUD autohide must fade an active Aura Display to zero")
+end
 
 print("PASS: aura_displays_layout_mover_test")

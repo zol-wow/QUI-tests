@@ -489,7 +489,23 @@ return {
           }
         },
         auraDisplays = {
-          enabled = true
+          enabled = true,
+          hudVisibility = {
+            dontHideInDungeonsRaids = false,
+            fadeDuration = 0.20000000000000001,
+            fadeOutAlpha = 0,
+            hideWhenFlying = false,
+            hideWhenInVehicle = false,
+            hideWhenMounted = false,
+            hideWhenSkyriding = false,
+            showAlways = true,
+            showInCombat = false,
+            showInGroup = false,
+            showInInstance = false,
+            showOnMouseover = false,
+            showWhenMounted = false,
+            showWhenTargetExists = false
+          }
         },
         bags = {
           appearance = {
