@@ -45,8 +45,8 @@ local function NewHarness(criteria, stepInfo)
         self.captureObjectives = objectives
     end
 
-    function timer:SetForces(quantity)
-        self.captureForces = quantity
+    function timer:SetForces(quantity, count, total)
+        self.captureForces = { quantity = quantity, count = count, total = total }
     end
 
     local chunk, err = instrument.loadString(slice, "mplus_objectives_secret")
@@ -58,13 +58,17 @@ local function NewHarness(criteria, stepInfo)
 end
 
 do
+    local settings = { forcesTextFormat = "both" }
     local timer = {
         state = {
             forcesQuantity = 100,
+            forcesCount = 608,
+            forcesTotal = 608,
         },
     }
     local env = setmetatable({
         MPlusTimer = timer,
+        GetSettings = function() return settings end,
     }, { __index = _G })
     local chunk, err = loadstring(textSlice, "mplus_forces_text")
     assert(chunk, err)
@@ -77,7 +81,20 @@ do
     end
 
     timer:WriteForcesText(fs)
-    assert(fs.text == "100.00%", "forces text uses the weighted percentage only")
+    assert(fs.text == "100.00% (608/608)", "both format uses parsed current and total counts")
+
+    settings.forcesTextFormat = "count"
+    timer:WriteForcesText(fs)
+    assert(fs.text == "608/608", "count format omits Blizzard's stray percent sign")
+
+    settings.forcesTextFormat = "percentage"
+    timer:WriteForcesText(fs)
+    assert(fs.text == "100.00%", "percentage format uses the weighted quantity")
+
+    settings.forcesTextFormat = "both"
+    timer.state.forcesCount = nil
+    timer:WriteForcesText(fs)
+    assert(fs.text == "100.00%", "missing parsed count falls back to percentage")
 
     local secretQuantity = sentinel.MakeSecretSentinel()
     timer.state.forcesQuantity = secretQuantity
@@ -95,7 +112,7 @@ do
         { description = "Boss A", completed = false, isWeightedProgress = false },
         { description = "Boss B", completed = true, isWeightedProgress = false },
         { description = "Enemy Forces", completed = false, isWeightedProgress = true,
-          quantity = 42.5, totalQuantity = 300, quantityString = "128/300" },
+          quantity = 100, totalQuantity = 608, quantityString = "608%" },
     }
     local timer = NewHarness(criteria, { numCriteria = 3 })
     timer.state.timer = 100
@@ -113,7 +130,9 @@ do
     assert(timer.state.weightedByIndex[3] == true)
 
     timer:UpdateForces()
-    assert(timer.captureForces == 42.5)
+    assert(timer.captureForces.quantity == 100)
+    assert(timer.captureForces.count == 608)
+    assert(timer.captureForces.total == 608)
 
     timer.state.timer = 200
     timer:UpdateObjectives()
@@ -160,7 +179,9 @@ do
 
     local ok, err = pcall(function() timer:UpdateForces() end)
     assert(ok, "secret forces fields must not throw: " .. tostring(err))
-    assert(rawequal(timer.captureForces, secretQuantity), "percentage passed along raw")
+    assert(rawequal(timer.captureForces.quantity, secretQuantity), "percentage passed along raw")
+    assert(timer.captureForces.count == nil, "secret formatted count uses the percentage fallback")
+    assert(rawequal(timer.captureForces.total, secretTotal), "total passed along raw")
 end
 
 do

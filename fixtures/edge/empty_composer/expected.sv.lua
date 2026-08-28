@@ -3100,6 +3100,7 @@ return {
           forcesLabel = "Forces",
           forcesPosition = "after_timer",
           forcesTextAlign = "LEFT",
+          forcesTextFormat = "both",
           frameBackgroundOpacity = 1,
           layoutMode = "sleek",
           maxDungeonNameLength = 18,

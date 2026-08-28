@@ -40,8 +40,8 @@ local seed = assert(ns.GetNewProfileSeed and ns.GetNewProfileSeed(),
     "ns.GetNewProfileSeed() returned nothing")
 assert(seed._quiBundledGlobals == nil,
     "seed must not leak _quiBundledGlobals into profiles")
-assert(not (seed.mplusTimer and seed.mplusTimer.forcesTextFormat),
-    "seed must not restore the retired forces text format setting")
+assert(seed.mplusTimer and seed.mplusTimer.forcesTextFormat == "both",
+    "seed must default forces text to percentage and count")
 
 local function deepEqual(a, b, path)
     if a == b then return true end
