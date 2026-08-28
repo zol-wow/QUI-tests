@@ -7,6 +7,7 @@ local seed = {
             Target = {
                 auraDisplays = {
                     enabled = false,
+                    hudVisibility = { fadeOutAlpha = 0.9 },
                     displays = { { id = "old", name = "Old" } },
                 },
                 quiGroupFrames = {
@@ -27,6 +28,7 @@ local seed = {
             },
             Source = {
                 auraDisplays = {
+                    hudVisibility = { fadeOutAlpha = 0.4 },
                     displays = { {
                         id = "source",
                         name = "Source",
@@ -94,6 +96,8 @@ h.db.char.clickCast.bindings.keep = { spellID = 123 }
 local auraOK, auraMessage = core:CopyProfileSelection(" Source ", { "auraDisplays" })
 assert(auraOK == true, tostring(auraMessage))
 assert(h.db.profile.auraDisplays.enabled == true, "inactive source defaults were not materialized")
+assert(h.db.profile.auraDisplays.hudVisibility.fadeOutAlpha == 0.4,
+    "Aura Display HUD visibility settings were not copied")
 assert(h.db.profile.auraDisplays.displays[1].id == "source", "source aura displays were not copied")
 local copiedAuraElement = h.db.profile.auraDisplays.displays[1].auras.elements["*"][1]
 assert(copiedAuraElement.iconSize == 57 and copiedAuraElement.spacing == 6 and copiedAuraElement.rowSpacing == 7,
