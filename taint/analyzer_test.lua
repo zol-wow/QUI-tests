@@ -148,6 +148,9 @@ r5:addSource("C_Spell.GetSpellCooldownDuration")
 -- safe-sink branch rather than the round-13 default-reject fall-through.
 r5:addSafeSinkMethod("SetCooldownFromDurationObject")
 r5:addSafeSinkMethod("SetText")
+r5:addSafeSinkFunction("C_VoiceChat.SpeakText", { 1, 3, 4, 5 })
+r5:addSource("C_UnitAuras.GetUnitAuraBySpellID")
+r5:addSafeSinkFunction("C_UnitAuras.GetUnitAuraBySpellID", { 1 })
 
 local source6 = [[
 local durObj = C_Spell.GetSpellCooldownDuration(123)
@@ -171,6 +174,52 @@ local m = tonumber(n)
 ]]
 local findings8 = Analyzer.analyze(source8, "modules/foo.lua", r5, cfg)
 assert_eq(#findings8, 1, "control: tonumber still emits finding")
+
+do
+local source8b = [[
+local secret = C_Spell.GetSpellCooldownDuration(1)
+C_VoiceChat.SpeakText(1, secret, 1, 1, false)
+]]
+assert_eq(#Analyzer.analyze(source8b, "modules/foo.lua", r5, cfg), 0,
+    "ConditionalSecret argument accepts taint")
+
+for _, args in ipairs({
+    'secret, "text", 1, 1, false',
+    '1, "text", secret, 1, false',
+    '1, "text", 1, secret, false',
+    '1, "text", 1, 1, secret',
+}) do
+    local source8c = "local secret = C_Spell.GetSpellCooldownDuration(1)\n"
+        .. "C_VoiceChat.SpeakText(" .. args .. ")"
+    assert_eq(#Analyzer.analyze(source8c, "modules/foo.lua", r5, cfg), 1,
+        "every NeverSecret argument rejects taint")
+end
+
+local source8d = [[
+local function speak(voiceID)
+    C_VoiceChat.SpeakText(voiceID, "text", 1, 1, false)
+end
+speak(C_Spell.GetSpellCooldownDuration(1))
+]]
+assert_eq(#Analyzer.analyze(source8d, "modules/foo.lua", r5, cfg), 1,
+    "NeverSecret argument rejection propagates through function summaries")
+
+local source8e = [[
+local secret = C_Spell.GetSpellCooldownDuration(1)
+C_UnitAuras.GetUnitAuraBySpellID(secret, 123)
+]]
+assert_eq(#Analyzer.analyze(source8e, "modules/foo.lua", r5, cfg), 1,
+    "source APIs still reject taint in NeverSecret arguments")
+
+local source8f = [[
+local function getAura(unit)
+    return C_UnitAuras.GetUnitAuraBySpellID(unit, 123)
+end
+getAura(C_Spell.GetSpellCooldownDuration(1))
+]]
+assert_eq(#Analyzer.analyze(source8f, "modules/foo.lua", r5, cfg), 1,
+    "source API positional rejection propagates through function summaries")
+end
 
 print("safe sink test passed")
 
@@ -1143,6 +1192,8 @@ print("precondition scan test passed")
 do
 local rEvt = Registry.new()
 rEvt:addSecretPayloadEvent("UNIT_AURA", { 4 })
+rEvt:addSecretPayloadEvent("VOICE_CHAT_TTS_PLAYBACK_BOOKMARK",
+    { 4, gateGoverned = false })
 
 -- Handler detected by its event-name comparison: configured param position 4
 -- (updateInfo) is a taint source; position 3 (unit) is not.
@@ -1173,6 +1224,19 @@ assert_eq(#Analyzer.analyze(srcE2, "modules/foo.lua", rEvt, cfg), 0,
 -- Registry without configured events: no seeding at all
 assert_eq(#Analyzer.analyze(srcE1, "modules/foo.lua", rPre, cfg), 0,
     "no event_payload_params config, no seeding")
+
+local srcE3 = [[
+local f = CreateFrame("Frame")
+f:SetScript("OnEvent", function(self, event, utteranceID, bookmarkName)
+    if event == "VOICE_CHAT_TTS_PLAYBACK_BOOKMARK" then
+        if C_Secrets.ShouldAurasBeSecret() then return end
+        print(utteranceID)
+        print(bookmarkName)
+    end
+end)
+]]
+assert_eq(#Analyzer.analyze(srcE3, "modules/foo.lua", rEvt, cfg), 1,
+    "bookmarkName is tainted, utteranceID is clean, and the aura gate cannot clear it")
 
 end
 print("secret event payload test passed")

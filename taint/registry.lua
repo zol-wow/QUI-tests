@@ -140,8 +140,16 @@ function Registry:isSource(name)            return self.sources[name]           
 function Registry:addSafeSinkMethod(name)   self.safeSinkMethods[name]   = true end
 function Registry:isSafeSinkMethod(name)    return self.safeSinkMethods[name]   == true end
 
-function Registry:addSafeSinkFunction(name) self.safeSinkFunctions[name] = true end
-function Registry:isSafeSinkFunction(name)  return self.safeSinkFunctions[name] == true end
+function Registry:addSafeSinkFunction(name, rejected)
+    self.safeSinkFunctions[name] = rejected or true
+end
+function Registry:isSafeSinkFunction(name) return self.safeSinkFunctions[name] ~= nil end
+function Registry:safeSinkFunctionRejectsArgument(name, position)
+    local rejected = self.safeSinkFunctions[name]
+    if type(rejected) ~= "table" then return false end
+    for _, value in ipairs(rejected) do if value == position then return true end end
+    return false
+end
 
 -- Documented argument restrictions (api-index secretArguments with NO
 -- tainted-allowed system): tainted (addon) code cannot pass secrets to

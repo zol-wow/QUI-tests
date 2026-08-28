@@ -118,7 +118,8 @@ do
         ["TestDurationSink"] = { secretArguments = "AllowedWhenUntainted",
                                  durationObjectArg = true, scriptObject = true },
         -- namespaced function, tainted-allowed → function sink
-        ["C_Test.TestFmt"] = { secretArguments = "AllowedWhenTainted" },
+        ["C_Test.TestFmt"] = { secretArguments = "AllowedWhenTainted",
+                               neverSecretArguments = { 1, 3 } },
         -- namespaced function, forbidden → function reject
         ["C_Test.TestForbid"] = { secretArguments = "NotAllowed" },
         -- bare global (no scriptObject) → registers on BOTH tracks
@@ -134,6 +135,10 @@ do
         "untainted-only method lands in the documented reject-set")
     assert_true(rIdx:isSafeSinkMethod("TestDurationSink"), "DurationObject arg → sink")
     assert_true(rIdx:isSafeSinkFunction("C_Test.TestFmt"), "namespaced tainted-allowed → function sink")
+    assert_true(rIdx:safeSinkFunctionRejectsArgument("C_Test.TestFmt", 1),
+        "NeverSecret argument rejects taint")
+    assert_false(rIdx:safeSinkFunctionRejectsArgument("C_Test.TestFmt", 2),
+        "secret-capable argument accepts taint")
     assert_true(rIdx:docArgRestrictionFunction("C_Test.TestForbid") == "NotAllowed",
         "namespaced NotAllowed → function reject")
     assert_true(rIdx:docArgRestrictionMethod("TestGlobalReject") == "AllowedWhenUntainted"

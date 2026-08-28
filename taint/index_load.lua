@@ -160,11 +160,11 @@ function M.populate(registry, indexTable, cfg, warn)
             local dotted = funcName:find("%.", 1) ~= nil
             if allow then
                 if dotted then
-                    registry:addSafeSinkFunction(funcName)
+                    registry:addSafeSinkFunction(funcName, meta.neverSecretArguments)
                 else
                     registry:addSafeSinkMethod(funcName)
                     if not meta.scriptObject then
-                        registry:addSafeSinkFunction(funcName)
+                        registry:addSafeSinkFunction(funcName, meta.neverSecretArguments)
                     end
                 end
             elseif restricted then
