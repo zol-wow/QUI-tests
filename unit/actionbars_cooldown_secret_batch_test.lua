@@ -469,6 +469,39 @@ assert(ok, "a secret GetAttribute return must not abort the cooldown batch: " ..
 assert(secretAttrBtn.cooldown.lastDurationObject == activeDuration,
     "a secret attribute read must fall back to the last readable slot and keep painting")
 
+local pagedContainer = NewFrame()
+pagedContainer:SetAttribute("qui-action-page", 6)
+actionBars.containers.bar1 = pagedContainer
+local pagedSecretBtn = {
+    _quiBarKey = "bar1",
+    _quiButtonIndex = 1,
+    GetAttribute = ActionAttr(SecretSentinel.MakeSecretSentinel()),
+}
+assert(ns.ActionBarsEnv.GetSafeActionSlot(pagedSecretBtn) == 61,
+    "a secret paged action attribute must resolve from the secure page snapshot")
+
+local procSlotState = { value = 10 }
+local procSecretBtn = {
+    _quiBarKey = "bar1",
+    _quiButtonIndex = 1,
+    GetAttribute = function(_, name)
+        if name == "action" then return procSlotState.value end
+    end,
+}
+local originalGetActionInfo = GetActionInfo
+GetActionInfo = function(slot)
+    if slot == 10 then return "spell", 1000 end
+    return originalGetActionInfo(slot)
+end
+assert(ns.ActionBarsEnv.GetButtonSpellId(procSecretBtn) == 1000,
+    "a readable proc action must resolve its current spell")
+procSlotState.value = SecretSentinel.MakeSecretSentinel()
+pagedContainer:SetAttribute("qui-action-page", SecretSentinel.MakeSecretSentinel())
+assert(ns.ActionBarsEnv.GetSafeActionSlot(procSecretBtn) == 10,
+    "cooldown callers must retain the last readable slot during secrecy")
+assert(ns.ActionBarsEnv.GetButtonSpellId(procSecretBtn) == nil,
+    "proc identity must not reuse a previous page when its current slot is secret")
+
 local throwingBtn = {
     action = 10,
     GetAttribute = ActionAttr(10),

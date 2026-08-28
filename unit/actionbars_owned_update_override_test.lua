@@ -132,6 +132,43 @@ local assistedSlots = {}
 AssistedCombatManager = { updateRate = 0.25 }
 function AssistedCombatManager:GetUpdateRate() return self.updateRate or 0 end
 
+local actionInfoBySlot = {}
+local overlayedSpells = {}
+local overrideSpells = {}
+local flyoutSpells = {}
+local flyoutSlots = {}
+local spellSlots = {}
+local nextCastSpell
+local physicalGlows = {}
+local glowOpts = {}
+
+function GetActionInfo(slot)
+    local info = actionInfoBySlot[slot]
+    if info then return unpack(info) end
+end
+
+function FlyoutHasSpell(flyoutID, spellID)
+    return flyoutSpells[flyoutID] and flyoutSpells[flyoutID][spellID] == true
+end
+
+function GetFlyoutInfo(flyoutID)
+    local slots = flyoutSlots[flyoutID]
+    if slots then return nil, nil, #slots, true end
+end
+
+function GetFlyoutSlotInfo(flyoutID, slot)
+    local info = flyoutSlots[flyoutID] and flyoutSlots[flyoutID][slot]
+    if info then return info[1], info[2], true end
+end
+
+C_Spell = {
+    GetOverrideSpell = function(spellID) return overrideSpells[spellID] or spellID end,
+}
+
+C_SpellActivationOverlay = {
+    IsSpellOverlayed = function(spellID) return overlayedSpells[spellID] == true end,
+}
+
 local ns = {
     SafeCall = function(_policy, fn, ...) return pcall(fn, ...) end,
     SafeCallMethod = function(_policy, obj, name, ...)
@@ -166,6 +203,16 @@ local ns = {
         IsEditModeShown = function() return false end,
     },
     LSM = { Fetch = function() return nil end },
+    IconGlow = {
+        Start = function(button, opts)
+            physicalGlows[button] = true
+            glowOpts[button] = { color = opts.color }
+        end,
+        Stop = function(button)
+            physicalGlows[button] = nil
+            glowOpts[button] = nil
+        end,
+    },
 }
 
 setmetatable(_G, {
@@ -191,7 +238,12 @@ assert(loadfile("QUI_ActionBars/actionbars/actionbars_glow.lua"))("QUI", ns)
 rawset(_G, "C_ActionBar", setmetatable({
     IsAssistedCombatAction = function(action) return assistedSlots[action] == true end,
     ForceUpdateAction = noop,
+    FindSpellActionButtons = function(spellID) return spellSlots[spellID] end,
 }, { __index = function() return noop end }))
+
+rawset(_G, "C_AssistedCombat", {
+    GetNextCastSpell = function() return nextCastSpell end,
+})
 
 local env = ns.ActionBarsEnv
 local actionBars = ns.ActionBarsOwned
@@ -386,6 +438,113 @@ for _, name in ipairs(env.MICRO_BUTTON_NAMES) do
 end
 check("microbar refresh preserves Blizzard-owned micro button children",
     externalChildrenPreserved)
+
+local baseProc = NewFrame()
+baseProc.attributes.action = 21
+baseProc._quiBarKey = "bar1"
+baseProc._quiButtonIndex = 1
+local overrideProc = NewFrame()
+overrideProc.attributes.action = 22
+overrideProc._quiBarKey = "bar1"
+overrideProc._quiButtonIndex = 2
+actionInfoBySlot[21] = { "spell", 100 }
+actionInfoBySlot[22] = { "spell", 101 }
+overrideSpells[100] = 101
+actionBars.nativeButtons.bar1 = { baseProc, overrideProc }
+overlayedSpells[101] = true
+
+actionBars.UpdateAllOverlayGlows()
+
+check("proc snapshots match only the button's current spell ID",
+    not physicalGlows[baseProc] and physicalGlows[overrideProc])
+
+actionBars.HideActionButtonGlow(baseProc)
+actionBars.HideActionButtonGlow(overrideProc)
+actionBars.OnSpellActivationGlowShow(101)
+
+check("proc SHOW does not cross-paint a base spell for its override",
+    not physicalGlows[baseProc] and physicalGlows[overrideProc])
+
+overlayedSpells[100] = true
+actionBars.OnSpellActivationGlowShow(100)
+overlayedSpells[101] = nil
+actionBars.OnSpellActivationGlowHide(101)
+
+check("proc HIDE leaves a different current spell active",
+    physicalGlows[baseProc] and not physicalGlows[overrideProc])
+
+actionInfoBySlot[21] = { "spell", 200 }
+actionBars.OnSpellActivationGlowHide(100)
+check("proc HIDE clears a stale latch after the button identity changes",
+    not physicalGlows[baseProc] and not env.GetFrameState(baseProc).quiProcGlow)
+
+local flyoutProc = NewFrame()
+flyoutProc.attributes.action = 23
+flyoutProc._quiBarKey = "bar1"
+flyoutProc._quiButtonIndex = 3
+actionInfoBySlot[23] = { "flyout", 77 }
+flyoutSpells[77] = { [777] = true, [778] = true }
+flyoutSlots[77] = { { 777 }, { 778 } }
+actionBars.nativeButtons.bar1[#actionBars.nativeButtons.bar1 + 1] = flyoutProc
+
+overlayedSpells[777] = true
+actionBars.UpdateOverlayGlow(flyoutProc)
+check("proc snapshots recover an active base spell inside a flyout",
+    physicalGlows[flyoutProc])
+overlayedSpells[777] = nil
+actionBars.OnSpellActivationGlowHide(777)
+actionBars.OnSpellActivationGlowShow(777)
+check("proc SHOW finds a flyout added after the old reverse-map snapshot",
+    physicalGlows[flyoutProc])
+overlayedSpells[778] = true
+actionBars.OnSpellActivationGlowHide(777)
+check("proc HIDE preserves another active spell in the same flyout",
+    physicalGlows[flyoutProc])
+overlayedSpells[778] = nil
+actionBars.OnSpellActivationGlowHide(778)
+check("proc HIDE clears a flyout after its last active member ends",
+    not physicalGlows[flyoutProc])
+
+flyoutSlots[77] = { { 777, 778 } }
+overlayedSpells[778] = true
+actionBars.UpdateOverlayGlow(flyoutProc)
+actionBars.OnSpellActivationGlowHide(777)
+check("proc HIDE for a flyout base preserves its active current override",
+    physicalGlows[flyoutProc])
+overlayedSpells[778] = nil
+actionBars.OnSpellActivationGlowHide(778)
+check("proc HIDE for a flyout's current override clears the glow",
+    not physicalGlows[flyoutProc])
+
+local sharedProc = NewFrame()
+sharedProc.attributes.action = 30
+sharedProc._quiBarKey = "bar1"
+sharedProc._quiButtonIndex = 4
+actionInfoBySlot[30] = { "spell", 900 }
+actionBars.nativeButtons.bar1 = { sharedProc }
+actionBarsDB.global.assistedHighlight = true
+spellSlots[900] = { 30 }
+nextCastSpell = 900
+overlayedSpells[900] = true
+
+actionBars.UpdateOverlayGlow(sharedProc)
+actionBars.UpdateAllAssistedHighlights()
+overlayedSpells[900] = nil
+actionBars.OnSpellActivationGlowHide(900)
+local sharedState = env.GetFrameState(sharedProc)
+
+check("releasing proc ownership preserves an assisted highlight",
+    physicalGlows[sharedProc] and not sharedState.quiProcGlow and sharedState.quiAssistedHighlight
+        and glowOpts[sharedProc] and glowOpts[sharedProc].color == env.ASSISTED_HIGHLIGHT_COLOR)
+
+overlayedSpells[900] = true
+actionBars.OnSpellActivationGlowShow(900)
+nextCastSpell = nil
+actionBars.UpdateAllAssistedHighlights()
+
+check("releasing assisted ownership restores an active proc glow",
+    physicalGlows[sharedProc] and sharedState.quiProcGlow and not sharedState.quiAssistedHighlight
+        and glowOpts[sharedProc] and glowOpts[sharedProc].color == nil)
 
 print(string.format("actionbars_owned_update_override_test: checks complete, %d failed", fails))
 if fails > 0 then os.exit(1) end
