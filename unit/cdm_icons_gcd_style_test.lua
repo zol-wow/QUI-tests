@@ -409,12 +409,15 @@ local ns = {
 dofile("tests/helpers/load_cdm_icon_runtime.lua")(ns)
 assert(loadfile("QUI_CDM/cdm/cdm_icon_renderer.lua"))("QUI", ns)
 local RuntimeQueries = ns.CDMRuntimeQueries
+local rendererTextureWrites = 0
 
 local icon = {
     Cooldown = {
         SetCooldownFromDurationObject = noop,
         SetReverse = noop,
-        SetSwipeTexture = noop,
+        SetSwipeTexture = function()
+            rendererTextureWrites = rendererTextureWrites + 1
+        end,
         Clear = noop,
     },
     _showingGCDSwipe = nil,
@@ -434,6 +437,8 @@ assert(applied == true, "GCD-only duration should be applied")
 assert(icon._showingGCDSwipe == true, "GCD-only duration should mark the icon as showing GCD")
 assert(styleCalls == 1, "GCD-only duration should reapply swipe styling immediately")
 assert(styleSawGCD == true, "swipe styling should run after the GCD flag is set")
+assert(rendererTextureWrites == 0,
+    "renderer should leave swipe texture ownership to the swipe styling module")
 
 local itemAuraIcon = {
     Cooldown = {
