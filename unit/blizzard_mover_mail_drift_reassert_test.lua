@@ -269,6 +269,15 @@ assert(nextFrame, "Open All stacking repair must queue a next-frame raise")
 nextFrame()
 assert(lastRaised == MailFrame, "Open All must keep the already shown mail frame on top")
 
+profile.blizzardMover.enabled = false
+lastRaised = WorldMapFrame
+nextFrame = nil
+OpenAllMail.hookedScripts.OnClick(OpenAllMail)
+assert(nextFrame, "Open All stacking repair must remain safely deferred while disabled")
+nextFrame()
+assert(lastRaised == WorldMapFrame, "Open All stacking repair must stay inert while the mover is disabled")
+profile.blizzardMover.enabled = true
+
 ---------------------------------------------------------------------------
 -- 2. Panel-manager re-stamp while shown is corrected on the next tick
 ---------------------------------------------------------------------------
