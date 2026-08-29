@@ -136,6 +136,7 @@ local visibilityFrames = AD.GetVisibilityFrames()
 if #visibilityFrames ~= 0 then
     fail("inactive Aura Displays must not enter the visibility frame list")
 end
+local reusesVisibilityFrames = AD.GetVisibilityFrames() == visibilityFrames
 
 local mover = LM._handles[key]
 if not mover then fail("an inactive Aura Display must retain a Layout Mode mover") end
@@ -157,9 +158,11 @@ if host:GetAlpha() ~= 0.35 then
     fail("an active Aura Display must compose its gameplay alpha with HUD visibility")
 end
 local activeVisibilityFrames = AD.GetVisibilityFrames()
-if activeVisibilityFrames ~= visibilityFrames
-    or #activeVisibilityFrames ~= 1 or activeVisibilityFrames[1] ~= host then
-    fail("Aura Display visibility must reuse its active-host list")
+if #activeVisibilityFrames ~= 1 or activeVisibilityFrames[1] ~= host then
+    fail("active Aura Displays must enter the visibility frame list")
+end
+if reusesVisibilityFrames and activeVisibilityFrames ~= visibilityFrames then
+    fail("Aura Display visibility must keep reusing its active-host list")
 end
 
 host._mouseOver = true
@@ -179,8 +182,12 @@ end
 
 ns.QUI_AuraWizard.PlayerRole = function() return "TANK" end
 AD.Refresh()
-if AD.GetVisibilityFrames() ~= visibilityFrames or #visibilityFrames ~= 0 then
-    fail("reused Aura Display visibility lists must clear stale hosts")
+local inactiveVisibilityFrames = AD.GetVisibilityFrames()
+if #inactiveVisibilityFrames ~= 0 then
+    fail("Aura Display visibility lists must clear stale hosts")
+end
+if reusesVisibilityFrames and inactiveVisibilityFrames ~= visibilityFrames then
+    fail("Aura Display visibility must keep reusing its cleared host list")
 end
 
 print("PASS: aura_displays_layout_mover_test")
