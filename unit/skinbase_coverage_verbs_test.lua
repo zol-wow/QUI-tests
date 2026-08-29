@@ -116,16 +116,21 @@ end
 do
     local function NewCheckTex() local t = { alpha = 1 }; function t:SetTexture() end; function t:SetAlpha(a) self.alpha = a end; function t:SetVertexColor(...) self.vertex = { ... } end; function t:SetDrawLayer(...) self.layer = { ... } end; return t end
     local check = { frameLevel = 2 }
-    local normalTex, checkedTex = NewCheckTex(), NewCheckTex()
+    local normalTex, checkedTex, disabledCheckedTex = NewCheckTex(), NewCheckTex(), NewCheckTex()
     function check:GetNormalTexture() return normalTex end
     function check:GetCheckedTexture() return checkedTex end
+    function check:GetDisabledCheckedTexture() return disabledCheckedTex end
     function check:GetFrameLevel() return self.frameLevel end
 
     local b0 = #backdrops
     SkinBase.SkinCheckBox(check)
     assert(normalTex.alpha == 0, "SkinCheckBox must hide the box (normal) texture")
     assert(backdrops[#backdrops] == check, "SkinCheckBox must create a QUI backdrop box")
-    assert(checkedTex.vertex ~= nil, "SkinCheckBox must accent-tint the check mark")
+    assert(checkedTex.vertex ~= nil and disabledCheckedTex.vertex ~= nil,
+        "SkinCheckBox must tint both enabled and disabled check marks")
+    assert(checkedTex.layer[1] == "OVERLAY" and checkedTex.layer[2] == 7
+        and disabledCheckedTex.layer[1] == "OVERLAY" and disabledCheckedTex.layer[2] == 7,
+        "SkinCheckBox must keep both checked-state textures above QUI chrome")
     assert(SkinBase.IsStyled(check), "SkinCheckBox must MarkStyled")
     SkinBase.SkinCheckBox(check)
     assert(#backdrops == b0 + 1, "SkinCheckBox must be idempotent (one backdrop only)")
@@ -177,7 +182,7 @@ do
     SkinBase.SkinFrameText = function() calls.font = true end
     SkinBase.LockFrameTextObjects = function() calls.lock = true end
     SkinBase.ApplyButtonFontObjectsDeep = function() calls.btnfont = true end
-    SkinBase.SkinTabGroup = function() calls.tabs = true end
+    SkinBase.SkinTabGroup = function(_, _, opts) calls.tabs = opts end
     SkinBase.SkinTrimScrollBar = function() calls.scroll = true end
     local bdCount = #backdrops
 
@@ -199,7 +204,8 @@ do
     assert(#backdrops == n2, "SkinWindow{noBackdrop} must skip the backdrop")
     assert(not calls.close, "SkinWindow{noClose} must skip the close button")
     assert(not calls.btnfont, "SkinWindow{noButtonFonts} must skip button font objects")
-    assert(calls.tabs, "SkinWindow{tabs} must skin the tab group")
+    assert(calls.tabs and calls.tabs.resizeToText,
+        "SkinWindow{tabs} must remeasure standard Panel tabs after applying the QUI font")
     assert(calls.scroll, "SkinWindow{scrollBars} must skin the scrollbars")
     -- SkinFrameText and LockFrameTextObjects are superseded by the global object override;
     -- they are never called by SkinWindow regardless of opts.

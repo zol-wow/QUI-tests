@@ -24,6 +24,11 @@ local professions = readFile("modules/skinning/frames/professions.lua")
 local auctionHouse = readFile("modules/skinning/frames/auctionhouse.lua")
 local craftingOrders = readFile("modules/skinning/frames/craftingorders.lua")
 local instanceFrames = readFile("modules/skinning/frames/instanceframes.lua")
+local mail = readFile("modules/skinning/frames/mail.lua")
+local journals = readFile("modules/skinning/frames/journals.lua")
+local inspect = readFile("modules/skinning/frames/inspect.lua")
+local social = readFile("modules/skinning/frames/social.lua")
+local interaction = readFile("modules/skinning/frames/interaction.lua")
 
 -- SkinBase exposes the shared widget API
 for _, fn in ipairs({
@@ -67,5 +72,25 @@ assertContains(instanceFrames, "SkinBase.SkinDropdown(",
     "Instance frame dropdowns must use SkinBase.SkinDropdown")
 assertContains(instanceFrames, "keepArrow = true",
     "Instance frame dropdowns must keep the dropdown arrow visible")
+
+assertContains(instanceFrames, "SkinBase.SkinTabGroup(pveTabs, PVEFrame, { resizeToText = true })",
+    "PVE tabs must remeasure after the QUI font is applied")
+assertContains(mail, "SkinBase.SkinTabGroup(SkinBase.CollectNumberedTabs(\"MailFrame\", 2), frame, { resizeToText = true })",
+    "Mail tabs must remeasure after the QUI font is applied")
+assertContains(journals, "SkinBase.SkinTabGroup(tabs, frame, { resizeToText = true })",
+    "Collections tabs must remeasure after the QUI font is applied")
+assertContains(inspect, "SkinBase.SkinTabGroup(SkinBase.CollectNumberedTabs(\"InspectFrame\", 3), InspectFrame, { font = true, resizeToText = true })",
+    "Inspect tabs must remeasure after the QUI font is applied")
+assertContains(base, "SkinBase.SkinTabGroup(opts.tabs, opts.tabOwner or frame, { resizeToText = true })",
+    "SkinWindow tabs must remeasure after the QUI font is applied")
+assertContains(social, "SkinBase.SkinWindow(frame, { tabs = tabs })",
+    "Friends tabs must use the standard SkinWindow tab path")
+for _, needle in ipairs({
+    "SkinBase.CollectNumberedTabs(\"MerchantFrame\", 2)",
+    "SkinBase.CollectNumberedTabs(\"GuildBankFrame\", 4)",
+    "SkinBase.CollectNumberedTabs(\"MacroFrame\", 2)",
+}) do
+    assertContains(interaction, needle, "interaction Panel tabs must use the standard SkinWindow tab path")
+end
 
 print("OK: skinning_frame_consistency_test")

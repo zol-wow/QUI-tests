@@ -2,19 +2,7 @@
 -- Run: lua tests/unit/craftingorders_filter_resetx_strata_test.lua
 --
 -- Regression guard: the crafting-orders filter dropdown's reset "X"
--- (ResetButton) must reflect the real filter state on a fresh open.
---
--- Diagnosed in-game: the X is NOT occluded (it sits at frame level 9, well above
--- the QUI backdrop) -- it is genuinely SetShown(false). Blizzard's
--- WowDropdownFilterBehaviorMixin:ValidateResetState() shows it only when a filter
--- is non-default, and on a fresh open the dropdown's first OnShow can run that
--- validate before InitFilterDropdown (Blizzard_ProfessionsCustomerOrdersBrowse-
--- Orders.lua) wires the isDefault callback -- so an already-active filter's X
--- stays hidden until the next validate (a menu click). The skin must re-run
--- ValidateResetState once after skinning so the X reflects the real state.
---
--- (The backdrop is also lowered below the dropdown's children as general
--- hygiene, but that is NOT what fixes the reset-X -- this was a show bug.)
+-- (ResetButton) must be revalidated after QUI enables its expansion filter.
 
 local function readFile(path)
     local fh = assert(io.open(path, "rb"), "failed to open " .. path)
@@ -23,20 +11,58 @@ local function readFile(path)
     return text
 end
 
-local function assertContains(text, needle, reason)
-    assert(text:find(needle, 1, true), reason)
+local source = readFile("modules/qol/qol.lua")
+local setupSource = assert(source:match("(local coHooked = false.-)\n\nqolFrame:RegisterEvent"),
+    "failed to extract crafting-order filter setup")
+
+local timers = {}
+C_Timer = {
+    After = function(_, callback)
+        timers[#timers + 1] = callback
+    end,
+}
+
+Enum = {
+    AuctionHouseFilter = {
+        CurrentExpansionOnly = "CurrentExpansionOnly",
+    },
+}
+
+GetSettings = function()
+    return { craftingOrderExpansionFilter = true }
 end
 
-local source = readFile("modules/skinning/frames/craftingorders.lua")
+local validateCount = 0
+local filterDropdown = {
+    filters = {},
+    ValidateResetState = function(self)
+        assert(self.filters.CurrentExpansionOnly == true,
+            "reset-X state must be validated after the expansion filter is enabled")
+        validateCount = validateCount + 1
+    end,
+}
 
-assertContains(
-    source,
-    "dropdown.ValidateResetState",
-    "CO filter skinning must re-validate the reset-X state after skinning")
+local browseOrders = {
+    SearchBar = { FilterDropdown = filterDropdown },
+    HookScript = function(self, scriptName, callback)
+        self[scriptName] = callback
+    end,
+}
 
-assertContains(
-    source,
-    "ns.SafeCallMethod(\"best-effort-style\", dropdown, \"ValidateResetState\")",
-    "CO reset-X re-validate must be guarded and run against the live dropdown")
+ProfessionsCustomerOrdersFrame = { BrowseOrders = browseOrders }
+
+local SetupCraftingOrderFilter = assert((loadstring or load)(
+    setupSource .. "\nreturn SetupCraftingOrderFilter", "craftingorders_filter_resetx"))()
+
+SetupCraftingOrderFilter()
+assert(#timers == 1, "crafting-order filter setup must schedule its initial refresh")
+timers[1]()
+assert(validateCount == 1, "initial expansion-filter application must refresh the reset X")
+
+filterDropdown.filters.CurrentExpansionOnly = false
+browseOrders.OnShow()
+assert(#timers == 2, "reopening crafting orders must schedule the expansion filter")
+timers[2]()
+assert(validateCount == 2, "reopening crafting orders must refresh the reset X")
 
 print("OK: craftingorders_filter_resetx_strata_test")
