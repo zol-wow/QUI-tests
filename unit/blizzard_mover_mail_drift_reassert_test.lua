@@ -121,6 +121,7 @@ UIParent = newFrame("UIParent")
 MailFrame = newFrame("MailFrame", UIParent, false)
 SendMailFrame = newFrame("SendMailFrame", MailFrame, false)
 MailFrameInset = newFrame("MailFrameInset", MailFrame, false)
+OpenAllMail = newFrame("OpenAllMail", MailFrame, false)
 WorldMapFrame = newFrame("WorldMapFrame", UIParent, false)
 
 local watcherFrames = {}
@@ -141,6 +142,8 @@ function hooksecurefunc(target, method, handler)
 end
 
 local inCombat = false
+local nextFrame
+function RunNextFrame(fn) nextFrame = fn end
 function InCombatLockdown() return inCombat end
 function IsShiftKeyDown() return false end
 function IsControlKeyDown() return false end
@@ -257,6 +260,14 @@ tick(mailWatcher)
 assertAtSaved(MailFrame, "show transition")
 assert(lastRaised == MailFrame, "newly shown mail must finish above previously open panels")
 tick(mailWatcher, 5) -- burn the transition re-assert burst
+
+lastRaised = WorldMapFrame
+assert(OpenAllMail.hookedScripts.OnClick, "Open All must install a stacking repair hook")
+OpenAllMail.hookedScripts.OnClick(OpenAllMail)
+assert(lastRaised == WorldMapFrame, "Open All stacking repair must wait for Blizzard's click work")
+assert(nextFrame, "Open All stacking repair must queue a next-frame raise")
+nextFrame()
+assert(lastRaised == MailFrame, "Open All must keep the already shown mail frame on top")
 
 ---------------------------------------------------------------------------
 -- 2. Panel-manager re-stamp while shown is corrected on the next tick
