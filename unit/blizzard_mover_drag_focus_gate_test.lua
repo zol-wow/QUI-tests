@@ -221,8 +221,9 @@ local function registerCombatPanel(name, options)
 	_G[name] = frame
 	local panel = mover.functions.RegisterFrame({
 		id = name, label = name, group = "system", names = { name },
-		useRootHandle = true, secureFrame = options.secureFrame,
-		proxyParent = options.proxyParent, defaultEnabled = true,
+		useRootHandle = options.useRootHandle ~= false, secureFrame = options.secureFrame,
+		proxyParent = options.proxyParent, handles = options.handles,
+		scaleTargets = options.scaleTargets, defaultEnabled = true,
 	})
 	return frame, panel
 end
@@ -244,6 +245,39 @@ local restrictedCases = {
 	{ registerCombatPanel("CombatSecurePolicyPanel", { secureFrame = true }) },
 	{ registerCombatPanel("CombatProxyParentPanel", { proxyParent = true }) },
 }
+
+local restrictedHandle = newFrame("CombatRestrictedHandle", UIParent, true)
+_G.CombatRestrictedHandle = restrictedHandle
+local mixedHandleRoot, mixedHandlePanel = registerCombatPanel("CombatMixedHandlePanel", {
+	handles = { "CombatRestrictedHandle" },
+})
+assert(mixedHandleRoot.children[1], "unrestricted root should install its drag strip in combat")
+assert(not restrictedHandle.children[1], "restricted descendant should not receive a drag strip in combat")
+assert(not next(restrictedHandle.hookedScripts), "restricted descendant should not receive hooks in combat")
+assert(mover.variables.combatQueue[mixedHandleRoot] == mixedHandlePanel, "restricted descendant should queue a retry")
+
+local directHandle = newFrame("CombatRestrictedDirectHandle", UIParent)
+directHandle.anchoringRestricted = true
+_G.CombatRestrictedDirectHandle = directHandle
+local directRoot, directPanel = registerCombatPanel("CombatMixedDirectPanel", {
+	useRootHandle = false,
+	handles = { "CombatRestrictedDirectHandle" },
+})
+assert(directRoot.hookedScripts.OnMouseDown, "unrestricted root should install direct drag hooks in combat")
+assert(not rawget(directHandle, "mouseEnabled"), "restricted direct handle should not enable mouse in combat")
+assert(not directHandle.hookedScripts.OnMouseDown, "restricted direct handle should not receive hooks in combat")
+assert(mover.variables.combatQueue[directRoot] == directPanel, "restricted direct handle should queue a retry")
+
+local restrictedScale = newFrame("CombatRestrictedScale", UIParent)
+restrictedScale.protected = true
+_G.CombatRestrictedScale = restrictedScale
+local mixedScaleRoot, mixedScalePanel = registerCombatPanel("CombatMixedScalePanel", {
+	scaleTargets = { "CombatRestrictedScale" },
+})
+assert(mixedScaleRoot.children[1], "unrestricted scale root should install its drag strip in combat")
+assert(not next(restrictedScale.hookedScripts), "restricted scale target should not receive hooks in combat")
+assert(mover.variables.combatQueue[mixedScaleRoot] == mixedScalePanel, "restricted scale target should queue a retry")
+
 for _, case in ipairs(restrictedCases) do
 	assert(mover.variables.combatQueue[case[1]] == case[2], "restricted frame should defer hook setup")
 end
@@ -253,5 +287,15 @@ for _, case in ipairs(restrictedCases) do
 	mover.functions.createHooks(case[1], case[2])
 	assert(case[1].children[1], "restricted frame should install hooks after combat")
 end
+
+mover.functions.createHooks(mixedHandleRoot, mixedHandlePanel)
+assert(restrictedHandle.children[1], "restricted descendant should receive its drag strip after combat")
+mover.functions.createHooks(directRoot, directPanel)
+assert(directHandle.mouseEnabled, "restricted direct handle should enable mouse after combat")
+assert(directHandle.hookedScripts.OnMouseDown and directHandle.hookedScripts.OnMouseUp,
+	"restricted direct handle should receive drag hooks after combat")
+mover.functions.createHooks(mixedScaleRoot, mixedScalePanel)
+assert(restrictedScale.hookedScripts.OnEnter and restrictedScale.hookedScripts.OnLeave
+	and restrictedScale.hookedScripts.OnMouseUp, "restricted scale target should receive hooks after combat")
 
 print("OK: blizzard_mover_drag_focus_gate_test")
