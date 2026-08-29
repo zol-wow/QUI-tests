@@ -107,11 +107,11 @@ childFrame._regions = { nested }
 local chromeFrame = NewFrame()
 chromeFrame._children = { childFrame }
 SkinBase.SkinFrameText(chromeFrame, { recurse = true, chrome = true })
-assert(nested.color[1] == 0.95 and nested.color[2] == 0.95 and nested.color[3] == 0.95,
+assert(nested.color[1] == 1 and nested.color[2] == 1 and nested.color[3] == 1,
     "SkinFrameText must recolor nested text when chrome text is explicit")
 
--- chrome label: explicit near-white color
+-- chrome label: explicit white color
 local lbl = NewFS(13)
 SkinBase.SkinFontString(lbl, { color = nil })
-assert(lbl.color[1] == 0.95, "chrome label (no fontOnly) must get near-white themed color")
+assert(lbl.color[1] == 1, "chrome label (no fontOnly) must get white themed color")
 print("OK: skinbase_frametext_test")

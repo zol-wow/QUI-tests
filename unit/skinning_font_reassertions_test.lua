@@ -131,8 +131,10 @@ assertContains(journals, "local function LockCollectionsScrollBox(scrollBox)",
     "Collections Journal must have a durable scrollbox text lock helper")
 assertContains(journals, "local function GetEncounterJournalBottomTabs(frame)",
     "Adventure Guide bottom content tabs must be collected explicitly")
-assertContains(journals, "SkinBase.SkinTabGroup(tabs, frame)",
-    "Adventure Guide bottom content tabs must be styled as tabs")
+local encounterBottomTabs = blockBetween(journals, "local function SkinEncounterJournalBottomTabs(frame)",
+    "local function SkinEncounterJournalTutorialsButton(frame)")
+assertContains(encounterBottomTabs, "SkinBase.ApplyButtonFontObjects(tab)",
+    "Adventure Guide bottom content tabs must apply the QUI font without replacing their native tab art")
 -- LockFrameTextObjects(tab, 2) was removed from the bottom-tabs loop; interactive
 -- font-object reverts on bare-root tab surfaces are accepted under the global override.
 assertContains(journals, "LockCollectionsScrollBox(_G.MountJournal and _G.MountJournal.ScrollBox)",
@@ -189,7 +191,7 @@ assertContains(auctionHeaderSkin, "SkinBase.ApplyButtonFontObjects(self)",
 -- owns static text durability; interactive reverts on bare-root button surfaces accepted.
 local auctionsTabs = blockBetween(auctionhouse, "local function SkinAuctionHouseAuctionsTabs(auctionsFrame)",
     "local function LockDurationDropdownText(dropdown)")
-assertContains(auctionsTabs, "SkinBase.SkinTabGroup(tabs, auctionsFrame, { font = true })",
+assertContains(auctionsTabs, "SkinBase.SkinTabGroup(tabs, auctionsFrame, { font = true, resizeToText = true })",
     "Auction House inner Auctions/Bids tabs must be skinned as a durable tab group")
 -- LockFrameTextObjects(tab, 2) was removed from SkinAuctionHouseAuctionsTabs; interactive
 -- font-object reverts on bare-root tab surfaces are accepted under the global override.

@@ -109,6 +109,7 @@ local ns = {
     -- must return a real mock frame; other UIKit.* stay generated no-ops.
     UIKit = setmetatable({
         CreateButton = function() return recFrame() end,
+        CreateCloseButton = function() return recFrame() end,
     }, { __index = function() return function() end end }),
     QUI = { Chat = {
         _internals = internals,
