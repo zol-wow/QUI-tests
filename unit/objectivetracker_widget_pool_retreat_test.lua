@@ -31,6 +31,13 @@ assert(src:find("local function IsWidgetPoolBlock", 1, true),
 assert(src:find("ScenarioObjectiveTracker = true", 1, true)
     and src:find("UIWidgetObjectiveTracker = true", 1, true),
     "objectivetracker.lua must list both widget-pool trackers")
+assert(src:find('"InitiativeTasksObjectiveTracker"', 1, true),
+    "objectivetracker.lua must skin Blizzard's Initiative Tasks tracker")
+local trackingEvents = assert(src:match("local trackingEvents = {(.-)}\n\nlocal frame"))
+assert(trackingEvents:find('"INITIATIVE_TASKS_TRACKED_UPDATED"', 1, true)
+    and trackingEvents:find('"INITIATIVE_TASKS_TRACKED_LIST_CHANGED"', 1, true)
+    and trackingEvents:find('"NEIGHBORHOOD_INITIATIVE_UPDATED"', 1, true),
+    "Initiative task changes must schedule QUI's post-layout refresh")
 assert(not src:find('hooksecurefunc(tracker, "LayoutContents"', 1, true),
     "objectivetracker.lua must not hook Blizzard module LayoutContents")
 assert(not src:find('hooksecurefunc(TrackerFrame, "Update",', 1, true),
