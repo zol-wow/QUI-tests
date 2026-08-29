@@ -4,6 +4,7 @@
 -- luacheck: globals IsShiftKeyDown IsControlKeyDown IsAltKeyDown GetMouseFoci C_AddOns
 
 local currentFoci = {}
+local inCombat = false
 
 local frameMeta = {}
 frameMeta.__index = function(frame, key)
@@ -16,7 +17,9 @@ frameMeta.__index = function(frame, key)
 	elseif key == "IsForbidden" then
 		return function() return false end
 	elseif key == "IsProtected" then
-		return function(self) return self.protected or false end
+		return function(self) return rawget(self, "protected") or false end
+	elseif key == "IsAnchoringRestricted" then
+		return function(self) return rawget(self, "anchoringRestricted") or false end
 	elseif key == "GetNumPoints" then
 		return function() return 1 end
 	elseif key == "GetPoint" then
@@ -134,7 +137,7 @@ function hooksecurefunc(target, method, handler)
 	hooks[method] = handler
 end
 
-function InCombatLockdown() return false end
+function InCombatLockdown() return inCombat end
 function IsShiftKeyDown() return true end
 function IsControlKeyDown() return false end
 function IsAltKeyDown() return false end
@@ -158,6 +161,9 @@ local profile = {
 local ns = {
 	Helpers = {
 		GetProfile = function() return profile end,
+		FrameMutationRestricted = function(frame)
+			return frame and (rawget(frame, "protected") or rawget(frame, "anchoringRestricted")) or false
+		end,
 	},
 	SafeCall = function(_policy, fn, ...)
 		return pcall(fn, ...)
@@ -207,5 +213,45 @@ assert(TestMoverPanel.startMovingCalls == 1, "plain mover focus should start fra
 strip.hookedScripts.OnDragStop(strip)
 assert(TestMoverPanel.stopMovingCalls == 1, "started drag should stop frame movement")
 assert(profile.blizzardMover.frames.TestMoverPanel.point == "CENTER", "started drag should save a position")
+
+local function registerCombatPanel(name, options)
+	options = options or {}
+	local frame = newFrame(name, UIParent, options.protected)
+	frame.anchoringRestricted = options.anchoringRestricted
+	_G[name] = frame
+	local panel = mover.functions.RegisterFrame({
+		id = name, label = name, group = "system", names = { name },
+		useRootHandle = true, secureFrame = options.secureFrame,
+		proxyParent = options.proxyParent, defaultEnabled = true,
+	})
+	return frame, panel
+end
+
+inCombat = true
+local plainFrame = registerCombatPanel("CombatPlainPanel")
+local plainStrip = assert(plainFrame.children[1], "unrestricted frame should install drag hooks in combat")
+currentFoci = { plainStrip, plainFrame }
+plainStrip.hookedScripts.OnDragStart(plainStrip)
+plainStrip.hookedScripts.OnDragStop(plainStrip)
+assert(plainFrame.startMovingCalls == 1, "unrestricted frame should start moving in combat")
+assert(plainFrame.stopMovingCalls == 1, "unrestricted frame should stop moving in combat")
+assert(profile.blizzardMover.frames.CombatPlainPanel.point == "CENTER", "combat drag should save the unrestricted frame position")
+assert(not mover.variables.combatQueue[plainFrame], "unrestricted frame should not enter the combat queue")
+
+local restrictedCases = {
+	{ registerCombatPanel("CombatProtectedPanel", { protected = true }) },
+	{ registerCombatPanel("CombatAnchoringRestrictedPanel", { anchoringRestricted = true }) },
+	{ registerCombatPanel("CombatSecurePolicyPanel", { secureFrame = true }) },
+	{ registerCombatPanel("CombatProxyParentPanel", { proxyParent = true }) },
+}
+for _, case in ipairs(restrictedCases) do
+	assert(mover.variables.combatQueue[case[1]] == case[2], "restricted frame should defer hook setup")
+end
+
+inCombat = false
+for _, case in ipairs(restrictedCases) do
+	mover.functions.createHooks(case[1], case[2])
+	assert(case[1].children[1], "restricted frame should install hooks after combat")
+end
 
 print("OK: blizzard_mover_drag_focus_gate_test")
