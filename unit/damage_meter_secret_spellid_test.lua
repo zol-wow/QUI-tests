@@ -41,9 +41,66 @@ local normalized = NormalizeSpells({
 
 assert(rawequal(normalized[1].spellID, secretSpellID), "secret spellID should stay on the row by identity")
 assert(normalized[1].name == "Hidden Spell", "secret spellID row should use creatureName fallback")
-assert(normalized[1].iconID == nil, "secret spellID row should not resolve icon through C_Spell")
+assert(normalized[1].iconID == nil, "secret spellID row should defer icon resolution to the texture sink path")
 assert(normalized[2].name == "Spell 123", "non-secret spellID should still resolve spell info")
 assert(normalized[2].iconID == 1123, "non-secret spellID should still resolve icon")
+
+local SecretSentinel = dofile("tests/helpers/secret_sentinel.lua")
+local Instrument = dofile("tests/helpers/secret_instrument.lua")
+local restoreSecretStub = SecretSentinel.InstallSecretStub()
+local secretTexture = SecretSentinel.MakeSecretSentinel()
+local renderStart = assert(source:find("function Breakdown:_SetSpellRow", 1, true))
+local renderEnd = assert(source:find("\nfunction Breakdown:_SetDeathRow", renderStart))
+local renderChunk = source:sub(renderStart, renderEnd - 1)
+local renderedTexture
+local renderEnv = setmetatable({
+    type = type,
+    string = string,
+    Breakdown = {},
+    ApplyRowBackgroundVisibility = function() end,
+    IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
+    C_Spell = {
+        GetSpellTexture = function(spellID)
+            assert(rawequal(spellID, secretSpellID), "texture lookup must receive the secret spellID unchanged")
+            return secretTexture, 5252, 6262
+        end,
+    },
+    Helpers = {
+        IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
+    },
+    ResolveAppearance = function(_, key)
+        if key == "numberFormat" then return "compact" end
+        if key == "barFillAlpha" then return 1 end
+        if key == "barColorAccent" then return true end
+    end,
+    FormatNumber = function(value) return tostring(value) end,
+    ComputeBarFill = function() return 0, 100, 100 end,
+    GetAccentColor = function() return 1, 1, 1, 1 end,
+}, { __index = _G })
+local renderLoader = assert(Instrument.loadString(renderChunk .. "\nreturn Breakdown._SetSpellRow",
+    "damage_meter_secret_spell_texture"))
+setfenv(renderLoader, renderEnv)
+local SetSpellRow = renderLoader()
+local row = {
+    Icon = {
+        SetTexture = function(_, texture, ...)
+            assert(select("#", ...) == 0, "texture sink must receive only GetSpellTexture's first return")
+            renderedTexture = texture
+        end,
+        SetTexCoord = function() end,
+    },
+    Name = { SetFormattedText = function() end, SetText = function() end },
+    Value = { SetText = function() end },
+    Bar = {
+        SetMinMaxValues = function() end,
+        SetValue = function() end,
+        SetStatusBarColor = function() end,
+    },
+}
+SetSpellRow({ parentWindowID = 1 }, row, normalized[1], 100, 100)
+assert(rawequal(renderedTexture, secretTexture),
+    "secret spell texture must pass directly from C_Spell.GetSpellTexture to Texture:SetTexture")
+SecretSentinel.RestoreSecretStub(restoreSecretStub)
 
 local utilityStart = assert(source:find("local function SortByDescSafe", 1, true))
 local utilityEnd = assert(source:find("local Data = {}", utilityStart, true))

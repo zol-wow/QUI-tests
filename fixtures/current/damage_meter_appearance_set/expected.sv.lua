@@ -1263,23 +1263,31 @@ return {
             breakdownAnchor = "row",
             combineAbsorbsIntoHealing = true,
             enabled = true,
+            hoverTooltipScale = 100,
             refreshRateCombat = 0.5,
             refreshRateIdle = 2,
             shortenNames = true,
+            showAllBreakdownSpells = true,
             showHoverTooltip = true,
             showPinnedSelf = true,
+            showSpellTooltips = true,
             visibility = "always",
             windowCount = 1,
             windows = {
               [1] = {
+                autoCurrentOnCombat = false,
+                autoSwapChallengeSessions = false,
                 damageMeterType = 0,
                 hidden = false,
+                hideTimer = false,
+                mythicStartDMType = false,
                 name = "",
                 sessionType = 1,
                 size = {
                   h = 180,
                   w = 240
-                }
+                },
+                syncSegments = false
               }
             }
           }
