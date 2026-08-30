@@ -49,12 +49,31 @@ local windowEnd = assert(src:find("\nfunction Window:Hide", windowStart))
 local windowChunk = src:sub(windowStart, windowEnd - 1)
 check(windowChunk:find("self.SegmentButton", 1, true), "window must expose a visible SegmentButton")
 check(windowChunk:find("self:_OpenSessionMenu()", 1, true), "SegmentButton must open the session menu")
+check(windowChunk:find("self._breakdown = Breakdown.New(self)", 1, true),
+    "windows must preallocate breakdown frames before combat hover")
 
 local openStart = assert(src:find("function Window:OpenBreakdown", 1, true))
 local openEnd = assert(src:find("\nfunction Window:RefreshBreakdown", openStart))
 local openChunk = src:sub(openStart, openEnd - 1)
 check(openChunk:find("deathRecapID", 1, true), "Deaths rows must forward the source deathRecapID")
 check(openChunk:find('UnitGUID("player")', 1, true), "local combat detail must use the player's non-secret GUID")
+check(not openChunk:find("Breakdown.New", 1, true), "opening detail must not allocate breakdown frames")
+
+local refreshBreakdownStart = assert(src:find("function Window:RefreshBreakdown", openStart, true))
+local refreshBreakdownEnd = assert(src:find("\nBreakdown = {}", refreshBreakdownStart, true))
+Window = {}
+assert(loadstring(src:sub(refreshBreakdownStart, refreshBreakdownEnd - 1)))()
+local breakdownRefreshes = 0
+local breakdown = {
+    isPreview = true,
+    IsOpen = function() return true end,
+    Refresh = function() breakdownRefreshes = breakdownRefreshes + 1 end,
+}
+Window.RefreshBreakdown({ _breakdown = breakdown })
+check(breakdownRefreshes == 0, "meter updates must not rebuild an open hover preview")
+breakdown.isPreview = false
+Window.RefreshBreakdown({ _breakdown = breakdown })
+check(breakdownRefreshes == 1, "clicked detail must continue refreshing")
 
 local targetsStart = assert(src:find("function Breakdown:_ResolveTargets", 1, true))
 local targetsEnd = assert(src:find("\nfunction Breakdown:Refresh", targetsStart))
