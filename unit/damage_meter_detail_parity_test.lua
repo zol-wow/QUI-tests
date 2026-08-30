@@ -513,6 +513,31 @@ check(not openChunk:find("if isPreview then return false", 1, true),
     "Deaths hover must not take the old native-only early exit")
 check(src:find("function Breakdown:_SetDeathRow", 1, true), "Deaths must have a dedicated event-row renderer")
 
+local deathInfoStart = assert(src:find("local ENVIRONMENTAL_DEATH_ICONS", 1, true))
+local deathInfoEnd = assert(src:find("\nfunction Breakdown:_SetDeathRow", deathInfoStart))
+local deathInfoChunk = src:sub(deathInfoStart, deathInfoEnd - 1)
+IsSecretValue = function() return false end
+_G.ACTION_SWING = "Melee"
+_G.ACTION_ENVIRONMENTAL_DAMAGE_FIRE = "Fire"
+local textureSpellID
+C_Spell = { GetSpellTexture = function(spellID) textureSpellID = spellID; return "melee-icon" end }
+local resolveDeathEventInfo = assert(loadstring(deathInfoChunk .. "\nreturn ResolveDeathEventInfo"))()
+local spellID, spellName, iconID = resolveDeathEventInfo({ event = "SWING_DAMAGE" })
+check(spellID == 88163 and spellName == "Melee" and iconID == "melee-icon" and textureSpellID == 88163,
+    "SWING_DAMAGE must use Blizzard's melee spell ID, label, and icon")
+spellID, spellName, iconID = resolveDeathEventInfo({
+    event = "ENVIRONMENTAL_DAMAGE",
+    environmentalType = "fire",
+})
+check(spellID == nil and spellName == "Fire" and iconID == "Interface\\Icons\\spell_fire_fire",
+    "ENVIRONMENTAL_DAMAGE must use Blizzard's localized label and mapped icon")
+_, _, iconID = resolveDeathEventInfo({
+    event = "ENVIRONMENTAL_DAMAGE",
+    environmentalType = "unknown",
+})
+check(iconID == "Interface\\Icons\\ability_creature_cursed_05",
+    "unknown environmental damage must use Blizzard's fallback icon")
+
 check(refreshChunk:find("isEnemyAttackers", 1, true),
     "Enemy Damage Taken must have a dedicated attacker branch")
 check(refreshChunk:find("Data:GetEnemyAttackers", 1, true),
