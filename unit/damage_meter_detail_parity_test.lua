@@ -1,4 +1,4 @@
--- luacheck: globals Data Window WindowManager
+-- luacheck: globals Data IsGroupInCombat Window WindowManager
 local function readAll(path)
     local file = assert(io.open(path, "rb"))
     local data = file:read("*a")
@@ -276,7 +276,7 @@ if managerStart and managerEnd then
     check(WindowManager.refreshes == 1, "auto-current must refresh once after changing windows")
 end
 
-for _, event in ipairs({ "UNIT_FLAGS", "ENCOUNTER_START", "ENCOUNTER_END", "PLAYER_ENTERING_WORLD" }) do
+for _, event in ipairs({ "UNIT_FLAGS", "GROUP_ROSTER_UPDATE", "ENCOUNTER_START", "ENCOUNTER_END", "PLAYER_ENTERING_WORLD" }) do
     check(src:find('RegisterEvent("' .. event .. '"', 1, true),
         "damage-meter lifecycle must register " .. event)
 end
@@ -297,6 +297,25 @@ local queueChunk = src:sub(queueStart, queueEnd - 1)
 check(queueChunk:find("if groupCombatScanQueued then return end", 1, true)
     and queueChunk:find("C_Timer.After(0, RefreshGroupCombatState)", 1, true),
     "UNIT_FLAGS group combat scans must coalesce once per event burst")
+local groupInCombat = true
+local endCombatCalls = 0
+Data = { _inCombat = true, _inEncounter = false }
+function Data:BeginCombat() self._inCombat = true end
+function Data:EndCombat()
+    endCombatCalls = endCombatCalls + 1
+    self._inCombat = false
+end
+IsGroupInCombat = function() return groupInCombat end
+local refreshGroupCombatState = assert(loadstring(queueChunk .. "\nreturn RefreshGroupCombatState"))()
+refreshGroupCombatState()
+check(endCombatCalls == 0, "group combat must remain active while any group member is fighting")
+groupInCombat = false
+Data._inEncounter = true
+refreshGroupCombatState()
+check(endCombatCalls == 0, "encounter combat must remain active until the encounter ends")
+Data._inEncounter = false
+refreshGroupCombatState()
+check(endCombatCalls == 1, "group combat must end only after both encounter and group combat are idle")
 local unitFlagsStart = assert(src:find('elseif event == "UNIT_FLAGS"', 1, true))
 local unitFlagsEnd = assert(src:find('elseif event == "PLAYER_ENTERING_WORLD"', unitFlagsStart, true))
 local unitFlagsChunk = src:sub(unitFlagsStart, unitFlagsEnd - 1)
@@ -304,6 +323,16 @@ check(unitFlagsChunk:find("GROUP_UNIT_TOKENS[arg1]", 1, true)
     and unitFlagsChunk:find("QueueGroupCombatScan()", 1, true)
     and not unitFlagsChunk:find("IsGroupInCombat()", 1, true),
     "UNIT_FLAGS must filter cached tokens and queue rather than rescan immediately")
+local rosterStart = assert(unitFlagsChunk:find('elseif event == "GROUP_ROSTER_UPDATE"', 1, true))
+local rosterChunk = unitFlagsChunk:sub(rosterStart)
+check(rosterChunk:find("QueueGroupCombatScan()", 1, true),
+    "GROUP_ROSTER_UPDATE must queue the shared group combat scan")
+local encounterEndStart = assert(src:find('elseif event == "ENCOUNTER_END"', 1, true))
+local encounterEndEnd = assert(src:find('elseif event == "PLAYER_REGEN_DISABLED"', encounterEndStart, true))
+local encounterEndChunk = src:sub(encounterEndStart, encounterEndEnd - 1)
+check(encounterEndChunk:find("C_Timer.After(0.5, RefreshGroupCombatState)", 1, true)
+    and not encounterEndChunk:find("arg5", 1, true),
+    "delayed encounter-end handling must recheck live encounter and group combat state")
 
 local defaultsSrc = readAll("core/defaults.lua")
 local settingsSrc = readAll("QUI_DamageMeter/damage_meter/settings/damage_meter_content.lua")
