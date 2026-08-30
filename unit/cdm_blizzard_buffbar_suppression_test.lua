@@ -5,9 +5,44 @@
 -- viewer alive as the aura data source, alpha-hide it, and park its visual shell
 -- offscreen out of combat while QUI mirrors its children.
 
+local unpackValue = table.unpack or unpack
+local deferred = {}
+local eventFrame
+
+_G.C_Timer = {
+    After = function(_, callback)
+        deferred[#deferred + 1] = callback
+    end,
+}
+_G.hooksecurefunc = function(target, method, hook)
+    local original = assert(target[method], method .. " is missing")
+    target[method] = function(...)
+        original(...)
+        hook(...)
+    end
+end
+_G.CreateFrame = function()
+    eventFrame = { events = {} }
+    function eventFrame:RegisterEvent(event) self.events[event] = true end
+    function eventFrame:SetScript(_, script) self.onEvent = script end
+    return eventFrame
+end
+
+local function FlushDeferred()
+    while #deferred > 0 do
+        local callbacks = deferred
+        deferred = {}
+        for i = 1, #callbacks do callbacks[i]() end
+    end
+end
+
+local function FireEvent(event, ...)
+    assert(eventFrame.events[event], event .. " is not registered")
+    eventFrame.onEvent(eventFrame, event, ...)
+end
+
 local ns = {}
 local chunk = assert(loadfile("QUI_CDM/cdm/cdm_blizzard_buffbar_suppression.lua"))
-local unpackValue = table.unpack or unpack
 
 local function MakeFrame()
     local f = {
@@ -24,6 +59,8 @@ local function MakeFrame()
     function f:SetAlpha(a) self.alpha = a end
     function f:ClearAllPoints() self.clearCalls = self.clearCalls + 1; self.points = {} end
     function f:SetPoint(...) self.pointWrites = self.pointWrites + 1; self.points[#self.points + 1] = { ... } end
+    function f:SetAllPoints(parent) self.points = { { "TOPLEFT", parent, "TOPLEFT", 0, 0 } } end
+    function f:SetParent(parent) self.parent = parent end
     function f:EnableMouse(value) self.mouseWrites.EnableMouse = value end
     function f:EnableMouseMotion(value) self.mouseWrites.EnableMouseMotion = value end
     return f
@@ -55,6 +92,49 @@ do
     assert(frame.alpha == 1, "restore makes the native bar visible again")
     assert(frame.points[1][1] == "CENTER" and frame.points[1][4] == 12 and frame.points[1][5] == -8,
         "restore returns the original anchor")
+end
+
+do
+    local frame = MakeFrame()
+    _G.BuffBarCooldownViewer = frame
+    _G.C_CooldownViewer = { IsCooldownViewerAvailable = function() return true end }
+
+    assert(Suppressor:Suppress() == true, "initial suppression succeeds before Blizzard layout drift")
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", _G.UIParent, "CENTER", 0, 0)
+    frame:SetAlpha(1)
+    FlushDeferred()
+    assert(frame.alpha == 0 and frame.points[1][1] == "TOPLEFT" and frame.points[1][5] <= -10000,
+        "Blizzard SetPoint and alpha drift are repaired on the next frame")
+
+    frame:SetAllPoints(_G.UIParent)
+    FlushDeferred()
+    assert(frame.points[1][1] == "TOPLEFT" and frame.points[1][5] <= -10000,
+        "Blizzard SetAllPoints drift is repaired on the next frame")
+
+    frame.points = { { "CENTER", _G.UIParent, "CENTER", 0, 0 } }
+    frame:SetParent(_G.UIParent)
+    FlushDeferred()
+    assert(frame.points[1][1] == "TOPLEFT" and frame.points[1][5] <= -10000,
+        "Blizzard SetParent drift is repaired on the next frame")
+
+    frame.points = { { "CENTER", _G.UIParent, "CENTER", 0, 0 } }
+    frame.alpha = 1
+    FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    assert(frame.alpha == 0 and frame.points[1][1] == "TOPLEFT" and frame.points[1][5] <= -10000,
+        "Edit Mode layout completion repairs unhooked anchor drift")
+end
+
+do
+    _G.BuffBarCooldownViewer = nil
+    _G.C_CooldownViewer = { IsCooldownViewerAvailable = function() return true end }
+
+    assert(Suppressor:Suppress() == false, "missing native viewer queues suppression")
+    local frame = MakeFrame()
+    _G.BuffBarCooldownViewer = frame
+    FireEvent("ADDON_LOADED", "Blizzard_CooldownViewer")
+    assert(frame.alpha == 0 and frame.points[1][1] == "TOPLEFT" and frame.points[1][5] <= -10000,
+        "late-created BuffBarCooldownViewer is suppressed when Blizzard_CooldownViewer loads")
 end
 
 do

@@ -225,6 +225,11 @@ assert(legacyAllText.point[1] == "LEFT"
     and legacyAllText.point[2] == _G.RaidFrameAllAssistCheckButton
     and legacyAllText.point[3] == "RIGHT" and legacyAllText.point[4] == 4,
     "legacy All Assist text must clear the QUI checkbox border")
+local legacyRaidPlayerTexture = {}
+_G.RaidGroupButton1 = { GetNormalTexture = function() return legacyRaidPlayerTexture end }
+callbacks.Blizzard_RaidUI()
+assert(calls.rows[_G.RaidGroupButton1] and not calls.hiddenTextures[legacyRaidPlayerTexture],
+    "legacy Raid player rows must retain the texture that masks occupied-slot EMPTY text")
 
 local friendsList = NewContactView()
 local recentAlliesList = NewContactView()

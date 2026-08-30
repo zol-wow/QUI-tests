@@ -3,7 +3,7 @@ local contracts = {
     { "QUI_ActionBars/actionbars/actionbars_extra_buttons.lua", 'mover:CreateFontString(nil, "OVERLAY", "GameFontNormal")', 'mover:CreateFontString(nil, "OVERLAY", "GameFontHighlight")' },
     { "QUI_ActionBars/actionbars/settings/action_bars_buffdebuff_content.lua", 'tabContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")', 'tabContent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")' },
     { "QUI_DamageMeter/damage_meter/damage_meter.lua", 'self.TitleLabel = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")', 'self.TitleLabel = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")' },
-    { "QUI_DamageMeter/damage_meter/damage_meter.lua", 'self.TargetsLabel = self.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")', 'self.TargetsLabel = self.frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")' },
+    { "QUI_DamageMeter/damage_meter/damage_meter.lua", 'self.TargetsLabel = self.scrollContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")', 'self.TargetsLabel = self.scrollContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")' },
     { "QUI_Debug/aura_probe.lua", 'outputFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")', 'outputFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")' },
     { "QUI_Debug/aura_probe.lua", 'copyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")', 'copyFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")' },
     { "QUI_Debug/cdm_debug.lua", '_taintFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")', '_taintFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")' },
