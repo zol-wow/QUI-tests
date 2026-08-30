@@ -41,7 +41,7 @@ return {
     "QUI_Debug/performance.lua::5",
     "QUI_Debug/perftest.lua::2",
     "QUI_Debug/ui_smoke.lua::5",
-    "QUI_GroupFrames/groupframes/groupframes.lua::9",
+    "QUI_GroupFrames/groupframes/groupframes.lua::14",
     "QUI_GroupFrames/groupframes/groupframes_aura_render.lua::6",
     "QUI_GroupFrames/groupframes/groupframes_missing_raid_buffs.lua::25",
     "QUI_GroupFrames/groupframes/groupframes_targeted_spells.lua::2",
