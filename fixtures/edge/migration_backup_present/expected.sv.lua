@@ -1276,7 +1276,6 @@ return {
             windows = {
               [1] = {
                 autoCurrentOnCombat = false,
-                autoSwapChallengeSessions = false,
                 damageMeterType = 0,
                 hidden = false,
                 hideTimer = false,

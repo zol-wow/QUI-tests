@@ -316,9 +316,15 @@ local damageMeterDefaultsStart = assert(defaultsSrc:find("damageMeter = {", 1, t
 local windowsStart = assert(defaultsSrc:find("windows = {", damageMeterDefaultsStart, true))
 local windowsEnd = assert(defaultsSrc:find("\n%s*windowCount", windowsStart))
 local windowDefaults = defaultsSrc:sub(windowsStart, windowsEnd - 1)
-for _, key in ipairs({ "syncSegments", "autoCurrentOnCombat", "autoSwapChallengeSessions", "mythicStartDMType" }) do
+for _, key in ipairs({ "syncSegments", "autoCurrentOnCombat", "mythicStartDMType" }) do
     check(windowDefaults:find(key, 1, true), "per-window defaults must expose " .. key)
 end
+check(not windowDefaults:find("autoSwapChallengeSessions", 1, true),
+    "primary-window defaults must preserve legacy global auto-swap inheritance")
+local spawnNewStart = assert(src:find("function WindowManager:SpawnNew", 1, true))
+local spawnNewEnd = assert(src:find("\nfunction WindowManager:", spawnNewStart + 1, true))
+check(src:sub(spawnNewStart, spawnNewEnd - 1):find("autoSwapChallengeSessions = false", 1, true),
+    "new windows must still default auto-swap off")
 
 local challengeStart = src:find("function WindowManager:ApplyChallengeModeStart", 1, true)
 local challengeEnd = challengeStart and src:find("\nfunction WindowManager:ApplyChallengeModeReset", challengeStart)
@@ -329,8 +335,8 @@ check(challengeChunk:find("windowState.mythicStartDMType", 1, true),
     "Mythic+ start meter type must be configured per window")
 
 if managerStart and challengeStart and challengeEnd then
-    local settings = { autoResetOnChallengeStart = false, windows = {
-        [1] = { autoSwapChallengeSessions = true, mythicStartDMType = 4, sessionType = 0 },
+    local settings = { autoResetOnChallengeStart = false, autoSwapChallengeSessions = true, windows = {
+        [1] = { mythicStartDMType = 4, sessionType = 0 },
         [2] = { autoSwapChallengeSessions = false, mythicStartDMType = 6, sessionType = 0 },
         [3] = { autoSwapChallengeSessions = true, mythicStartDMType = false, sessionType = 1 },
     } }
@@ -565,6 +571,12 @@ check(refreshChunk:find("self:_SetTargetRow(self.rows[i]", 1, true),
     "Enemy Damage Taken must render attackers as the primary detail rows")
 check(refreshChunk:find("primaryLimit = self.isPreview and GetPreviewSpellLimit() or BREAKDOWN_POOL_SIZE", 1, true),
     "Enemy Damage Taken must use 15 hover rows and 40 clicked rows")
+local targetRowStart = assert(src:find("function Breakdown:_SetTargetRow", 1, true))
+local targetRowEnd = assert(src:find("\nfunction Breakdown:_ResolveTargets", targetRowStart, true))
+local targetRowChunk = src:sub(targetRowStart, targetRowEnd - 1)
+check(targetRowChunk:find("IsPerSecondType(self.parentWindow.damageMeterType)", 1, true)
+    and targetRowChunk:find("BuildValueText(primaryVal, secondaryVal", 1, true),
+    "DPS target rows must show per-second values before totals")
 
 if #failures > 0 then
     error(table.concat(failures, "\n"), 0)
