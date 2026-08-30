@@ -38,8 +38,11 @@ assert(src:find('root:CreateRadio(ns.L["Overall"]', 1, true),
     "Overall session row should keep the normal radio selector")
 assert(not src:find("root:CreateRadio(availableSession.name", 1, true),
     "Historical rows must not pass raw session names directly to menu text")
-assert(src:find("root:CreateRadio(BuildPreviousSessionLabel", 1, true),
+assert(src:find("local sessionLabel = BuildPreviousSessionLabel(availableSession)", 1, true)
+    and src:find("root:CreateRadio(sessionLabel", 1, true),
     "Historical rows must use sanitized session labels")
+assert(src:find("self:_SelectSession(nil, sessionID, sessionLabel)", 1, true),
+    "Historical selection must pass its display label to the window header")
 assert(src:find("function() return self.sessionID == sessionID end", 1, true),
     "Historical rows must identify the active selected segment")
 assert(src:find("availableSession.name", 1, true),

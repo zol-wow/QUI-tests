@@ -33,7 +33,16 @@ assert(count > 0,
         .. "run during generation (sub-options are unsearchable)")
 
 -- A few representative sub-options that must be findable by name.
-for _, label in ipairs({ "Visibility", "Bar Height", "Refresh Rate (Combat)" }) do
+for _, label in ipairs({
+    "Visibility",
+    "Bar Height",
+    "Refresh Rate (Combat)",
+    "Auto Current on Combat",
+    "Sync Segment Selection",
+    "Auto Swap Current/Overall",
+    "Hide Timer",
+    "Default Meter Type on M+ Start",
+}) do
     assert(labelsForFeature[label],
         ("expected Damage Meter setting %q in the search cache; found %d dm settings")
             :format(label, count))

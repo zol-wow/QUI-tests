@@ -255,9 +255,11 @@ if managerStart and managerEnd then
     local w2 = { windowID = 2, sessionType = 0 }
     local w3 = { windowID = 3, sessionType = 0 }
     WindowManager.windows = { [1] = w1, [2] = w2, [3] = w3 }
-    WindowManager:ApplySessionSelection(w1, nil, 91)
+    WindowManager:ApplySessionSelection(w1, nil, 91, "Ara-Kara [2:05]")
     check(w1.sessionID == 91 and w2.sessionID == 91 and w3.sessionID == nil,
         "synced session selection must update only the opted-in cohort")
+    check(w1.sessionLabel == "Ara-Kara [2:05]" and w2.sessionLabel == "Ara-Kara [2:05]",
+        "historical selection labels must propagate to synced window headers")
     check(settings.windows[1].sessionType == 1 and settings.windows[2].sessionType == 0,
         "historical session IDs must remain runtime-only")
     w1.sessionID, w1.sessionType = 17, nil
@@ -265,7 +267,7 @@ if managerStart and managerEnd then
     w3.sessionID, w3.sessionType = 33, nil
     WindowManager.refreshes = 0
     WindowManager:AutoCurrentOnCombat()
-    check(w1.sessionID == nil and w1.sessionType == 1,
+    check(w1.sessionID == nil and w1.sessionType == 1 and w1.sessionLabel == nil,
         "auto-current must restore an opted-in historical window")
     check(w2.sessionID == nil and w2.sessionType == 0,
         "auto-current must not change an Overall window")
@@ -329,10 +331,22 @@ check(src:sub(spawnNewStart, spawnNewEnd - 1):find("autoSwapChallengeSessions = 
 local challengeStart = src:find("function WindowManager:ApplyChallengeModeStart", 1, true)
 local challengeEnd = challengeStart and src:find("\nfunction WindowManager:ApplyChallengeModeReset", challengeStart)
 local challengeChunk = challengeStart and challengeEnd and src:sub(challengeStart, challengeEnd - 1) or ""
-check(challengeChunk:find("autoSwapChallengeSessions", 1, true),
-    "Mythic+ session swap must be configured per window")
+check(challengeChunk:find("ResolveWindowAutoSwap", 1, true),
+    "Mythic+ session swap must resolve the effective per-window setting")
 check(challengeChunk:find("windowState.mythicStartDMType", 1, true),
     "Mythic+ start meter type must be configured per window")
+local autoSwapChunk = src:match("(local function ResolveWindowAutoSwap.-\nend\n)")
+check(autoSwapChunk, "missing effective per-window auto-swap helper")
+if autoSwapChunk then
+    local resolveWindowAutoSwap = assert(loadstring(autoSwapChunk .. "\nreturn ResolveWindowAutoSwap"))()
+    check(resolveWindowAutoSwap({}, { autoSwapChallengeSessions = true }),
+        "unset per-window auto-swap must inherit the legacy global true value")
+    check(not resolveWindowAutoSwap({ autoSwapChallengeSessions = false }, { autoSwapChallengeSessions = true }),
+        "explicit per-window false must override the legacy global value")
+end
+check(settingsSrc:find('rawget(windowState, "autoSwapChallengeSessions") == nil', 1, true)
+    and settingsSrc:find("native.autoSwapChallengeSessions == true", 1, true),
+    "per-window settings must initialize the checkbox from its effective inherited value")
 
 if managerStart and challengeStart and challengeEnd then
     local settings = { autoResetOnChallengeStart = false, autoSwapChallengeSessions = true, windows = {
@@ -350,7 +364,7 @@ if managerStart and challengeStart and challengeEnd then
     ResetAllDamageMeterSessions = function() end
     local helperEnd = assert(src:find("\nfunction WindowManager:ApplySessionSelection", managerStart))
     local helperChunk = src:sub(managerStart, helperEnd - 1)
-    assert(loadstring(helperChunk .. "\n" .. challengeChunk))()
+    assert(loadstring(autoSwapChunk .. "\n" .. helperChunk .. "\n" .. challengeChunk))()
     local function window(id, sessionType, sessionID, meterType)
         local value = { windowID = id, sessionType = sessionType, sessionID = sessionID, damageMeterType = meterType }
         function value:SetDamageMeterType(nextType)
