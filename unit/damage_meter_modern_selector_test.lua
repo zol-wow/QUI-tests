@@ -72,6 +72,16 @@ assert(Data._sourceGUIDBySelector["type:1"][303] == nil)
 
 Data:ClearSourceGUIDCache()
 assert(next(Data._sourceGUIDBySelector) == nil)
+Data._sourceGUIDBySelector = {
+    ["type:1"] = { [101] = "Player-Live" },
+    ["id:77"] = { [202] = "Player-Historical" },
+}
+Data:ClearLiveSourceGUIDCache()
+assert(Data._sourceGUIDBySelector["type:1"] == nil)
+assert(Data._sourceGUIDBySelector["id:77"][202] == "Player-Historical")
+local beginStart = assert(src:find("function Data:BeginCombat", 1, true))
+local beginEnd = assert(src:find("\nfunction Data:EndCombat", beginStart, true))
+assert(src:sub(beginStart, beginEnd - 1):find("self:ClearLiveSourceGUIDCache()", 1, true))
 assert(src:find('elseif event == "GROUP_ROSTER_UPDATE" then\n        Data:ClearSourceGUIDCache()', 1, true))
 assert(src:find('elseif event == "PLAYER_ENTERING_WORLD" then\n        Data:ClearSourceGUIDCache()', 1, true))
 

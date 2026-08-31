@@ -55,17 +55,25 @@ local spells = {
 local availableSessions = {}
 local historicalSources = {}
 local breakdownFetches = 0
+local breakdownLimit
 local sessionFetches = 0
 local Data = { _inCombat = false }
 function Data:GetView(_, _, sessionID)
     return { sources = sessionID and historicalSources or sources, maxAmount = 100 }
 end
 function Data:GetCombinedHealingView() return self:GetView() end
-function Data:GetBreakdownView()
+function Data:GetBreakdownView(_, _, _, _, _, reuse, limit)
     breakdownFetches = breakdownFetches + 1
-    return { spells = spells, maxAmount = 100, totalAmount = 100 }
+    breakdownLimit = limit
+    reuse = reuse or {}
+    reuse.spells = spells
+    reuse.maxAmount = 100
+    reuse.totalAmount = 100
+    return reuse
 end
-function Data:GetCombinedHealingBreakdown() return self:GetBreakdownView() end
+function Data:GetCombinedHealingBreakdown(_, _, _, _, reuse)
+    return self:GetBreakdownView(nil, nil, nil, nil, nil, reuse)
+end
 function Data:GetPlayerTargets() return { { name = "Target", totalAmount = 100, amountPerSecond = 10 } } end
 function Data:GetEnemyAttackers() return {} end
 function Data:ResolveSourceSelector(source)
@@ -167,6 +175,10 @@ local breakout = WindowManager.breakout
 assert(breakout and breakout.frame.name == "QUI_DamageMeterBreakout")
 assert(breakout.sections.players.rows[1]._source == sources[1])
 assert(breakout.sections.spells.rows[1]._spellID == 11)
+assert(breakdownLimit == 40)
+local firstSpellView = breakout.currentSpellView
+breakout:Refresh()
+assert(breakout.currentSpellView == firstSpellView)
 assert(breakout.sections.targets.rows[1].shown)
 assert(#env._G.UISpecialFrames == 1 and env._G.UISpecialFrames[1] == "QUI_DamageMeterBreakout")
 

@@ -20,6 +20,7 @@ local normalizeEnd = assert(source:find("Data._NormalizeSpells", normalizeStart,
 local normalizeChunk = source:sub(normalizeStart, normalizeEnd - 1)
 local normalizeEnv = {
     ipairs = ipairs,
+    type = type,
     IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
     C_Spell = {
         GetSpellInfo = function(spellID)
@@ -45,7 +46,6 @@ assert(normalized[1].name == "Hidden Spell", "secret spellID row should use crea
 assert(normalized[1].iconID == nil, "secret spellID row should defer icon resolution to the texture sink path")
 assert(normalized[2].name == "Spell 123", "non-secret spellID should still resolve spell info")
 assert(normalized[2].iconID == 1123, "non-secret spellID should still resolve icon")
-
 local SecretSentinel = dofile("tests/helpers/secret_sentinel.lua")
 local Instrument = dofile("tests/helpers/secret_instrument.lua")
 local restoreSecretStub = SecretSentinel.InstallSecretStub()
@@ -102,6 +102,13 @@ SetSpellRow({ parentWindowID = 1 }, row, normalized[1], 100, 100)
 assert(rawequal(renderedTexture, secretTexture),
     "secret spell texture must pass directly from C_Spell.GetSpellTexture to Texture:SetTexture")
 SecretSentinel.RestoreSecretStub(restoreSecretStub)
+local reusedRow = normalized[1]
+local limited = NormalizeSpells({
+    { spellID = 456, creatureName = "Limited", totalAmount = 25, amountPerSecond = 2.5 },
+    { spellID = 789, creatureName = "Trimmed", totalAmount = 10, amountPerSecond = 1 },
+}, normalized, 1)
+assert(limited == normalized and limited[1] == reusedRow and #limited == 1,
+    "limited normalization must reuse row storage and trim to the visible count")
 
 local utilityStart = assert(source:find("local function SortByDescSafe", 1, true))
 local utilityEnd = assert(source:find("local Data = {}", utilityStart, true))
@@ -155,5 +162,9 @@ local combined = Data:GetCombinedHealingBreakdown("current", "player", nil, nil)
 assert(#combined.spells == 2, "secret spellIDs must not be used as merge keys")
 assert(combined.spells[1].name == "Heal", "healing row should remain")
 assert(combined.spells[2].name == "Absorb", "absorb row should remain separate")
+local combinedFirstRow = combined.spells[1]
+local combinedAgain = Data:GetCombinedHealingBreakdown("current", "player", nil, nil, combined)
+assert(combinedAgain == combined and combinedAgain.spells[1] == combinedFirstRow,
+    "combined healing normalization must reuse its view and row storage")
 
 print("OK: damage_meter_secret_spellid_test")

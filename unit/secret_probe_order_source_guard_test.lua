@@ -333,7 +333,7 @@ do
     assertOrderInFunction(code, path, "function Data:GetBreakdownView(",
         "IsSecretValue(src)", "type(src)", 1600)
     -- NormalizeSpells: element probe before the first field index.
-    assertOrderInFunction(code, path, "local function NormalizeSpells(rawSpells)",
+    assertOrderInFunction(code, path, "local function NormalizeSpells(rawSpells, out, limit)",
         "IsSecretValue(spell)", "spell.spellID", 1400)
     -- Breakdown spell rows: secret creatureName routes via SetFormattedText.
     assert(code:find("row.Name:SetFormattedText(", 1, true),
