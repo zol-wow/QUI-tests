@@ -54,12 +54,17 @@ local spells = {
 }
 local availableSessions = {}
 local historicalSources = {}
+local breakdownFetches = 0
+local sessionFetches = 0
 local Data = { _inCombat = false }
 function Data:GetView(_, _, sessionID)
     return { sources = sessionID and historicalSources or sources, maxAmount = 100 }
 end
 function Data:GetCombinedHealingView() return self:GetView() end
-function Data:GetBreakdownView() return { spells = spells, maxAmount = 100, totalAmount = 100 } end
+function Data:GetBreakdownView()
+    breakdownFetches = breakdownFetches + 1
+    return { spells = spells, maxAmount = 100, totalAmount = 100 }
+end
 function Data:GetCombinedHealingBreakdown() return self:GetBreakdownView() end
 function Data:GetPlayerTargets() return { { name = "Target", totalAmount = 100, amountPerSecond = 10 } } end
 function Data:GetEnemyAttackers() return {} end
@@ -140,7 +145,10 @@ local env = {
         },
         DamageMeterSessionType = { Overall = 0, Current = 1 },
     },
-    C_DamageMeter = { GetAvailableCombatSessions = function() return availableSessions end },
+    C_DamageMeter = { GetAvailableCombatSessions = function()
+        sessionFetches = sessionFetches + 1
+        return availableSessions
+    end },
     InCombatLockdown = function() return false end,
     GameTooltip = widget(),
 }
@@ -184,6 +192,26 @@ historicalSources[1] = { name = "Unrelated", sourceGUID = "Player-Unrelated", sp
     totalAmount = 10, amountPerSecond = 1 }
 breakout:Refresh()
 assert(breakout.sections.comparison.title.text == "Comparison: Current")
+breakout.sessionType = 0
+breakout.sessionID = nil
+breakout.sessionLabel = nil
+breakout:Refresh()
+assert(breakout.sections.comparison.title.text == "Comparison: Overall")
+breakout.sessionID = 77
+breakout.sessionLabel = "Prior Segment"
+breakout:Refresh()
+assert(breakout.sections.comparison.title.text == "Comparison: Prior Segment")
+breakout.sessionType = 1
+breakout.sessionID = nil
+breakout.sessionLabel = nil
+breakout.source = sources[2]
+local beforeBreakdownFetches = breakdownFetches
+local beforeSessionFetches = sessionFetches
+Data._inCombat = true
+breakout:Refresh()
+assert(sessionFetches == beforeSessionFetches)
+assert(breakdownFetches == beforeBreakdownFetches + 1)
+Data._inCombat = false
 WindowManager:CloseBreakoutForOwner(ownerOne)
 assert(breakout:IsShown())
 WindowManager:CloseBreakoutForOwner(ownerTwo)
