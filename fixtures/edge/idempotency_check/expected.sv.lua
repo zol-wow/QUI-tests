@@ -1261,6 +1261,12 @@ return {
             autoResetOnChallengeStart = true,
             autoSwapChallengeSessions = false,
             breakdownAnchor = "row",
+            breakoutLayout = {
+              leftWidth = 220,
+              middleWidth = 500,
+              playersHeight = 360,
+              spellsHeight = 390
+            },
             combineAbsorbsIntoHealing = true,
             enabled = true,
             hoverTooltipScale = 100,

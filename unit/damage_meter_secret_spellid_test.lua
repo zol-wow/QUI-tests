@@ -20,6 +20,7 @@ local normalizeEnd = assert(source:find("Data._NormalizeSpells", normalizeStart,
 local normalizeChunk = source:sub(normalizeStart, normalizeEnd - 1)
 local normalizeEnv = {
     ipairs = ipairs,
+    IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
     C_Spell = {
         GetSpellInfo = function(spellID)
             assert(not rawequal(spellID, secretSpellID), "secret spellID must not reach C_Spell.GetSpellInfo")
@@ -123,6 +124,7 @@ local combinedEnv = {
     math = math,
     type = type,
     rawequal = rawequal,
+    IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
     QUI_DamageMeter = {},
     Enum = { DamageMeterType = { HealingDone = 2, Absorbs = 8 } },
     Helpers = {

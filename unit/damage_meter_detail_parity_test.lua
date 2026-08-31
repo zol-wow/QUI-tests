@@ -12,6 +12,7 @@ local function check(value, message)
 end
 
 local src = readAll("QUI_DamageMeter/damage_meter/damage_meter.lua")
+local breakoutSrc = readAll("QUI_DamageMeter/damage_meter/breakout.lua")
 local policyChunk = src:match("(local function CanOpenDetailInCombat.-\nend\n)")
 check(policyChunk, "missing CanOpenDetailInCombat policy helper")
 if policyChunk then
@@ -20,7 +21,10 @@ if policyChunk then
     check(policy({ isLocalPlayer = false }, 1, deathsType, false), "out-of-combat detail must be allowed")
     check(policy({ isLocalPlayer = false }, deathsType, deathsType, true), "Deaths detail must be allowed in combat")
     check(policy({ isLocalPlayer = true }, 1, deathsType, true), "local-player detail must be allowed in combat")
-    check(not policy({ isLocalPlayer = false }, 1, deathsType, true), "other-player detail must remain blocked in combat")
+    check(not policy({ isLocalPlayer = false }, 1, deathsType, true, nil, false),
+        "unresolved other-player detail must remain blocked in combat")
+    check(policy({ isLocalPlayer = false }, 1, deathsType, true, nil, true),
+        "a verified plain selector must allow other-player detail in combat")
     check(not policy(nil, 1, deathsType, true), "missing-source detail must remain blocked in combat")
 end
 
@@ -56,7 +60,9 @@ local openStart = assert(src:find("function Window:OpenBreakdown", 1, true))
 local openEnd = assert(src:find("\nfunction Window:RefreshBreakdown", openStart))
 local openChunk = src:sub(openStart, openEnd - 1)
 check(openChunk:find("deathRecapID", 1, true), "Deaths rows must forward the source deathRecapID")
-check(openChunk:find('UnitGUID("player")', 1, true), "local combat detail must use the player's non-secret GUID")
+check(src:find('UnitGUID("player")', 1, true), "local combat detail must use the player's non-secret GUID")
+check(openChunk:find("manager:OpenBreakout", 1, true),
+    "clicked detail must route to the manager-owned breakout")
 check(not openChunk:find("Breakdown.New", 1, true), "opening detail must not allocate breakdown frames")
 
 local refreshBreakdownStart = assert(src:find("function Window:RefreshBreakdown", openStart, true))
@@ -73,7 +79,7 @@ Window.RefreshBreakdown({ _breakdown = breakdown })
 check(breakdownRefreshes == 0, "meter updates must not rebuild an open hover preview")
 breakdown.isPreview = false
 Window.RefreshBreakdown({ _breakdown = breakdown })
-check(breakdownRefreshes == 1, "clicked detail must continue refreshing")
+check(breakdownRefreshes == 0, "the hover-only renderer must never refresh as clicked detail")
 
 local targetsStart = assert(src:find("function Breakdown:_ResolveTargets", 1, true))
 local targetsEnd = assert(src:find("\nfunction Breakdown:Refresh", targetsStart))
@@ -99,7 +105,6 @@ local buildEnv = {
         for _, method in ipairs({ "SetHeight", "SetPoint", "EnableMouse", "SetScript", "Hide" }) do
             row[method] = function() end
         end
-        if frameType == "Button" then row.RegisterForClicks = function() end end
         return row
     end,
 }
@@ -118,10 +123,17 @@ local buildSelf = {
     targetRows = {},
     TargetsLabel = {},
 }
-check(pcall(buildRow, buildSelf, 1), "spell detail rows must support WoW's clickable button methods")
-check(pcall(buildTargetRow, buildSelf, 1), "target detail rows must support WoW's clickable button methods")
+check(pcall(buildRow, buildSelf, 1), "spell detail rows must tolerate missing RegisterForClicks")
+check(pcall(buildTargetRow, buildSelf, 1), "target detail rows must tolerate missing RegisterForClicks")
 check(rowTypes[1] == "Button" and rowTypes[2] == "Button",
     "breakdown interaction rows must be Button frames")
+
+for _, source in ipairs({ src, breakoutSrc }) do
+    for line in source:gmatch("[^\n]*RegisterForClicks[^\n]*") do
+        check(line:find("if ", 1, true) and line:find(" then ", 1, true),
+            "every damage-meter RegisterForClicks call must remain guarded")
+    end
+end
 
 check(tonumber(src:match("local BREAKDOWN_POOL_SIZE%s*=%s*(%d+)")) == 40,
     "breakdown popup must retain 40 detail rows")
@@ -424,112 +436,40 @@ check(src:find("hoverTooltipScale", 1, true) and src:find("SetScale", 1, true),
     "hover preview runtime must apply hoverTooltipScale")
 local lifecycleOpenStart = assert(src:find("function Breakdown:Open", 1, true))
 local lifecycleCloseStart = assert(src:find("\nfunction Breakdown:Close", lifecycleOpenStart, true))
-local lifecycleEnd = assert(src:find("\nfunction Breakdown:Destroy", lifecycleCloseStart, true))
-local bodyVisibilityStart = assert(src:find("function Window:_SetBodyShown", 1, true))
-local bodyVisibilityEnd = assert(src:find("\nfunction Window:", bodyVisibilityStart + 1, true))
 local lifecycleOpenSource = src:sub(lifecycleOpenStart, lifecycleCloseStart - 1)
-local lifecycleCloseSource = src:sub(lifecycleCloseStart, lifecycleEnd - 1)
-check(lifecycleOpenSource:find("self.parentWindow:_SetBodyShown(false)", 1, true)
-    and lifecycleCloseSource:find("self.parentWindow:_SetBodyShown(true)", 1, true),
-    "embedded detail must use the parent window body lifecycle")
-local scrollThumbStart = assert(src:find("function Window:_UpdateScrollThumb", 1, true))
-local stickyStart = assert(src:find("function Window:_UpdateStickyVisibility", scrollThumbStart, true))
-local stickyEnd = assert(src:find("\nfunction Window:_BindVisibleRows", stickyStart, true))
-check(src:sub(scrollThumbStart, stickyStart - 1):find("self._bodyHidden", 1, true),
-    "hidden meter bodies must suppress scroll-thumb updates")
-check(src:sub(stickyStart, stickyEnd - 1):find("self._bodyHidden", 1, true),
-    "hidden meter bodies must suppress sticky-row updates")
-local scrollRangeStart = assert(src:find("function Breakdown:_UpdateScrollRange", 1, true))
-local scrollRangeEnd = assert(src:find("\nfunction Breakdown:", scrollRangeStart + 1, true))
-check(src:sub(scrollRangeStart, scrollRangeEnd - 1):find("self.scrollFrame:GetHeight()", 1, true),
-    "breakdown scroll range must use the active scroll viewport height")
-local lifecycleEnv = {}
-setmetatable(lifecycleEnv, { __index = _G })
-local lifecycleLoader = assert(loadstring(src:sub(bodyVisibilityStart, bodyVisibilityEnd - 1)
-    .. src:sub(lifecycleOpenStart, lifecycleEnd - 1)
-    .. "\nreturn Breakdown.Open, Breakdown.Close, Window._SetBodyShown"))
-local function lifecycleWidget(shown)
-    local value = { shown = shown, points = {}, hides = 0, shows = 0 }
-    function value:Show() self.shown = true; self.shows = self.shows + 1 end
-    function value:Hide() self.shown = false; self.hides = self.hides + 1 end
-    function value:SetShown(nextShown) if nextShown then self:Show() else self:Hide() end end
-    function value:IsShown() return self.shown end
-    function value:ClearAllPoints() self.points = {}; self.allPoints = nil end
-    function value:SetPoint(...) self.points[#self.points + 1] = { ... } end
-    function value:SetAllPoints(target) self.allPoints = target end
-    function value:SetParent(parent) self.parent = parent end
-    function value:SetFrameStrata(strata) self.strata = strata end
-    function value:SetFrameLevel(level) self.level = level end
-    function value:GetFrameStrata() return "MEDIUM" end
-    function value:GetFrameLevel() return 4 end
-    function value:SetScale(scale) self.scale = scale end
-    function value:SetWidth(width) self.width = width end
-    function value:SetSize(width, height) self.width, self.height = width, height end
-    function value:SetVerticalScroll(offset) self.offset = offset end
-    return value
+check(not lifecycleOpenSource:find("_SetBodyShown", 1, true),
+    "the hover renderer must not hide the meter body")
+check(lifecycleOpenSource:find("self.frame:SetParent(UIParent)", 1, true)
+    and lifecycleOpenSource:find("AnchorBreakdownTo", 1, true),
+    "hover detail must remain a detached UIParent surface")
+check(breakoutSrc:find('CreateFrame("Frame", "QUI_DamageMeterBreakout", UIParent)', 1, true),
+    "clicked detail must use one named UIParent breakout")
+check(breakoutSrc:find("local WIDTH = 1100", 1, true)
+    and breakoutSrc:find("local HEIGHT = 640", 1, true),
+    "modern breakout must use the reference 1100x640 surface")
+for _, section in ipairs({ "players", "segments", "spells", "targets", "comparison" }) do
+    check(breakoutSrc:find('self:_CreateSection("' .. section .. '"', 1, true),
+        "modern breakout must create the " .. section .. " pane")
 end
-local uiParent = {}
-local parentFrame = lifecycleWidget(true)
-local parent = {
-    frame = parentFrame,
-    header = lifecycleWidget(true),
-    scrollFrame = lifecycleWidget(true),
-    stickyRow = lifecycleWidget(true),
-    stickySeparator = lifecycleWidget(true),
-    damageMeterType = 1,
-}
-function parent:_UpdateStickyVisibility() self.stickyRefresh = (self.stickyRefresh or 0) + 1 end
-local anchoredRow
-lifecycleEnv.Breakdown = {}
-lifecycleEnv.Window = {}
-lifecycleEnv.GetSettings = function() return { breakdownAnchor = "row", hoverTooltipScale = 100 } end
-lifecycleEnv.AnchorBreakdownTo = function(_, row) anchoredRow = row end
-lifecycleEnv.UIParent = uiParent
-lifecycleEnv.DEATHS_TYPE = 11
-lifecycleEnv.GameTooltip = { GetOwner = function() return nil end }
-setfenv(lifecycleLoader, lifecycleEnv)
-local lifecycleOpen, lifecycleClose, setBodyShown = lifecycleLoader()
-parent._SetBodyShown = setBodyShown
-function parent:_UpdateScrollThumb() self.thumbRefresh = (self.thumbRefresh or 0) + 1 end
-local detail = {
-    parentWindow = parent,
-    frame = lifecycleWidget(false),
-    header = lifecycleWidget(true),
-    backdropTex = lifecycleWidget(true),
-    CloseButton = lifecycleWidget(false),
-    scrollFrame = lifecycleWidget(true),
-    rows = {},
-}
-function detail:Refresh() return true end
-local anchorRow = {}
-check(lifecycleOpen(detail, { name = "Player" }, anchorRow, "Player-1", nil, false),
-    "clicked breakdown must open")
-local topPoint, bottomPoint = detail.frame.points[1], detail.frame.points[2]
-check(topPoint and topPoint[1] == "TOPLEFT" and topPoint[2] == parent.header and topPoint[3] == "BOTTOMLEFT"
-    and bottomPoint and bottomPoint[1] == "BOTTOMRIGHT" and bottomPoint[2] == parent.frame,
-    "clicked breakdown must occupy the meter body below parentWindow.header")
-check(parent.scrollFrame.shown == false and parent.stickyRow.shown == false
-    and parent.stickySeparator.shown == false,
-    "clicked breakdown must hide the original scroll and sticky body")
-check(detail.header.shown == false and detail.backdropTex.shown == false
-    and detail.CloseButton.shown == false,
-    "embedded detail must hide its internal header, backdrop, and close button")
-check(not newChunk:find("CreateCloseButton", 1, true)
-    or lifecycleOpenSource:find("CloseButton:Hide", 1, true),
-    "an embedded detail close button must be absent or explicitly hidden")
-check(not lifecycleOpenSource:find('RegisterEvent("GLOBAL_MOUSE_DOWN")', 1, true),
-    "embedded detail must not register global mouse dismissal")
-lifecycleClose(detail)
-check(parent.scrollFrame.shown and parent.scrollFrame.shows > 0 and parent.stickyRefresh == 1,
-    "closing embedded detail must restore the original meter body and sticky state")
-parent.scrollFrame.hides, parent.stickyRow.hides, parent.stickySeparator.hides = 0, 0, 0
-check(lifecycleOpen(detail, { name = "Player" }, anchorRow, "Player-1", nil, true),
-    "hover preview must still open")
-check(detail.frame.parent == uiParent and anchoredRow == anchorRow and detail.header.shown
-    and detail.backdropTex.shown
-    and not detail.CloseButton.shown and parent.scrollFrame.hides == 0
-    and parent.stickyRow.hides == 0 and parent.stickySeparator.hides == 0,
-    "hover preview must retain its external anchor, header, and visible meter body")
+check(breakoutSrc:find("local SPELL_ROWS = 40", 1, true),
+    "modern breakout must retain a scrollable 40-row spell pane")
+check(breakoutSrc:find("not IsSecret(sourceName)", 1, true),
+    "breakout titles must not truth-test secret source names")
+check(breakoutSrc:find('self:_CreateSplitter("left")', 1, true)
+    and breakoutSrc:find('self:_CreateSplitter("middle")', 1, true)
+    and breakoutSrc:find('self:_CreateSplitter("players")', 1, true)
+    and breakoutSrc:find('self:_CreateSplitter("spells")', 1, true),
+    "modern breakout must expose resizable internal panes")
+check(breakoutSrc:find("function WindowManager:GetBreakout", 1, true)
+    and breakoutSrc:find("if not self.breakout then self.breakout = Breakout.New() end", 1, true),
+    "all meter windows must reuse one lazy breakout")
+check(breakoutSrc:find("function WindowManager:RefreshBreakout", 1, true)
+    and src:find("if self.RefreshBreakout then self:RefreshBreakout() end", 1, true),
+    "manager refreshes must update an open breakout directly")
+check(breakoutSrc:find("UISpecialFrames", 1, true)
+    and breakoutSrc:find("CreateCloseButton", 1, true)
+    and breakoutSrc:find('RegisterForDrag("LeftButton")', 1, true),
+    "breakout must support Escape, X, and drag lifecycle")
 local previewLimitStart = assert(src:find("local PREVIEW_SPELL_LIMIT", 1, true))
 local previewLimitEnd = assert(src:find("\nQUI_DamageMeter.GetPreviewSpellLimit", previewLimitStart))
 local previewLimitChunk = src:sub(previewLimitStart, previewLimitEnd - 1)
