@@ -58,6 +58,26 @@ check("empty searches fall back to an exact-name lookup",
 check("opening the popup refreshes the live catalog",
     list:find("Catalog.InvalidateCache()", 1, true) ~= nil)
 
+-- Variant disambiguation -------------------------------------------------------
+check("searching merges per-id evidence across sections",
+    list:find("Catalog.MergeVariantSource(m, section.key, spell)", 1, true) ~= nil)
+check("same-name variants cluster, best evidence first",
+    list:find("table.sort(group, Catalog.CompareVariants)", 1, true) ~= nil
+    and list:find('ns.L["%s (%d IDs)"]', 1, true) ~= nil)
+check("clusters offer add-all for multi-spell pickers",
+    list:find('ns.L["+ Add all %d variants"]', 1, true) ~= nil
+    and list:find("opts.multiAdd", 1, true) ~= nil)
+check("rows show spell tooltips for reading variants apart",
+    list:find("GameTooltip.SetSpellByID", 1, true) ~= nil)
+check("badges surface active/seen/spellbook/talent evidence",
+    list:find('ns.L["active on you"]', 1, true) ~= nil
+    and list:find('ns.L["seen on you"]', 1, true) ~= nil)
+check("catalog ranks active > seen > spellbook > talent",
+    catalog:find("function Catalog.VariantScore", 1, true) ~= nil
+    and catalog:find("function Catalog.CompareVariants", 1, true) ~= nil)
+check("the editor's multi-spell pickers enable add-all",
+    (read("QUI_Options/aura_elements_editor.lua") or ""):find("multiAdd = true", 1, true) ~= nil)
+
 -- Recorder safety ------------------------------------------------------------
 check("recorder is combat-gated",
     catalog:find("if InCombatLockdown and InCombatLockdown() then return end", 1, true) ~= nil)

@@ -211,6 +211,78 @@ if Catalog.BuildSections() == sections then
     fail("InvalidateCache must force a rebuild")
 end
 
+-- Where-seen stamping ---------------------------------------------------------
+
+-- Re-record after the eviction churn so these entries deterministically exist.
+gameTime = gameTime + 10
+now = now + 10
+eventHandler(nil, "UNIT_AURA", "player")
+eventHandler(nil, "PLAYER_TARGET_CHANGED")
+if db[774].unit ~= "player" then
+    fail("recorded player auras must stamp their unit")
+end
+if db[589].unit ~= "target" then
+    fail("recorded target auras must stamp their unit")
+end
+Catalog.RecordAura(589, "Shadow Word: Pain", 136207, true, "player")
+if db[589].unit ~= "player" then fail("a player sighting must upgrade the stamp") end
+Catalog.RecordAura(589, "Shadow Word: Pain", 136207, true, "target")
+if db[589].unit ~= "player" then
+    fail("a player stamp must never be downgraded by other units")
+end
+
+-- Section identity ------------------------------------------------------------
+
+for _, section in ipairs(Catalog.BuildSections()) do
+    if type(section.key) ~= "string" then
+        fail("catalog sections must carry identity keys")
+    end
+    if section.key == "active" then
+        for _, s in ipairs(section.spells) do
+            if not s.unit then fail("active entries must carry their unit") end
+        end
+    end
+    if section.key == "seen" then
+        local sawStamp = false
+        for _, s in ipairs(section.spells) do
+            if s.seenT then sawStamp = true end
+        end
+        if not sawStamp then fail("seen entries must carry their last-seen time") end
+    end
+end
+
+-- Variant merge and ranking ---------------------------------------------------
+
+local variant = { id = 1, name = "Benediction" }
+Catalog.MergeVariantSource(variant, "talents", {})
+if Catalog.VariantScore(variant) ~= 1 then fail("talent-only variants score 1") end
+Catalog.MergeVariantSource(variant, "seen", { unit = "target", seenT = 5 })
+if Catalog.VariantScore(variant) ~= 3 then fail("seen variants outrank spellbook/talent") end
+Catalog.MergeVariantSource(variant, "active", { unit = "target" })
+if Catalog.VariantScore(variant) ~= 4 then fail("active variants outrank seen") end
+Catalog.MergeVariantSource(variant, "active", { unit = "player" })
+if Catalog.VariantScore(variant) ~= 5 or variant.activeUnit ~= "player" then
+    fail("active-on-you is the strongest evidence")
+end
+if not (variant.sources.talents and variant.sources.seen and variant.sources.active) then
+    fail("merged variants must accumulate every source")
+end
+
+local bookVariant = { id = 2, name = "Benediction" }
+Catalog.MergeVariantSource(bookVariant, "spellbook", {})
+if Catalog.VariantScore(bookVariant) ~= 2 then fail("spellbook variants score 2") end
+local presetVariant = { id = 3, name = "Benediction" }
+Catalog.MergeVariantSource(presetVariant, nil, {})
+if not presetVariant.sources.preset or Catalog.VariantScore(presetVariant) ~= 0 then
+    fail("sectionless sources count as presets and rank last")
+end
+
+local ranked = { presetVariant, bookVariant, variant }
+table.sort(ranked, Catalog.CompareVariants)
+if ranked[1] ~= variant or ranked[2] ~= bookVariant or ranked[3] ~= presetVariant then
+    fail("CompareVariants must order by evidence strength")
+end
+
 -- Exact-name fallback ---------------------------------------------------------
 
 if Catalog.ExactNameMatch("118") ~= nil then fail("numeric input must not name-match") end
