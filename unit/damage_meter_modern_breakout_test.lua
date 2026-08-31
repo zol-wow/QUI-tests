@@ -58,6 +58,9 @@ local breakdownFetches = 0
 local breakdownLimit
 local combinedBreakdownLimit
 local sessionFetches = 0
+local segmentLabelBuilds = 0
+local segmentDurationBuilds = 0
+local comparisonFormats = 0
 local Data = { _inCombat = false }
 function Data:GetView(_, _, sessionID)
     return { sources = sessionID and historicalSources or sources, maxAmount = 100 }
@@ -91,7 +94,10 @@ end
 
 local Breakdown = {}
 Breakdown.__index = Breakdown
-function Breakdown:_SetSpellRow(row, spell) row._spellID = spell.spellID end
+function Breakdown:_SetSpellRow(row, spell)
+    row._spellID = spell.spellID
+    row.Value:SetText("rendered " .. tostring(spell.totalAmount))
+end
 function Breakdown:_SetTargetRow(row) row._spellID = nil end
 function Breakdown:_SetDeathRow(row) row._spellID = nil end
 
@@ -134,9 +140,19 @@ ns.QUI_DamageMeter = {
     GetAccentColor = function() return 0.3, 0.6, 1, 1 end,
     ApplyRowBackgroundVisibility = function() end,
     TakeTrailingSessions = function(value) return value end,
-    BuildPreviousSessionLabel = function(value) return value.name end,
-    FormatDuration = function() return "" end,
-    FormatNumber = function(value) return tostring(value) end,
+    BuildPreviousSessionLabel = function(value, separateDuration)
+        if separateDuration then
+            segmentLabelBuilds = segmentLabelBuilds + 1
+            segmentDurationBuilds = segmentDurationBuilds + 1
+            return value.name, value.durationSeconds == 120 and "2:00" or "1:00"
+        end
+        return value.name .. " [1:00]"
+    end,
+    FormatDuration = function() return "1:00" end,
+    FormatNumber = function(value)
+        comparisonFormats = comparisonFormats + 1
+        return tostring(value)
+    end,
     ShortenName = function(value) return value end,
     LabelForSession = function(value) return value == 1 and "Current" or "Overall" end,
     LabelForType = function() return "Damage Done" end,
@@ -145,6 +161,13 @@ ns.QUI_DamageMeter = {
 }
 
 local combatLockdown = false
+local tableConcats = 0
+local tableLibrary = {}
+for key, value in pairs(table) do tableLibrary[key] = value end
+tableLibrary.concat = function(...)
+    tableConcats = tableConcats + 1
+    return table.concat(...)
+end
 local env = {
     _G = { QUI = { db = { profile = { damageMeter = { native = {} } } } }, UISpecialFrames = {} },
     CreateFrame = CreateFrame,
@@ -162,6 +185,7 @@ local env = {
     end },
     InCombatLockdown = function() return combatLockdown end,
     GameTooltip = widget(),
+    table = tableLibrary,
 }
 setmetatable(env, { __index = _G })
 local loader = assert(loadfile("QUI_DamageMeter/damage_meter/breakout.lua"))
@@ -212,7 +236,7 @@ local newLayout = { leftWidth = 230, middleWidth = 510, playersHeight = 350, spe
 env._G.QUI.db.profile.damageMeter.native.breakoutLayout = newLayout
 breakout:Refresh()
 assert(breakout.layout == newLayout)
-availableSessions[1] = { sessionID = 77, name = "Prior Segment" }
+availableSessions[1] = { sessionID = 77, name = "Prior Segment", durationSeconds = 60 }
 sources[2].specIconID = 0
 historicalSources[1] = { name = "Unrelated", sourceGUID = "Player-Unrelated", specIconID = 303,
     totalAmount = 10, amountPerSecond = 1 }
@@ -220,6 +244,8 @@ breakout:Refresh()
 local historicalSegmentEntry = breakout.sections.segments.rows[3]._segment
 breakout:Refresh()
 assert(breakout.sections.segments.rows[3]._segment == historicalSegmentEntry)
+assert(breakout.sections.segments.rows[3].Name.text == "Prior Segment"
+    and breakout.sections.segments.rows[3].Value.text == "1:00")
 assert(breakout.sections.comparison.title.text == "Comparison: Current")
 breakout.sessionType = 0
 breakout.sessionID = nil
@@ -236,11 +262,43 @@ breakout.sessionLabel = nil
 breakout.source = sources[2]
 local beforeBreakdownFetches = breakdownFetches
 local beforeSessionFetches = sessionFetches
+local beforeSegmentLabelBuilds = segmentLabelBuilds
+local beforeSegmentDurationBuilds = segmentDurationBuilds
+local beforeComparisonFormats = comparisonFormats
+local beforeTableConcats = tableConcats
 Data._inCombat = true
 breakout:Refresh()
 assert(sessionFetches == beforeSessionFetches)
 assert(breakdownFetches == beforeBreakdownFetches + 1)
+assert(segmentLabelBuilds == beforeSegmentLabelBuilds
+    and segmentDurationBuilds == beforeSegmentDurationBuilds)
+assert(comparisonFormats == beforeComparisonFormats and tableConcats == beforeTableConcats)
+assert(breakout.sections.comparison.title.text == "Comparison: Current"
+    and breakout.sections.comparison.rows[1].Value.text == "rendered 100")
+local cachedHistoricalEntry = breakout.sections.segments.rows[3]._segment
+WindowManager:CloseBreakoutForOwner(ownerTwo)
+assert(not breakout:IsShown())
+assert(WindowManager:OpenBreakout(ownerTwo, sources[2], "Player-Two", nil, false))
+assert(breakout.sections.segments.rows[3].shown
+    and breakout.sections.segments.rows[3]._segment == cachedHistoricalEntry
+    and breakout.sections.segments.rows[3].Name.text == "Prior Segment"
+    and breakout.sections.segments.rows[3].Value.text == "1:00")
+assert(sessionFetches == beforeSessionFetches
+    and segmentLabelBuilds == beforeSegmentLabelBuilds
+    and segmentDurationBuilds == beforeSegmentDurationBuilds)
+breakout.sessionType = 0
+breakout:Refresh()
+assert(comparisonFormats == beforeComparisonFormats and tableConcats == beforeTableConcats)
+assert(breakout.sections.comparison.title.text == "Comparison: Overall")
+breakout.sessionType = 1
 Data._inCombat = false
+local beforeChangedSegmentBuilds = segmentLabelBuilds
+availableSessions[1].name = "Renamed Segment"
+availableSessions[1].durationSeconds = 120
+breakout:Refresh()
+assert(segmentLabelBuilds == beforeChangedSegmentBuilds + 1
+    and breakout.sections.segments.rows[3].Name.text == "Renamed Segment"
+    and breakout.sections.segments.rows[3].Value.text == "2:00")
 env._G.QUI.db.profile.damageMeter.native.combineAbsorbsIntoHealing = true
 breakout.damageMeterType = env.Enum.DamageMeterType.HealingDone
 breakout:Refresh()
