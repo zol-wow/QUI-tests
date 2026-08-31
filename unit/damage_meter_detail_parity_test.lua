@@ -461,8 +461,8 @@ check(breakoutSrc:find('self:_CreateSplitter("left")', 1, true)
     and breakoutSrc:find('self:_CreateSplitter("spells")', 1, true),
     "modern breakout must expose resizable internal panes")
 check(breakoutSrc:find("function WindowManager:GetBreakout", 1, true)
-    and breakoutSrc:find("if not self.breakout then self.breakout = Breakout.New() end", 1, true),
-    "all meter windows must reuse one lazy breakout")
+    and breakoutSrc:find("self.breakout = Breakout.New()", 1, true),
+    "all meter windows must reuse one preallocated combat-safe breakout")
 check(breakoutSrc:find("function WindowManager:RefreshBreakout", 1, true)
     and src:find("if self.RefreshBreakout then self:RefreshBreakout() end", 1, true),
     "manager refreshes must update an open breakout directly")
