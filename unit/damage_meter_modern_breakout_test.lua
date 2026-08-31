@@ -56,6 +56,7 @@ local availableSessions = {}
 local historicalSources = {}
 local breakdownFetches = 0
 local breakdownLimit
+local combinedBreakdownLimit
 local sessionFetches = 0
 local Data = { _inCombat = false }
 function Data:GetView(_, _, sessionID)
@@ -71,8 +72,9 @@ function Data:GetBreakdownView(_, _, _, _, _, reuse, limit)
     reuse.totalAmount = 100
     return reuse
 end
-function Data:GetCombinedHealingBreakdown(_, _, _, _, reuse)
-    return self:GetBreakdownView(nil, nil, nil, nil, nil, reuse)
+function Data:GetCombinedHealingBreakdown(_, _, _, _, reuse, limit)
+    combinedBreakdownLimit = limit
+    return self:GetBreakdownView(nil, nil, nil, nil, nil, reuse, limit)
 end
 function Data:GetPlayerTargets() return { { name = "Target", totalAmount = 100, amountPerSecond = 10 } } end
 function Data:GetEnemyAttackers() return {} end
@@ -142,6 +144,7 @@ ns.QUI_DamageMeter = {
     GetDeathRecapRows = function() return {}, 1 end,
 }
 
+local combatLockdown = false
 local env = {
     _G = { QUI = { db = { profile = { damageMeter = { native = {} } } } }, UISpecialFrames = {} },
     CreateFrame = CreateFrame,
@@ -157,7 +160,7 @@ local env = {
         sessionFetches = sessionFetches + 1
         return availableSessions
     end },
-    InCombatLockdown = function() return false end,
+    InCombatLockdown = function() return combatLockdown end,
     GameTooltip = widget(),
 }
 setmetatable(env, { __index = _G })
@@ -170,6 +173,15 @@ local ownerTwo = { windowID = 2, sessionType = 1, damageMeterType = 1 }
 WindowManager.windows[1] = ownerOne
 WindowManager.windows[2] = ownerTwo
 
+local preallocated = WindowManager.breakout
+assert(preallocated and preallocated.frame.name == "QUI_DamageMeterBreakout")
+WindowManager.breakout = nil
+combatLockdown = true
+local framesBeforeBlockedOpen = #created
+assert(not WindowManager:OpenBreakout(ownerOne, sources[1], "Player-One", nil, false))
+assert(WindowManager.breakout == nil and #created == framesBeforeBlockedOpen)
+WindowManager.breakout = preallocated
+combatLockdown = false
 assert(WindowManager:OpenBreakout(ownerOne, sources[1], "Player-One", nil, false))
 local breakout = WindowManager.breakout
 assert(breakout and breakout.frame.name == "QUI_DamageMeterBreakout")
@@ -177,8 +189,10 @@ assert(breakout.sections.players.rows[1]._source == sources[1])
 assert(breakout.sections.spells.rows[1]._spellID == 11)
 assert(breakdownLimit == 40)
 local firstSpellView = breakout.currentSpellView
+local firstSegmentEntry = breakout.sections.segments.rows[1]._segment
 breakout:Refresh()
 assert(breakout.currentSpellView == firstSpellView)
+assert(breakout.sections.segments.rows[1]._segment == firstSegmentEntry)
 assert(breakout.sections.targets.rows[1].shown)
 assert(#env._G.UISpecialFrames == 1 and env._G.UISpecialFrames[1] == "QUI_DamageMeterBreakout")
 
@@ -203,6 +217,9 @@ sources[2].specIconID = 0
 historicalSources[1] = { name = "Unrelated", sourceGUID = "Player-Unrelated", specIconID = 303,
     totalAmount = 10, amountPerSecond = 1 }
 breakout:Refresh()
+local historicalSegmentEntry = breakout.sections.segments.rows[3]._segment
+breakout:Refresh()
+assert(breakout.sections.segments.rows[3]._segment == historicalSegmentEntry)
 assert(breakout.sections.comparison.title.text == "Comparison: Current")
 breakout.sessionType = 0
 breakout.sessionID = nil
@@ -224,6 +241,10 @@ breakout:Refresh()
 assert(sessionFetches == beforeSessionFetches)
 assert(breakdownFetches == beforeBreakdownFetches + 1)
 Data._inCombat = false
+env._G.QUI.db.profile.damageMeter.native.combineAbsorbsIntoHealing = true
+breakout.damageMeterType = env.Enum.DamageMeterType.HealingDone
+breakout:Refresh()
+assert(combinedBreakdownLimit == 40)
 WindowManager:CloseBreakoutForOwner(ownerOne)
 assert(breakout:IsShown())
 WindowManager:CloseBreakoutForOwner(ownerTwo)

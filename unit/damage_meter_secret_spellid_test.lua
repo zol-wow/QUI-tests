@@ -167,4 +167,29 @@ local combinedAgain = Data:GetCombinedHealingBreakdown("current", "player", nil,
 assert(combinedAgain == combined and combinedAgain.spells[1] == combinedFirstRow,
     "combined healing normalization must reuse its view and row storage")
 
+function Data:GetBreakdownView(_, meterType, _, _, _, _, limit)
+    assert(limit == nil, "combined limit must not truncate components before merging")
+    local offset = meterType == combinedEnv.Enum.DamageMeterType.HealingDone and 1000 or 2000
+    local ranked = {}
+    for i = 1, 40 do
+        ranked[i] = { spellID = offset + i, name = "Ranked", totalAmount = 100 - i }
+    end
+    ranked[41] = { spellID = 999, name = "Shared", totalAmount = 59 }
+    return { totalAmount = 1000, spells = ranked }
+end
+
+local limitedCombined = Data:GetCombinedHealingBreakdown("current", "player", nil, nil, nil, 40)
+assert(#limitedCombined.spells == 40 and limitedCombined.spells[1].spellID == 999,
+    "combined limit must be applied after cross-type merging and ranking")
+local limitedSpells = limitedCombined.spells
+local scratchRows = {}
+for _, spell in ipairs(limitedCombined._mergedSpells) do scratchRows[spell] = true end
+local limitedAgain = Data:GetCombinedHealingBreakdown(
+    "current", "player", nil, nil, limitedCombined, 40)
+assert(limitedAgain == limitedCombined and limitedAgain.spells == limitedSpells
+    and scratchRows[limitedAgain._mergedSpells[1]],
+    "limited combined healing must reuse visible and scratch storage")
+Data:GetCombinedHealingBreakdown("current", "player", nil, nil, limitedCombined, 10)
+assert(#limitedCombined.spells == 10, "a smaller combined limit must trim stale visible rows")
+
 print("OK: damage_meter_secret_spellid_test")
