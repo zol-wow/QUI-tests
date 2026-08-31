@@ -110,8 +110,10 @@ C_Spell = {
     end,
 }
 
+local aurasSecret = false
 local ns = {}
 ns.L = setmetatable({}, { __index = function(_, k) return k end })
+ns.AuraGlue = { AurasAreSecret = function() return aurasSecret end }
 assert(loadfile("core/safecall.lua"))("QUI", ns)
 assert(loadfile("modules/trackers/aura_spell_catalog.lua"))("QUI", ns)
 local Catalog = ns.QUI_AuraSpellCatalog
@@ -143,7 +145,22 @@ inCombat = true
 eventHandler(nil, "UNIT_AURA", "player")
 if db[774] then fail("recording must be gated off in combat") end
 
+-- M+/raid restriction: aura data can be secret even OUT of combat, and the
+-- APIs hard-error when called — the scan must not run at all.
 inCombat = false
+aurasSecret = true
+gameTime = gameTime + 10
+eventHandler(nil, "UNIT_AURA", "player")
+if db[774] then fail("recording must be gated off while auras are secret") end
+local secretSections = Catalog.BuildSections()
+for _, section in ipairs(secretSections) do
+    if section.key == "active" then
+        fail("the live scan must not run while auras are secret")
+    end
+end
+Catalog.InvalidateCache()
+aurasSecret = false
+
 gameTime = gameTime + 10
 eventHandler(nil, "UNIT_AURA", "player")
 if not db[774] or db[774].harmful ~= false then

@@ -80,7 +80,10 @@ check("the editor's multi-spell pickers enable add-all",
 
 -- Recorder safety ------------------------------------------------------------
 check("recorder is combat-gated",
-    catalog:find("if InCombatLockdown and InCombatLockdown() then return end", 1, true) ~= nil)
+    catalog:find("if InCombatLockdown and InCombatLockdown() then return false end", 1, true) ~= nil)
+check("scans respect the aura secrecy gate (secret even OOC in M+/raids)",
+    catalog:find("glue.AurasAreSecret()", 1, true) ~= nil
+    and catalog:find("if not AurasReadable() then return end", 1, true) ~= nil)
 check("aura reads reject secret values",
     catalog:find("IsSecret(aura)", 1, true) ~= nil)
 check("seen store lives account-wide and is capped",
