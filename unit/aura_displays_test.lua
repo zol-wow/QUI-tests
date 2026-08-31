@@ -768,6 +768,13 @@ local function NewFrame(parent)
     function frame:SetAlpha(alpha) self.alpha = alpha end
     function frame:Show() self.shown = true end
     function frame:Hide() self.shown = false end
+    function frame:SetScript() end
+    function frame:SetAllPoints() end
+    function frame:SetMovable() end
+    function frame:StartMoving() self.moving = true end
+    function frame:StopMovingOrSizing() self.moving = false end
+    function frame:GetCenter() return self.centerX or 0, self.centerY or 0 end
+    function frame:GetEffectiveScale() return self.effScale or 1 end
     return frame
 end
 
@@ -900,6 +907,51 @@ if not layoutElements[runtimeSubKey] then
 end
 if runtimeGroupHost.width ~= 10 then
     fail("the parent must reflow after the child group detaches")
+end
+
+-- Preview drag: dragging always targets the ROOT entity's anchor, and the
+-- committed record matches Layout Mode's CENTER/CENTER shape.
+if AD.SetGroupParent("Runtime Sub", "Runtime Group") ~= true then
+    fail("re-nesting for the drag test must succeed")
+end
+AD.Refresh()
+if AD.EnablePreviewDrag("display", runtimeThird.id) ~= true then
+    fail("preview drag must enable for a nested display")
+end
+if AD.PreviewDragTarget() ~= AD.GroupAnchorKey("Runtime Group", false) then
+    fail("dragging a nested display must target its root group's anchor, got "
+        .. tostring(AD.PreviewDragTarget()))
+end
+
+if AD.EnablePreviewDrag("display", runtimeFirst.id) ~= true then
+    fail("preview drag must enable for an ungrouped display")
+end
+local firstKey = AD.ANCHOR_PREFIX .. runtimeFirst.id
+if AD.PreviewDragTarget() ~= firstKey then
+    fail("an ungrouped display must drag its own anchor")
+end
+
+runtimeFirstHost.centerX, runtimeFirstHost.centerY = 500, 300
+UIParent.centerX, UIParent.centerY = 400, 250
+if AD.CommitPreviewDragPosition() ~= true then
+    fail("committing a dragged position must succeed")
+end
+local dragRecord = profile.frameAnchoring and profile.frameAnchoring[firstKey]
+if not dragRecord or dragRecord.point ~= "CENTER" or dragRecord.relative ~= "CENTER"
+    or dragRecord.offsetX ~= 100 or dragRecord.offsetY ~= 50 then
+    fail("dragged positions must commit as CENTER/CENTER screen offsets")
+end
+
+if AD.EnablePreviewDrag("group", "Runtime Sub") ~= true then
+    fail("preview drag must enable for a group")
+end
+if AD.PreviewDragTarget() ~= AD.GroupAnchorKey("Runtime Group", false) then
+    fail("dragging a nested group must target its root group's anchor")
+end
+
+AD.DisablePreviewDrag()
+if AD.PreviewDragTarget() ~= nil then
+    fail("DisablePreviewDrag must clear the target")
 end
 
 print("PASS: aura_displays_test")
