@@ -71,6 +71,10 @@ assert(BuildPreviousSessionLabel({ sessionID = 3, name = "(!)", durationSeconds 
     "empty labels after prefix stripping must fall back to Combat <sessionID>")
 assert(BuildPreviousSessionLabel({ sessionID = 4, name = "", durationSeconds = 65 }) == "Combat 4 [1:05]",
     "blank labels must fall back to Combat <sessionID> and keep duration")
+local separateLabel, separateDuration = BuildPreviousSessionLabel(
+    { sessionID = 7, name = "(!) Ara-Kara", durationSeconds = 125 }, true)
+assert(separateLabel == "Ara-Kara" and separateDuration == "2:05",
+    "separate historical labels must keep duration only in the value column")
 
 local defaults = readAll("core/defaults.lua")
 local nativeStart = defaults:find("native = {", 1, true)

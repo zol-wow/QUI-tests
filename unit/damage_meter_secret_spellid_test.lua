@@ -130,6 +130,7 @@ local combinedEnv = {
     table = table,
     math = math,
     type = type,
+    tostring = tostring,
     rawequal = rawequal,
     IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
     QUI_DamageMeter = {},
@@ -191,5 +192,75 @@ assert(limitedAgain == limitedCombined and limitedAgain.spells == limitedSpells
     "limited combined healing must reuse visible and scratch storage")
 Data:GetCombinedHealingBreakdown("current", "player", nil, nil, limitedCombined, 10)
 assert(#limitedCombined.spells == 10, "a smaller combined limit must trim stale visible rows")
+
+local sessionKeyStart = assert(source:find("local function SessionKey", 1, true))
+local sessionKeyEnd = assert(source:find("QUI_DamageMeter.SessionKey", sessionKeyStart, true))
+local combinedViewStart = assert(source:find("function Data:GetCombinedHealingView", 1, true))
+local combinedViewEnd = assert(source:find("function Data:GetCombinedHealingBreakdown", combinedViewStart, true))
+local combinedViewChunk = table.concat({
+    source:sub(utilityStart, utilityEnd - 1),
+    source:sub(sessionKeyStart, sessionKeyEnd - 1),
+    "local Data = { _combinedHealingViews = {} }",
+    source:sub(combinedViewStart, combinedViewEnd - 1),
+    "return Data",
+}, "\n")
+local combinedViewLoader = assert(loadstring(combinedViewChunk))
+setfenv(combinedViewLoader, combinedEnv)
+local ViewData = combinedViewLoader()
+local healingView = {
+    generation = 1, duration = 60, totalAmount = 100,
+    sources = { { sourceGUID = "Player-One", totalAmount = 100, amountPerSecond = 10 } },
+}
+local absorbView = {
+    generation = 3, totalAmount = 50,
+    sources = { { sourceGUID = "Player-One", totalAmount = 50, amountPerSecond = 5 } },
+}
+function ViewData:GetView(_, meterType)
+    return meterType == combinedEnv.Enum.DamageMeterType.HealingDone and healingView or absorbView
+end
+local cachedView = ViewData:GetCombinedHealingView("current")
+local cachedViewAgain = ViewData:GetCombinedHealingView("current")
+assert(cachedViewAgain == cachedView and cachedViewAgain.sources[1] == cachedView.sources[1],
+    "combined player views must be reused for the same selector and generation pair")
+local oldCombinedRow = cachedView.sources[1]
+healingView = {
+    generation = 2, duration = 60, totalAmount = 120,
+    sources = { { sourceGUID = "Player-One", totalAmount = 120, amountPerSecond = 12 } },
+}
+local refreshedView = ViewData:GetCombinedHealingView("current")
+assert(refreshedView ~= cachedView and refreshedView.sources[1].totalAmount == 170
+    and oldCombinedRow.totalAmount == 150,
+    "generation changes must replace combined views without mutating retained rows")
+assert(ViewData:GetCombinedHealingView("current") == refreshedView,
+    "the refreshed generation pair must be reused")
+absorbView = {
+    generation = 4, totalAmount = 60,
+    sources = { { sourceGUID = "Player-One", totalAmount = 60, amountPerSecond = 6 } },
+}
+local absorbRefreshedView = ViewData:GetCombinedHealingView("current")
+assert(absorbRefreshedView ~= refreshedView and absorbRefreshedView.sources[1].totalAmount == 180,
+    "absorb generation changes must replace combined views")
+assert(ViewData:GetCombinedHealingView("current") == absorbRefreshedView,
+    "the absorb-refreshed generation pair must be reused")
+assert(ViewData:GetCombinedHealingView("current", 77) ~= absorbRefreshedView,
+    "combined player-view caches must remain isolated by session selector")
+healingView = {
+    generation = 5, duration = 60, totalAmount = 100,
+    sources = { { sourceGUID = secretSpellID, totalAmount = 100, amountPerSecond = 10 } },
+}
+absorbView = {
+    generation = 6, totalAmount = 50,
+    sources = { { sourceGUID = secretSpellID, totalAmount = 50, amountPerSecond = 5 } },
+}
+local secretView = ViewData:GetCombinedHealingView("current")
+assert(#secretView.sources == 2 and ViewData:GetCombinedHealingView("current") == secretView,
+    "secret GUID rows must remain separate on combined-view cache misses and hits")
+absorbView = { generation = 7, totalAmount = 0, sources = {} }
+assert(ViewData:GetCombinedHealingView("current") == healingView,
+    "empty absorbs must return the native cached healing view")
+local clearStart = assert(source:find("function Data:ClearCachedViews", 1, true))
+local clearEnd = assert(source:find("local _spellInfoCache", clearStart, true))
+assert(source:sub(clearStart, clearEnd):find("self._combinedHealingViews = {}", 1, true),
+    "clearing base views must release combined player-view caches")
 
 print("OK: damage_meter_secret_spellid_test")
