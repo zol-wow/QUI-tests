@@ -31,9 +31,9 @@ branch has the intended patch, rather than assuming `live` or `ptr` is newer.
 
 ## Current snapshot
 
-- **Patch:** 12.1.0.69497 (Midnight 12.1)
+- **Patch:** 12.1.0.69587 (Midnight 12.1)
 - **Source branch:** `live` (Gethe/wow-ui-source)
-- **Vendored on:** 2026-08-28
+- **Vendored on:** 2026-09-01
 
 The exact patch version is recorded in `version.txt` at the root of this
 directory and should always match the snapshot.
