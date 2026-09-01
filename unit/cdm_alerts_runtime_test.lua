@@ -5,8 +5,19 @@ end
 local sounds = {}
 local speech = {}
 local soundKits = {}
+local inCombat = false
+local soundKitFrame
 
 Enum = { TtsVoiceType = { Standard = 0 } }
+InCombatLockdown = function() return inCombat end
+CreateFrame = function()
+    local frame = { events = {} }
+    function frame:RegisterEvent(event) self.events[event] = true end
+    function frame:UnregisterAllEvents() self.events = {} end
+    function frame:SetScript(name, fn) self[name] = fn end
+    soundKitFrame = frame
+    return frame
+end
 PlaySoundFile = function(path, channel)
     sounds[#sounds + 1] = { path = path, channel = channel }
 end
@@ -31,11 +42,7 @@ C_Sound = {
         soundKits[#soundKits + 1] = options
     end,
 }
-CooldownViewerSoundData = {
-    {
-        { soundEnum = 3, soundKitID = 99, text = "Test Bell" },
-    },
-}
+CooldownViewerSoundData = nil
 
 local ns = {
     SafeCall = function(_, fn, ...)
@@ -52,8 +59,16 @@ assert(loadfile("QUI_CDM/cdm/cdm_alerts.lua"))("QUI", ns)
 assert(loadfile("QUI_CDM/cdm/cdm_runtime_store.lua"))("QUI", ns)
 
 local store = ns.CDMRuntimeStore
+CooldownViewerSoundData = { { { soundEnum = 3, soundKitID = 99, text = "Test Bell" } } }
+inCombat = true
+soundKitFrame.OnEvent(soundKitFrame, "ADDON_LOADED", "Blizzard_CooldownViewer")
+assert(#ns.CDMAlerts.GetSoundKitOptions() == 0,
+    "sound-kit loading should stay deferred while combat blocks catalog access")
+inCombat = false
+soundKitFrame.OnEvent(soundKitFrame, "PLAYER_REGEN_ENABLED")
 local kitOptions = ns.CDMAlerts.GetSoundKitOptions()
 assert(kitOptions[1].value == "kit:3", "Blizzard's sound catalog should be copied into QUI options")
+assert(next(soundKitFrame.events) == nil, "successful sound-kit preload should stop retry events")
 ns.CDMAlerts.Preview({ mode = "sound", sound = "kit:3" })
 assert(soundKits[1].soundKitID == 99, "Blizzard catalog sounds should play through their SoundKit ID")
 local icon = {
