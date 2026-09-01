@@ -434,6 +434,18 @@ end
 eq("say line", F.BuildEventLine("CHAT_MSG_SAY", { text = "hello", sender = "Bob-Realm", decorated = "Bob" }),
     "|Hplayer:Bob-Realm:0:SAY:|h[Bob]|h: hello")
 
+do
+    local calls = 0
+    _G.C_StringUtil = { EscapeLuaFormatString = function(msg)
+        calls = calls + 1
+        return msg
+    end }
+    eq("say apostrophe", F.BuildEventLine("CHAT_MSG_SAY", { text = "drew's", sender = "Ann" }),
+        "|Hplayer:Ann:0:SAY:|h[Ann]|h: drew's")
+    eq("say apostrophe escape calls", calls, 0)
+    _G.C_StringUtil = nil
+end
+
 -- Guild gets the short prefix
 eq("guild line", F.BuildEventLine("CHAT_MSG_GUILD", { text = "hi", sender = "Ann" }),
     "[G] |Hplayer:Ann:0:GUILD:|h[Ann]|h: hi")

@@ -52,6 +52,13 @@ local sources = {
 local spells = {
     { spellID = 11, name = "Spell", totalAmount = 100, amountPerSecond = 10, rank = 1 },
 }
+local targetSpells = {
+    { spellID = 22, name = "Target Spell", totalAmount = 60, amountPerSecond = 6, rank = 1 },
+}
+local targets = {
+    { name = "Target", sourceGUID = "Creature-Target", sourceCreatureID = 42,
+        totalAmount = 60, amountPerSecond = 6 },
+}
 local availableSessions = {}
 local historicalSources = {}
 local breakdownFetches = 0
@@ -79,7 +86,16 @@ function Data:GetCombinedHealingBreakdown(_, _, _, _, reuse, limit)
     combinedBreakdownLimit = limit
     return self:GetBreakdownView(nil, nil, nil, nil, nil, reuse, limit)
 end
-function Data:GetPlayerTargets() return { { name = "Target", totalAmount = 100, amountPerSecond = 10 } } end
+function Data:GetPlayerTargets() return targets end
+function Data:GetPlayerTargetBreakdown(_, playerName, sourceGUID, sourceCreatureID, _, reuse, limit)
+    assert(playerName == "One" and sourceGUID == "Creature-Target" and sourceCreatureID == 42)
+    assert(limit == 40)
+    reuse = reuse or {}
+    reuse.spells = targetSpells
+    reuse.maxAmount = 60
+    reuse.totalAmount = 60
+    return reuse
+end
 function Data:GetEnemyAttackers() return {} end
 function Data:ResolveSourceSelector(source)
     return source and source.sourceGUID, source and source.sourceCreatureID, "direct"
@@ -91,6 +107,15 @@ function Window:_SetRowSource(row, source)
     row._source = source
     row.Icon:Show()
 end
+local hoveredPlayerRow
+function Window:_ShowPlayerRowHover(row, withPreview)
+    hoveredPlayerRow = row
+    assert(withPreview == false)
+end
+function Window:_HidePlayerRowHover(row, withPreview)
+    assert(row == hoveredPlayerRow and withPreview == false)
+    hoveredPlayerRow = nil
+end
 
 local Breakdown = {}
 Breakdown.__index = Breakdown
@@ -98,7 +123,10 @@ function Breakdown:_SetSpellRow(row, spell)
     row._spellID = spell.spellID
     row.Value:SetText("rendered " .. tostring(spell.totalAmount))
 end
-function Breakdown:_SetTargetRow(row) row._spellID = nil end
+function Breakdown:_SetTargetRow(row, target)
+    row._spellID = nil
+    row._target = target
+end
 function Breakdown:_SetDeathRow(row) row._spellID = nil end
 
 local WindowManager = { windows = {} }
@@ -212,12 +240,48 @@ assert(breakout and breakout.frame.name == "QUI_DamageMeterBreakout")
 assert(breakout.sections.players.rows[1]._source == sources[1])
 assert(breakout.sections.spells.rows[1]._spellID == 11)
 assert(breakdownLimit == 40)
+local playerRow = breakout.sections.players.rows[1]
+playerRow.scripts.OnEnter(playerRow)
+assert(hoveredPlayerRow == playerRow)
+playerRow.scripts.OnLeave(playerRow)
+assert(hoveredPlayerRow == nil)
 local firstSpellView = breakout.currentSpellView
 local firstSegmentEntry = breakout.sections.segments.rows[1]._segment
 breakout:Refresh()
 assert(breakout.currentSpellView == firstSpellView)
 assert(breakout.sections.segments.rows[1]._segment == firstSegmentEntry)
 assert(breakout.sections.targets.rows[1].shown)
+local targetRow = breakout.sections.targets.rows[1]
+targetRow.scripts.OnClick(targetRow, "LeftButton")
+assert(breakout.selectedTarget == targets[1])
+assert(breakout.sections.spells.rows[1]._spellID == 22)
+assert(breakout.sections.spells.title.text == "Spells: Target")
+targetRow.scripts.OnClick(targetRow, "LeftButton")
+assert(breakout.selectedTarget == nil and breakout.sections.spells.rows[1]._spellID == 11)
+targetRow.scripts.OnClick(targetRow, "LeftButton")
+local selectedTarget = targets[1]
+for i = 1, 20 do
+    targets[i] = {
+        name = "Higher Target " .. i,
+        sourceGUID = "Creature-Higher-" .. i,
+        sourceCreatureID = 100 + i,
+        totalAmount = 1000 - i,
+        amountPerSecond = 100 - i,
+    }
+end
+targets[21] = selectedTarget
+breakout:Refresh()
+assert(breakout.selectedTarget == nil and breakout.sections.spells.rows[1]._spellID == 11,
+    "target filtering should clear when the selected target leaves the visible rows")
+targets = { selectedTarget }
+breakout:Refresh()
+breakout.frame:SetSize(980, 540)
+breakout.frame.scripts.OnSizeChanged(breakout.frame, 980, 540)
+local savedLayout = env._G.QUI.db.profile.damageMeter.native.breakoutLayout
+assert(savedLayout.width == 980 and savedLayout.height == 540)
+breakout:Close()
+assert(WindowManager:OpenBreakout(ownerOne, sources[1], "Player-One", nil, false))
+assert(breakout.frame.width == 980 and breakout.frame.height == 540)
 assert(#env._G.UISpecialFrames == 1 and env._G.UISpecialFrames[1] == "QUI_DamageMeterBreakout")
 
 assert(WindowManager:OpenBreakout(ownerTwo, sources[2], "Player-Two", nil, false))
@@ -232,10 +296,14 @@ sources[3] = { name = "Same Spec", sourceGUID = secretGUID, specIconID = 202,
 breakout.source = sources[2]
 breakout:Refresh()
 assert(breakout.source == sources[2])
-local newLayout = { leftWidth = 230, middleWidth = 510, playersHeight = 350, spellsHeight = 380 }
+local newLayout = {
+    width = 1000, height = 560,
+    leftWidth = 230, middleWidth = 510, playersHeight = 350, spellsHeight = 380,
+}
 env._G.QUI.db.profile.damageMeter.native.breakoutLayout = newLayout
 breakout:Refresh()
 assert(breakout.layout == newLayout)
+assert(breakout.frame.width == 1000 and breakout.frame.height == 560)
 availableSessions[1] = { sessionID = 77, name = "Prior Segment", durationSeconds = 60 }
 sources[2].specIconID = 0
 historicalSources[1] = { name = "Unrelated", sourceGUID = "Player-Unrelated", specIconID = 303,

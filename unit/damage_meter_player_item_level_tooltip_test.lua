@@ -87,8 +87,17 @@ end
 
 local tooltip = read("modules/qol/tooltip.lua")
 local meter = read("QUI_DamageMeter/damage_meter/damage_meter.lua")
+local breakout = read("QUI_DamageMeter/damage_meter/breakout.lua")
 assert(tooltip:find("ns.QUI_AddPlayerItemLevelByGUIDToTooltip = AddPlayerItemLevelByGUIDToTooltip", 1, true))
-assert(meter:find("addPlayerItemLevel(GameTooltip, src.sourceGUID, true, true)", 1, true))
+assert(meter:find("addPlayerItemLevel(GameTooltip, sourceGUID, true, true)", 1, true))
 assert(meter:find("ns.TooltipInspect:RegisterRefreshCallback", 1, true))
+assert(meter:find("if withPreview and self:PreviewBreakdown(src, rowSelf) then", 1, true))
+assert(meter:find("activeHoverPreview = self._breakdown", 1, true))
+assert(meter:find("preview:_UpdateTitle()", 1, true))
+assert(meter:find("inspect:GetPlayerDataByGUID(self.sourceGUID)", 1, true))
+assert(breakout:find("self.sourceRenderer:_ShowPlayerRowHover(rowSelf, false)", 1, true))
+local byGUIDStart = assert(tooltip:find("local function AddPlayerItemLevelByGUIDToTooltip", 1, true))
+local byGUIDEnd = assert(tooltip:find("\nns.QUI_AddPlayerItemLevelByGUIDToTooltip", byGUIDStart, true))
+assert(not tooltip:sub(byGUIDStart, byGUIDEnd):find("InCombatLockdown", 1, true))
 
 print("PASS damage_meter_player_item_level_tooltip_test")
