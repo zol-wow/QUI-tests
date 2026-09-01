@@ -78,13 +78,29 @@ AD._ReconcileAuraSounds(AD.Store())
 assert(#removals == 4, "caster-filtered entries should remove unsupported native registrations")
 
 element.onlyMineSpells = nil
+AD._ReconcileAuraSounds(AD.Store())
+assert(#additions == 7, "removing the caster filter should restore native registrations")
+
+display.load = { encounters = { [777] = true } }
+AD.SetEncounter(777)
+AD._ReconcileAuraSounds(AD.Store())
+assert(#removals == 7,
+    "encounter-conditioned displays should remove unsupported native registrations")
+local content = assert(io.open("modules/trackers/settings/aura_displays_content.lua", "rb"))
+local contentSource = content:read("*a")
+content:close()
+assert(contentSource:find("AD.HasEncounterLoadConditions(display)", 1, true),
+    "the Alerts tab should reject encounter-conditioned displays")
+
+display.load = nil
+AD.SetEncounter(nil)
 display.unitMode = "name"
 AD._ReconcileAuraSounds(AD.Store())
-assert(#additions == 4, "dynamic unit displays should not register native aura sounds")
+assert(#additions == 7, "dynamic unit displays should not register native aura sounds")
 
 display.unitMode = "token"
 display.auras.enabled = false
 AD._ReconcileAuraSounds(AD.Store())
-assert(#additions == 4, "disabled aura stores should not register native aura sounds")
+assert(#additions == 7, "disabled aura stores should not register native aura sounds")
 
 print("OK: aura_displays_sound_reconcile_test")
