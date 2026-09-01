@@ -646,6 +646,7 @@ return {
           },
           height = 50,
           hideBorder = false,
+          hideWhenUnavailable = false,
           noChargesColor = {
             [1] = 1,
             [2] = 0.29999999999999999,
