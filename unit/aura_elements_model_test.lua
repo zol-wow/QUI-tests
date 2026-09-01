@@ -58,9 +58,15 @@ do
     check("tracked: runtime candidates retain ability and linked aura IDs",
         candidates[100] == true and candidates[200] == true and candidates[300] == true)
     local legacy = { mode = "tracked", spells = { 100 }, onlyMineSpells = { [100] = true } }
+    legacy.auraSounds = {
+        [100] = { added = "Raid Warning" },
+        [999] = { removed = "Raid Warning" },
+    }
     E.NormalizeElement(legacy)
     check("tracked: normalization migrates legacy spell and per-spell gate IDs",
         legacy.spells[1] == 200 and legacy.onlyMineSpells[200] == true)
+    check("tracked: normalization migrates configured sound IDs and prunes removed spells",
+        legacy.auraSounds[200].added == "Raid Warning" and legacy.auraSounds[999] == nil)
     ns.CDMAuraRuntime, ns.CDMSpellData = oldRuntime, oldSpellData
 end
 

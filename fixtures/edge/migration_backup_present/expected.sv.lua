@@ -1262,10 +1262,12 @@ return {
             autoSwapChallengeSessions = false,
             breakdownAnchor = "row",
             breakoutLayout = {
+              height = 640,
               leftWidth = 220,
               middleWidth = 500,
               playersHeight = 360,
-              spellsHeight = 390
+              spellsHeight = 390,
+              width = 1100
             },
             combineAbsorbsIntoHealing = true,
             enabled = true,

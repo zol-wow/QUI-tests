@@ -172,11 +172,15 @@ if previewStart and previewEnd then
         "hover preview must reuse the breakdown open path in preview mode")
 end
 
-local hoverStart = assert(src:find("function Window:_AttachRowVisuals", 1, true))
+local hoverStart = assert(src:find("function Window:_ShowPlayerRowHover", 1, true))
 local hoverEnd = assert(src:find("\nif ns.TooltipInspect", hoverStart))
 local hoverChunk = src:sub(hoverStart, hoverEnd - 1)
 check(hoverChunk:find("self:PreviewBreakdown", 1, true), "main-row hover must open the rich breakdown preview")
 check(hoverChunk:find("self:ClosePreview", 1, true), "leaving a main row must close its preview")
+local richReturn = hoverChunk:find("activeHoverPreview = self._breakdown", 1, true)
+local fallbackTooltip = hoverChunk:find("GameTooltip:SetOwner", 1, true)
+check(richReturn and fallbackTooltip and richReturn < fallbackTooltip,
+    "a successful rich hover must return before opening the fallback GameTooltip")
 check(refreshChunk:find("Data:GetBreakdownView", 1, true), "rich hover must reuse the existing breakdown data path")
 check(refreshChunk:find("self:_SetSpellRow", 1, true) and refreshChunk:find("self:_SetTargetRow", 1, true),
     "rich hover must render spell and target preview rows")
@@ -444,9 +448,12 @@ check(lifecycleOpenSource:find("self.frame:SetParent(UIParent)", 1, true)
     "hover detail must remain a detached UIParent surface")
 check(breakoutSrc:find('CreateFrame("Frame", "QUI_DamageMeterBreakout", UIParent)', 1, true),
     "clicked detail must use one named UIParent breakout")
-check(breakoutSrc:find("local WIDTH = 1100", 1, true)
-    and breakoutSrc:find("local HEIGHT = 640", 1, true),
-    "modern breakout must use the reference 1100x640 surface")
+check(breakoutSrc:find("local DEFAULT_WIDTH = 1100", 1, true)
+    and breakoutSrc:find("local DEFAULT_HEIGHT = 640", 1, true),
+    "modern breakout must default to the reference 1100x640 surface")
+check(breakoutSrc:find("frame:SetResizable(true)", 1, true)
+    and breakoutSrc:find('frame:StartSizing("BOTTOMRIGHT")', 1, true),
+    "modern breakout must expose native outer-frame resizing")
 for _, section in ipairs({ "players", "segments", "spells", "targets", "comparison" }) do
     check(breakoutSrc:find('self:_CreateSection("' .. section .. '"', 1, true),
         "modern breakout must create the " .. section .. " pane")
