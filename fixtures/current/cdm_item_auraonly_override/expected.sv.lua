@@ -2449,10 +2449,15 @@ return {
           darkModeHealthOpacity = 0.69999999999999996,
           darkModeOpacity = 0.69999999999999996,
           deathAlert = {
+            classColorName = true,
+            duration = 3,
             enabled = false,
             fontSize = 24,
+            instanceOnly = false,
             offsetX = 0,
             offsetY = 220,
+            showKiller = false,
+            showKillingBlow = true,
             sound = "None"
           },
           defaultBgColor = {
