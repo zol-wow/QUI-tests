@@ -2767,6 +2767,7 @@ return {
           },
           borderColorSource = "inherit",
           borderSize = 1,
+          collapseGaps = true,
           enabled = false,
           growDirection = "CENTER",
           iconSize = 40,
