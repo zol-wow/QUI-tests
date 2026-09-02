@@ -37,7 +37,18 @@ local function NewFrame()
     function f:SetAllPoints() end
     function f:ClearAllPoints() end
     function f:SetPoint() end
+    function f:SetSize() end
     function f:EnableMouse() end
+    function f:SetMovable() end
+    function f:RegisterForDrag() end
+    -- CharacterChrome.CreatePopout builds the title / close on the popup.
+    function f:CreateFontString()
+        local fs = {}
+        function fs:SetPoint() end function fs:SetText(t) self.text = t end
+        function fs:SetFont(p, s, fl) self.font, self.size, self.flags = p, s, fl end
+        function fs:SetTextColor(r, g, b, a) self.color = { r, g, b, a } end
+        return fs
+    end
     function f:Show() end function f:Hide() end
     function f:IsShown() return false end
     function f:GetWidth() return 100 end
@@ -193,6 +204,10 @@ local ns = {
         -- tab calls as no-ops.
         CollectNumberedTabs = function() return {} end,
         SkinTabGroup = function() end,
+        -- Popout chrome (title accent + close button) lives in CharacterChrome;
+        -- neither is the subject of this test.
+        GetSkinTextAccent = function() return 1, 1, 1, 1 end,
+        SkinChromeCloseButton = function() end,
     },
     UIKit = {
         RegisterScaleRefresh = function(owner, _, fn)
@@ -210,22 +225,27 @@ function InCombatLockdown() return false end
 -- Leave CharacterFrame/tabs nil so the module's auto-init is skipped; we drive
 -- the exposed API directly.
 
+-- The popout is created by the chrome owner (CharacterChrome.CreatePopout);
+-- frames/character.lua re-tints it through RefreshPopout on skin + refresh.
+assert(loadfile("modules/skinning/frames/character_chrome.lua"))("QUI", ns)
 assert(loadfile("modules/skinning/frames/character.lua"))("QUI", ns)
 
 local API = _G.QUI_CharacterFrameSkinning
 assert(type(API) == "table", "character.lua must expose _G.QUI_CharacterFrameSkinning")
 assert(type(API.SkinEquipmentManager) == "function", "API must expose SkinEquipmentManager")
 assert(type(API.Refresh) == "function", "API must expose Refresh")
+assert(type(ns.CharacterChrome) == "table" and type(ns.CharacterChrome.CreatePopout) == "function",
+    "character_chrome.lua must expose ns.CharacterChrome.CreatePopout")
 
--- THEME A: skin the equipment-manager popup. The local ApplyPixelBackdrop must
+-- THEME A: skin the equipment-manager popup. The shared ApplyPixelBackdrop must
 -- theme it and record the colors in `state` for scale-refresh persistence.
 local THEME_A = { 0.10, 0.20, 0.30, 1, 0.40, 0.50, 0.60, 0.9 }
 local THEME_B = { 0.70, 0.65, 0.20, 1, 0.12, 0.13, 0.14, 0.95 }
 
-local popup = NewFrame()
-_G.QUI_EquipMgrPopup = popup
-
 SetColors(THEME_A)
+local popup = ns.CharacterChrome.CreatePopout("Equipment Manager", { name = "QUI_EquipMgrPopup" })
+assert(_G.QUI_EquipMgrPopup == popup, "CreatePopout must publish the named popout global")
+
 API.SkinEquipmentManager()
 
 assert(popup.appliedBg, "precondition: popup received a backdrop bg color on skin")
