@@ -19,6 +19,8 @@ assert(not source:find("ForceLoadCDM", 1, true),
     "QUI_CDM must wait for Blizzard_CooldownViewer instead of force-loading it")
 assert(not source:find('LoadAddOn("Blizzard_CooldownViewer")', 1, true),
     "QUI_CDM must not load Blizzard_CooldownViewer from addon execution")
+assert(not source:find("cooldownViewerEnabled", 1, true),
+    "QUI_CDM must leave the native Cooldown Viewer CVar to Blizzard")
 
 file = assert(io.open("QUI_CDM/cdm/cdm_containers.lua", "rb"))
 source = file:read("*a")
