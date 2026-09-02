@@ -243,22 +243,24 @@ assert(skinWindowCount >= 5,
 local mailBtnFontCount = select(2, mail:gsub("SkinBase%.ApplyButtonFontObjectsDeep%(", ""))
 assert(mailBtnFontCount >= 1, "Mail skin must drive descendant button font objects via ApplyButtonFontObjectsDeep")
 
-local characterPane = readFile("modules/skinning/character_pane/character.lua")
-local characterSettings = blockBetween(characterPane,
+-- The Character and Inspect settings flyouts share one builder
+-- (CharacterChrome.CreateSettingsFlyout); the gear label and title fonts are
+-- asserted there once and both modules must route through it.
+local characterChrome = readFile("modules/skinning/frames/character_chrome.lua")
+local flyoutSettings = blockBetween(characterChrome,
     "local gearLabel = gearBtn:CreateFontString(nil, \"OVERLAY\", \"GameFontNormalSmall\")",
-    "local closeBtn = CreateFrame(\"Button\", nil, settingsPanel, \"UIPanelCloseButton\")")
-assertContains(characterSettings, "CJKFont(gearLabel, GeneralFontFace(), 12, \"\")",
-    "Character settings gear label must route through CJK fallback")
-assertContains(characterSettings, "CJKFont(title, GeneralFontFace(), 14, \"\")",
-    "Character settings panel title must route through CJK fallback")
+    "local closeBtn = CreateFrame(\"Button\", nil, panel)")
+assertContains(flyoutSettings, "CJKFont(gearLabel, GeneralFontFace(), 12, \"\")",
+    "Settings flyout gear label must route through CJK fallback")
+assertContains(flyoutSettings, "CJKFont(title, GeneralFontFace(), 14, \"\")",
+    "Settings flyout title must route through CJK fallback")
 
+local characterPane = readFile("modules/skinning/character_pane/character.lua")
+assertContains(characterPane, "chrome.CreateSettingsFlyout(CharacterFrame, {",
+    "Character settings must be built by the shared CharacterChrome flyout builder")
 local inspectPane = readFile("modules/skinning/character_pane/inspect.lua")
-local inspectSettings = blockBetween(inspectPane, "local gearLabel = gearBtn:CreateFontString",
-    "local closeBtn = CreateFrame(\"Button\", nil, inspectSettingsPanel, \"UIPanelCloseButton\")")
-assertContains(inspectSettings, "CJKFont(gearLabel, GeneralFontFace(), 12, \"\")",
-    "Inspect settings gear label must route through CJK fallback")
-assertContains(inspectSettings, "CJKFont(title, GeneralFontFace(), 14, \"\")",
-    "Inspect settings panel title must route through CJK fallback")
+assertContains(inspectPane, "chrome.CreateSettingsFlyout(InspectFrame, {",
+    "Inspect settings must be built by the shared CharacterChrome flyout builder")
 
 ---------------------------------------------------------------------------
 -- Ready check: direct SetFont bypasses CJK fallback and button font objects.

@@ -14,7 +14,7 @@ local contracts = {
     { "modules/qol/communities_privacy.lua", 'overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")', 'overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")' },
     { "modules/qol/gem_picker.lua", 'panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")', 'panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")' },
     { "modules/qol/mail_contacts.lua", 'panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")', 'panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")' },
-    { "modules/skinning/character_pane/character.lua", 'popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")', 'popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")' },
+    { "modules/skinning/frames/character_chrome.lua", 'popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")', 'popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")' },
     { "core/diagnostics_console.lua", 'popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")', 'popup:CreateFontString(nil, "OVERLAY", "GameFontHighlight")' },
     { "QUI_Bags/bags/views/guild_window.lua", 'NORMAL_FONT_COLOR_CODE or "|cffffd200"', 'HIGHLIGHT_FONT_COLOR_CODE or "|cffffffff"' },
     { "modules/qol/xptracker.lua", 'headerRight:SetTextColor(1.0, 0.82, 0.0, 1)', 'headerRight:SetTextColor(1, 1, 1, 1)' },
