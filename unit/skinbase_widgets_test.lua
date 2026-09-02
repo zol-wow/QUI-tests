@@ -465,26 +465,28 @@ assert(not anonymousA.Text:IsTruncated() and not anonymousB.Text:IsTruncated() a
     "text-fit PanelTabs must preserve Blizzard's native maximum width")
 assert(anonymousBdA._quiBorderA == 1 and math.abs(anonymousBdB._quiBorderA - 0.6) < 1e-9,
     "ID-less PanelTabs must use the owner's selected array index")
-assert(anonymousA.Text.textColor[1] == 0.9 and anonymousB.Text.textColor[1] == 0.55,
-    "selected and inactive PanelTabs must use distinct text colors")
+-- Palette ladder: white text, state by alpha (selected 1.0 / unselected 0.55).
+assert(anonymousA.Text.textColor[1] == 1 and anonymousA.Text.textColor[4] == 1
+    and anonymousB.Text.textColor[1] == 1 and math.abs(anonymousB.Text.textColor[4] - 0.55) < 1e-9,
+    "selected and inactive PanelTabs must use distinct text alphas (white 1.0 vs white 0.55)")
 anonymousOwner.selectedTab = 2
 anonymousB.scripts.OnClick(anonymousB)
 assert(math.abs(anonymousBdA._quiBorderA - 0.6) < 1e-9 and anonymousBdB._quiBorderA == 1,
     "ID-less PanelTabs must repaint when selection changes")
-assert(anonymousA.Text.textColor[1] == 0.55 and anonymousB.Text.textColor[1] == 0.9,
-    "PanelTab text colors must follow the selected tab")
+assert(math.abs(anonymousA.Text.textColor[4] - 0.55) < 1e-9 and anonymousB.Text.textColor[4] == 1,
+    "PanelTab text alphas must follow the selected tab")
 anonymousC.isDisabled = 1
 _G.PanelTemplates_SetDisabledTabState(anonymousC)
 assert(type(anonymousC.disabledFontObject) == "table"
     and anonymousC.disabledFontObject.name:find("QUIButtonFontObject", 1, true),
     "disabled PanelTabs must reassert the QUI font after Blizzard resets it")
-assert(anonymousC.Text.textColor[1] == 0.55,
-    "disabled PanelTabs must retain their inactive text treatment")
+assert(anonymousC.Text.textColor[1] == 1 and math.abs(anonymousC.Text.textColor[4] - 0.30) < 1e-9,
+    "disabled + unselected PanelTabs must drop to the disabled rung (white 0.30)")
 anonymousC.isDisabled = nil
 anonymousOwner.selectedTab = 3
 _G.PanelTemplates_SelectTab(anonymousC)
-assert(type(anonymousC.disabledFontObject) == "table" and anonymousC.Text.textColor[1] == 0.9,
-    "selected PanelTabs must restore the QUI selected font state")
+assert(type(anonymousC.disabledFontObject) == "table" and anonymousC.Text.textColor[4] == 1,
+    "selected PanelTabs must restore the QUI selected font state (white 1.0)")
 
 local artTab = NewFrame()
 artTab.Text = NewTexture()
@@ -494,14 +496,14 @@ function artTab:UpdateTabWidth() self.widthUpdates = (self.widthUpdates or 0) + 
 artTab:SetTabSelected(true)
 SkinBase.SkinTab(artTab, NewFrame())
 local artBd = SkinBase.GetBackdrop(artTab)
-assert(artBd._quiBorderA == 1 and artTab.Text.textColor[1] == 0.9,
+assert(artBd._quiBorderA == 1 and artTab.Text.textColor[4] == 1,
     "Art-template tabs must read their native isSelected state")
 assert(artTab.widthUpdates > 0, "TabSystem tabs must be remeasured after their font is applied")
 local widthUpdatesBeforeSelection = artTab.widthUpdates
 artTab:SetTabSelected(false)
 assert(artTab.widthUpdates > widthUpdatesBeforeSelection,
     "TabSystem tabs must be remeasured after their selected state changes")
-assert(math.abs(artBd._quiBorderA - 0.6) < 1e-9 and artTab.Text.textColor[1] == 0.55,
+assert(math.abs(artBd._quiBorderA - 0.6) < 1e-9 and math.abs(artTab.Text.textColor[4] - 0.55) < 1e-9,
     "Art-template tabs must repaint after SetTabSelected")
 
 -- SkinTab (single tab, pooled-tab use) skins + hover-hooks
