@@ -133,8 +133,12 @@ do
     local frame = MakeFrame()
     _G.BuffBarCooldownViewer = frame
     FireEvent("ADDON_LOADED", "Blizzard_CooldownViewer")
-    assert(frame.alpha == 0 and frame.points[1][1] == "TOPLEFT" and frame.points[1][5] <= -10000,
-        "late-created BuffBarCooldownViewer is suppressed when Blizzard_CooldownViewer loads")
+    assert(frame.alpha == 0, "late-created BuffBarCooldownViewer is hidden immediately")
+    assert(frame.clearCalls == 0 and frame.pointWrites == 0,
+        "late-created BuffBarCooldownViewer is not parked inside ADDON_LOADED")
+    FlushDeferred()
+    assert(frame.points[1][1] == "TOPLEFT" and frame.points[1][5] <= -10000,
+        "late-created BuffBarCooldownViewer is parked after ADDON_LOADED returns")
 end
 
 do
@@ -172,9 +176,28 @@ do
 
     assert(Suppressor:Suppress() == false,
         "suppression waits until CooldownViewer data is available")
-    assert(frame.alpha == 1, "not-ready suppression must not touch native alpha")
+    assert(frame.alpha == 0, "not-ready suppression hides the native viewer immediately")
     assert(frame.clearCalls == 0 and frame.pointWrites == 0,
         "not-ready suppression must not move the native viewer")
+
+    _G.C_CooldownViewer.IsCooldownViewerAvailable = function() return true end
+    FireEvent("COOLDOWN_VIEWER_DATA_LOADED")
+    assert(frame.clearCalls == 0 and frame.pointWrites == 0,
+        "data-ready callback does not park the native viewer synchronously")
+    FlushDeferred()
+    assert(frame.points[1][1] == "TOPLEFT" and frame.points[1][5] <= -10000,
+        "data-ready suppression parks the native viewer after the callback returns")
+end
+
+do
+    local frame = MakeFrame()
+    _G.BuffBarCooldownViewer = frame
+    _G.C_CooldownViewer = { IsCooldownViewerAvailable = function() return false end }
+
+    Suppressor:Suppress()
+    assert(frame.alpha == 0, "not-ready suppression precondition hides the native viewer")
+    Suppressor:Apply({ enabled = false })
+    assert(frame.alpha == 1, "disabling suppression restores alpha before data readiness")
 end
 
 print("OK: cdm_blizzard_buffbar_suppression_test")
