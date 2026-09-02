@@ -15,6 +15,12 @@ local layoutEnd = assert(buffLayout:find("local lastIconState = { count = -1 }",
     "LayoutBuffBars end marker not found")
 local layoutBody = buffLayout:sub(layoutStart, layoutEnd)
 
+local suppressPos = assert(layoutBody:find("ns.CDMBlizzardBuffBarSuppressor:Apply(settings)", 1, true),
+    "LayoutBuffBars must apply native viewer suppression")
+local readinessPos = assert(layoutBody:find("IsCooldownViewerReady()", 1, true),
+    "LayoutBuffBars must retain its data-readiness gate")
+assert(suppressPos < readinessPos,
+    "LayoutBuffBars must hide the native viewer before waiting for data readiness")
 assert(not layoutBody:find('RefreshBuiltin("trackedBar"', 1, true),
     "LayoutBuffBars must not route trackedBar through the re-anchor runtime")
 assert(layoutBody:find("local runtimeEntries = GetTrackedBarRuntimeEntries()", 1, true),
@@ -41,8 +47,8 @@ assert(containers:find('keys = { "trackedBar" }', 1, true),
     "trackedBar lifecycle hook must listen to BuffBarCooldownViewer without joining REANCHOR_KEYS")
 assert(containers:find("ns.CDMBuffLayout.LayoutBars()", 1, true),
     "trackedBar lifecycle hook must refresh the owned Buff Bars layout")
-assert(containers:find("immediateRefreshLayoutKeys = { trackedBar = true }", 1, true),
-    "trackedBar RefreshLayout must use the immediate lifecycle path")
+assert(not containers:find("immediateRefreshLayoutKeys = { trackedBar = true }", 1, true),
+    "trackedBar RefreshLayout must use the delayed lifecycle scheduler")
 assert(not containers:find("immediateAcquireKeys", 1, true),
     "Buff and trackedBar acquisition must use the delayed lifecycle path")
 assert(containers:find("CooldownViewerSettings.OnShow", 1, true)

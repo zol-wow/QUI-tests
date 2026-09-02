@@ -122,6 +122,8 @@ assert(preparedFrames[acquiredFrame] == true,
 
 do
     local barFrame = makeFrame()
+    local barRefreshes = {}
+    local barPending = {}
     local barPool = {
         EnumerateActive = function()
             local yielded = false
@@ -134,14 +136,26 @@ do
     }
     local barViewer = { RefreshLayout = function() end, itemFramePool = barPool }
     local barHooks = H.New({
-        refresh = function() end,
+        refresh = function(k) barRefreshes[#barRefreshes + 1] = k end,
         keys = { "trackedBar" },
         hooksecurefunc = fakeHook,
-        schedule = function(fn) fn() end,
+        schedule = function(fn) barPending[#barPending + 1] = fn end,
     })
     barHooks:InstallViewerHooks(function() return barViewer end)
     assert(preparedFrames[barFrame] == nil,
         "bar viewer frames do not allocate icon pressed-effect visuals")
+
+    local refreshHook
+    for _, h in ipairs(hookInstalls) do
+        if h.owner == barViewer and h.method == "RefreshLayout" then refreshHook = h.fn end
+    end
+    assert(type(refreshHook) == "function", "tracked-bar test installs RefreshLayout hook")
+    refreshHook(barViewer)
+    assert(#barRefreshes == 0 and #barPending == 1,
+        "tracked-bar RefreshLayout exits Blizzard's callback stack before refreshing")
+    barPending[1]()
+    assert(#barRefreshes == 1 and barRefreshes[1] == "trackedBar",
+        "tracked-bar refresh runs through the delayed lifecycle scheduler")
 end
 
 before = #h2refresh
