@@ -1051,6 +1051,36 @@ local PvpInfo =
 			},
 		},
 		{
+			Name = "IsTrainingGroundsArena",
+			Type = "Function",
+			SecretArguments = "AllowedWhenUntainted",
+
+			Arguments =
+			{
+				{ Name = "lfgDungeonsID", Type = "number", Nilable = false },
+			},
+
+			Returns =
+			{
+				{ Name = "isTrainingGroundsArena", Type = "bool", Nilable = false },
+			},
+		},
+		{
+			Name = "IsTrainingGroundsBG",
+			Type = "Function",
+			SecretArguments = "AllowedWhenUntainted",
+
+			Arguments =
+			{
+				{ Name = "lfgDungeonsID", Type = "number", Nilable = false },
+			},
+
+			Returns =
+			{
+				{ Name = "isTrainingGroundsBG", Type = "bool", Nilable = false },
+			},
+		},
+		{
 			Name = "IsWarModeActive",
 			Type = "Function",
 
@@ -1910,6 +1940,7 @@ local PvpInfo =
 			},
 		},
 	},
+
 	Predicates =
 	{
 	},

@@ -364,21 +364,12 @@ function CooldownViewerItemMixin:NeedsCooldownUpdate(spellID, baseSpellID, spell
 		return true;
 	end
 
-	if self:UpdateLinkedSpell(spellID) then
-		-- CDMDebugGetDebugger():LogCooldownItem(self, "NeedsCooldownUpdate", "Linked spell was updated to %s, refreshing item.", tostring(self:GetLinkedSpell()));
-		return true;
-	end
-
 	local itemBaseSpellID = self:GetBaseSpellID();
-
-	if spellID == itemBaseSpellID then
-		return true;
-	end
 
 	-- Depending on the order of overrides being applied and removed, the item may already have a
 	-- different override spell than the spell being updated. But if the base spell is the same, the
 	-- item should still respond to the event.
-	if baseSpellID == itemBaseSpellID then
+	if spellID == itemBaseSpellID or baseSpellID == itemBaseSpellID then
 		return true;
 	end
 
@@ -404,7 +395,7 @@ function CooldownViewerItemMixin:NeedsAddedAuraUpdate(auraInfo)
 
 	local spellID = auraInfo.spellId;
 	if self:UpdateLinkedSpell(spellID) then
-		--CDMDebugGetDebugger():LogCooldownItem(self, "NeedsAddedAuraUpdate", "Linked spell was updated to %s, refreshing item.", tostring(self:GetLinkedSpell()));
+		-- CDMDebugGetDebugger():LogCooldownItem(self, "NeedsAddedAuraUpdate", "Linked spell was updated to %s, refreshing item.", tostring(self:GetLinkedSpell()));
 		return true;
 	end
 
@@ -484,7 +475,7 @@ function CooldownViewerItemMixin:RefreshOnUpdateRegistration()
 end
 
 function CooldownViewerItemMixin:NeedsTargetUpdateRegistration()
-	return self.needsRangeCheck == true or self:GetAuraDataUnit() == "target";
+	return self:GetCooldownID() ~= nil and self.needsRangeCheck == true or self:GetAuraDataUnit() == "target";
 end
 
 function CooldownViewerItemMixin:RefreshTargetUpdateRegistration()
@@ -1294,15 +1285,17 @@ function CooldownViewerBuffItemMixin:NeedsTargetUpdateRegistration()
 	-- target change cannot affect it. In every other case (auraDataUnit == "target", or nil
 	-- meaning no active aura yet) the item must remain registered so it can pick up a target aura
 	-- on the next selection.
-	return self:GetAuraDataUnit() ~= "player";
+	return self:GetCooldownID() ~= nil and self:GetAuraDataUnit() ~= "player";
 end
 
 function CooldownViewerBuffItemMixin:OnCooldownIDSet()
 	CooldownViewerItemMixin.OnCooldownIDSet(self);
+	self:RefreshTargetUpdateRegistration();
 end
 
 function CooldownViewerBuffItemMixin:ResetCooldownData()
 	CooldownViewerItemMixin.ResetCooldownData(self);
+	self:RefreshTargetUpdateRegistration();
 end
 
 function CooldownViewerBuffItemMixin:IsExpired()

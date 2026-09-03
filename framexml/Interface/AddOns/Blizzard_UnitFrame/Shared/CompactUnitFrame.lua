@@ -1776,6 +1776,10 @@ function CompactUnitFrame_GetOptionDispelIndicatorOverlayAnimation(frame)
 	return not CompactUnitFrame_IsPvpFrame(frame) and frame.optionTable.dispelIndicatorOverlayAnimation;
 end
 
+function CompactUnitFrame_GetOptionDispelIndicatorAnimatedBorder(frame)
+	return not CompactUnitFrame_IsPvpFrame(frame) and frame.optionTable.dispelIndicatorAnimatedBorder;
+end
+
 function CompactUnitFrame_GetOptionShowBigDefensive(frame)
 	return not CompactUnitFrame_IsPvpFrame(frame) and frame.optionTable.raidFramesCenterBigDefensive;
 end
@@ -2382,6 +2386,7 @@ function ContainerPrivateAuraBehaviorMixin:SetPrivateAuraAnchorSettings()
 	self:SetAttribute("display-larger-role-specific-debuffs", CompactUnitFrame_GetOptionDisplayLargerRoleSpecificDebuffs(self));
 	self:SetAttribute("dispel-indicator-overlay-type", CompactUnitFrame_GetOptionDispelIndicatorOverlayType(self));
 	self:SetAttribute("dispel-indicator-overlay-animation", CompactUnitFrame_GetOptionDispelIndicatorOverlayAnimation(self));
+	self:SetAttribute("dispel-indicator-animated-border", CompactUnitFrame_GetOptionDispelIndicatorAnimatedBorder(self));
 	self:SetAttribute("show-big-defensive", CompactUnitFrame_GetOptionShowBigDefensive(self));
 	self:SetAttribute("big-defensive-size", self:GetBigDefensiveAuraSize());
 	self:SetAttribute("debuff-size", self:GetDebuffAuraSize());

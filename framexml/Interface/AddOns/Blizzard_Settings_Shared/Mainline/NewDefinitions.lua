@@ -104,6 +104,11 @@ NewSettings["12.1.0"] = {
 	"accessibilityScreenNarrationEnabled",
 };
 
+NewSettings["12.1.5"] = {
+	"minimapShowPlayerCoords",
+	"coordsByTenths",
+};
+
 NewSettingsPredicates["enableConnectToPhotoSharing"] = function()
 	return C_PhotoSharing.IsEnabled();
 end

@@ -1484,6 +1484,7 @@ local VoiceChat =
 			},
 		},
 	},
+
 	Predicates =
 	{
 	},

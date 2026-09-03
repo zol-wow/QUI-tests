@@ -121,6 +121,7 @@ local SocialRestrictions =
 	Tables =
 	{
 	},
+
 	Predicates =
 	{
 	},
