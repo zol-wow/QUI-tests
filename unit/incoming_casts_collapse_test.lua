@@ -187,6 +187,7 @@ local icons = env.icons()
 eq(#icons, 150, "nameplate-sized pool")
 for i = 1, 5 do
     eq(lastScale(icons[i]), 0.01, "free slot " .. i)
+    eq(icons[i]._inUse, false, "preallocated slot " .. i .. " is free")
 end
 checkPoint(icons[1], "CENTER", env.host, "CENTER", 0, 0, "center icon 1")
 checkPoint(icons[2], "LEFT", icons[1], "RIGHT", 4, 0, "center icon 2")
@@ -195,8 +196,8 @@ checkPoint(icons[4], "LEFT", icons[2], "RIGHT", 4, 0, "center icon 4")
 checkPoint(icons[5], "RIGHT", icons[3], "LEFT", -4, 0, "center icon 5")
 
 local secretTarget = MakeSecret()
-env.targets.np1target = secretTarget
-env.driver().onShow("np1", nil, cast)
+env.targets.nameplate1target = secretTarget
+env.driver().onShow("nameplate1", nil, cast)
 eq(lastScale(icons[1]), 1, "restricted target keeps a fixed gap")
 if not icons[1]._alphaBoolean or icons[1]._alphaBoolean.value ~= secretTarget then
     fail("restricted target was not sent to the alpha sink")
@@ -207,15 +208,16 @@ for i = 1, #icons[1]._scaleLog do
     end
 end
 
-env.targets.np2target = true
-env.targets.np3target = false
-env.driver().onShow("np2", nil, cast)
-env.driver().onShow("np3", nil, cast)
+env.targets.nameplate2target = true
+env.targets.nameplate3target = false
+env.driver().onShow("nameplate2", nil, cast)
+env.driver().onShow("nameplate3", nil, cast)
 eq(lastScale(icons[2]), 1, "readable player target")
 eq(lastScale(icons[3]), 0.01, "readable hidden target")
-env.driver().onHide("np2")
+env.driver().onHide("nameplate2")
 eq(lastScale(icons[2]), 0.01, "released slot")
 eq(icons[2]._shown, false, "released slot hidden")
+eq(icons[2]._inUse, false, "released slot keeps reusable bookkeeping")
 
 env = LoadDisplay({ enabled = true, growDirection = "RIGHT", spacing = 6, maxIcons = 3 })
 icons = env.icons()
@@ -228,19 +230,19 @@ icons = env.icons()
 eq(lastScale(icons[1]), 1, "fixed-layout free slot")
 checkPoint(icons[1], "LEFT", env.host, "LEFT", 0, 0, "fixed icon 1")
 checkPoint(icons[2], "LEFT", env.host, "LEFT", 44, 0, "fixed icon 2")
-env.targets.np4target = MakeSecret()
-env.driver().onShow("np4", nil, cast)
+env.targets.nameplate4target = MakeSecret()
+env.driver().onShow("nameplate4", nil, cast)
 eq(lastScale(icons[1]), 1, "fixed-layout restricted target")
 
 env = LoadDisplay({ enabled = true, maxIcons = 1 })
 icons = env.icons()
 eq(#icons, 150, "layout max does not cap cast capacity")
 for i = 1, 150 do
-    env.driver().onShow("np" .. i, nil, cast)
+    env.driver().onShow("nameplate" .. i, nil, cast)
 end
 env.setCombat(true)
 local framesBeforeOverflow = env.frameCount()
-env.driver().onShow("np151", nil, cast)
+env.driver().onShow("nameplate151", nil, cast)
 eq(env.frameCount(), framesBeforeOverflow, "combat overflow creates no regions")
 eq(#env.icons(), 150, "combat overflow defers pool growth")
 env.setCombat(false)
