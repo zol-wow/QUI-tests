@@ -296,17 +296,13 @@ local bar = {
         kind = "aura",
         type = "spell",
         viewerType = "trackedBar",
-        cooldownID = 5872,
     },
 }
 
 bars:UpdateOwnedBarAura(bar)
 
-assert(capturedParams, "bar update should call ResolveCooldownState")
-assert(capturedParams.runtimeSpellID == 195182,
-    "bar resolver params should carry the bar spellID")
-assert(capturedParams.containerKey == "trackedBar",
-    "bar resolver params should carry the bar container key")
+assert(capturedParams == nil,
+    "tracked aura bars must not fall back to ResolveCooldownState")
 
 capturedParams = nil
 bar._spellEntry.viewerType = "customBar"
@@ -319,6 +315,34 @@ assert(capturedParams.runtimeSpellID == 195182,
     "custom bar resolver params should carry the bar spellID")
 assert(capturedParams.containerKey == "customBar",
     "custom bar resolver params should carry the custom-bar container key")
+
+capturedParams = nil
+bar._spellEntry.viewerType = "trackedBar"
+bar._spellEntry.kind = "cooldown"
+
+bars:UpdateOwnedBarAura(bar)
+
+assert(capturedParams, "explicit tracked cooldown bars should call ResolveCooldownState")
+
+capturedParams = nil
+bar._spellEntry.kind = "aura"
+bar._isTotemInstance = true
+bar._totemSlot = 1
+
+bars:UpdateOwnedBarAura(bar)
+
+assert(capturedParams and capturedParams.totemSlot == 1,
+    "tracked totem bars should call ResolveCooldownState with their slot")
+
+capturedParams = nil
+bar._isTotemInstance = nil
+bar._totemSlot = nil
+bar._spellEntry.type = "item"
+bar._spellEntry.kind = "cooldown"
+
+bars:UpdateOwnedBarAura(bar)
+
+assert(capturedParams, "tracked item cooldown bars should call ResolveCooldownState")
 
 local barAuraDuration = { token = "bar-aura-duration" }
 local barAuraData = { icon = 98765 }
@@ -348,7 +372,7 @@ bar._spellEntry = {
     name = "Soul Reaper",
     kind = "aura",
     type = "spell",
-    viewerType = "trackedBar",
+    viewerType = "customBar",
 }
 bar._spellID = 343294
 bar.IconTexture = {
@@ -388,6 +412,10 @@ ns.CDMResolvers = {
             mode = "cooldown",
             active = true,
             isActive = true,
+            isOnCooldown = true,
+            rechargeActive = true,
+            hasCharges = true,
+            hasChargesRemaining = false,
             durObj = spellCooldownDurObj,
             spellID = spellID,
             resolvedAuraSpellID = spellID,
@@ -442,6 +470,11 @@ assert(spellCooldownBar._durObj == spellCooldownDurObj,
     "non-mirror spell cooldown bar should retain the cooldown DurationObject")
 assert(spellCooldownTimerDuration == spellCooldownDurObj,
     "non-mirror spell cooldown bar should drive status-bar fill from the cooldown DurationObject")
+assert(spellCooldownBar._cdmRuntimeState.isOnCooldown == true
+    and spellCooldownBar._cdmRuntimeState.rechargeActive == true
+    and spellCooldownBar._cdmRuntimeState.hasCharges == true
+    and spellCooldownBar._cdmRuntimeState.hasChargesRemaining == false,
+    "non-mirror spell cooldown bars should publish cooldown alert state")
 
 local itemCooldownDurObj = {
     token = "item-cooldown-duration",
@@ -595,7 +628,7 @@ local combatAuraDataBar = {
         name = "Combat Aura",
         kind = "aura",
         type = "spell",
-        viewerType = "trackedBar",
+        viewerType = "customBar",
     },
     StatusBar = {
         SetMinMaxValues = function() end,
@@ -668,7 +701,7 @@ local immediateTextBar = {
         name = "Immediate Text Aura",
         kind = "aura",
         type = "spell",
-        viewerType = "trackedBar",
+        viewerType = "customBar",
     },
     StatusBar = {
         SetMinMaxValues = function()
@@ -753,7 +786,7 @@ local refreshedAuraBar = {
         name = "Bone Shield",
         kind = "aura",
         type = "spell",
-        viewerType = "trackedBar",
+        viewerType = "customBar",
     },
     _active = true,
     _auraUnit = "player",

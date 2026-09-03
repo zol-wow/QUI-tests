@@ -116,15 +116,15 @@ do
             and safeCallPolicies[2] == "best-effort-style" and safeCallPolicies[3] == "best-effort-style")
 end
 
-check("SetState hook routes through the deferred queue",
-    source:find('hooksecurefunc(mixin, "SetState", QueueLineIconStyle)', 1, true) ~= nil)
+check("SetState stays free of global mixin hooks",
+    source:find('hooksecurefunc(mixin, "SetState"', 1, true) == nil)
 check("UpdateHighlight hook routes through the deferred queue",
     source:find('hooksecurefunc(block, "UpdateHighlight", QueueBlockHighlightRestyle)', 1, true) ~= nil)
-check("progress bar hooks route through the deferred queue",
-    source:find("hooksecurefunc(pm.mixin, pm.method, QueueProgressBarStyle)", 1, true) ~= nil)
+check("progress bars stay free of global mixin hooks",
+    source:find("hooksecurefunc(pm.mixin, pm.method", 1, true) == nil)
 
 local iconChunk = table.concat({
-    "local GetSettings, IsWidgetPoolBlock, Helpers, _G = ...",
+    "local GetSettings, IsWidgetPoolBlock, Helpers, SkinBase, _G = ...",
     extract("line_icon_style"),
     "return StyleLineIcon",
 }, "\n")
@@ -157,20 +157,45 @@ local function styleIcon(atlas, secretValues)
         end,
         SafeNumberOrNil = function(v) return type(v) == "number" and v or nil end,
     }
+    local frameData = setmetatable({}, { __mode = "k" })
+    local skinBase = {
+        GetFrameData = function(frame, key)
+            local data = frameData[frame]
+            return data and data[key]
+        end,
+        SetFrameData = function(frame, key, value)
+            local data = frameData[frame]
+            if not data then
+                data = {}
+                frameData[frame] = data
+            end
+            data[key] = value
+        end,
+    }
     local style = assert(loadstring(iconChunk, "line_icon_style"))(
         function() return settings end,
         function() return false end,
         helpers,
+        skinBase,
         {})
     local icon = newIcon(atlas)
     style({ Icon = icon })
-    return icon, probed
+    return icon, probed, style
 end
 
 do
-    local icon, probed = styleIcon("UI-QuestTracker-Objective-Check")
+    local lower = string.lower
+    local lowerCalls = 0
+    string.lower = function(value)
+        lowerCalls = lowerCalls + 1
+        return lower(value)
+    end
+    local icon, probed, style = styleIcon("UI-QuestTracker-Objective-Check")
+    style({ Icon = icon })
+    string.lower = lower
     check("check atlas is probed for secrecy before styling",
         probed[1] == "UI-QuestTracker-Objective-Check")
+    check("unchanged icon atlases reuse their normalized value", lowerCalls == 1)
     check("plain check atlas recolors to the check color",
         icon.vertex ~= nil and icon.vertex[1] == CHECK_COLOR[1] and icon.vertex[2] == CHECK_COLOR[2]
             and icon.vertex[3] == CHECK_COLOR[3] and icon.vertex[4] == CHECK_COLOR[4])

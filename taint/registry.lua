@@ -79,6 +79,7 @@ Registry.__index = Registry
 function M.new()
     local self = setmetatable({}, Registry)
     self.sources           = {}
+    self.sourceReturnArities = {}
     self.safeSinkMethods   = {}
     self.safeSinkFunctions = {}
     self.docArgRestrictedMethods   = {}
@@ -134,14 +135,45 @@ function M.new()
     return self
 end
 
-function Registry:addSource(name)           self.sources[name]           = true end
+function Registry:addSource(name, returnArity)
+    self.sources[name] = true
+    if type(returnArity) == "number" then
+        self.sourceReturnArities[name] = math.max(
+            self.sourceReturnArities[name] or 0, returnArity)
+    end
+end
 function Registry:isSource(name)            return self.sources[name]           == true end
+function Registry:sourceReturnArity(name)   return self.sourceReturnArities[name] end
 
-function Registry:addSafeSinkMethod(name)   self.safeSinkMethods[name]   = true end
-function Registry:isSafeSinkMethod(name)    return self.safeSinkMethods[name]   == true end
+function Registry:addSafeSinkMethod(name, rejected)
+    self.safeSinkMethods[name] = rejected or true
+end
+function Registry:isSafeSinkMethod(name) return self.safeSinkMethods[name] ~= nil end
+function Registry:safeSinkMethodRejectedArguments(name)
+    local rejected = self.safeSinkMethods[name]
+    return type(rejected) == "table" and rejected or nil
+end
+function Registry:safeSinkMethodRejectsArgument(name, position)
+    local rejected = self:safeSinkMethodRejectedArguments(name)
+    if not rejected then return false end
+    for _, value in ipairs(rejected) do if value == position then return true end end
+    return false
+end
 
-function Registry:addSafeSinkFunction(name) self.safeSinkFunctions[name] = true end
-function Registry:isSafeSinkFunction(name)  return self.safeSinkFunctions[name] == true end
+function Registry:addSafeSinkFunction(name, rejected)
+    self.safeSinkFunctions[name] = rejected or true
+end
+function Registry:isSafeSinkFunction(name) return self.safeSinkFunctions[name] ~= nil end
+function Registry:safeSinkFunctionRejectedArguments(name)
+    local rejected = self.safeSinkFunctions[name]
+    return type(rejected) == "table" and rejected or nil
+end
+function Registry:safeSinkFunctionRejectsArgument(name, position)
+    local rejected = self:safeSinkFunctionRejectedArguments(name)
+    if not rejected then return false end
+    for _, value in ipairs(rejected) do if value == position then return true end end
+    return false
+end
 
 -- Documented argument restrictions (api-index secretArguments with NO
 -- tainted-allowed system): tainted (addon) code cannot pass secrets to

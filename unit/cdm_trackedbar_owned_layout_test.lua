@@ -15,6 +15,12 @@ local layoutEnd = assert(buffLayout:find("local lastIconState = { count = -1 }",
     "LayoutBuffBars end marker not found")
 local layoutBody = buffLayout:sub(layoutStart, layoutEnd)
 
+local suppressPos = assert(layoutBody:find("ns.CDMBlizzardBuffBarSuppressor:Apply(settings)", 1, true),
+    "LayoutBuffBars must apply native viewer suppression")
+local readinessPos = assert(layoutBody:find("IsCooldownViewerReady()", 1, true),
+    "LayoutBuffBars must retain its data-readiness gate")
+assert(suppressPos < readinessPos,
+    "LayoutBuffBars must hide the native viewer before waiting for data readiness")
 assert(not layoutBody:find('RefreshBuiltin("trackedBar"', 1, true),
     "LayoutBuffBars must not route trackedBar through the re-anchor runtime")
 assert(layoutBody:find("local runtimeEntries = GetTrackedBarRuntimeEntries()", 1, true),
@@ -41,13 +47,29 @@ assert(containers:find('keys = { "trackedBar" }', 1, true),
     "trackedBar lifecycle hook must listen to BuffBarCooldownViewer without joining REANCHOR_KEYS")
 assert(containers:find("ns.CDMBuffLayout.LayoutBars()", 1, true),
     "trackedBar lifecycle hook must refresh the owned Buff Bars layout")
-assert(containers:find("immediateRefreshLayoutKeys = { trackedBar = true }", 1, true),
-    "trackedBar RefreshLayout must use the immediate lifecycle path")
+assert(not containers:find("immediateRefreshLayoutKeys = { trackedBar = true }", 1, true),
+    "trackedBar RefreshLayout must use the delayed lifecycle scheduler")
+assert(not containers:find("immediateAcquireKeys", 1, true),
+    "Buff and trackedBar acquisition must use the delayed lifecycle path")
 assert(containers:find("CooldownViewerSettings.OnShow", 1, true)
     and containers:find("CooldownViewerSettings.OnHide", 1, true),
     "CooldownViewerSettings show/hide must resync native reanchor and trackedBar lifecycle hooks")
-assert(containers:find("C_Timer.After(6.0", 1, true),
-    "cold-login settle cadence must include a late 6s RefreshAll pass")
+local initStart = assert(containers:find("function ownedEngine:Initialize()", 1, true),
+    "owned engine initializer not found")
+local initEnd = assert(containers:find("\n    local function DrainPendingLoadoutSwitch", initStart, true),
+    "owned engine initializer end marker not found")
+local initBody = containers:sub(initStart, initEnd)
+assert(not initBody:find("C_Timer.After(1.0", 1, true)
+    and not initBody:find("C_Timer.After(3.0", 1, true)
+    and not initBody:find("C_Timer.After(6.0", 1, true),
+    "CDM startup must not schedule unconditional full re-anchor passes")
+local pewStart = assert(containers:find('elseif event == "PLAYER_ENTERING_WORLD" then', 1, true),
+    "PLAYER_ENTERING_WORLD handler not found")
+local pewEnd = assert(containers:find('elseif event == "PLAYER_SPECIALIZATION_CHANGED" then', pewStart, true),
+    "PLAYER_ENTERING_WORLD handler end marker not found")
+local pewBody = containers:sub(pewStart, pewEnd)
+assert(pewBody:find("RefreshReanchorRuntimeHooks(false)", 1, true),
+    "PLAYER_ENTERING_WORLD must install native hooks without scheduling a duplicate dirty pass")
 assert(containers:find('local EDIT_LOCK_KEYS = { "essential", "utility", "buff", "trackedBar" }', 1, true),
     "trackedBar must remain Edit Mode locked/suppressed even though it is not re-anchored")
 assert(containers:find("keys = EDIT_LOCK_KEYS,", 1, true),
@@ -62,11 +84,21 @@ assert(not editBody:find('RefreshBuiltin("trackedBar"', 1, true),
     "Edit Mode enter must not refresh trackedBar through the re-anchor runtime")
 assert(editBody:find("ns.CDMBars:Refresh(containers.trackedBar", 1, true),
     "Edit Mode enter must populate owned trackedBar bars")
+assert(not editBody:find("ForceAllActive", 1, true),
+    "Edit Mode enter must let LayoutBars expose pooled bars without reading rendered text")
 
 local barRenderer = readAll("QUI_CDM/cdm/cdm_bar_renderer.lua")
 assert(barRenderer:find("NormalizeTrackedBarRuntimeEntries(runtimeEntries)", 1, true),
     "bar renderer must normalize native tracked-bar entries for owned bars")
 assert(barRenderer:find('containerKey == "trackedBar"', 1, true),
     "runtime entry override must be scoped to trackedBar only")
+assert(not barRenderer:find("NameText:GetText()", 1, true),
+    "bar renderer must keep rendered text opaque and pass secret values only to C sinks")
+
+local realEnv = readAll("QUI_CDM/cdm/cdm_reanchor_realenv.lua")
+assert(not realEnv:find("_InstallBarReskinHooks", 1, true)
+    and not realEnv:find('hooksecurefunc(live, "SetBarContent"', 1, true)
+    and not realEnv:find('hooksecurefunc(live, "SetBarWidth"', 1, true),
+    "owned tracked bars must not install native tracked-bar reskin hooks")
 
 print("OK: cdm_trackedbar_owned_layout_test")

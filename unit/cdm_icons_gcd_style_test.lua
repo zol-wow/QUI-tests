@@ -408,12 +408,16 @@ local ns = {
 
 dofile("tests/helpers/load_cdm_icon_runtime.lua")(ns)
 assert(loadfile("QUI_CDM/cdm/cdm_icon_renderer.lua"))("QUI", ns)
+local RuntimeQueries = ns.CDMRuntimeQueries
+local rendererTextureWrites = 0
 
 local icon = {
     Cooldown = {
         SetCooldownFromDurationObject = noop,
         SetReverse = noop,
-        SetSwipeTexture = noop,
+        SetSwipeTexture = function()
+            rendererTextureWrites = rendererTextureWrites + 1
+        end,
         Clear = noop,
     },
     _showingGCDSwipe = nil,
@@ -433,6 +437,8 @@ assert(applied == true, "GCD-only duration should be applied")
 assert(icon._showingGCDSwipe == true, "GCD-only duration should mark the icon as showing GCD")
 assert(styleCalls == 1, "GCD-only duration should reapply swipe styling immediately")
 assert(styleSawGCD == true, "swipe styling should run after the GCD flag is set")
+assert(rendererTextureWrites == 0,
+    "renderer should leave swipe texture ownership to the swipe styling module")
 
 local itemAuraIcon = {
     Cooldown = {
@@ -507,6 +513,9 @@ local realCooldownIcon = {
         SetCooldownFromDurationObject = noop,
         SetReverse = noop,
         SetSwipeTexture = noop,
+        Show = function(self)
+            self.shown = true
+        end,
     },
     Icon = {
         SetDesaturated = function(_, value)
@@ -530,6 +539,7 @@ local realCooldownIcon = {
 applied = ns.CDMIcons.ApplyResolvedCooldown(realCooldownIcon)
 
 assert(applied == true, "real cooldown duration should be applied")
+assert(realCooldownIcon.Cooldown.shown == true, "active cooldown should show its cooldown child")
 assert(realCooldownIcon._hasCooldownActive == true, "real cooldown should remain active when the resolved API state is cooldown")
 assert(realCooldownIcon._hasRealCooldownActive == true, "real cooldown flag should remain active when the resolved API state is cooldown")
 assert(desaturated == true, "real cooldown should stay desaturated when the resolved API state is cooldown")
@@ -620,7 +630,10 @@ local priorMirrorResourceBlockedIcon = {
     },
 }
 
+RuntimeQueries.BeginRuntimeQueryBatch()
+priorMirrorResourceBlockedIcon._lastDurationBindingEpoch = RuntimeQueries.GetActiveBatchEpoch()
 applied = ns.CDMIcons.ApplyResolvedCooldown(priorMirrorResourceBlockedIcon)
+RuntimeQueries.EndRuntimeQueryBatch()
 
 assert(applied == true, "renderer should keep an API-confirmed non-GCD mirror cooldown binding")
 assert(priorMirrorAppliedDuration == nil,
@@ -1079,5 +1092,18 @@ assert(staleMirrorNoDurationIcon._resolvedCooldownMode == "inactive",
     "stale mirrored cooldown should be normalized to inactive")
 assert(staleMirrorDesaturated == false,
     "stale mirrored cooldown should release previous cooldown desaturation once")
+
+local releasedGlowIcon = {}
+local releasedGlowStops = 0
+ns._OwnedGlows = {
+    StopGlow = function(stoppedIcon)
+        assert(stoppedIcon == releasedGlowIcon, "factory release should stop glow on the released icon")
+        releasedGlowStops = releasedGlowStops + 1
+    end,
+}
+
+ns.CDMIcons.OnFactoryIconReleased(releasedGlowIcon)
+
+assert(releasedGlowStops == 1, "factory release should clear owned proc-glow state")
 
 print("OK: cdm_icons_gcd_style_test")

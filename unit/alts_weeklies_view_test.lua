@@ -40,6 +40,38 @@ assert(loadfile("modules/alts/views/weeklies.lua"))("QUI", ns)
 local WV = ns.Alts.WeekliesView
 assert(WV, "WeekliesView exported")
 
+local cellTexts = WV.CellTexts({
+    kind = "char",
+    name = "Arel",
+    weeklies = {
+        mplusRating = 2475,
+        keystoneMapID = 100,
+        keystoneName = "The Stonevault",
+        keystoneLevel = 12,
+        activities = {
+            { type = 1, threshold = 1, progress = 1 },
+        },
+    },
+})
+assert(cellTexts[1] == "Arel", "character cell text")
+assert(cellTexts[2] == "2475", "rating cell text")
+assert(cellTexts[3] == "The Stonevault +12", "keystone cell text")
+assert(cellTexts[4] == "Raid 1/1", "vault cell text")
+assert(WV.CellTexts({ kind = "lockout" }) == nil, "lockouts span columns")
+
+local widths = WV.ColumnWidths({
+    { kind = "char", name = "Long Character Name", weeklies = {} },
+    { kind = "char", name = "A", weeklies = {
+        keystoneMapID = 1,
+        keystoneName = "Very Long Keystone Name",
+        keystoneLevel = 8,
+    } },
+}, function(text) return #text + 0.25 end)
+assert(widths[1] == #"Long Character Name" + 13, "character width uses widest row and ceiling")
+assert(widths[2] == #"M+ Rating" + 13, "rating width uses header")
+assert(widths[3] == #"Very Long Keystone Name +8" + 13, "keystone width uses widest row")
+assert(widths[4] == #"Great Vault" + 13, "vault width uses header")
+
 ---------------------------------------------------------------------------
 -- VaultSummary: nil / empty
 ---------------------------------------------------------------------------

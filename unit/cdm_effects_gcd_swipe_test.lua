@@ -4,6 +4,12 @@
 local function noop() end
 
 function InCombatLockdown() return false end
+function UnitClass() return "Mage", "MAGE" end
+C_ClassColor = {
+    GetClassColor = function()
+        return { GetRGBA = function() return 0.12, 0.34, 0.56, 1 end }
+    end,
+}
 function CreateFrame()
     return {
         RegisterEvent = noop,
@@ -77,7 +83,10 @@ local function NewCooldownSpy()
     local calls = {}
     return {
         calls = calls,
-        SetSwipeTexture = function(_, value) calls.texture = value end,
+        SetSwipeTexture = function(_, value)
+            calls.texture = value
+            calls.textureWrites = (calls.textureWrites or 0) + 1
+        end,
         SetDrawSwipe = function(_, value) calls.drawSwipe = value end,
         SetDrawEdge = function(_, value) calls.drawEdge = value end,
         SetSwipeColor = function(_, r, g, b, a)
@@ -112,6 +121,35 @@ assert(cooldownGCD.calls.drawSwipe == true, "cooldown-kind GCD should use showGC
 assert(cooldownGCD.calls.drawEdge == false, "GCD swipe should not draw recharge edge")
 assert(cooldownGCD.calls.color[1] == 0.1, "cooldown-kind GCD should use cooldown swipe color")
 assert(cooldownGCD.calls.color[4] == 0.4, "cooldown-kind GCD should preserve cooldown swipe alpha")
+ns._OwnedSwipe.ApplyToIcon({
+    Cooldown = cooldownGCD,
+    _showingGCDSwipe = true,
+    _spellEntry = {
+        kind = "cooldown",
+        viewerType = "essential",
+        spellID = 12345,
+    },
+}, settings)
+assert(cooldownGCD.calls.textureWrites == 1,
+    "unchanged live swipe styling should not reset the swipe texture")
+
+local buffClassColor = NewCooldownSpy()
+ns._OwnedSwipe.ApplyToIcon({
+    Cooldown = buffClassColor,
+    _spellEntry = {
+        kind = "aura",
+        viewerType = "buff",
+        spellID = 54321,
+    },
+}, {
+    showBuffIconSwipe = true,
+    overlayColorMode = "class",
+    showBuffEdge = true,
+})
+assert(buffClassColor.calls.color[1] == 0.12
+    and buffClassColor.calls.color[2] == 0.34
+    and buffClassColor.calls.color[3] == 0.56,
+    "buff icon aura swipe should use the configured class color")
 
 local originalResolveAuraActiveState = ns.CDMResolvers.ResolveAuraActiveState
 local authoritativeGCDSettings = {

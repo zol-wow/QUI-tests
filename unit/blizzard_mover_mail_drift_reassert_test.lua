@@ -40,6 +40,7 @@ assert(not mapBlock:find("reassertOnDrift", 1, true), "WorldMapFrame must keep t
 ---------------------------------------------------------------------------
 
 local function noop() end
+local lastRaised
 
 local frameMeta = {}
 frameMeta.__index = function(_, key)
@@ -96,6 +97,8 @@ frameMeta.__index = function(_, key)
         return function(self) self.shown = true end
     elseif key == "Hide" then
         return function(self) self.shown = false end
+    elseif key == "Raise" then
+        return function(self) lastRaised = self end
     end
     return noop
 end
@@ -118,6 +121,7 @@ UIParent = newFrame("UIParent")
 MailFrame = newFrame("MailFrame", UIParent, false)
 SendMailFrame = newFrame("SendMailFrame", MailFrame, false)
 MailFrameInset = newFrame("MailFrameInset", MailFrame, false)
+OpenAllMail = newFrame("OpenAllMail", MailFrame, false)
 WorldMapFrame = newFrame("WorldMapFrame", UIParent, false)
 
 local watcherFrames = {}
@@ -138,6 +142,8 @@ function hooksecurefunc(target, method, handler)
 end
 
 local inCombat = false
+local nextFrame
+function RunNextFrame(fn) nextFrame = fn end
 function InCombatLockdown() return inCombat end
 function IsShiftKeyDown() return false end
 function IsControlKeyDown() return false end
@@ -249,9 +255,28 @@ end
 
 MailFrame.shown = true
 blizzardRestamp(MailFrame)
+lastRaised = WorldMapFrame
 tick(mailWatcher)
 assertAtSaved(MailFrame, "show transition")
+assert(lastRaised == MailFrame, "newly shown mail must finish above previously open panels")
 tick(mailWatcher, 5) -- burn the transition re-assert burst
+
+lastRaised = WorldMapFrame
+assert(OpenAllMail.hookedScripts.OnClick, "Open All must install a stacking repair hook")
+OpenAllMail.hookedScripts.OnClick(OpenAllMail)
+assert(lastRaised == WorldMapFrame, "Open All stacking repair must wait for Blizzard's click work")
+assert(nextFrame, "Open All stacking repair must queue a next-frame raise")
+nextFrame()
+assert(lastRaised == MailFrame, "Open All must keep the already shown mail frame on top")
+
+profile.blizzardMover.enabled = false
+lastRaised = WorldMapFrame
+nextFrame = nil
+OpenAllMail.hookedScripts.OnClick(OpenAllMail)
+assert(nextFrame, "Open All stacking repair must remain safely deferred while disabled")
+nextFrame()
+assert(lastRaised == WorldMapFrame, "Open All stacking repair must stay inert while the mover is disabled")
+profile.blizzardMover.enabled = true
 
 ---------------------------------------------------------------------------
 -- 2. Panel-manager re-stamp while shown is corrected on the next tick
@@ -375,7 +400,9 @@ assert(GossipFrame.hookedScripts.OnHide, "non-secure mover roots should hook OnH
 rawset(GossipFrame, "IsShown", function() error("secret-capable read on a tainted stack") end)
 
 QuestFrame.shown = true
+lastRaised = MailFrame
 QuestFrame.hookedScripts.OnShow(QuestFrame)
+assert(lastRaised == QuestFrame, "newly shown non-secure panels must finish on top")
 GossipFrame.shown = true
 GossipFrame.hookedScripts.OnShow(GossipFrame)
 

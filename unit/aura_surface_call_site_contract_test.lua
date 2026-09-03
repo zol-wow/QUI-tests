@@ -5,6 +5,9 @@ end
 local function noop() end
 
 local failNextContainer = false
+local inCombat = false
+local trackFrameGetters = false
+local frameGetterCalls = 0
 
 local NewStub
 NewStub = function(parent)
@@ -27,7 +30,15 @@ NewStub = function(parent)
     function s:SetUnit(u) self._unit = u end
     function s:SetEnabled(v) self._enabled = v end
     function s:SetFrameLevel(v) self._frameLevel = v end
-    function s:GetFrameLevel() return self._frameLevel end
+    function s:GetFrameLevel()
+        if trackFrameGetters then frameGetterCalls = frameGetterCalls + 1 end
+        return self._frameLevel
+    end
+    function s:SetFrameStrata(v) self._frameStrata = v end
+    function s:GetFrameStrata()
+        if trackFrameGetters then frameGetterCalls = frameGetterCalls + 1 end
+        return self._frameStrata or "MEDIUM"
+    end
     function s:CreateTexture() return NewStub(self) end
     function s:CreateFontString() return NewStub(self) end
     function s:SetTexture() end
@@ -49,7 +60,7 @@ _G.CreateFrame = function(kind, _name, parent)
 end
 _G.UIParent = NewStub(nil)
 _G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
-_G.InCombatLockdown = function() return false end
+_G.InCombatLockdown = function() return inCombat end
 _G.UnitExists = function() return true end
 _G.AuraContainerSortMethod = { Default = 0, AuraInstanceIDOnly = 8 }
 _G.AuraContainerSortDirection = { Normal = 0, Reverse = 1 }
@@ -114,8 +125,13 @@ local function LoadGroupFrames()
     }
     ns.QUI_GroupFrames = { GetFrameUnit = function(frame) return frame.unit end }
     assert(loadfile("QUI_GroupFrames/groupframes/groupframes_auras.lua"))("QUI_GroupFrames", ns)
-    local frame = { unit = "party1", GetFrameLevel = function() return 1 end }
-    return records, frame, function() ns.QUI_GroupFrameAuras.ApplyStripContainers(frame) end, 2
+    local healthBar = NewStub()
+    healthBar:SetFrameLevel(2)
+    healthBar:SetFrameStrata("HIGH")
+    local frame = NewStub()
+    frame.unit = "party1"
+    frame.healthBar = healthBar
+    return records, frame, function() ns.QUI_GroupFrameAuras.ApplyStripContainers(frame) end, 2, ns
 end
 
 local function LoadNameplates()
@@ -169,9 +185,36 @@ local ufTargetRecords, _ufTargetFrame, runUFTarget = LoadUnitFrames("target")
 runUFTarget()
 CheckCancel("unit frames (target)", ufTargetRecords, nil)
 
-local gfRecords, _gfFrame, runGF = LoadGroupFrames()
+local gfRecords, gfFrame, runGF = LoadGroupFrames()
 runGF()
 CheckCancel("group frames", gfRecords, nil)
+local gfContainer = gfFrame._quiAuraContainers and gfFrame._quiAuraContainers[1]
+if not gfContainer or gfContainer:GetFrameStrata() ~= gfFrame.healthBar:GetFrameStrata() then
+    fail("group frames: aura container must share the health bar's frame strata")
+end
+if gfContainer:GetFrameLevel() <= gfFrame.healthBar:GetFrameLevel() then
+    fail("group frames: aura container must render above the health bar")
+end
+
+local _gfCombatRecords, gfCombatFrame, runGFCombat, _gfCombatPool, gfCombatNS = LoadGroupFrames()
+local queuedOwner
+local queuedCallback
+gfCombatNS.AuraGlue.QueueRegenWork = function(owner, callback)
+    queuedOwner = owner
+    queuedCallback = callback
+end
+inCombat = true
+trackFrameGetters = true
+frameGetterCalls = 0
+runGFCombat()
+trackFrameGetters = false
+inCombat = false
+if frameGetterCalls ~= 0 then
+    fail("group frames: combat container setup must not read secret-capable frame layering")
+end
+if queuedOwner ~= gfCombatFrame or type(queuedCallback) ~= "function" then
+    fail("group frames: skipped combat layering must queue the regen replay")
+end
 
 local npRecords, _npPlate, runNP = LoadNameplates()
 runNP()

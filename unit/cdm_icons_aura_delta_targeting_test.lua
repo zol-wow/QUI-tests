@@ -42,6 +42,10 @@ local itemAuraReverse
 local itemAuraApplyCount = 0
 local itemAuraActive = true
 local itemAuraPublishesInstanceID = true
+local customCooldownDur = { token = "custom-cooldown-duration" }
+local customCooldownAppliedDuration
+local customCooldownApplyCount = 0
+local customCooldownReverse
 local runtimeBatches = 0
 local buffAuraResolutionUnit = "player"
 local buffAuraResolutionInstanceID = 621
@@ -135,6 +139,34 @@ itemAuraIcon.Cooldown.SetReverse = function(_, reverse)
     itemAuraReverse = reverse
 end
 
+local customCooldownIcon = makeIcon("customCooldown", 1233448)
+customCooldownIcon._spellEntry = {
+    id = 1233448,
+    spellID = 1233448,
+    name = "customCooldown",
+    kind = "cooldown",
+    viewerType = "custom",
+    type = "spell",
+    _isCustomEntry = true,
+}
+customCooldownIcon.Cooldown.SetCooldownFromDurationObject = function(_, durObj)
+    customCooldownApplyCount = customCooldownApplyCount + 1
+    customCooldownAppliedDuration = durObj
+end
+customCooldownIcon.Cooldown.SetReverse = function(_, reverse)
+    customCooldownReverse = reverse
+end
+
+local linkedCooldownIcon = makeIcon("linkedCooldown", 1233448)
+linkedCooldownIcon._spellEntry = {
+    id = 1233448,
+    spellID = 1233448,
+    name = "linkedCooldown",
+    kind = "cooldown",
+    viewerType = "essential",
+    type = "spell",
+}
+
 local ns = {
     Helpers = {
         GetGeneralFont = function() return "Fonts\\FRIZQT__.TTF" end,
@@ -196,6 +228,13 @@ local ns = {
             if spellID == 1236994 then
                 return 555001
             end
+            return nil
+        end,
+    },
+    CDMSpellData = {
+        GetSpellOverride = function() return nil end,
+        GetLinkedSpellIDsForSpellID = function(spellID)
+            if spellID == 1233448 then return { 1235391 } end
             return nil
         end,
     },
@@ -284,6 +323,19 @@ local ns = {
                     hasRenderableCooldown = true,
                 }
             end
+            if name == "customCooldown" then
+                return {
+                    mode = "cooldown",
+                    active = true,
+                    isActive = true,
+                    durObj = customCooldownDur,
+                    sourceID = "cooldown:1233448",
+                    spellID = 1233448,
+                    isOnCooldown = true,
+                    hasDurationObject = true,
+                    hasRenderableCooldown = true,
+                }
+            end
             return {
                 mode = "inactive",
                 active = false,
@@ -293,9 +345,9 @@ local ns = {
     },
     CDMIconFactory = {
         _iconPools = {
-            essential = { matchingIcon, unrelatedIcon, nonMirrorIcon, itemAuraIcon },
+            essential = { matchingIcon, unrelatedIcon, nonMirrorIcon, itemAuraIcon, linkedCooldownIcon },
             buff = { buffAuraIcon },
-            custom = { customAuraIcon },
+            custom = { customAuraIcon, customCooldownIcon },
         },
         _recyclePool = {},
         _FinalizeImports = noop,
@@ -342,9 +394,9 @@ do
     end
 end
 assert(loadfile("QUI_CDM/cdm/cdm_icon_renderer.lua"))("QUI", ns)
-ns.CDMIconFactory._iconPools.essential = { matchingIcon, unrelatedIcon, nonMirrorIcon, itemAuraIcon }
+ns.CDMIconFactory._iconPools.essential = { matchingIcon, unrelatedIcon, nonMirrorIcon, itemAuraIcon, linkedCooldownIcon }
 ns.CDMIconFactory._iconPools.buff = { buffAuraIcon }
-ns.CDMIconFactory._iconPools.custom = { customAuraIcon }
+ns.CDMIconFactory._iconPools.custom = { customAuraIcon, customCooldownIcon }
 
 local icons = assert(ns.CDMIcons, "CDMIcons should be exported")
 runtimeBatches = 0
@@ -480,16 +532,14 @@ icons.HandleRuntimeRefresh("UNIT_AURA", "player", {
     },
 })
 
-assert(resolveCounts.itemAura == 1,
-    "added player aura should re-resolve matching item icon through item use aura mapping")
-assert(itemAuraIcon._auraActive == true,
-    "added player item aura should stamp active aura metadata on the item icon")
-assert(itemAuraAppliedDuration == itemAuraDur,
-    "added player item aura should bind the aura DurationObject to the item icon")
-assert(itemAuraReverse == true,
-    "added player item aura should use aura/reverse cooldown mode")
-assert(itemAuraApplyCount == 1,
-    "initial item aura apply should bind the aura DurationObject once")
+assert(resolveCounts.itemAura == 0,
+    "player aura deltas must not resolve items through the removed aura mapping getter")
+assert(itemAuraIcon._auraActive ~= true,
+    "removed item aura getter must not stamp active aura metadata")
+assert(itemAuraAppliedDuration == nil,
+    "removed item aura getter must not bind a DurationObject")
+assert(itemAuraApplyCount == 0,
+    "removed item aura getter must not apply an aura duration")
 
 inCombat = true
 icons.HandleRuntimeRefresh("UNIT_AURA", "player", {
@@ -498,8 +548,8 @@ icons.HandleRuntimeRefresh("UNIT_AURA", "player", {
 })
 inCombat = false
 
-assert(itemAuraApplyCount == 2,
-    "combat aura refresh should rebind the DurationObject even when auraInstanceID and durObj identity are unchanged")
+assert(itemAuraApplyCount == 0,
+    "combat aura refresh must not rebind a removed aura DurationObject")
 
 itemAuraActive = true
 itemAuraPublishesInstanceID = false
@@ -518,15 +568,49 @@ icons.HandleRuntimeRefresh("UNIT_AURA", "player", {
 })
 
 assert(resolveCounts.itemAura == 1,
-    "removed player aura should re-resolve active item aura icons even when no auraInstanceID was stamped")
-assert(itemAuraIcon._auraActive == false,
-    "removed player aura should clear stale item aura state")
-assert(itemAuraIcon._resolvedCooldownMode == "item-cooldown",
-    "removed item aura should reveal the underlying item cooldown")
+    "removed player aura should still re-resolve the owning item icon")
 assert(itemAuraAppliedDuration == itemCooldownDur,
-    "removed item aura should bind the item cooldown DurationObject")
+    "removed item aura should reveal the item cooldown DurationObject")
 assert(itemAuraReverse == false,
-    "removed item aura should leave aura/reverse cooldown mode")
+    "removed item aura should leave item-cooldown mode")
+
+resolveCounts.customCooldown = 0
+
+icons.HandleRuntimeRefresh("UNIT_AURA", "pet", {
+    isFullUpdate = false,
+    addedAuras = {
+        { spellId = 1235391, auraInstanceID = 902 },
+    },
+})
+
+assert(resolveCounts.customCooldown == 1,
+    "added linked pet aura should re-resolve the originating cooldown icon")
+resolveCounts.customCooldown = 0
+
+icons.HandleRuntimeRefresh("UNIT_AURA", "pet", {
+    isFullUpdate = false,
+    removedAuraInstanceIDs = { 901 },
+})
+
+assert(resolveCounts.customCooldown == 0,
+    "removed unrelated pet auras must not re-resolve custom cooldown icons")
+
+customCooldownAppliedDuration = nil
+customCooldownReverse = nil
+customCooldownApplyCount = 0
+resolveCounts.customCooldown = 0
+resolveCounts.linkedCooldown = 0
+
+icons.HandleRuntimeRefresh("UNIT_AURA", "pet", nil)
+
+assert(resolveCounts.customCooldown == 1,
+    "unknown/full pet aura refreshes should re-resolve custom cooldown icons")
+assert(customCooldownAppliedDuration == customCooldownDur,
+    "unknown/full pet aura refreshes should bind the custom cooldown DurationObject")
+assert(customCooldownReverse == false,
+    "unknown/full pet aura refreshes should keep the custom icon on cooldown mode")
+assert(resolveCounts.linkedCooldown == 1,
+    "unknown/full pet aura refreshes should re-resolve linked built-in cooldown icons")
 
 itemAuraActive = true
 itemAuraPublishesInstanceID = true

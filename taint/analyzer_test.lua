@@ -148,6 +148,10 @@ r5:addSource("C_Spell.GetSpellCooldownDuration")
 -- safe-sink branch rather than the round-13 default-reject fall-through.
 r5:addSafeSinkMethod("SetCooldownFromDurationObject")
 r5:addSafeSinkMethod("SetText")
+r5:addSafeSinkMethod("SetValue", { 2 })
+r5:addSafeSinkFunction("C_VoiceChat.SpeakText", { 1, 3, 4, 5 })
+r5:addSource("C_UnitAuras.GetUnitAuraBySpellID")
+r5:addSafeSinkFunction("C_UnitAuras.GetUnitAuraBySpellID", { 1 })
 
 local source6 = [[
 local durObj = C_Spell.GetSpellCooldownDuration(123)
@@ -171,6 +175,329 @@ local m = tonumber(n)
 ]]
 local findings8 = Analyzer.analyze(source8, "modules/foo.lua", r5, cfg)
 assert_eq(#findings8, 1, "control: tonumber still emits finding")
+
+do
+local source8b = [[
+local secret = C_Spell.GetSpellCooldownDuration(1)
+C_VoiceChat.SpeakText(1, secret, 1, 1, false)
+]]
+assert_eq(#Analyzer.analyze(source8b, "modules/foo.lua", r5, cfg), 0,
+    "ConditionalSecret argument accepts taint")
+
+for _, args in ipairs({
+    'secret, "text", 1, 1, false',
+    '1, "text", secret, 1, false',
+    '1, "text", 1, secret, false',
+    '1, "text", 1, 1, secret',
+}) do
+    local source8c = "local secret = C_Spell.GetSpellCooldownDuration(1)\n"
+        .. "C_VoiceChat.SpeakText(" .. args .. ")"
+    assert_eq(#Analyzer.analyze(source8c, "modules/foo.lua", r5, cfg), 1,
+        "every NeverSecret argument rejects taint")
+end
+
+local source8d = [[
+local function speak(voiceID)
+    C_VoiceChat.SpeakText(voiceID, "text", 1, 1, false)
+end
+speak(C_Spell.GetSpellCooldownDuration(1))
+]]
+assert_eq(#Analyzer.analyze(source8d, "modules/foo.lua", r5, cfg), 1,
+    "NeverSecret argument rejection propagates through function summaries")
+
+local source8e = [[
+local secret = C_Spell.GetSpellCooldownDuration(1)
+C_UnitAuras.GetUnitAuraBySpellID(secret, 123)
+]]
+assert_eq(#Analyzer.analyze(source8e, "modules/foo.lua", r5, cfg), 1,
+    "source APIs still reject taint in NeverSecret arguments")
+
+local source8f = [[
+local function getAura(unit)
+    return C_UnitAuras.GetUnitAuraBySpellID(unit, 123)
+end
+getAura(C_Spell.GetSpellCooldownDuration(1))
+]]
+assert_eq(#Analyzer.analyze(source8f, "modules/foo.lua", r5, cfg), 1,
+    "source API positional rejection propagates through function summaries")
+
+local source8g = [[
+local secret = C_Spell.GetSpellCooldownDuration(1)
+bar:SetValue(1, secret)
+]]
+assert_eq(#Analyzer.analyze(source8g, "modules/foo.lua", r5, cfg), 1,
+    "widget NeverSecret argument rejects taint")
+
+local source8h = [[
+local secret = C_Spell.GetSpellCooldownDuration(1)
+bar:SetValue(secret, false)
+]]
+assert_eq(#Analyzer.analyze(source8h, "modules/foo.lua", r5, cfg), 0,
+    "widget secret-capable argument accepts taint")
+
+local source8i = [[
+local function setInterpolation(bar, interpolation)
+    bar:SetValue(1, interpolation)
+end
+setInterpolation(bar, C_Spell.GetSpellCooldownDuration(1))
+]]
+assert_eq(#Analyzer.analyze(source8i, "modules/foo.lua", r5, cfg), 1,
+    "widget positional rejection propagates through function summaries")
+
+local source8j = [[
+bar:SetValue(pcall(C_Spell.GetSpellCooldownDuration, 1))
+]]
+assert_eq(#Analyzer.analyze(source8j, "modules/foo.lua", r5, cfg), 1,
+    "expanded pcall result reaches the widget NeverSecret position")
+
+local source8k = [[
+bar:SetValue(1, pcall(C_Spell.GetSpellCooldownDuration, 1))
+]]
+assert_eq(#Analyzer.analyze(source8k, "modules/foo.lua", r5, cfg), 0,
+    "pcall status in the widget NeverSecret position stays clean")
+
+local source8l = [[
+local function setValue(value, interpolation)
+    bar:SetValue(value, interpolation)
+end
+setValue(pcall(C_Spell.GetSpellCooldownDuration, 1))
+]]
+assert_eq(#Analyzer.analyze(source8l, "modules/foo.lua", r5, cfg), 1,
+    "expanded pcall results map to wrapper sink parameters")
+
+local source8m = [[
+local function setInterpolation(interpolation)
+    bar:SetValue(1, interpolation)
+end
+setInterpolation(pcall(C_Spell.GetSpellCooldownDuration, 1))
+]]
+assert_eq(#Analyzer.analyze(source8m, "modules/foo.lua", r5, cfg), 0,
+    "wrapper sink receives only the clean pcall status parameter")
+
+local source8n = [[
+local function pair(value)
+    return false, value
+end
+local function setValue(value)
+    bar:SetValue(pair(value))
+end
+setValue(C_Spell.GetSpellCooldownDuration(1))
+]]
+assert_eq(#Analyzer.analyze(source8n, "modules/foo.lua", r5, cfg), 1,
+    "expanded local returns map to summary sink positions")
+
+local source8o = [[
+C_VoiceChat.SpeakText(1,
+    pcall(C_Spell.GetSpellCooldownDuration, 1))
+]]
+assert_eq(#Analyzer.analyze(source8o, "modules/foo.lua", r5, cfg), 1,
+    "expanded pcall result reaches a function NeverSecret position")
+
+local source8p = [[
+C_VoiceChat.SpeakText(1, "text", 1, 1,
+    pcall(C_Spell.GetSpellCooldownDuration, 1))
+]]
+assert_eq(#Analyzer.analyze(source8p, "modules/foo.lua", r5, cfg), 0,
+    "function NeverSecret position receives only the clean pcall status")
+
+local source8Unknown = [[
+bar:SetValue(C_Spell.GetSpellCooldownDuration(1))
+]]
+assert_eq(#Analyzer.analyze(source8Unknown, "modules/foo.lua", r5, cfg), 1,
+    "unknown source arity keeps conservative direct expansion")
+
+local r5Arity = Registry.new()
+r5Arity:addSource("UnitHealthPercent", 1)
+r5Arity:addSafeSinkMethod("SetValue", { 2 })
+local source8q = [[
+bar:SetValue(UnitHealthPercent("player"))
+]]
+assert_eq(#Analyzer.analyze(source8q, "modules/foo.lua", r5Arity, cfg), 0,
+    "single-return source does not spill into a later NeverSecret position")
+
+local source8r = [[
+bar:SetValue(pcall(UnitHealthPercent, "player"))
+]]
+assert_eq(#Analyzer.analyze(source8r, "modules/foo.lua", r5Arity, cfg), 1,
+    "single-return protected source reaches its one runtime result position")
+
+r5Arity:addSafeSinkFunction("RejectThird", { 3 })
+for _, call in ipairs({
+    'pcall(UnitHealthPercent, "player")',
+    'xpcall(UnitHealthPercent, handler, "player")',
+}) do
+    assert_eq(#Analyzer.analyze("RejectThird(" .. call .. ")",
+        "modules/foo.lua", r5Arity, cfg), 0,
+        "protected one-return source has no third runtime result")
+end
+
+local source8s = [[
+local state = {}
+state.value = { nested = UnitHealthPercent("player") }
+local first
+first, state.value = UnitHealthPercent("player")
+if state.value.nested then return end
+]]
+assert_eq(#Analyzer.analyze(source8s, "modules/foo.lua", r5Arity, cfg), 0,
+    "past-arity nil spill clears stale member descendants")
+
+r5Arity:addSafeSinkFunction("RejectFirst", { 1 })
+r5Arity:addSafeSinkFunction("RejectSecond", { 2 })
+local positionalSummaryCases = {
+    { "identity has no second result", [=[
+local function id(v) return v end
+bar:SetValue(id(UnitHealthPercent("player")))
+]=], 0 },
+    { "second pair result stays clean", [=[
+local function pair(v) return v, false end
+bar:SetValue(pair(UnitHealthPercent("player")))
+]=], 0 },
+    { "second pair result carries its parameter", [=[
+local function pair(v) return false, v end
+bar:SetValue(pair(UnitHealthPercent("player")))
+]=], 1 },
+    { "scalar call reads only result one", [=[
+local function pair(v) return false, v end
+local value = pair(UnitHealthPercent("player"))
+if value then return end
+]=], 0 },
+    { "expanded temp binding reads result two", [=[
+local function pair(v) return false, v end
+local _, value = pair(UnitHealthPercent("player"))
+if value then return end
+]=], 1 },
+    { "nested summaries retain result positions", [=[
+local function pair(v) return false, v end
+local function outer(v) return pair(v) end
+bar:SetValue(outer(UnitHealthPercent("player")))
+]=], 1 },
+    { "returned varargs stop at supplied arguments", [=[
+local function pass(...) return ... end
+RejectSecond(pass(UnitHealthPercent("player")))
+]=], 0 },
+    { "returned varargs retain supplied arguments", [=[
+local function pass(...) return ... end
+RejectFirst(pass(UnitHealthPercent("player")))
+]=], 1 },
+    { "fixed-prefix varargs keep their positions", [=[
+local function tail(first, ...) return false, ... end
+bar:SetValue(tail(1, UnitHealthPercent("player")))
+]=], 1 },
+    { "non-final vararg expression stays scalar", [=[
+local function first(...) return ..., false end
+RejectFirst(first(UnitHealthPercent("player")))
+]=], 1 },
+    { "parenthesized vararg expression stays scalar", [=[
+local function first(...) return (...) end
+RejectFirst(first(UnitHealthPercent("player")))
+]=], 1 },
+    { "vararg sink argument stays positional", [=[
+local function consume(...) RejectFirst(..., false) end
+consume(UnitHealthPercent("player"))
+]=], 1 },
+    { "vararg temp binding stays positional", [=[
+local function consume(...)
+    local value, other = ..., false
+    RejectFirst(value)
+end
+consume(UnitHealthPercent("player"))
+]=], 1 },
+    { "string-call summary has a finite result", [=[
+local function source(_) return UnitHealthPercent("player") end
+bar:SetValue(source "player")
+]=], 0 },
+    { "string-call summary retains result one", [=[
+local function source(_) return UnitHealthPercent("player") end
+RejectFirst(source "player")
+]=], 1 },
+    { "table-call summary has a finite result", [=[
+local function source(_) return UnitHealthPercent("player") end
+bar:SetValue(source {})
+]=], 0 },
+    { "table-call summary resolves its timeline", [=[
+local function source(_) return UnitHealthPercent("player") end
+RejectFirst(source {})
+]=], 1 },
+    { "pcall wrapper shifts protected results", [=[
+local function id(v) return v end
+local function protect(v) return pcall(id, v) end
+bar:SetValue(protect(UnitHealthPercent("player")))
+]=], 1 },
+    { "xpcall wrapper shifts protected results", [=[
+local function id(v) return v end
+local function protect(v) return xpcall(id, error, v) end
+bar:SetValue(protect(UnitHealthPercent("player")))
+]=], 1 },
+    { "pcall failure result retains thrown input", [=[
+local function boom(v) error(v) end
+local function protect(v) return pcall(boom, v) end
+RejectSecond(protect(UnitHealthPercent("player")))
+]=], 2 },
+    { "xpcall handler retains the error input", [=[
+local function boom(v) error(v) end
+local function handler(v) return v end
+local function protect(v) return xpcall(boom, handler, v) end
+RejectSecond(protect(UnitHealthPercent("player")))
+]=], 2 },
+    { "xpcall handler source taints the error result", [=[
+local function boom() error("boom") end
+local function handler() return UnitHealthPercent("player") end
+local function protect() return xpcall(boom, handler) end
+RejectSecond(protect())
+]=], 1 },
+    { "pcall wrapper preserves callee sink effects", [=[
+local function consume(v) RejectFirst(v) end
+local function protect(v) return pcall(consume, v) end
+protect(UnitHealthPercent("player"))
+]=], 1 },
+    { "xpcall wrapper preserves callee sink effects", [=[
+local function consume(v) RejectFirst(v) end
+local function protect(v) return xpcall(consume, error, v) end
+protect(UnitHealthPercent("player"))
+]=], 1 },
+    { "parenthesized returned call truncates", [=[
+local function id(v) return v end
+local function one(v) return (id(v)) end
+bar:SetValue(one(UnitHealthPercent("player")))
+]=], 0 },
+    { "unknown callable alternative stays conservative", [=[
+local function id(v) return v end
+local fn = id
+if condition then fn = External end
+bar:SetValue(fn(UnitHealthPercent("player")))
+]=], 1 },
+    { "unknown callable alternative sees expanded arguments", [=[
+local function clean() return false end
+local function pair(v) return false, v end
+local fn = clean
+if condition then fn = External end
+RejectFirst(fn(pair(UnitHealthPercent("player"))))
+]=], 1 },
+    { "constructor final call expands all results", [=[
+local function pair(v) return false, v end
+local function wrap(v) return { pair(v) } end
+local values = wrap(UnitHealthPercent("player"))
+RejectFirst(values[2])
+]=], 1 },
+    { "constructor final vararg expands all results", [=[
+local function wrap(...) return { ... } end
+local values = wrap(false, UnitHealthPercent("player"))
+RejectFirst(values[2])
+]=], 1 },
+    { "past summary arity clears stale descendants", [=[
+local function one() return {} end
+local state = { value = {} }
+state.value.nested = UnitHealthPercent("player")
+local _, replacement = one()
+state.value = replacement
+if state.value.nested then return end
+]=], 0 },
+}
+for _, case in ipairs(positionalSummaryCases) do
+    assert_eq(#Analyzer.analyze(case[2], "modules/foo.lua", r5Arity, cfg),
+        case[3], case[1])
+end
+end
 
 print("safe sink test passed")
 
@@ -1143,6 +1470,8 @@ print("precondition scan test passed")
 do
 local rEvt = Registry.new()
 rEvt:addSecretPayloadEvent("UNIT_AURA", { 4 })
+rEvt:addSecretPayloadEvent("VOICE_CHAT_TTS_PLAYBACK_BOOKMARK",
+    { 4, gateGoverned = false })
 
 -- Handler detected by its event-name comparison: configured param position 4
 -- (updateInfo) is a taint source; position 3 (unit) is not.
@@ -1173,6 +1502,19 @@ assert_eq(#Analyzer.analyze(srcE2, "modules/foo.lua", rEvt, cfg), 0,
 -- Registry without configured events: no seeding at all
 assert_eq(#Analyzer.analyze(srcE1, "modules/foo.lua", rPre, cfg), 0,
     "no event_payload_params config, no seeding")
+
+local srcE3 = [[
+local f = CreateFrame("Frame")
+f:SetScript("OnEvent", function(self, event, utteranceID, bookmarkName)
+    if event == "VOICE_CHAT_TTS_PLAYBACK_BOOKMARK" then
+        if C_Secrets.ShouldAurasBeSecret() then return end
+        print(utteranceID)
+        print(bookmarkName)
+    end
+end)
+]]
+assert_eq(#Analyzer.analyze(srcE3, "modules/foo.lua", rEvt, cfg), 1,
+    "bookmarkName is tainted, utteranceID is clean, and the aura gate cannot clear it")
 
 end
 print("secret event payload test passed")

@@ -41,6 +41,16 @@ assertContains(overrideFrameXML, "function OverrideActionBarMixin:UpdateSkin()",
     "OverrideActionBar UpdateSkin is the owner lifecycle before QUI reskins")
 assertContains(overrideFrameXML, "self:Setup(C_ActionBar.GetOverrideBarSkin(), C_ActionBar.GetOverrideBarIndex());",
     "OverrideActionBar UpdateSkin must be treated as a Blizzard reset point")
+assertContains(overrideFrameXML, "self.HasExit, self.HasPitch = select(6, ...);",
+    "OverrideActionBar must derive exit visibility from Blizzard's vehicle event")
+assertContains(overrideFrameXML, "self.leaveFrame:Show();",
+    "OverrideActionBar must show its leave frame when Blizzard reports an exit")
+
+local overrideFrameXMLLayout = readFile("tests/framexml/Interface/AddOns/Blizzard_OverrideActionBar/OverrideActionBar.xml")
+assertContains(overrideFrameXMLLayout, '<Frame name="$parentLeaveFrame" parentKey="leaveFrame" useParentLevel="true">',
+    "OverrideActionBar must expose its Blizzard-owned leave frame")
+assertContains(overrideFrameXMLLayout, '<Button name="$parentLeaveButton" parentKey="LeaveButton">',
+    "OverrideActionBar leave button must remain a child of the Blizzard-owned leave frame")
 
 local actionBarController = readFile("tests/framexml/Interface/AddOns/Blizzard_ActionBarController/ActionBarController.lua")
 assertContains(actionBarController, "OverrideActionBar:UpdateSkin();",
@@ -53,8 +63,10 @@ assertAbsent(objectiveSource, "C_Timer.After(0.15",
     "ObjectiveTracker protected post-layout updates must not use a fixed 0.15s delay")
 assertContains(objectiveSource, "local function DeferObjectiveTrackerPostLayoutUpdate()",
     "ObjectiveTracker must use a named post-layout defer helper")
-assertContains(objectiveSource, "FrameXML DirtiableMixin:MarkDirty uses RunNextFrame",
-    "ObjectiveTracker defer helper must document the FrameXML lifecycle reason")
+assertAbsent(objectiveSource, 'hooksecurefunc(TrackerFrame, "Update"',
+    "ObjectiveTracker cosmetics must not attach to Blizzard's owner update lifecycle")
+assertAbsent(objectiveSource, 'TrackerFrame:HookScript("OnSizeChanged"',
+    "ObjectiveTracker cosmetics must not enter Blizzard's dirty resize lifecycle")
 
 local overrideSource = readFile("modules/skinning/frames/overrideactionbar.lua")
 assertAbsent(overrideSource, "C_Timer.After(0.15",
@@ -67,5 +79,11 @@ assertContains(overrideSource, "FrameXML OverrideActionBarMixin:UpdateSkin reset
     "OverrideActionBar defer helper must document the FrameXML lifecycle reason")
 assertAbsent(overrideSource, "if not bar or SkinBase.IsSkinned(bar) then return end",
     "OverrideActionBar UpdateSkin can reset an already-skinned bar, so post-update reskinning must stay idempotent")
+assertAbsent(overrideSource, "MicroMenu",
+    "OverrideActionBar skinning must leave the native MicroMenu lifecycle and layout state Blizzard-owned")
+assertAbsent(overrideSource, "bar.leaveFrame:SetAlpha(",
+    "OverrideActionBar skinning must not hide the Blizzard-owned leave button through its parent alpha")
+assertAbsent(overrideSource, "bar.LeaveButton:Show()",
+    "OverrideActionBar skinning must leave exit availability and visibility Blizzard-owned")
 
 print("OK: skinning_protected_defer_lifecycle_test")

@@ -5,6 +5,10 @@ local loadChunk = dofile("tests/helpers/load_cdm_consolidated_chunk.lua")
 loadChunk("QUI_CDM/cdm/cdm_reanchor_hooks.lua", "cdm_reanchor_hooks.lua")("QUI", ns)
 local H = assert(ns.CDMReanchorHooks, "CDMReanchorHooks should be exported")
 assert(type(H.New) == "function", "New is a function")
+local preparedFrames = {}
+ns._OwnedHighlighter = {
+    PrepareReanchoredFrame = function(frame) preparedFrames[frame] = true end,
+}
 
 -- scheduler that records the callback so the test drives the flush
 local pending
@@ -84,6 +88,8 @@ assert(#hookInstalls == 0, "nil viewers do not permanently block later hook inst
 h2:InstallViewerHooks(function(k) return viewers[k] end)
 assert(#hookInstalls >= 6, "viewer acquire/refresh and frame state hooks installed")
 assert(hookInstalls[1].method == "RefreshLayout", "hooks RefreshLayout")
+assert(preparedFrames[existingFrame] == true,
+    "icon viewer frames prewarm pressed-effect visuals")
 -- idempotent: re-install does not double-hook
 local installedCount = #hookInstalls
 h2:InstallViewerHooks(function(k) return viewers[k] end)
@@ -111,6 +117,46 @@ for _, h in ipairs(hookInstalls) do
     if h.owner == acquiredFrame and h.method == "OnCooldownIDSet" then acquiredIDHook = h.fn end
 end
 assert(type(acquiredIDHook) == "function", "acquired frame gets cooldown-id hook")
+assert(preparedFrames[acquiredFrame] == true,
+    "acquired icon viewer frames prewarm pressed-effect visuals")
+
+do
+    local barFrame = makeFrame()
+    local barRefreshes = {}
+    local barPending = {}
+    local barPool = {
+        EnumerateActive = function()
+            local yielded = false
+            return function()
+                if yielded then return nil end
+                yielded = true
+                return barFrame
+            end
+        end,
+    }
+    local barViewer = { RefreshLayout = function() end, itemFramePool = barPool }
+    local barHooks = H.New({
+        refresh = function(k) barRefreshes[#barRefreshes + 1] = k end,
+        keys = { "trackedBar" },
+        hooksecurefunc = fakeHook,
+        schedule = function(fn) barPending[#barPending + 1] = fn end,
+    })
+    barHooks:InstallViewerHooks(function() return barViewer end)
+    assert(preparedFrames[barFrame] == nil,
+        "bar viewer frames do not allocate icon pressed-effect visuals")
+
+    local refreshHook
+    for _, h in ipairs(hookInstalls) do
+        if h.owner == barViewer and h.method == "RefreshLayout" then refreshHook = h.fn end
+    end
+    assert(type(refreshHook) == "function", "tracked-bar test installs RefreshLayout hook")
+    refreshHook(barViewer)
+    assert(#barRefreshes == 0 and #barPending == 1,
+        "tracked-bar RefreshLayout exits Blizzard's callback stack before refreshing")
+    barPending[1]()
+    assert(#barRefreshes == 1 and barRefreshes[1] == "trackedBar",
+        "tracked-bar refresh runs through the delayed lifecycle scheduler")
+end
 
 before = #h2refresh
 activeHook(existingFrame)
@@ -248,9 +294,7 @@ do
     assert(#pending == 0, "buff RefreshLayout bypasses the generic delayed scheduler")
 end
 
--- Buff pool acquisition is latency-sensitive too. A newly acquired native
--- BuffIcon item can flash at Blizzard's native position if we wait for the
--- generic delayed dirty flush. Reference-style hooks re-claim immediately.
+-- Buff pool acquisition queues through the generic delayed dirty flush.
 do
     local installs = {}
     local refreshes = {}
@@ -258,26 +302,42 @@ do
     local function hook(owner, method, fn)
         installs[#installs + 1] = { owner = owner, method = method, fn = fn }
     end
-    local viewer = { RefreshLayout = function() end, OnAcquireItemFrame = function() end }
-    local immediate = H.New({
+    local pool = { Acquire = function() end }
+    local viewer = {
+        RefreshLayout = function() end,
+        OnAcquireItemFrame = function() end,
+        itemFramePool = pool,
+    }
+    local deferred = H.New({
         refresh = function(k) refreshes[#refreshes + 1] = k end,
         keys = { "buff" },
         hooksecurefunc = hook,
         schedule = function(fn) pending[#pending + 1] = fn end,
-        immediateAcquireKeys = { buff = true },
     })
-    immediate:InstallViewerHooks(function() return viewer end)
+    deferred:InstallViewerHooks(function() return viewer end)
 
-    local acquireHook
+    local acquireHook, poolAcquireHook
     for _, h in ipairs(installs) do
         if h.owner == viewer and h.method == "OnAcquireItemFrame" then acquireHook = h.fn end
+        if h.owner == pool and h.method == "Acquire" then poolAcquireHook = h.fn end
     end
-    assert(type(acquireHook) == "function", "immediate acquire test installs OnAcquireItemFrame hook")
+    assert(type(acquireHook) == "function", "deferred acquire test installs OnAcquireItemFrame hook")
+    assert(type(poolAcquireHook) == "function", "deferred acquire test installs pool Acquire hook")
 
     acquireHook(viewer, { OnCooldownIDSet = function() end })
+    assert(#refreshes == 0, "buff OnAcquireItemFrame does not refresh synchronously")
+    assert(#pending == 1, "buff OnAcquireItemFrame uses the delayed dirty scheduler")
+    pending[1]()
     assert(#refreshes == 1 and refreshes[1] == "buff",
-        "buff OnAcquireItemFrame refreshes immediately")
-    assert(#pending == 0, "buff OnAcquireItemFrame bypasses the generic delayed scheduler")
+        "buff OnAcquireItemFrame refreshes when the dirty scheduler flushes")
+
+    refreshes, pending = {}, {}
+    poolAcquireHook(pool)
+    assert(#refreshes == 0, "buff pool Acquire does not refresh synchronously")
+    assert(#pending == 1, "buff pool Acquire uses the delayed dirty scheduler")
+    pending[1]()
+    assert(#refreshes == 1 and refreshes[1] == "buff",
+        "buff pool Acquire refreshes when the dirty scheduler flushes")
 end
 
 -- Global CooldownViewer item mixin hooks catch Blizzard item mutations even
@@ -296,7 +356,6 @@ do
         keys = { "buff", "trackedBar" },
         hooksecurefunc = hook,
         schedule = function(fn) pending[#pending + 1] = fn end,
-        immediateAcquireKeys = { buff = true, trackedBar = true },
         getMixinForKey = function(key)
             if key == "buff" then return buffMixin end
             if key == "trackedBar" then return trackedBarMixin end
@@ -345,6 +404,22 @@ assert(sub and sub.name == "reanchor" and type(sub.fn) == "function", "subscribe
 before = #h2refresh
 sub.fn("data_loaded")
 assert(#h2refresh == before + 2, "CDMIndex events dirty all managed containers")
+
+local filteredRefreshes = {}
+local filtered = H.New({
+    keys = { "essential", "utility" },
+    refresh = function(key) filteredRefreshes[#filteredRefreshes + 1] = key end,
+    ignoreIndexReasons = { refresh_layout = true },
+})
+local filteredSub
+filtered:InstallIndexSubscription({
+    Subscribe = function(_, fn) filteredSub = fn end,
+})
+filteredSub("refresh_layout")
+assert(#filteredRefreshes == 0, "refresh-layout broker noise does not dirty native containers")
+filteredSub("data_loaded")
+filtered:Flush()
+assert(#filteredRefreshes == 2, "data broker changes still dirty native containers")
 
 -- Buff acquire blanking is reference-style but must wait until the first
 -- successful reanchor pass. Blanking during first-login cold load can hide the
@@ -429,6 +504,56 @@ do
     batchHooks:MarkImmediate("buff")
     assert(#batches == 2 and #batches[2] == 1 and batches[2][1] == "buff",
         "immediate paths also enter the batch refresh seam")
+end
+
+do
+    local installs = {}
+    local function hook(owner, method, fn)
+        installs[#installs + 1] = { owner = owner, method = method, fn = fn }
+    end
+    local frame = {
+        OnActiveStateChanged = function() end,
+        OnCooldownIDSet = function() end,
+        HookScript = function() end,
+    }
+    local viewer
+    viewer = {
+        RefreshLayout = function() end,
+        HookScript = function(_, method) installs[#installs + 1] = { owner = viewer, method = method } end,
+        itemFramePool = {
+            EnumerateActive = function()
+                local yielded = false
+                return function()
+                    if yielded then return nil end
+                    yielded = true
+                    return frame
+                end
+            end,
+        },
+    }
+    local mixin = { OnCooldownIDSet = function() end }
+    local gated = H.New({
+        keys = { "essential" },
+        hooksecurefunc = hook,
+        shouldTrackActiveState = function() return false end,
+        shouldTrackCooldownID = function() return false end,
+        getMixinForKey = function() return mixin end,
+    })
+    gated:InstallGlobalMixinHooks()
+    gated:InstallViewerHooks(function() return viewer end)
+    local methods = {}
+    for _, install in ipairs(installs) do
+        if install.owner == frame then methods[install.method] = true end
+    end
+    assert(not methods.OnActiveStateChanged and not methods.OnShow,
+        "always-mode Essential skips active-state reanchor hooks")
+    assert(not methods.OnCooldownIDSet,
+        "native Essential skips cooldown-id reanchor hooks during runtime state churn")
+    for _, install in ipairs(installs) do
+        assert(install.owner ~= mixin, "native Essential skips global cooldown-id hooks")
+        assert(install.method ~= "OnShow" and install.method ~= "OnHide",
+            "native Essential skips viewer visibility hooks during runtime state churn")
+    end
 end
 
 print("OK: cdm_reanchor_hooks_test")

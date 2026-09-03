@@ -20,6 +20,8 @@ local normalizeEnd = assert(source:find("Data._NormalizeSpells", normalizeStart,
 local normalizeChunk = source:sub(normalizeStart, normalizeEnd - 1)
 local normalizeEnv = {
     ipairs = ipairs,
+    type = type,
+    IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
     C_Spell = {
         GetSpellInfo = function(spellID)
             assert(not rawequal(spellID, secretSpellID), "secret spellID must not reach C_Spell.GetSpellInfo")
@@ -41,9 +43,72 @@ local normalized = NormalizeSpells({
 
 assert(rawequal(normalized[1].spellID, secretSpellID), "secret spellID should stay on the row by identity")
 assert(normalized[1].name == "Hidden Spell", "secret spellID row should use creatureName fallback")
-assert(normalized[1].iconID == nil, "secret spellID row should not resolve icon through C_Spell")
+assert(normalized[1].iconID == nil, "secret spellID row should defer icon resolution to the texture sink path")
 assert(normalized[2].name == "Spell 123", "non-secret spellID should still resolve spell info")
 assert(normalized[2].iconID == 1123, "non-secret spellID should still resolve icon")
+local SecretSentinel = dofile("tests/helpers/secret_sentinel.lua")
+local Instrument = dofile("tests/helpers/secret_instrument.lua")
+local restoreSecretStub = SecretSentinel.InstallSecretStub()
+local secretTexture = SecretSentinel.MakeSecretSentinel()
+local renderStart = assert(source:find("function Breakdown:_SetSpellRow", 1, true))
+local renderEnd = assert(source:find("\nfunction Breakdown:_SetDeathRow", renderStart))
+local renderChunk = source:sub(renderStart, renderEnd - 1)
+local renderedTexture
+local renderEnv = setmetatable({
+    type = type,
+    string = string,
+    Breakdown = {},
+    ApplyRowBackgroundVisibility = function() end,
+    IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
+    C_Spell = {
+        GetSpellTexture = function(spellID)
+            assert(rawequal(spellID, secretSpellID), "texture lookup must receive the secret spellID unchanged")
+            return secretTexture, 5252, 6262
+        end,
+    },
+    Helpers = {
+        IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
+    },
+    ResolveAppearance = function(_, key)
+        if key == "numberFormat" then return "compact" end
+        if key == "barFillAlpha" then return 1 end
+        if key == "barColorAccent" then return true end
+    end,
+    FormatNumber = function(value) return tostring(value) end,
+    ComputeBarFill = function() return 0, 100, 100 end,
+    GetAccentColor = function() return 1, 1, 1, 1 end,
+}, { __index = _G })
+local renderLoader = assert(Instrument.loadString(renderChunk .. "\nreturn Breakdown._SetSpellRow",
+    "damage_meter_secret_spell_texture"))
+setfenv(renderLoader, renderEnv)
+local SetSpellRow = renderLoader()
+local row = {
+    Icon = {
+        SetTexture = function(_, texture, ...)
+            assert(select("#", ...) == 0, "texture sink must receive only GetSpellTexture's first return")
+            renderedTexture = texture
+        end,
+        SetTexCoord = function() end,
+    },
+    Name = { SetFormattedText = function() end, SetText = function() end },
+    Value = { SetText = function() end },
+    Bar = {
+        SetMinMaxValues = function() end,
+        SetValue = function() end,
+        SetStatusBarColor = function() end,
+    },
+}
+SetSpellRow({ parentWindowID = 1 }, row, normalized[1], 100, 100)
+assert(rawequal(renderedTexture, secretTexture),
+    "secret spell texture must pass directly from C_Spell.GetSpellTexture to Texture:SetTexture")
+SecretSentinel.RestoreSecretStub(restoreSecretStub)
+local reusedRow = normalized[1]
+local limited = NormalizeSpells({
+    { spellID = 456, creatureName = "Limited", totalAmount = 25, amountPerSecond = 2.5 },
+    { spellID = 789, creatureName = "Trimmed", totalAmount = 10, amountPerSecond = 1 },
+}, normalized, 1)
+assert(limited == normalized and limited[1] == reusedRow and #limited == 1,
+    "limited normalization must reuse row storage and trim to the visible count")
 
 local utilityStart = assert(source:find("local function SortByDescSafe", 1, true))
 local utilityEnd = assert(source:find("local Data = {}", utilityStart, true))
@@ -65,7 +130,9 @@ local combinedEnv = {
     table = table,
     math = math,
     type = type,
+    tostring = tostring,
     rawequal = rawequal,
+    IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
     QUI_DamageMeter = {},
     Enum = { DamageMeterType = { HealingDone = 2, Absorbs = 8 } },
     Helpers = {
@@ -96,5 +163,104 @@ local combined = Data:GetCombinedHealingBreakdown("current", "player", nil, nil)
 assert(#combined.spells == 2, "secret spellIDs must not be used as merge keys")
 assert(combined.spells[1].name == "Heal", "healing row should remain")
 assert(combined.spells[2].name == "Absorb", "absorb row should remain separate")
+local combinedFirstRow = combined.spells[1]
+local combinedAgain = Data:GetCombinedHealingBreakdown("current", "player", nil, nil, combined)
+assert(combinedAgain == combined and combinedAgain.spells[1] == combinedFirstRow,
+    "combined healing normalization must reuse its view and row storage")
+
+function Data:GetBreakdownView(_, meterType, _, _, _, _, limit)
+    assert(limit == nil, "combined limit must not truncate components before merging")
+    local offset = meterType == combinedEnv.Enum.DamageMeterType.HealingDone and 1000 or 2000
+    local ranked = {}
+    for i = 1, 40 do
+        ranked[i] = { spellID = offset + i, name = "Ranked", totalAmount = 100 - i }
+    end
+    ranked[41] = { spellID = 999, name = "Shared", totalAmount = 59 }
+    return { totalAmount = 1000, spells = ranked }
+end
+
+local limitedCombined = Data:GetCombinedHealingBreakdown("current", "player", nil, nil, nil, 40)
+assert(#limitedCombined.spells == 40 and limitedCombined.spells[1].spellID == 999,
+    "combined limit must be applied after cross-type merging and ranking")
+local limitedSpells = limitedCombined.spells
+local scratchRows = {}
+for _, spell in ipairs(limitedCombined._mergedSpells) do scratchRows[spell] = true end
+local limitedAgain = Data:GetCombinedHealingBreakdown(
+    "current", "player", nil, nil, limitedCombined, 40)
+assert(limitedAgain == limitedCombined and limitedAgain.spells == limitedSpells
+    and scratchRows[limitedAgain._mergedSpells[1]],
+    "limited combined healing must reuse visible and scratch storage")
+Data:GetCombinedHealingBreakdown("current", "player", nil, nil, limitedCombined, 10)
+assert(#limitedCombined.spells == 10, "a smaller combined limit must trim stale visible rows")
+
+local sessionKeyStart = assert(source:find("local function SessionKey", 1, true))
+local sessionKeyEnd = assert(source:find("QUI_DamageMeter.SessionKey", sessionKeyStart, true))
+local combinedViewStart = assert(source:find("function Data:GetCombinedHealingView", 1, true))
+local combinedViewEnd = assert(source:find("function Data:GetCombinedHealingBreakdown", combinedViewStart, true))
+local combinedViewChunk = table.concat({
+    source:sub(utilityStart, utilityEnd - 1),
+    source:sub(sessionKeyStart, sessionKeyEnd - 1),
+    "local Data = { _combinedHealingViews = {} }",
+    source:sub(combinedViewStart, combinedViewEnd - 1),
+    "return Data",
+}, "\n")
+local combinedViewLoader = assert(loadstring(combinedViewChunk))
+setfenv(combinedViewLoader, combinedEnv)
+local ViewData = combinedViewLoader()
+local healingView = {
+    generation = 1, duration = 60, totalAmount = 100,
+    sources = { { sourceGUID = "Player-One", totalAmount = 100, amountPerSecond = 10 } },
+}
+local absorbView = {
+    generation = 3, totalAmount = 50,
+    sources = { { sourceGUID = "Player-One", totalAmount = 50, amountPerSecond = 5 } },
+}
+function ViewData:GetView(_, meterType)
+    return meterType == combinedEnv.Enum.DamageMeterType.HealingDone and healingView or absorbView
+end
+local cachedView = ViewData:GetCombinedHealingView("current")
+local cachedViewAgain = ViewData:GetCombinedHealingView("current")
+assert(cachedViewAgain == cachedView and cachedViewAgain.sources[1] == cachedView.sources[1],
+    "combined player views must be reused for the same selector and generation pair")
+local oldCombinedRow = cachedView.sources[1]
+healingView = {
+    generation = 2, duration = 60, totalAmount = 120,
+    sources = { { sourceGUID = "Player-One", totalAmount = 120, amountPerSecond = 12 } },
+}
+local refreshedView = ViewData:GetCombinedHealingView("current")
+assert(refreshedView ~= cachedView and refreshedView.sources[1].totalAmount == 170
+    and oldCombinedRow.totalAmount == 150,
+    "generation changes must replace combined views without mutating retained rows")
+assert(ViewData:GetCombinedHealingView("current") == refreshedView,
+    "the refreshed generation pair must be reused")
+absorbView = {
+    generation = 4, totalAmount = 60,
+    sources = { { sourceGUID = "Player-One", totalAmount = 60, amountPerSecond = 6 } },
+}
+local absorbRefreshedView = ViewData:GetCombinedHealingView("current")
+assert(absorbRefreshedView ~= refreshedView and absorbRefreshedView.sources[1].totalAmount == 180,
+    "absorb generation changes must replace combined views")
+assert(ViewData:GetCombinedHealingView("current") == absorbRefreshedView,
+    "the absorb-refreshed generation pair must be reused")
+assert(ViewData:GetCombinedHealingView("current", 77) ~= absorbRefreshedView,
+    "combined player-view caches must remain isolated by session selector")
+healingView = {
+    generation = 5, duration = 60, totalAmount = 100,
+    sources = { { sourceGUID = secretSpellID, totalAmount = 100, amountPerSecond = 10 } },
+}
+absorbView = {
+    generation = 6, totalAmount = 50,
+    sources = { { sourceGUID = secretSpellID, totalAmount = 50, amountPerSecond = 5 } },
+}
+local secretView = ViewData:GetCombinedHealingView("current")
+assert(#secretView.sources == 2 and ViewData:GetCombinedHealingView("current") == secretView,
+    "secret GUID rows must remain separate on combined-view cache misses and hits")
+absorbView = { generation = 7, totalAmount = 0, sources = {} }
+assert(ViewData:GetCombinedHealingView("current") == healingView,
+    "empty absorbs must return the native cached healing view")
+local clearStart = assert(source:find("function Data:ClearCachedViews", 1, true))
+local clearEnd = assert(source:find("local _spellInfoCache", clearStart, true))
+assert(source:sub(clearStart, clearEnd):find("self._combinedHealingViews = {}", 1, true),
+    "clearing base views must release combined player-view caches")
 
 print("OK: damage_meter_secret_spellid_test")

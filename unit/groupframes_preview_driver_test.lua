@@ -543,7 +543,7 @@ test("dispel sample renders cleanse glow even with border disabled", function()
         }
     end
     local glow = TextRegion()
-    glow.tex = { SetVertexColor = function(self, ...) self.vertex = { ... } end }
+    glow.art = {}
     local frame = {
         nameText = TextRegion(), levelText = TextRegion(), healthText = TextRegion(),
         healthBar = {
@@ -553,9 +553,13 @@ test("dispel sample renders cleanse glow even with border disabled", function()
         cleanseGlow = glow,
         SetAlpha = function() end,
     }
+    local paintedColor
     ns.QUI_GroupFrameChrome = {
         Apply = function() end,
         ResizeHealthForPower = function() end,
+        SetCleanseGlowColor = function(art, color)
+            if art == glow.art then paintedColor = color end
+        end,
     }
     D._state.filter = D._NormalizeFilter(nil)
     D._ApplyFrameSettings(frame, {
@@ -570,7 +574,7 @@ test("dispel sample renders cleanse glow even with border disabled", function()
         },
     }, {}, "party")
     assert(glow.shown == true)
-    assert(glow.tex.vertex[1] == 0.2 and glow.tex.vertex[4] == 0.9)
+    assert(paintedColor and paintedColor[1] == 0.2 and paintedColor[4] == 0.9)
 end)
 
 test("tracked placeholders resolve REAL spell art, strips stay generic", function()

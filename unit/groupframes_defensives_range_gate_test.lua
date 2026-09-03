@@ -52,6 +52,8 @@ check("gated containers blank through the SetAlphaFromBoolean secret sink",
     src:find("container:SetAlphaFromBoolean(inRange, 1, 0)", 1, true) ~= nil)
 check("plain SetAlpha fallback rejects secret range values",
     src:find("elseif not IsSecretValue(inRange) then", 1, true) ~= nil)
+check("range-gated strips suppress their native combat tooltip",
+    src:find("profile.tooltipHideInCombat = true", 1, true) ~= nil)
 check("only marked containers are touched",
     src:find("container._quiRangeGated", 1, true) ~= nil)
 
@@ -61,7 +63,8 @@ check("only marked containers are touched",
 check("anchorContainer marks the container from the element",
     src:find("container._quiRangeGated = gated", 1, true) ~= nil)
 check("recycled container un-gates back to full alpha",
-    src:find("if container._quiRangeGated and not gated then", 1, true) ~= nil)
+    src:find("if container._quiRangeGated and not gated then", 1, true) ~= nil
+    and src:find("SetRangeGateMouse(container, true, true)", 1, true) ~= nil)
 check("ApplyElementPass seeds the gate after the container pass",
     src:find("QUI_GFA.ApplyRangeGate(frame)", 1, true) ~= nil)
 check("seed path resolves range via GF.CheckUnitRange",
@@ -94,17 +97,26 @@ local e = assert(src:find("\n%-%- <<< QUI_TEST_EXTRACT range_gate", fnStart), "e
 local fnSource = src:sub(fnStart, e - 1)
 
 local SECRET = setmetatable({}, { __tostring = function() return "<secret>" end })
-local prelude = "local ns, IsSecretValue, GetFrameUnit = ...\nlocal QUI_GFA = {}\n"
+local prelude = "local ns, IsSecretValue, GetFrameUnit, AurasAreSecret, InCombatLockdown, QueueContainerCombatWork = ...\nlocal QUI_GFA = {}\n"
 local nsStub = { QUI_GroupFrames = {} }
+local aurasSecret = false
+local inCombat = false
+local queuedFrame
 local chunk = assert(loadSource(
-    prelude .. fnSource .. "\nreturn QUI_GFA, ElementNeedsRangeGate", "range_gate"))
-local QUI_GFA, ElementNeedsRangeGate = chunk(
+    prelude .. fnSource .. "\nreturn QUI_GFA, ElementNeedsRangeGate, SetRangeGateMouse", "range_gate"))
+local QUI_GFA, ElementNeedsRangeGate, SetRangeGateMouse = chunk(
     nsStub,
     function(v) return v == SECRET end,
-    function(frame) return frame.unit end)
+    function(frame) return frame.unit end,
+    function() return aurasSecret end,
+    function() return inCombat end,
+    function(frame) queuedFrame = frame end)
 
 local function makeContainer(gated, withSink)
-    local c = { _quiRangeGated = gated, alpha = "untouched", sink = nil }
+    local button = { mouseMotion = "untouched", mouseClick = "untouched" }
+    button.SetMouseMotionEnabled = function(self, enabled) self.mouseMotion = enabled end
+    button.SetMouseClickEnabled = function(self, enabled) self.mouseClick = enabled end
+    local c = { _quiRangeGated = gated, _quiButtons = { button }, alpha = "untouched", sink = nil }
     c.SetAlpha = function(self, a) self.alpha = a end
     if withSink then
         c.SetAlphaFromBoolean = function(self, b, onA, offA)
@@ -140,12 +152,53 @@ do
     QUI_GFA.ApplyRangeGate(makeFrame({ c }), false)
     check("out of range blanks the gated strip via the sink (alpha 0)",
         c.sink and c.sink[1] == false and c.sink[2] == 1 and c.sink[3] == 0)
+    check("out of range disables the invisible aura button hitbox",
+        c._quiButtons[1].mouseMotion == false and c._quiButtons[1].mouseClick == false)
     QUI_GFA.ApplyRangeGate(makeFrame({ c }), true)
     check("back in range restores the gated strip via the sink (alpha 1)",
         c.sink and c.sink[1] == true)
+    check("back in range restores the aura button hitbox",
+        c._quiButtons[1].mouseMotion == true and c._quiButtons[1].mouseClick == true)
+    aurasSecret = true
+    c._quiButtons[1].mouseMotion = "untouched"
+    c._quiButtons[1].mouseClick = "untouched"
     local ok = pcall(QUI_GFA.ApplyRangeGate, makeFrame({ c }), SECRET)
     check("secret range passes through the sink untouched, no Lua branch",
         ok and c.sink and c.sink[1] == SECRET)
+    check("restricted aura buttons receive no forbidden mouse write",
+        c._quiButtons[1].mouseMotion == "untouched"
+        and c._quiButtons[1].mouseClick == "untouched")
+    aurasSecret = false
+end
+
+do
+    local c = makeContainer(true, true)
+    c._quiRangeGateMouseEnabled = false
+    c._quiButtons[1].mouseMotion = false
+    c._quiButtons[1].mouseClick = false
+    aurasSecret = true
+    SetRangeGateMouse(c, true, true)
+    check("restricted ungate remembers the clean mouse state without writing it",
+        c._quiRangeGateMouseEnabled == true and c._quiButtons[1].mouseMotion == false
+        and c._quiButtons[1].mouseClick == false)
+    aurasSecret = false
+end
+
+do
+    local c = makeContainer(true, true)
+    local frame = makeFrame({ c })
+    queuedFrame = nil
+    inCombat = true
+    QUI_GFA.ApplyRangeGate(frame, false)
+    check("combat range changes latch without protected mouse writes",
+        c._quiRangeGateMouseEnabled == false
+        and c._quiButtons[1].mouseMotion == "untouched"
+        and c._quiButtons[1].mouseClick == "untouched")
+    check("combat range changes queue the existing regen replay", queuedFrame == frame)
+    inCombat = false
+    QUI_GFA.ApplyRangeGate(queuedFrame, false)
+    check("regen replay applies both latched mouse states",
+        c._quiButtons[1].mouseMotion == false and c._quiButtons[1].mouseClick == false)
 end
 
 -- Fallback path (no sink API): plain booleans apply, secrets are rejected.

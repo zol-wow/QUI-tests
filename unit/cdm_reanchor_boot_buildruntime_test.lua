@@ -1,6 +1,15 @@
 -- tests/unit/cdm_reanchor_boot_buildruntime_test.lua
 -- Run: lua tests/unit/cdm_reanchor_boot_buildruntime_test.lua
 local ns = {}
+local secretGCD = {}
+local probedSecretGCD = false
+_G.issecretvalue = function(value)
+    if value == secretGCD then
+        probedSecretGCD = true
+        return true
+    end
+    return false
+end
 -- Task 45f: cdm_reanchor*.lua route discarded-result pcall guards through
 -- ns.SafeCall. Additive stub (T1d/T1e precedent) — bare pcall passthrough.
 ns.SafeCall = function(_policy, fn, ...) return pcall(fn, ...) end
@@ -24,7 +33,11 @@ local raw = {
 }
 
 -- a live viewer with two item frames: cd 11 (curated) and cd 99 (not curated)
-local fMatch, fDrop = { GetCooldownID = function() return 11 end }, { GetCooldownID = function() return 99 end }
+local fMatch, fDrop = {
+    GetCooldownID = function() return 11 end,
+    GetCooldownInfo = function() return { hasAura = true } end,
+    HasVisualDataSource_Charges = function() return true end,
+}, { GetCooldownID = function() return 99 end }
 local viewer = { GetItemFrames = function() return { fMatch, fDrop } end }
 local container = { SetSize = function() end }
 
@@ -39,6 +52,7 @@ local shellPositioned = false
 local clickSlotPositioned = false
 local clickOverlayCall
 local shellLifecycle = {}
+local canMutate = true
 
 local env = {
     CDMReanchor = ns.CDMReanchor,
@@ -53,7 +67,7 @@ local env = {
     -- true OOC/init-safe-window. Stub always-true so no test behavior changes;
     -- captured below via the CDMReanchorRuntime.New wrapper to prove it threads
     -- through to the runtime deps.
-    canMutate = function() return true end,
+    canMutate = function() return canMutate end,
     getContainer = function() return container end,
     getCurated = function() return { curatedEntry } end,
     getSettings = function() return { row1 = { iconCount = 4, iconSize = 40 } } end,
@@ -148,7 +162,6 @@ local capturedAuraDeps
 ns.CDMReanchorAuraPhase = { New = function(deps) capturedAuraDeps = deps; return { Hook = function() end } end }
 local swipeStub = { showRechargeEdge = false, showCooldownSwipe = true }
 ns._OwnedSwipe = { GetSettings = function() return swipeStub end }
-
 local facade = B.BuildRuntime(env)
 assert(type(facade) == "table" and facade.bridge and facade.wiring and facade.runtime, "facade has bridge/wiring/runtime")
 assert(type(facade.RefreshBuiltin) == "function", "facade:RefreshBuiltin exists")
@@ -181,6 +194,91 @@ assert(capturedAuraDeps and type(capturedAuraDeps.reassertEdge) == "function",
     "G13: auraPhase receives a reassertEdge dep")
 assert(type(capturedAuraDeps.reassertColor) == "function",
     "auraPhase still receives reassertColor")
+assert(type(capturedAuraDeps.reassertSwipe) == "function",
+    "auraPhase receives reassertSwipe")
+assert(type(capturedAuraDeps.requestAuraPhaseRefresh) == "function",
+    "auraPhase receives the safe aura-phase refresh request")
+assert(type(capturedAuraDeps.isNativeCooldownRepairFrame) == "function",
+    "auraPhase receives the native cooldown repair eligibility gate")
+assert(type(capturedAuraDeps.repairStaleLinkedAura) == "function",
+    "auraPhase receives the stale linked-aura repair callback")
+assert(facade.runtime:GetEntryForFrame(fMatch) == curatedEntry,
+    "runtime records the claimed native frame")
+assert(capturedAuraDeps.isNativeCooldownRepairFrame(fMatch, "essential", curatedEntry),
+    "claimed native frames remain eligible for stale-link repair")
+assert(not capturedAuraDeps.isNativeCooldownRepairFrame({}, "essential", curatedEntry),
+    "released or unclaimed native frames are excluded from stale-link repair")
+local repairCalls = {}
+ns.CDMSources = {
+    QueryOverrideSpell = function(spellID) return spellID + 1 end,
+    QuerySpellCooldown = function(spellID)
+        repairCalls[#repairCalls + 1] = { "cooldown", spellID }
+        return { isActive = true, isOnGCD = false }
+    end,
+    QuerySpellCooldownDuration = function(spellID, ignoreGCD)
+        repairCalls[#repairCalls + 1] = { "duration", spellID, ignoreGCD }
+        return "duration-object"
+    end,
+}
+local appliedRepair
+ns.CDMRenderers = {
+    ApplyDurationObjectCooldown = function(cd, duration, clearWhenZero, reverse)
+        appliedRepair = { cd = cd, duration = duration,
+            clearWhenZero = clearWhenZero, reverse = reverse }
+    end,
+}
+local repairFrame = { cooldownUseAuraDisplayTime = true }
+local repairCd = { SetUseAuraDisplayTime = function(_, show)
+    repairFrame.cooldownUseAuraDisplayTime = show
+end }
+local repairEntry = { spellID = 700 }
+capturedAuraDeps.repairStaleLinkedAura(repairFrame, repairCd, repairEntry)
+assert(appliedRepair and appliedRepair.cd == repairCd
+    and appliedRepair.duration == "duration-object"
+    and appliedRepair.clearWhenZero == true and appliedRepair.reverse == false,
+    "stale linked-aura repair reuses the duration-object renderer")
+assert(repairCalls[1][1] == "cooldown" and repairCalls[1][2] == 701
+    and repairCalls[2][1] == "duration" and repairCalls[2][2] == 701
+    and repairCalls[2][3] == true,
+    "stale linked-aura repair resolves the effective spell and ignores GCD duration")
+local beforeGCDRepair = #repairCalls
+ns.CDMSources.QuerySpellCooldown = function()
+    return { isActive = true, isOnGCD = nil }
+end
+appliedRepair = nil
+capturedAuraDeps.repairStaleLinkedAura(repairFrame, repairCd, repairEntry)
+assert(appliedRepair and #repairCalls == beforeGCDRepair + 1,
+    "unknown GCD state permits active native stale-link repair")
+ns.CDMSources.QuerySpellCooldown = function()
+    return { isActive = true, isOnGCD = true }
+end
+appliedRepair = nil
+local beforeExplicitGCDRepair = #repairCalls
+capturedAuraDeps.repairStaleLinkedAura(repairFrame, repairCd, repairEntry)
+assert(appliedRepair == nil and #repairCalls == beforeExplicitGCDRepair,
+    "explicit GCD cooldowns are excluded from native stale-link repair")
+ns.CDMSources.QuerySpellCooldown = function()
+    return secretGCD
+end
+appliedRepair = nil
+local beforeSecretRepair = #repairCalls
+capturedAuraDeps.repairStaleLinkedAura(repairFrame, repairCd, repairEntry)
+assert(appliedRepair == nil and #repairCalls == beforeSecretRepair,
+    "secret cooldown results are excluded before field access")
+ns.CDMSources = nil
+ns.CDMRenderers = nil
+swipeStub.showCooldownIconAuraPhase = false
+local nativeAuraFrame = {
+    cooldownUseAuraDisplayTime = true,
+    GetCooldownInfo = function() return { hasAura = true } end,
+}
+assert(capturedRuntimeDeps.shouldReplaceNativeAuraPhase(nativeAuraFrame,
+        { type = "spell" }, "essential") == true,
+    "disabled aura phase uses a QUI-owned replacement frame")
+swipeStub.showCooldownIconAuraPhase = true
+local cdSecretGCD = { SetDrawSwipe = function() end }
+capturedAuraDeps.reassertSwipe({ isOnGCD = secretGCD }, cdSecretGCD, "essential", true)
+assert(probedSecretGCD, "reassertSwipe probes secret isOnGCD before comparing it")
 local edgeCalls = {}
 local cdEdge = { SetDrawEdge = function(_, v) edgeCalls[#edgeCalls+1] = v end }
 swipeStub.showRechargeEdge = false
@@ -226,5 +324,64 @@ assert(type(facade.DrainPendingCombatRefresh) == "function",
     "boot exposes DrainPendingCombatRefresh")
 -- calling it with no deferred keys is a safe no-op
 facade:DrainPendingCombatRefresh()
+
+local pointsBeforeCombatRefresh = #setpoints
+canMutate = false
+capturedAuraDeps.requestAuraPhaseRefresh(nil, "essential")
+assert(#setpoints == pointsBeforeCombatRefresh,
+    "aura-phase refresh queues during combat instead of reanchoring immediately")
+canMutate = true
+facade:DrainPendingCombatRefresh()
+assert(#setpoints > pointsBeforeCombatRefresh,
+    "queued aura-phase refresh drains after combat")
+
+swipeStub.showCooldownIconAuraPhase = false
+local shouldReplace = capturedRuntimeDeps.shouldReplaceNativeAuraPhase
+local nativeAuraFrame = {
+    cooldownUseAuraDisplayTime = false,
+    CanUseAuraForDisplay = function() return true end,
+    GetCooldownInfo = function() return { hasAura = true } end,
+}
+for _, entryType in ipairs({ "item", "slot", "trinket", "consumable", "macro" }) do
+    assert(shouldReplace(nativeAuraFrame, { type = entryType }, "essential") == false,
+        entryType .. "-backed native frame remains native")
+end
+assert(shouldReplace(nativeAuraFrame, { type = "spell" }, "essential") == true,
+    "aura-capable spell frame is pre-replaced before its aura activates")
+assert(shouldReplace({ cooldownUseAuraDisplayTime = false,
+        CanUseAuraForDisplay = function() return false end,
+        GetCooldownInfo = function() return { hasAura = true } end },
+        { type = "spell" }, "essential") == false,
+    "spell frame that cannot use aura display remains native")
+assert(shouldReplace({ cooldownUseAuraDisplayTime = false,
+        CanUseAuraForDisplay = function() return true end,
+        GetCooldownInfo = function() return { hasAura = false } end },
+        { type = "spell" }, "essential") == true,
+    "Blizzard-eligible spell frame does not depend on hasAura metadata")
+assert(shouldReplace({ cooldownUseAuraDisplayTime = false,
+        CanUseAuraForDisplay = function() return true end,
+        GetCooldownInfo = function() return nil end },
+        { type = "spell" }, "essential") == false,
+    "spell frame without cooldown metadata remains native")
+assert(shouldReplace({ cooldownUseAuraDisplayTime = false,
+        CanUseAuraForDisplay = function() return secretGCD end,
+        GetCooldownInfo = function() return { hasAura = true } end },
+        { type = "spell" }, "essential") == false,
+    "secret aura-display eligibility remains native")
+assert(shouldReplace({ cooldownUseAuraDisplayTime = true,
+        GetCooldownInfo = function() return { hasAura = false } end },
+        { type = "spell" }, "essential") == true,
+    "current native aura phase uses an owned replacement when disabled")
+assert(shouldReplace({ cooldownUseAuraDisplayTime = true,
+        GetCooldownInfo = function() return { hasAura = true, flags = 1 } end },
+        { type = "spell" }, "essential") == true,
+    "stable eligibility metadata does not block owned replacement")
+assert(shouldReplace({}, { type = "item" }, "buff") == false,
+    "item-backed BuffIcon entry remains native")
+assert(shouldReplace(nativeAuraFrame, { type = "spell", kind = "aura" }, "essential") == false,
+    "explicit aura entry remains native")
+swipeStub.showCooldownIconAuraPhase = true
+assert(shouldReplace(nativeAuraFrame, { type = "spell" }, "essential") == false,
+    "native aura frame stays native when aura phase is enabled")
 
 print("OK: cdm_reanchor_boot_buildruntime_test")

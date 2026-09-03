@@ -1,5 +1,5 @@
 -- tests/unit/aura_slots_layout_test.lua
--- Task 6: tracked slots (core/aura_slots.lua) honor element.maxIcons,
+-- Task 6: tracked slots (core/aura_slots.lua) honor the spell list,
 -- element.iconsPerRow (wrap) and growDirection == "CENTER". AnchorSlot does
 -- manual SetPoint math (unlike the filter-strip engine flow layout in
 -- core/aura_skin.lua) so these three behaviors are exercised end-to-end
@@ -16,7 +16,12 @@ local ns = env.LoadCore()  -- real ns.AuraGlue.ElementProfile + ns.AuraElements
 -- forbidden inbound setters that don't exist on a plain stub) — stub it,
 -- same boundary aura_slots.lua itself draws (Deps() only needs it truthy).
 ns.Addon = ns.Addon or {}
-ns.Addon.AuraSkin = { WireButton = function() end }
+ns.Addon.AuraSkin = {
+    WireButton = function() end,
+    StyleIconArt = function(frame, profile)
+        frame._styledProfile = profile
+    end,
+}
 
 local S = assert(loadfile("core/aura_slots.lua"))("QUI", ns)
 
@@ -30,10 +35,14 @@ end
 -- non-bar, non-square, radial-swipe (default) element ever get invoked.
 -- _setPointCount distinguishes birth-time (initializeFrame) anchoring from
 -- the post-birth pass: restricted creation must anchor exactly once (birth).
-local function MakeFrame()
+local function MakeFrame(parent)
     return {
+        _parent = parent,
         _setPointCount = 0,
         SetSize = function() end,
+        SetAlpha = function(self, value) self._alpha = value end,
+        EnableMouse = function() end,
+        GetParent = function(self) return self._parent end,
         ClearAllPoints = function() end,
         Icon = { SetAlpha = function() end },
         SetPoint = function(self, point, relativeTo, relativePoint, dx, dy)
@@ -57,7 +66,7 @@ local function MakeContainer()
     c.AddAuraSlot = function(self, key, base, opts)
         c._createdKeys[#c._createdKeys + 1] = key
         c._birthFilters[key] = opts and opts.candidateFilters
-        local frame = MakeFrame()
+        local frame = MakeFrame(c)
         if opts and type(opts.initializeFrame) == "function" then
             opts.initializeFrame(frame)
         end
@@ -66,9 +75,61 @@ local function MakeContainer()
     return c
 end
 
+local function MakeInactiveHost()
+    return {
+        _frames = {},
+        _frameLevel = 1,
+        GetFrameLevel = function(self) return self._frameLevel end,
+    }
+end
+
+local oldCreateFrame = _G.CreateFrame
+_G.CreateFrame = function(kind, name, parent, ...)
+    if kind ~= "Frame" or not (parent and parent._frames) then
+        return oldCreateFrame(kind, name, parent, ...)
+    end
+    local frame = {
+        _parent = parent,
+        _textures = {},
+        SetSize = function(self, width, height) self._width = width; self._height = height end,
+        ClearAllPoints = function() end,
+        SetPoint = function(self, point, relativeTo, relativePoint, dx, dy)
+            self._lastSetPoint = { point = point, relativeTo = relativeTo,
+                relativePoint = relativePoint, dx = dx, dy = dy }
+        end,
+        SetAlpha = function(self, value) self._alpha = value end,
+        SetShown = function(self, value) self._shown = value end,
+        SetFrameLevel = function(self, value) self._frameLevel = value end,
+    }
+    frame.CreateTexture = function(self)
+        local texture = {
+            SetSize = function(t, width, height) t._width = width; t._height = height end,
+            ClearAllPoints = function() end,
+            SetPoint = function(t, point, relativeTo, relativePoint, dx, dy)
+                t._lastSetPoint = { point = point, relativeTo = relativeTo,
+                    relativePoint = relativePoint, dx = dx, dy = dy }
+            end,
+            SetDesaturated = function(t, value) t._desaturated = value end,
+            SetAlpha = function(t, value) t._alpha = value end,
+            SetTexture = function(t, value) t._texture = value end,
+            SetShown = function(t, value) t._shown = value end,
+            SetAllPoints = function(t, target) t._allPoints = target end,
+            SetTexCoord = function(t, ...) t._texCoord = { ... } end,
+            SetColorTexture = function(t, ...) t._color = { ... } end,
+            DisablePixelSnap = function() end,
+            Show = function(t) t._shown = true end,
+            Hide = function(t) t._shown = false end,
+        }
+        self._textures[#self._textures + 1] = texture
+        return texture
+    end
+    parent._frames[#parent._frames + 1] = frame
+    return frame
+end
+
 ----------------------------------------------------------------------------
--- Test A: maxIcons truncates — 5 spells, maxIcons = 3. Slots 4/5 (already
--- present in the pool from a prior sync at a higher cap) are parked.
+-- Test A: tracked capacity follows the spell list — an old saved maxIcons
+-- value cannot truncate the five tracked spells.
 ----------------------------------------------------------------------------
 do
     local element = {
@@ -86,22 +147,75 @@ do
     end
 
     local complete = S.Sync(container, element, true)
-    check("maxIcons: Sync reports complete", complete == true)
+    check("tracked capacity: Sync reports complete", complete == true)
 
     local pool = container._quiSlots
-    check("maxIcons: slot 1 stays live", pool[1].parked == false)
-    check("maxIcons: slot 2 stays live", pool[2].parked == false)
-    check("maxIcons: slot 3 stays live", pool[3].parked == false)
-    check("maxIcons: slot 4 parked (surplus)", pool[4].parked == true)
-    check("maxIcons: slot 5 parked (surplus)", pool[5].parked == true)
+    check("tracked capacity: slot 1 stays live", pool[1].parked == false)
+    check("tracked capacity: slot 2 stays live", pool[2].parked == false)
+    check("tracked capacity: slot 3 stays live", pool[3].parked == false)
+    check("tracked capacity: slot 4 stays live", pool[4].parked == false)
+    check("tracked capacity: slot 5 stays live", pool[5].parked == false)
 
-    check("maxIcons: slot 4 filter is the park recipe (maxDuration=0)",
-        container._filterCalls["t4"] and container._filterCalls["t4"].maxDuration == 0)
-    check("maxIcons: slot 5 filter is the park recipe (maxDuration=0)",
-        container._filterCalls["t5"] and container._filterCalls["t5"].maxDuration == 0)
-    check("maxIcons: slot 1 filter is a live per-spell filter, not parked",
+    check("tracked capacity: slot 4 filter is live",
+        container._filterCalls["t4"] and container._filterCalls["t4"].includeSpellIDs ~= nil)
+    check("tracked capacity: slot 5 filter is live",
+        container._filterCalls["t5"] and container._filterCalls["t5"].includeSpellIDs ~= nil)
+    check("tracked capacity: slot 1 filter is a live per-spell filter",
         container._filterCalls["t1"] and container._filterCalls["t1"].includeSpellIDs ~= nil
         and container._filterCalls["t1"].maxDuration == nil)
+end
+
+
+do
+    local oldSpell = _G.C_Spell
+    _G.C_Spell = { GetSpellTexture = function(spellID) return spellID + 1000 end }
+    local element = {
+        spells = { 801 }, enabled = true, displayType = "icon",
+        auraType = "HELPFUL", anchor = "TOPLEFT", growDirection = "RIGHT",
+    }
+    local container = MakeContainer()
+    local host = MakeInactiveHost()
+    S.Sync(container, element, true)
+    local complete = S.SyncInactiveIcons(host, element, true, true)
+    local frame = host._frames[1]
+    local texture = frame and frame.Icon
+    check("inactive icon: reconciliation completes", complete == true)
+    check("inactive icon: host owns one separate visual", #host._frames == 1)
+    check("inactive icon: visual uses only the QUI-owned geometry host",
+        frame and frame._lastSetPoint.relativeTo == host
+            and frame._lastSetPoint.relativeTo ~= container._quiSlots[1].frame)
+    check("inactive icon: active icon art styling is reused",
+        frame and frame._styledProfile ~= nil and frame._quiBorder ~= nil)
+    check("inactive icon: texture is desaturated and visual is dimmed",
+        texture and texture._desaturated == true and frame._alpha == 0.4)
+    check("inactive icon: configured spell texture is shown",
+        texture and texture._texture == 1801 and frame._shown == true)
+    S.SyncInactiveIcons(host, element, true, false)
+    check("inactive icon: active-only mode hides the placeholder", frame._shown == false)
+    S.SyncInactiveIcons(host, element, true, true)
+    S.HideInactiveIcons(host)
+    check("inactive icon: explicit cleanup hides the placeholder", frame._shown == false)
+    _G.C_Spell = oldSpell
+end
+
+do
+    local oldRuntime = ns.CDMAuraRuntime
+    ns.CDMAuraRuntime = {
+        ResolveAbilityAuraSpellID = function(spellID)
+            if spellID == 301 then return 302, true end
+            return spellID, false
+        end,
+    }
+    local element = {
+        spells = { 301 }, enabled = true, auraType = "HELPFUL",
+        anchor = "TOPLEFT", growDirection = "RIGHT",
+    }
+    local container = MakeContainer()
+    S.Sync(container, element, true)
+    local ids = container._birthFilters.t1 and container._birthFilters.t1.includeSpellIDs
+    check("tracked mapping: legacy and applied-aura IDs are candidates",
+        ids and ids[301] == true and ids[302] == true)
+    ns.CDMAuraRuntime = oldRuntime
 end
 
 ----------------------------------------------------------------------------
@@ -410,6 +524,31 @@ do
     _G.UnitCanAssist = nil
     _G.UnitIsVisible = nil
     _G.UnitPhaseReason = nil
+end
+
+do
+    local localAttach, localDetach, globalAttach, globalDetach = 0, 0, 0, 0
+    local oldAttach, oldDetach = ns.AuraFeederAttach, ns.AuraFeederDetach
+    ns.AuraFeederAttach = function() globalAttach = globalAttach + 1 end
+    ns.AuraFeederDetach = function() globalDetach = globalDetach + 1 end
+    local container = MakeContainer()
+    container._quiFeederAttach = function() localAttach = localAttach + 1 end
+    container._quiFeederDetach = function() localDetach = localDetach + 1 end
+    local tint = {
+        spells = { 801 }, enabled = true, auraType = "HARMFUL", onlyMine = true,
+        displayType = "healthTint", anchor = "TOPLEFT", growDirection = "RIGHT",
+    }
+    S.Sync(container, tint, true)
+    check("feeder dispatch: container-local attach wins over the global surface handler",
+        localAttach > 0 and globalAttach == 0)
+    local icon = {
+        spells = { 801 }, enabled = true, auraType = "HARMFUL", onlyMine = true,
+        displayType = "icon", anchor = "TOPLEFT", growDirection = "RIGHT",
+    }
+    S.Sync(container, icon, true)
+    check("feeder dispatch: container-local detach wins over the global surface handler",
+        localDetach == 1 and globalDetach == 0)
+    ns.AuraFeederAttach, ns.AuraFeederDetach = oldAttach, oldDetach
 end
 
 if failures > 0 then error(failures .. " failure(s) in aura_slots_layout_test") end

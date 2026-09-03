@@ -13,9 +13,10 @@
 --   * GetSpellCountForEntry action-button spell count
 
 local secretStackText = { token = "secret-stack-text" }
+local secretSpellCount = { token = "secret-spell-count" }
 
 function issecretvalue(value)
-    return value == secretStackText
+    return value == secretStackText or value == secretSpellCount
 end
 
 function InCombatLockdown() return false end
@@ -28,6 +29,7 @@ end
 
 C_StringUtil = {
     TruncateWhenZero = function(value)
+        if value == secretSpellCount then return secretStackText end
         return value == 0 and "" or tostring(value)
     end,
 }
@@ -165,22 +167,13 @@ text, source = policy:ResolveIconStackText(liveAura)
 assert(text == "2", "aura stack should resolve the live Applications count")
 assert(source == "Applications", "live aura fallback should keep the Applications source")
 
-sources.QueryAuraApplicationDisplayCount = function(unit, auraInstanceID, minApplications)
-    auraDisplayQueries[#auraDisplayQueries + 1] = {
-        unit = unit,
-        auraInstanceID = auraInstanceID,
-        minApplications = minApplications,
-    }
-    return "4"
-end
 local apps, appSource = policy:GetAuraApplicationsFromData({
     applications = 1,
     auraInstanceID = 77,
 }, "player", "aura-data")
-assert(apps == "4", "aura data fallback should ask the display-count source")
-assert(appSource == "display-count", "display-count fallback should identify its source")
-assert(auraDisplayQueries[1].minApplications == 1,
-    "display-count should request stacks from 1 (abilities that count from a single application)")
+assert(apps == nil, "single application data should not use a display-count getter")
+assert(appSource == nil, "removed display-count fallback should have no source")
+assert(#auraDisplayQueries == 0, "stack policy must not call the aura display-count API")
 
 local renderedIcon, writes = makeIcon({ kind = "aura", viewerType = "buff" })
 policy:ApplyAuraCountText(renderedIcon, {
@@ -220,5 +213,21 @@ spellCounts[500] = 3
 local count, countSource = policy:GetSpellCountForEntry(500, nil, {})
 assert(count == 3, "spell count fallback should return positive action-button counts")
 assert(countSource == "spell-cast-count", "spell count fallback should report its source")
+
+local castCountIcon = {
+    _runtimeSpellID = 500,
+    _spellEntry = { kind = "cooldown", type = "spell", spellID = 500 },
+}
+local castText, castSource = policy:ResolveIconStackText(castCountIcon)
+assert(castText == 3, "owned cooldown icons should resolve positive spell cast counts")
+assert(castSource == "spell-cast-count", "owned cooldown cast counts should report their source")
+
+spellCounts[501] = secretSpellCount
+castCountIcon._runtimeSpellID = 501
+castCountIcon._spellEntry.spellID = 501
+castText, castSource = policy:ResolveIconStackText(castCountIcon)
+assert(rawequal(castText, secretStackText),
+    "owned cooldown icons should truncate secret zero values through the compatible C sink")
+assert(castSource == "spell-cast-count", "secret cast counts should keep their source")
 
 print("OK: cdm_icon_stack_policy_test")

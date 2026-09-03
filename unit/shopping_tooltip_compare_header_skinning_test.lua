@@ -39,10 +39,21 @@ assertContains(
     "SkinBase.SetPixelInsetPoints(bd, header, 3, 3, 3, 0)",
     "shopping tooltip compare headers must use the same bottom-merging tab inset as other tabs")
 
+-- Border colour is not a text colour: a black or hidden custom border must not
+-- produce an invisible label, so the header goes through the luminance-floored
+-- SkinBase.GetSkinTextAccent() (border tint when readable, white otherwise).
 assertContains(
     source,
-    "header.Label:SetTextColor(sr, sg, sb, 1)",
-    "shopping tooltip compare header labels must use the active QUI border color")
+    "tr, tg, tb = SkinBase.GetSkinTextAccent()",
+    "shopping tooltip compare header labels must resolve their colour via GetSkinTextAccent")
+
+assertContains(
+    source,
+    "header.Label:SetTextColor(tr, tg, tb, 1)",
+    "shopping tooltip compare header labels must use the luminance-floored text accent")
+
+assert(not source:find("header.Label:SetTextColor(sr, sg, sb, 1)", 1, true),
+    "shopping tooltip compare header labels must not use the raw border colour as text")
 
 assertContains(
     source,

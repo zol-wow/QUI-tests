@@ -1,22 +1,12 @@
 -- tests/unit/cdm_editmode_policy_test.lua
 -- Run: lua tests/unit/cdm_editmode_policy_test.lua
---
--- Edit Mode policy enforcement (reference-parity). The re-anchor reference
--- forces VisibleSetting=Always on ALL CooldownViewer viewers and resets
--- HideWhenInactive=1 on the buff viewers (BuffIcon + BuffBar) ONCE at init --
--- that is what makes native item shown-state trustworthy for the claim pass.
--- A layout stores a setting entry ONLY when changed away from Blizzard's
--- default, so an ABSENT entry means "already at the default": it must be left
--- absent when the default equals the desired value (no change -> no SaveLayouts
--- -> no forced reload for users already at defaults).
 
--- WoW global stubs BEFORE the chunk loads (module registers its event frame).
 local registeredEvents = {}
 local eventHandler
 _G.CreateFrame = function()
     return {
-        RegisterEvent = function(_, ev) registeredEvents[ev] = true end,
-        UnregisterEvent = function(_, ev) registeredEvents[ev] = nil end,
+        RegisterEvent = function(_, event) registeredEvents[event] = true end,
+        UnregisterEvent = function(_, event) registeredEvents[event] = nil end,
         SetScript = function(_, name, fn)
             if name == "OnEvent" then eventHandler = fn end
         end,
@@ -34,37 +24,39 @@ local ENUMS = {
 
 _G.Enum = {
     EditModeSystem = { CooldownViewer = ENUMS.cooldownSystem },
-    EditModeCooldownViewerSetting = { VisibleSetting = ENUMS.visSetting, HideWhenInactive = ENUMS.hideEnum },
+    EditModeCooldownViewerSetting = {
+        VisibleSetting = ENUMS.visSetting,
+        HideWhenInactive = ENUMS.hideEnum,
+    },
     CooldownViewerVisibleSetting = { Always = ENUMS.visAlways, InCombat = 1, Hidden = 2 },
     EditModeCooldownViewerSystemIndices = {
-        Essential = 1, Utility = 2, BuffIcon = ENUMS.buffIconIdx, BuffBar = ENUMS.buffBarIdx,
+        Essential = 1,
+        Utility = 2,
+        BuffIcon = ENUMS.buffIconIdx,
+        BuffBar = ENUMS.buffBarIdx,
     },
 }
 
-local savedLayouts = {}
 local layoutInfoToReturn
 _G.C_EditMode = {
     GetLayouts = function() return layoutInfoToReturn end,
-    SaveLayouts = function(info) savedLayouts[#savedLayouts + 1] = info end,
 }
 
 local popupsShown = {}
 _G.StaticPopupDialogs = {}
-_G.StaticPopup_Show = function(which) popupsShown[#popupsShown + 1] = which end
-_G.ReloadUI = function() end
+_G.StaticPopup_Show = function(which)
+    popupsShown[#popupsShown + 1] = which
+    return {}
+end
 _G.QUI_IsCDMMasterEnabled = function() return true end
-_G.C_Timer = { After = function(_, fn) fn() end }
 
 local ns = {}
 local loadChunk = dofile("tests/helpers/load_cdm_consolidated_chunk.lua")
 loadChunk("QUI_CDM/cdm/cdm_editmode_policy.lua", "cdm_editmode_policy.lua")("QUI", ns)
 local P = assert(ns.CDMEditModePolicy, "CDMEditModePolicy exported")
-assert(type(P.ApplyToSystems) == "function", "pure core ApplyToSystems exported")
+assert(type(P.NeedsManualSetup) == "function", "read-only detector exported")
 assert(type(P.Enforce) == "function", "Enforce exported")
 
----------------------------------------------------------------------------
--- Pure core: ApplyToSystems(systems, enums) -> changed
----------------------------------------------------------------------------
 local function mkSystems(settingsByIdx)
     local systems = {}
     for idx = 1, 4 do
@@ -74,44 +66,40 @@ local function mkSystems(settingsByIdx)
             settings = settingsByIdx[idx] or {},
         }
     end
-    -- one non-CDM system that must never be touched
-    systems[#systems + 1] = { system = 99, systemIndex = 1, settings = { { setting = 6, value = 2 } } }
+    systems[#systems + 1] = {
+        system = 99,
+        systemIndex = 1,
+        settings = { { setting = ENUMS.visSetting, value = 2 } },
+    }
     return systems
 end
 
--- All settings absent (fresh install at Blizzard defaults): nothing changes,
--- nothing is inserted (absent == default Always / default HideWhenInactive=1).
 do
     local systems = mkSystems({})
-    local changed = P.ApplyToSystems(systems, ENUMS)
-    assert(changed == false, "defaults everywhere -> no change")
+    assert(P.NeedsManualSetup(systems, ENUMS) == false, "defaults need no setup")
     for i = 1, 4 do
-        assert(#systems[i].settings == 0, "no entries inserted when default equals desired")
+        assert(#systems[i].settings == 0, "detector must not insert default settings")
     end
 end
 
--- VisibleSetting stored as Hidden (2) on a viewer -> reset to Always, changed.
 do
     local systems = mkSystems({ [1] = { { setting = ENUMS.visSetting, value = 2 } } })
-    local changed = P.ApplyToSystems(systems, ENUMS)
-    assert(changed == true, "stale VisibleSetting -> changed")
-    assert(systems[1].settings[1].value == ENUMS.visAlways, "VisibleSetting reset to Always")
+    assert(P.NeedsManualSetup(systems, ENUMS) == true, "hidden viewer needs manual setup")
+    assert(systems[1].settings[1].value == 2, "detector must not rewrite visibility")
 end
 
--- HideWhenInactive=0 on BuffIcon -> reset to 1; the same stale value on
--- Essential is NOT policy-managed (buff viewers only) and stays untouched.
 do
     local systems = mkSystems({
         [ENUMS.buffIconIdx] = { { setting = ENUMS.hideEnum, value = 0 } },
         [1] = { { setting = ENUMS.hideEnum, value = 0 } },
     })
-    local changed = P.ApplyToSystems(systems, ENUMS)
-    assert(changed == true, "stale buff HideWhenInactive -> changed")
-    assert(systems[ENUMS.buffIconIdx].settings[1].value == 1, "BuffIcon HideWhenInactive reset to 1")
-    assert(systems[1].settings[1].value == 0, "Essential HideWhenInactive not policy-managed")
+    assert(P.NeedsManualSetup(systems, ENUMS) == true, "active buff viewer needs manual setup")
+    assert(systems[ENUMS.buffIconIdx].settings[1].value == 0,
+        "detector must not rewrite Hide When Inactive")
+    assert(systems[1].settings[1].value == 0,
+        "non-buff Hide When Inactive remains outside the policy")
 end
 
--- Already-correct stored values -> no change (idempotent, no save loop).
 do
     local systems = mkSystems({
         [ENUMS.buffBarIdx] = {
@@ -119,171 +107,120 @@ do
             { setting = ENUMS.hideEnum, value = 1 },
         },
     })
-    assert(P.ApplyToSystems(systems, ENUMS) == false, "correct stored values -> no change")
+    assert(P.NeedsManualSetup(systems, ENUMS) == false, "correct stored values need no setup")
 end
 
--- Non-CDM system untouched.
 do
     local systems = mkSystems({})
-    P.ApplyToSystems(systems, ENUMS)
-    assert(systems[5].settings[1].value == 2, "non-CooldownViewer system never modified")
+    assert(P.NeedsManualSetup({ systems[5] }, ENUMS) == false, "non-CDM systems are ignored")
+    assert(systems[5].settings[1].value == 2, "non-CDM settings remain untouched")
 end
 
----------------------------------------------------------------------------
--- Enforce wiring: one-shot at PLAYER_ENTERING_WORLD; SaveLayouts + reload
--- prompt ONLY when something changed; preset-active layouts never saved.
----------------------------------------------------------------------------
 assert(registeredEvents["PLAYER_ENTERING_WORLD"], "policy registers PLAYER_ENTERING_WORLD")
 assert(type(eventHandler) == "function", "policy installs an OnEvent handler")
 
--- activeLayout is a COMBINED index in the live client (presets first, then
--- saved layouts), so the Enforce cases model two presets: user layout 1 = 3.
 local standingPresetManager = {
     GetCopyOfPresetLayouts = function()
         return { { systems = mkSystems({}) }, { systems = mkSystems({}) } }
     end,
 }
 _G.EditModePresetLayoutManager = standingPresetManager
-_G.tAppendAll = function(dst, src)
-    for _, v in ipairs(src) do dst[#dst + 1] = v end
-    return dst
+
+local function staleLayout()
+    return {
+        activeLayout = 3,
+        layouts = {
+            { systems = mkSystems({ [1] = { { setting = ENUMS.visSetting, value = 2 } } }) },
+        },
+    }
 end
 
--- changed case: stale VisibleSetting on the active (non-preset) layout
-layoutInfoToReturn = {
-    activeLayout = 3,
-    layouts = {
-        { systems = mkSystems({ [1] = { { setting = ENUMS.visSetting, value = 2 } } }) },
-    },
-}
+layoutInfoToReturn = staleLayout()
+local originalLayouts = layoutInfoToReturn.layouts
 eventHandler(nil, "PLAYER_ENTERING_WORLD")
-assert(#savedLayouts == 1, "changed layout -> SaveLayouts called once")
-assert(#popupsShown == 1, "changed layout -> reload prompt shown")
-
--- one-shot latch: a second PEW must not re-run enforcement
+assert(popupsShown[1] == "QUI_CDM_EDITMODE_MANUAL", "stale layout shows manual instructions")
+local manualDialog = assert(_G.StaticPopupDialogs["QUI_CDM_EDITMODE_MANUAL"],
+    "stale layout registers manual instructions")
+assert(manualDialog.text:find("/qui > Module Addons", 1, true),
+    "manual instructions name the exact QUI settings path")
+assert(layoutInfoToReturn.layouts == originalLayouts, "detector must not replace Blizzard's layout list")
+assert(layoutInfoToReturn.layouts[1].systems[1].settings[1].value == 2,
+    "detector must not rewrite the active layout")
 eventHandler(nil, "PLAYER_ENTERING_WORLD")
-assert(#savedLayouts == 1 and #popupsShown == 1, "enforcement is one-shot per session")
+assert(#popupsShown == 1, "enforcement is one-shot per session")
 
--- fresh module + already-correct layout -> no save, no popup
 do
     local ns2 = {}
-    savedLayouts, popupsShown = {}, {}
+    popupsShown = {}
     layoutInfoToReturn = { activeLayout = 3, layouts = { { systems = mkSystems({}) } } }
     loadChunk("QUI_CDM/cdm/cdm_editmode_policy.lua", "cdm_editmode_policy.lua")("QUI", ns2)
     eventHandler(nil, "PLAYER_ENTERING_WORLD")
-    assert(#savedLayouts == 0, "no change -> SaveLayouts never called")
-    assert(#popupsShown == 0, "no change -> no reload prompt")
+    assert(#popupsShown == 0, "correct layout shows no popup")
 end
 
--- preset-active layout: read-only, never saved (would loop enforce->save->reload)
 do
     local ns3 = {}
-    savedLayouts, popupsShown = {}, {}
+    popupsShown = {}
     _G.EditModePresetLayoutManager = {
         GetCopyOfPresetLayouts = function()
             return { { systems = mkSystems({ [1] = { { setting = ENUMS.visSetting, value = 2 } } }) } }
         end,
     }
-    _G.tAppendAll = function(dst, src)
-        for _, v in ipairs(src) do dst[#dst + 1] = v end
-        return dst
-    end
-    -- activeLayout = 1 resolves to the PRESET after the merge
     layoutInfoToReturn = { activeLayout = 1, layouts = {} }
     loadChunk("QUI_CDM/cdm/cdm_editmode_policy.lua", "cdm_editmode_policy.lua")("QUI", ns3)
     eventHandler(nil, "PLAYER_ENTERING_WORLD")
-    assert(#savedLayouts == 0, "preset-active layout is read-only: never saved")
+    assert(#popupsShown == 0, "preset layouts remain read-only and do not prompt")
     _G.EditModePresetLayoutManager = standingPresetManager
-end
-
----------------------------------------------------------------------------
--- Loop breaker: forced reload at most once per unresolved correction, then
--- manual instructions each login until the layout comes back clean.
----------------------------------------------------------------------------
-local staleLayout = function()
-    return { activeLayout = 3, layouts = {
-        { systems = mkSystems({ [1] = { { setting = ENUMS.visSetting, value = 2 } } }) },
-    } }
 end
 
 do
     local ns4 = {}
-    savedLayouts, popupsShown = {}, {}
-    _G.QUIDB = {}
+    popupsShown = {}
+    _G.EditModePresetLayoutManager = nil
     layoutInfoToReturn = staleLayout()
     loadChunk("QUI_CDM/cdm/cdm_editmode_policy.lua", "cdm_editmode_policy.lua")("QUI", ns4)
     eventHandler(nil, "PLAYER_ENTERING_WORLD")
-    assert(#savedLayouts == 1, "first unresolved correction -> save attempted")
-    assert(popupsShown[1] == "QUI_CDM_EDITMODE_RELOAD", "first unresolved correction -> forced reload prompt")
-    assert(_G.QUIDB.cdmEditModeSavePending == true, "save-pending flag latched")
+    assert(#popupsShown == 0, "missing preset data does not guess the active layout")
+    assert(layoutInfoToReturn.layouts[1].systems[1].settings[1].value == 2,
+        "missing preset data leaves stored settings untouched")
+    _G.EditModePresetLayoutManager = standingPresetManager
 end
 
 do
     local ns5 = {}
-    savedLayouts, popupsShown = {}, {}
-    layoutInfoToReturn = staleLayout()
-    loadChunk("QUI_CDM/cdm/cdm_editmode_policy.lua", "cdm_editmode_policy.lua")("QUI", ns5)
-    eventHandler(nil, "PLAYER_ENTERING_WORLD")
-    assert(popupsShown[1] == "QUI_CDM_EDITMODE_MANUAL", "still unresolved next session -> manual instructions, no reload loop")
-    assert(#savedLayouts == 0, "save-pending state never re-saves (a re-save taints the whole session)")
-    assert(_G.QUIDB.cdmEditModeSavePending == true, "save-pending flag stays latched while unresolved")
-end
-
-do
-    local ns6 = {}
-    savedLayouts, popupsShown = {}, {}
-    layoutInfoToReturn = { activeLayout = 3, layouts = { { systems = mkSystems({}) } } }
-    loadChunk("QUI_CDM/cdm/cdm_editmode_policy.lua", "cdm_editmode_policy.lua")("QUI", ns6)
-    eventHandler(nil, "PLAYER_ENTERING_WORLD")
-    assert(#savedLayouts == 0 and #popupsShown == 0, "settled layout -> no save, no prompt")
-    assert(_G.QUIDB.cdmEditModeSavePending == nil, "settled layout re-arms the loop breaker")
-    _G.QUIDB = nil
-end
-
----------------------------------------------------------------------------
--- Missing preset data: activeLayout is a combined index, so without the
--- preset list the index cannot be resolved -- enforcement must not guess,
--- mutate, or save (a misresolved index edits the WRONG layout).
----------------------------------------------------------------------------
-do
-    local ns8 = {}
-    savedLayouts, popupsShown = {}, {}
-    _G.EditModePresetLayoutManager = nil
-    local layouts = { { systems = mkSystems({ [1] = { { setting = ENUMS.visSetting, value = 2 } } }) } }
-    layoutInfoToReturn = { activeLayout = 1, layouts = layouts }
-    loadChunk("QUI_CDM/cdm/cdm_editmode_policy.lua", "cdm_editmode_policy.lua")("QUI", ns8)
-    eventHandler(nil, "PLAYER_ENTERING_WORLD")
-    assert(#savedLayouts == 0, "missing preset data -> never saved")
-    assert(#popupsShown == 0, "missing preset data -> no prompt")
-    assert(layouts[1].systems[1].settings[1].value == 2, "missing preset data -> stored settings untouched")
-    _G.EditModePresetLayoutManager = standingPresetManager
-end
-
----------------------------------------------------------------------------
--- Combat deferral: a PEW during combat lockdown must not save (a save
--- taints the session and reload is impossible in combat); enforcement runs
--- at PLAYER_REGEN_ENABLED instead.
----------------------------------------------------------------------------
-do
-    local ns7 = {}
-    savedLayouts, popupsShown = {}, {}
+    popupsShown = {}
     local regs = {}
     local frameStub = {
-        RegisterEvent = function(_, ev) regs[ev] = true end,
-        UnregisterEvent = function(_, ev) regs[ev] = nil end,
+        RegisterEvent = function(_, event) regs[event] = true end,
+        UnregisterEvent = function(_, event) regs[event] = nil end,
     }
     _G.InCombatLockdown = function() return true end
     layoutInfoToReturn = staleLayout()
-    loadChunk("QUI_CDM/cdm/cdm_editmode_policy.lua", "cdm_editmode_policy.lua")("QUI", ns7)
+    loadChunk("QUI_CDM/cdm/cdm_editmode_policy.lua", "cdm_editmode_policy.lua")("QUI", ns5)
     eventHandler(frameStub, "PLAYER_ENTERING_WORLD")
-    assert(#savedLayouts == 0 and #popupsShown == 0, "in-combat PEW -> enforcement deferred, nothing saved")
-    assert(regs["PLAYER_REGEN_ENABLED"], "in-combat PEW -> waits for PLAYER_REGEN_ENABLED")
+    assert(#popupsShown == 0, "combat login defers the policy check")
+    assert(regs["PLAYER_REGEN_ENABLED"], "combat login waits for PLAYER_REGEN_ENABLED")
     _G.InCombatLockdown = function() return false end
     eventHandler(frameStub, "PLAYER_REGEN_ENABLED")
-    assert(#savedLayouts == 1, "regen after deferral -> save runs")
-    assert(popupsShown[1] == "QUI_CDM_EDITMODE_RELOAD", "regen after deferral -> forced reload prompt")
-    assert(regs["PLAYER_REGEN_ENABLED"] == nil, "regen listener unregistered after firing")
+    assert(popupsShown[1] == "QUI_CDM_EDITMODE_MANUAL", "regen shows manual instructions")
+    assert(regs["PLAYER_REGEN_ENABLED"] == nil, "regen listener unregisters after firing")
     _G.InCombatLockdown = nil
 end
+
+local toc = assert(io.open("QUI_CDM/QUI_CDM.toc", "r"))
+for line in toc:lines() do
+    local rel = line:match("^%s*(cdm[\\/]%S+%.lua)%s*$")
+    if rel then
+        local path = "QUI_CDM/" .. rel:gsub("\\", "/")
+        local file = assert(io.open(path, "rb"))
+        local source = file:read("*a")
+        file:close()
+        assert(not source:find("SaveLayouts", 1, true),
+            path .. " must not save Blizzard Edit Mode layouts from addon execution")
+        assert(not source:find("cdmEditModeSavePending", 1, true),
+            path .. " must not retain the obsolete automatic-save state")
+    end
+end
+toc:close()
 
 print("OK: cdm_editmode_policy_test")

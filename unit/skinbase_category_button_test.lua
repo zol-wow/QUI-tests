@@ -62,7 +62,7 @@ assert(math.abs(btn.Label.textColor[1] - 0.6) < 1e-9, "selected category button 
 btn.SelectedTexture:Hide()
 SkinBase.RefreshCategorySelected(btn)
 assert(math.abs(bd._quiBgA - 0.7) < 1e-9, "unselected category button uses dimmer alpha 0.7")
-assert(math.abs(btn.Label.textColor[1] - 0.95) < 1e-9, "unselected category button uses normal text")
+assert(btn.Label.textColor[1] == 1, "unselected category button uses white text")
 border = {0.2,0.3,0.4,0.9}
 SkinBase.RefreshWidget(btn)
 assert(math.abs(bd._quiBorderR - 0.2) < 1e-9 and math.abs(bd._quiBorderA - 0.45) < 1e-9,
