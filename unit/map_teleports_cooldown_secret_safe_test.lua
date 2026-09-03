@@ -19,8 +19,8 @@ local source = readFile("modules/dungeon/map_teleports.lua")
 
 assert(source:find("GetSpellCooldownDuration", 1, true),
     "map teleports must fetch cooldowns as duration objects")
-assert(source:find("SetCooldownFromDurationObject", 1, true),
-    "map teleports must sink cooldowns via SetCooldownFromDurationObject")
+assert(source:find("ApplyCooldownFromStart", 1, true),
+    "map teleports must sink duration objects through the guarded cooldown helper")
 assert(not source:find("CooldownFrame_Set(", 1, true),
     "CooldownFrame_Set compares secret-capable fields and must not be used here")
 assert(not source:find("C_Spell.GetSpellCooldown(", 1, true),

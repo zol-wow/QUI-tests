@@ -97,7 +97,7 @@ return {
     "core/settings_builders.lua::4",
     "core/storage/collector.lua::2",
     "core/uikit.lua::9",
-    "core/utils.lua::33",
+    "core/utils.lua::35",
     "modules/alts/views/window.lua::1",
     "modules/combat/rotationassist.lua::9",
     "modules/datatexts/ldb_bridge.lua::1",

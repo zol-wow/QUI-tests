@@ -33,6 +33,7 @@ local function NewFrame()
         frameRefs = {},
         shown = false,
         frameLevel = 1,
+        canChangeProtectedState = true,
     }
     frameMT = frameMT or {
         __index = function(t, key)
@@ -75,6 +76,11 @@ local function NewFrame()
             elseif key == "SetCooldownFromDurationObject" then
                 return function(self, durationObject)
                     self.lastDurationObject = durationObject
+                end
+            elseif key == "CanChangeProtectedState" then
+                return function(self)
+                    if rawget(self, "canChangeProtectedStateError") then error("restricted") end
+                    return rawget(self, "canChangeProtectedState")
                 end
             elseif key == "Clear" then
                 return function(self)
@@ -244,6 +250,23 @@ local ns = {
         end,
         IsSecretValue = function(value)
             return _G.issecretvalue and _G.issecretvalue(value) or false
+        end,
+        CanMutateCooldown = function(frame)
+            if not frame then return false end
+            if not InCombatLockdown() then return true end
+            local ok, canChange = pcall(frame.CanChangeProtectedState, frame)
+            if not ok or (_G.issecretvalue and _G.issecretvalue(canChange)) then return false end
+            return canChange == true
+        end,
+        ClearCooldown = function(frame)
+            if not frame or not frame.Clear then return false end
+            if InCombatLockdown() then
+                local ok, canChange = pcall(frame.CanChangeProtectedState, frame)
+                if not ok or (_G.issecretvalue and _G.issecretvalue(canChange)) or canChange ~= true then
+                    return false
+                end
+            end
+            return pcall(frame.Clear, frame)
         end,
         IsEditModeShown = function()
             return false
@@ -636,5 +659,65 @@ assert(stanceBtn.cooldown.lastDurationObject == stanceDur,
     "stance cooldowns must paint through the spell DurationObject when the form has a spellID")
 assert(stanceNumericCalls == 0,
     "the numeric stance cooldown path must not run when the DurationObject painted")
+
+local unprotectedCombatBtn = {
+    action = 10,
+    GetAttribute = ActionAttr(10),
+    cooldown = NewFrame(),
+    GetFrameLevel = function() return 1 end,
+}
+local protectedCombatBtn = {
+    action = 10,
+    GetAttribute = ActionAttr(10),
+    cooldown = NewFrame(),
+    GetFrameLevel = function() return 1 end,
+}
+protectedCombatBtn.cooldown.canChangeProtectedState = false
+local secretProtectedBtn = {
+    action = 10,
+    GetAttribute = ActionAttr(10),
+    cooldown = NewFrame(),
+    GetFrameLevel = function() return 1 end,
+}
+secretProtectedBtn.cooldown.canChangeProtectedState = SecretSentinel.MakeSecretSentinel()
+local throwingProtectedBtn = {
+    action = 10,
+    GetAttribute = ActionAttr(10),
+    cooldown = NewFrame(),
+    GetFrameLevel = function() return 1 end,
+}
+throwingProtectedBtn.cooldown.canChangeProtectedStateError = true
+wipe(actionBars._activeButtons)
+actionBars._activeButtons[unprotectedCombatBtn] = true
+actionBars._activeButtons[protectedCombatBtn] = true
+actionBars._activeButtons[secretProtectedBtn] = true
+actionBars._activeButtons[throwingProtectedBtn] = true
+inCombat = true
+currentTime = currentTime + 1
+assert(ns.Helpers.CanMutateCooldown(unprotectedCombatBtn.cooldown) == true,
+    "the test's unprotected cooldown must be writable")
+actionBars.UpdateAllCooldowns()
+assert(unprotectedCombatBtn.cooldown.lastDurationObject == activeDuration,
+    "an unprotected cooldown must keep painting during combat: "
+        .. tostring(unprotectedCombatBtn.cooldown.lastDurationObject)
+        .. ", pending=" .. tostring(actionBars.pendingCooldownRefresh))
+assert(rawget(protectedCombatBtn.cooldown, "lastDurationObject") == nil,
+    "a protected cooldown must not be mutated during combat")
+assert(rawget(secretProtectedBtn.cooldown, "lastDurationObject") == nil,
+    "a secret protection result must fail closed")
+assert(rawget(throwingProtectedBtn.cooldown, "lastDurationObject") == nil,
+    "a throwing protection probe must fail closed")
+assert(actionBars.pendingCooldownRefresh == true,
+    "a skipped protected cooldown must queue a post-combat repaint")
+
+inCombat = false
+currentTime = currentTime + 1
+_G.OverrideActionBar = false
+local ownedEventFrame = assert(ns.ActionBarsEnv.ownedEventFrame)
+ownedEventFrame.scripts.OnEvent(ownedEventFrame, "PLAYER_REGEN_ENABLED")
+assert(actionBars.pendingCooldownRefresh == false,
+    "the post-combat repaint must clear its pending flag")
+assert(protectedCombatBtn.cooldown.lastDurationObject == activeDuration,
+    "the post-combat repaint must apply the protected cooldown")
 
 originalPrint("OK: actionbars_cooldown_secret_batch_test")
