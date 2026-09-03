@@ -31,6 +31,7 @@ local durationObject = {
 }
 local displayGateCalls = 0
 local castingDurationCalls = 0
+local visiblePlates = {}
 
 local function noop() end
 
@@ -50,7 +51,9 @@ local function NewFrame(parent)
 
     frameMT = frameMT or {
         __index = function(_, key)
-            if key == "RegisterEvent" then
+            if key:sub(1, 1) == "_" then
+                return nil
+            elseif key == "RegisterEvent" then
                 return function(self, event)
                     self.events[event] = true
                 end
@@ -189,7 +192,7 @@ C_Timer = {
 
 C_NamePlate = {
     GetNamePlates = function()
-        return {}
+        return visiblePlates
     end,
 }
 
@@ -357,5 +360,17 @@ cancelledScheduler(engineFrame)
 assert(rawget(icon, "_targetedCaster") == nil, "stop event should release the caster assignment")
 assert(icon.shown == false, "stop event should hide the targeted spell icon")
 assert(icon._cooldown.shown == false, "stop event should hide the cooldown swipe")
+
+casting = true
+visiblePlates = { { namePlateUnitToken = "nameplate1" } }
+engineFrame.scripts.OnEvent(engineFrame, "PLAYER_REGEN_ENABLED")
+local regenScheduler = assert(engineFrame.scripts.OnUpdate, "combat exit should reseed an active visible cast")
+now = now + 0.11
+regenScheduler(engineFrame)
+assert(rawget(icon, "_targetedCaster") == "nameplate1", "combat-exit reseed should restore the caster assignment")
+assert(icon.shown == true, "combat-exit reseed should restore the targeted spell icon")
+now = now + 0.15
+regenScheduler(engineFrame)
+assert(engineFrame.scripts.OnUpdate == nil, "combat-exit reseed should drain the scheduler")
 
 print("OK: groupframes_targeted_spells_runtime_test")
