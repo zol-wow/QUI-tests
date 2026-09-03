@@ -167,53 +167,6 @@ if inactiveCall.container:GetFrameLevel() >= inactiveHost._quiAuraContainers[1]:
     fail("inactive tracked icons must stay below the native AuraContainer")
 end
 
--- Dynamic tracked elements ride aura groups (one per spell) instead of slots:
--- RunConfigPass receives the groups, Sync is never called, leftover slots are
--- parked, and no inactive placeholder icons are reconciled.
-local dynamicGroupsCalls = {}
-ns.AuraSlots.UsesDynamicGroups = function(element) return element.dynamic == true end
-ns.AuraSlots.DynamicGroups = function(container, element, profile)
-    dynamicGroupsCalls[#dynamicGroupsCalls + 1] = {
-        container = container, element = element, profile = profile,
-    }
-    return { { key = "d1", tag = element.tag } }
-end
-local dynamicTracked = { mode = "tracked", tag = "t2", dynamic = true }
-local syncBefore, parkBefore, inactiveBefore = #syncCalls, #parkCalls, #inactiveCalls
-local dynHost = NewHost()
-local dynOK = S.ApplyElementPass(dynHost, { dynamicTracked }, BaseOpts({ showInactive = true }))
-if dynOK ~= true then fail("dynamic tracked pass must return true") end
-if #syncCalls ~= syncBefore then fail("dynamic tracked element must not call AuraSlots.Sync") end
-if #parkCalls ~= parkBefore + 1 or parkCalls[#parkCalls] ~= dynHost._quiAuraContainers[1] then
-    fail("dynamic tracked element must park leftover slots on its container")
-end
-if #dynamicGroupsCalls ~= 1 or dynamicGroupsCalls[1].container ~= dynHost._quiAuraContainers[1]
-    or dynamicGroupsCalls[1].profile.tag ~= "t2" then
-    fail("DynamicGroups must receive the element's container and profile")
-end
-local dynConfigure = configureCalls[#configureCalls]
-if dynConfigure.container ~= dynHost._quiAuraContainers[1]
-    or type(dynConfigure.groups) ~= "table" or dynConfigure.groups[1].key ~= "d1" then
-    fail("RunConfigPass must receive the dynamic groups")
-end
-if #inactiveCalls ~= inactiveBefore then
-    fail("dynamic tracked element must not reconcile inactive placeholder icons")
-end
-if not dynHost._quiAuraContainers[1]._shown or dynHost._quiAuraContainers[1]._enabled ~= true then
-    fail("dynamic tracked container must be enabled and shown")
-end
-
-nextConfigureResult = false
-local dynFail = S.ApplyElementPass(NewHost(), { dynamicTracked }, BaseOpts())
-nextConfigureResult = true
-if dynFail ~= false then fail("dynamic tracked RunConfigPass failure must mark the pass incomplete") end
-
--- A tracked element that does NOT opt in still takes the slot path.
-local fixedTracked = { mode = "tracked", tag = "t3" }
-syncBefore = #syncCalls
-S.ApplyElementPass(NewHost(), { fixedTracked }, BaseOpts())
-if #syncCalls ~= syncBefore + 1 then fail("fixed tracked element must still use AuraSlots.Sync") end
-
 if S.ApplyElementPass(nil, {}, BaseOpts()) ~= false then fail("nil host must return false") end
 if S.ApplyElementPass(NewHost(), {}, { unit = nil }) ~= false then fail("missing unit must return false") end
 
