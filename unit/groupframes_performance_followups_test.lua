@@ -29,6 +29,10 @@ assert(raidbuffs:find("if not inCombat and layoutChanged then", 1, true),
     "raid buff icons should only re-anchor after layout changes")
 
 local targeted = read("QUI_GroupFrames/groupframes/groupframes_targeted_spells.lua")
+local resolveStart = assert(targeted:find("local function UnitFromCasterTarget(caster)", 1, true))
+local resolveEnd = assert(targeted:find("local MAX_NAMEPLATE_CASTERS", resolveStart, true))
+local resolve = targeted:sub(resolveStart, resolveEnd)
+assert(not resolve:find("IndexRoster()", 1, true), "cast resolution should not rebuild the roster index")
 local rosterStart = assert(targeted:find("local function HandleContextChanged()", 1, true))
 local rosterEnd = assert(targeted:find("local eventFrame = CreateFrame", rosterStart, true))
 local roster = targeted:sub(rosterStart, rosterEnd)
