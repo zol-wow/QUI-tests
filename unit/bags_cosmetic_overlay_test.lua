@@ -43,7 +43,8 @@ end
 _G.SetItemButtonTexture = function() end
 _G.SetItemButtonCount = function() end
 _G.SetItemButtonDesaturated = function() end
-_G.CooldownFrame_Set = function() end
+local cooldownSetCalls = 0
+_G.CooldownFrame_Set = function() cooldownSetCalls = cooldownSetCalls + 1 end
 _G.GameTooltip = sink()
 _G.C_Container = {
     GetContainerItemCooldown = function() return 0, 0, 0 end,
@@ -55,6 +56,7 @@ local settings = {
     appearance = { corners = { tr1 = "crafting_quality" } },
     behavior = { junk = {} },
 }
+local canMutateCooldown = true
 
 local ns = {
     UIKit = { CreateBorderLines = function() end, UpdateBorderLines = function() end },
@@ -62,6 +64,7 @@ local ns = {
         CreateDBGetter = function() return function() return settings end end,
         GetGeneralFont = function() return "font" end,
         GetSkinColors = function() return 1, 1, 1 end,
+        CanMutateCooldown = function() return canMutateCooldown end,
     },
     SafeCall = function(_, fn, ...) return pcall(fn, ...) end,
 }
@@ -92,6 +95,13 @@ local rec = last()
 check("an occupied slot hands its link to SetItemButtonOverlay",
     rec ~= nil and rec.op == "set" and rec.link == COSMETIC and rec.quality == 4,
     rec and ("op=" .. rec.op) or "no overlay call")
+check("a mutable item cooldown is painted", cooldownSetCalls == 1)
+
+canMutateCooldown = false
+ItemButtons.Dress(button, { icon = 1, quality = 4, link = COSMETIC })
+check("a protected combat item cooldown is deferred",
+    cooldownSetCalls == 1 and ns.Bags.cooldownRefreshPending == true)
+canMutateCooldown = true
 
 reset()
 ItemButtons.Dress(button, { icon = 1, quality = 1 })
