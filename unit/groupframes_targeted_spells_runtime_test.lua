@@ -33,11 +33,13 @@ local displayGateCalls = 0
 local castingDurationCalls = 0
 local visiblePlates = {}
 local inCombat = false
+local createdRegions = 0
 
 local function noop() end
 
 local frameMT
 local function NewFrame(parent)
+    createdRegions = createdRegions + 1
     local frame = {
         parent = parent,
         children = {},
@@ -328,7 +330,9 @@ assert(engineFrame.events.UNIT_SPELLCAST_START, "active engine should watch cast
 assert(#groupFrame.children == 4, "login should preallocate three targeted-spell markers")
 local icon = assert(groupFrame.children[2], "preallocated marker should be parented to the group frame")
 assert(icon.shown == false, "preallocated marker should remain hidden")
+local preallocatedRegionCount = createdRegions
 
+inCombat = true
 engineFrame.scripts.OnEvent(engineFrame, "NAME_PLATE_UNIT_ADDED", "nameplate1")
 local scheduler = assert(engineFrame.scripts.OnUpdate, "nameplate cast should arm the shared resolve scheduler")
 now = now + 0.09
@@ -338,6 +342,7 @@ now = now + 0.01
 scheduler(engineFrame)
 assert(rawget(icon, "_targetedCaster") == "nameplate1", "icon should be assigned to the hostile caster")
 assert(#groupFrame.children == 4, "cast resolution should reuse the preallocated marker pool")
+assert(createdRegions == preallocatedRegionCount, "combat cast resolution should create no UI regions")
 assert(icon.shown == true, "icon should be shown after delayed target resolution")
 assert(icon._texture.texture == 135807, "icon should use the casting spell texture")
 assert(icon._cooldown.durationObject == durationObject, "icon should use the Blizzard duration object cooldown path")
@@ -347,6 +352,7 @@ assert(engineFrame.scripts.OnUpdate == scheduler, "verify pass should reuse the 
 now = now + 0.15
 scheduler(engineFrame)
 assert(engineFrame.scripts.OnUpdate == nil, "scheduler should disarm after the verify pass")
+inCombat = false
 
 local resolvesBeforeRetarget = displayGateCalls
 engineFrame.scripts.OnEvent(engineFrame, "UNIT_TARGET", "nameplate1")
