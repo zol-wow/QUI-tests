@@ -31,6 +31,11 @@ do
     check("tracked: auraType field present (slots need polarity)", t.auraType == "HELPFUL")
     check("tracked: displayType honored", t.displayType == "bar")
     check("tracked: bar dims seeded", t.bar and t.bar.thickness == 12 and t.bar.length == 48)
+    check("tracked: dynamicLayout seeds off (fixed slots)", t.dynamicLayout == false)
+    local legacy = E.NormalizeElement({ mode = "tracked", spells = { 12345 } })
+    check("tracked: normalize defaults dynamicLayout off", legacy.dynamicLayout == false)
+    local dyn = E.NormalizeElement({ mode = "tracked", spells = { 12345 }, dynamicLayout = true })
+    check("tracked: normalize keeps dynamicLayout on", dyn.dynamicLayout == true)
     local m = E.NewMissingRaidBuffElement()
     check("mrb: mode", m.mode == "missingRaidBuff")
 end
@@ -76,8 +81,15 @@ do
     check("validate: strip rejects bad polarity", E.Validate({ mode = "filterStrip", auraType = "ALL" }) == false)
     check("validate: tracked needs spells", E.Validate({ mode = "tracked", displayType = "icon", spells = {} }) == false)
     check("validate: tracked ok", E.Validate({ mode = "tracked", displayType = "square", spells = { 1 } }) == true)
+    check("validate: tracked rejects malformed polarity",
+        E.Validate({ mode = "tracked", auraType = {}, displayType = "icon", spells = { 1 } }) == false)
+    check("validate: malformed render fields rejected",
+        E.Validate({ mode = "tracked", displayType = "bar", spells = { 1 },
+            duration = { font = {} }, bar = { lowTimeColor = { {} } } }) == false)
     check("validate: unknown mode rejected", E.Validate({ mode = "wat" }) == false)
     check("validate: non-table rejected", E.Validate(nil) == false)
+    check("validate: malformed nested table rejected",
+        E.Validate({ mode = "filterStrip", auraType = "HELPFUL", filterFlags = 1 }) == false)
 end
 
 -- CompileFilters ---------------------------------------------------------

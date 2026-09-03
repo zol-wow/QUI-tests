@@ -7,6 +7,7 @@ local profile = {}
 local ns = {}
 ns.Helpers = {
     GetProfile = function() return profile end,
+    SafeNumberOrNil = function(value) return tonumber(value) end,
     GetModuleSettings = function(name, defaults)
         if not profile[name] then
             profile[name] = {}
@@ -32,6 +33,18 @@ if type(store.displays) ~= "table" or type(store.order) ~= "table"
     or type(store.groups) ~= "table" then
     fail("Store must guarantee displays, order and groups tables")
 end
+
+store.groupLayoutVersion = nil
+store.groups.Legacy = { collapsed = false, enabled = true }
+store.displays.legacy = { id = "legacy", name = "Legacy", group = "Legacy" }
+store.order[1] = "legacy"
+AD.Store()
+if AD.GroupUsesLayout("Legacy") then
+    fail("existing organizational groups must preserve individual display anchors")
+end
+store.groups.Legacy = nil
+store.displays.legacy = nil
+store.order[1] = nil
 
 local a = AD.NewDisplay("First")
 if a.id ~= "d1" then fail("first display id must be d1, got " .. tostring(a.id)) end
@@ -162,6 +175,21 @@ AD.SetGroupEnabled("Raid", false)
 if AD.GroupEnabled("Raid") then fail("SetGroupEnabled(false) must disable the group") end
 if not AD.GroupEnabled(nil) then fail("a nil group must count as enabled") end
 
+local raidGroup = AD.GetGroup("Raid", false)
+if type(raidGroup) ~= "table" or not tostring(raidGroup.id):match("^g%d+$") then
+    fail("creating group state must mint a stable group id")
+end
+if raidGroup.growDirection ~= "RIGHT" or raidGroup.alignment ~= "CENTER"
+    or raidGroup.spacing ~= 4 or raidGroup.scale ~= 1
+    or raidGroup.itemWidth ~= 0 or raidGroup.itemHeight ~= 0 then
+    fail("new groups must carry complete layout defaults")
+end
+if not AD.GroupUsesLayout("Raid") then fail("new groups must use shared layout") end
+local raidAnchorKey = AD.GroupAnchorKey("Raid", false)
+if raidAnchorKey ~= AD.GROUP_ANCHOR_PREFIX .. raidGroup.id then
+    fail("GroupAnchorKey must use the group's stable id")
+end
+
 AD.SetGroupEnabled("", false)
 if not AD.GroupEnabled("") then
     fail("an empty group name must never gate visibility - no header renders controls for it")
@@ -176,6 +204,9 @@ end
 if store.groups["Raid"] ~= nil then fail("RenameGroup must drop the old group entry") end
 if AD.GroupEnabled("Mythic") then
     fail("RenameGroup must carry the group's disabled state across to the new name")
+end
+if AD.GroupAnchorKey("Mythic", false) ~= raidAnchorKey then
+    fail("RenameGroup must preserve the group's layout anchor key")
 end
 
 local renameMember = AD.NewDisplay("Member")
@@ -217,6 +248,78 @@ if AD.RenameGroup(nil, "Anything") ~= false then
 end
 if AD.RenameGroup("Renamed", 7) ~= false then
     fail("RenameGroup must reject a non-string new name")
+end
+
+local deleteGroupMember = AD.NewDisplay("Delete Group Member")
+deleteGroupMember.group = "Disposable"
+local disposable = AD.GetGroup("Disposable", true)
+local disposableAnchor = AD.GroupAnchorKey("Disposable", false)
+profile.frameAnchoring = profile.frameAnchoring or {}
+profile.frameAnchoring[disposableAnchor] = { offsetX = 25 }
+if not AD.DeleteGroup("Disposable") then fail("DeleteGroup must remove a real group") end
+if deleteGroupMember.group ~= nil then
+    fail("DeleteGroup must make its former members ungrouped")
+end
+if profile.frameAnchoring[disposableAnchor] ~= nil then
+    fail("DeleteGroup must remove the stable group layout anchor")
+end
+if AD.GetGroup("Disposable", false) ~= nil or disposable == nil then
+    fail("DeleteGroup must remove group settings without invalidating the captured test value")
+end
+
+local layoutMembers = {
+    { id = "a", width = 10, height = 8 },
+    { id = "b", width = 20, height = 12 },
+    { id = "c", width = 6, height = 10 },
+}
+local layoutW, layoutH, placed = AD.ComputeGroupLayout({
+    growDirection = "RIGHT", alignment = "CENTER", spacing = 2,
+}, layoutMembers)
+if layoutW ~= 40 or layoutH ~= 12 then
+    fail("RIGHT group extent must include member sizes and spacing")
+end
+if placed[1].x ~= 5 or placed[2].x ~= 22 or placed[3].x ~= 37 then
+    fail("RIGHT group growth must preserve member order from left to right")
+end
+if placed[1].y ~= -6 or placed[2].y ~= -6 then
+    fail("CENTER group alignment must share the cross-axis center")
+end
+
+layoutW, layoutH, placed = AD.ComputeGroupLayout({
+    growDirection = "LEFT", alignment = "START", spacing = 2,
+}, layoutMembers)
+if placed[1].x ~= 35 or placed[2].x ~= 18 or placed[3].x ~= 3 then
+    fail("LEFT group growth must place the first member at the right edge")
+end
+if placed[1].y ~= -4 or placed[2].y ~= -6 then
+    fail("START group alignment must align horizontal members to the top edge")
+end
+
+layoutW, layoutH, placed = AD.ComputeGroupLayout({
+    growDirection = "CENTER_H", alignment = "END", spacing = 2,
+}, {
+    { id = "a", width = 10, height = 8 },
+    { id = "b", width = 10, height = 8 },
+    { id = "c", width = 10, height = 8 },
+})
+if layoutW ~= 34 or placed[1].x ~= 17 or placed[2].x ~= 29 or placed[3].x ~= 5 then
+    fail("CENTER_H group growth must alternate members around the anchor")
+end
+
+layoutW, layoutH, placed = AD.ComputeGroupLayout({
+    growDirection = "UP", alignment = "END", spacing = 3,
+    itemWidth = 30, itemHeight = 14,
+}, layoutMembers)
+if layoutW ~= 30 or layoutH ~= 48 then
+    fail("forced member size must define the group extent")
+end
+if placed[1].y ~= -41 or placed[3].y ~= -7 then
+    fail("UP group growth must place the first member at the bottom edge")
+end
+
+local emptyW, emptyH, emptyLayout = AD.ComputeGroupLayout({}, {})
+if emptyW ~= 1 or emptyH ~= 1 or #emptyLayout ~= 0 then
+    fail("an empty group must retain a safe 1x1 layout")
 end
 
 local ordered = AD.OrderedDisplays()
@@ -557,5 +660,326 @@ if not AD.GroupEnabled("Renamed") then
 end
 ns.Helpers.GetProfile = realGetProfile
 if AD.Store() == nil then fail("Store must recover once the profile is back") end
+
+-- Nested groups: parent links with cycle/depth guards, enable chains that
+-- walk ancestors, and rename/delete keeping the tree consistent.
+AD.GetGroup("Nest Parent", true)
+AD.GetGroup("Nest Child", true)
+AD.GetGroup("Nest Leaf", true)
+if AD.SetGroupParent("Nest Child", "Nest Parent") ~= true
+    or AD.SetGroupParent("Nest Leaf", "Nest Child") ~= true then
+    fail("SetGroupParent must link valid parents")
+end
+if AD.GroupParent("Nest Leaf") ~= "Nest Child" then
+    fail("GroupParent must report the direct parent")
+end
+local selfOK, selfReason = AD.SetGroupParent("Nest Parent", "Nest Parent")
+if selfOK ~= false or selfReason ~= "cycle" then
+    fail("a group must not become its own parent")
+end
+local cycleOK, cycleReason = AD.SetGroupParent("Nest Parent", "Nest Leaf")
+if cycleOK ~= false or cycleReason ~= "cycle" then
+    fail("nesting a group under its own descendant must be rejected as a cycle")
+end
+local chain = { "Depth 1" }
+AD.GetGroup("Depth 1", true)
+for i = 2, 6 do
+    chain[i] = "Depth " .. i
+    AD.GetGroup(chain[i], true)
+    if AD.SetGroupParent(chain[i], chain[i - 1]) ~= true then
+        fail("nesting up to the depth cap must succeed at level " .. i)
+    end
+end
+AD.GetGroup("Depth 7", true)
+local depthOK, depthReason = AD.SetGroupParent("Depth 7", "Depth 6")
+if depthOK ~= false or depthReason ~= "depth" then
+    fail("nesting beyond the depth cap must be rejected")
+end
+
+local roots = AD.GroupChildren(nil)
+local sawParent, sawChild = false, false
+for i = 1, #roots do
+    if roots[i] == "Nest Parent" then sawParent = true end
+    if roots[i] == "Nest Child" then sawChild = true end
+end
+if not sawParent or sawChild then
+    fail("GroupChildren(nil) must list root groups only")
+end
+local nestChildren = AD.GroupChildren("Nest Parent")
+if #nestChildren ~= 1 or nestChildren[1] ~= "Nest Child" then
+    fail("GroupChildren must list a group's direct children")
+end
+
+AD.GetGroup("Nest Child B", true)
+if AD.SetGroupParent("Nest Child B", "Nest Parent") ~= true then
+    fail("second child must nest")
+end
+if AD.GroupChildren("Nest Parent")[2] ~= "Nest Child B" then
+    fail("siblings without sort must order by name")
+end
+if AD.MoveGroupWithinParent("Nest Child B", -1) ~= true
+    or AD.GroupChildren("Nest Parent")[1] ~= "Nest Child B" then
+    fail("MoveGroupWithinParent must reorder siblings")
+end
+if AD.MoveGroupWithinParent("Nest Child B", -1) ~= false then
+    fail("moving the first sibling further up must fail")
+end
+
+local nestDisplay = AD.NewDisplay("Nest Display", "Nest Leaf")
+local nestMid = AD.NewDisplay("Nest Mid Display", "Nest Child")
+AD.SetGroupEnabled("Nest Parent", false)
+if AD.GroupEnabled("Nest Leaf") ~= false then
+    fail("a disabled ancestor must disable the whole subtree")
+end
+if AD.DisplayActive(nestDisplay) ~= false then
+    fail("displays in a subtree with a disabled ancestor must be inactive")
+end
+AD.SetGroupEnabled("Nest Parent", true)
+if AD.GroupEnabled("Nest Leaf") ~= true then
+    fail("re-enabling the ancestor must re-enable the subtree")
+end
+
+local treeDisplays = AD.GroupTreeDisplays("Nest Parent")
+if #treeDisplays ~= 2 then
+    fail("GroupTreeDisplays must collect the whole subtree, got " .. #treeDisplays)
+end
+if AD.RootGroupName("Nest Leaf") ~= "Nest Parent" then
+    fail("RootGroupName must walk to the tree root")
+end
+if AD.GroupPathLabel("Nest Leaf") ~= "Nest Parent > Nest Child > Nest Leaf" then
+    fail("GroupPathLabel must join the ancestor chain, got "
+        .. tostring(AD.GroupPathLabel("Nest Leaf")))
+end
+
+if AD.RenameGroup("Nest Child", "Nest Mid") ~= true then
+    fail("renaming a nested group must succeed")
+end
+if AD.GroupParent("Nest Leaf") ~= "Nest Mid" then
+    fail("RenameGroup must re-link child groups to the new name")
+end
+AD.DeleteGroup("Nest Mid")
+if AD.GroupParent("Nest Leaf") ~= "Nest Parent" then
+    fail("DeleteGroup must promote child groups to the deleted group's parent")
+end
+if nestMid.group ~= "Nest Parent" then
+    fail("DeleteGroup must promote member displays to the deleted group's parent")
+end
+
+-- Runtime group integration: grouped displays share one host/mover, then an
+-- ungrouped display returns to UIParent and regains its own mover.
+local function NewFrame(parent)
+    local frame = { parent = parent, width = 1, height = 1, scale = 1, shown = false }
+    function frame:SetSize(w, h) self.width, self.height = w, h end
+    function frame:GetSize() return self.width, self.height end
+    function frame:GetWidth() return self.width end
+    function frame:GetHeight() return self.height end
+    function frame:SetScale(scale) self.scale = scale end
+    function frame:GetParent() return self.parent end
+    function frame:SetParent(nextParent) self.parent = nextParent end
+    function frame:SetClampedToScreen() end
+    function frame:ClearAllPoints() self.point = nil end
+    function frame:SetPoint(...) self.point = { ... } end
+    function frame:SetAlpha(alpha) self.alpha = alpha end
+    function frame:Show() self.shown = true end
+    function frame:Hide() self.shown = false end
+    function frame:SetScript() end
+    function frame:SetAllPoints() end
+    function frame:SetMovable() end
+    function frame:StartMoving() self.moving = true end
+    function frame:StopMovingOrSizing() self.moving = false end
+    function frame:GetCenter() return self.centerX or 0, self.centerY or 0 end
+    function frame:GetEffectiveScale() return self.effScale or 1 end
+    return frame
+end
+
+UIParent = NewFrame(nil)
+InCombatLockdown = function() return false end
+CreateFrame = function(_, _, parent) return NewFrame(parent) end
+local layoutElements = {}
+ns.L = setmetatable({}, { __index = function(_, key) return key end })
+ns.AuraElements = {
+    NewFilterStripElement = function() return {} end,
+    EnsureSeeded = function() end,
+    -- One renderable element per display: since beta4, hosts are sized by
+    -- BuildDisplayLayout from renderable elements (an empty display is 1x1),
+    -- so the 10px stub profile below only applies if something renders.
+    ActiveElementsForSpec = function() return { { mode = "filterStrip" } } end,
+}
+ns.AuraGlue = {
+    ElementProfile = function()
+        return { maxPerRow = 1, maxIcons = 1, iconSize = 10, spacing = 0 }
+    end,
+    AurasAreSecret = function() return false end,
+    QueueRegenWork = function() end,
+}
+ns.AuraSurface = { ApplyElementPass = function() return true end }
+ns.Addon = { AuraSkin = { LayoutAnchor = function() return "TOPLEFT" end } }
+ns.QUI_LayoutMode = {
+    RegisterElement = function(_, def) layoutElements[def.key] = def end,
+    UnregisterElement = function(_, key) layoutElements[key] = nil end,
+}
+ns.Helpers.IsLayoutModeActive = function() return false end
+ns.SafeCall = function(_, fn, ...)
+    local ok, result = pcall(fn, ...)
+    if not ok then fail("runtime SafeCall failed: " .. tostring(result)) end
+    return ok, result
+end
+ns.SafeCallMethod = function(_, target, method, ...)
+    return target[method](target, ...)
+end
+
+-- Reload the runtime so its cached dependency upvalues (E/AuraGlue/AuraSurface/
+-- AuraSkin) bind to the stubs above — the sections before this one resolved
+-- them against the real modules loaded at the top of this file.
+assert(loadfile("modules/trackers/aura_displays.lua"))("QUI", ns)
+AD = ns.QUI_AuraDisplays
+
+local runtimeStore = AD.Store()
+local runtimeLegacy = AD.NewDisplay("Runtime Legacy Member")
+runtimeLegacy.group = "Runtime Legacy"
+runtimeStore.groups["Runtime Legacy"] = nil
+runtimeStore.groupLayoutVersion = nil
+AD.Store()
+AD.Refresh()
+local runtimeLegacyHost = AD.HostFor(runtimeLegacy.id)
+if AD.GroupUsesLayout("Runtime Legacy")
+    or not runtimeLegacyHost or runtimeLegacyHost.parent ~= UIParent
+    or not layoutElements[AD.ANCHOR_PREFIX .. runtimeLegacy.id] then
+    fail("implicit legacy groups must preserve individual hosts and movers")
+end
+
+local runtimeFirst = AD.NewDisplay("Runtime First", "Runtime Group")
+local runtimeSecond = AD.NewDisplay("Runtime Second", "Runtime Group")
+local runtimeGroup = AD.GetGroup("Runtime Group", true)
+runtimeGroup.spacing = 4
+runtimeGroup.scale = 1.5
+AD.Refresh()
+
+local runtimeGroupHost = AD.GroupHostFor("Runtime Group")
+local runtimeFirstHost = AD.HostFor(runtimeFirst.id)
+local runtimeSecondHost = AD.HostFor(runtimeSecond.id)
+if not runtimeGroupHost or runtimeGroupHost.width ~= 24 or runtimeGroupHost.height ~= 10 then
+    fail("Refresh must create and size a populated group host")
+end
+if runtimeGroupHost.scale ~= 1.5
+    or runtimeFirstHost.parent ~= runtimeGroupHost
+    or runtimeSecondHost.parent ~= runtimeGroupHost then
+    fail("group runtime must apply scale and parent members to the group host")
+end
+if runtimeFirstHost.point[4] ~= 5 or runtimeSecondHost.point[4] ~= 19 then
+    fail("group runtime must place members using the configured spacing")
+end
+local runtimeGroupKey = AD.GroupAnchorKey("Runtime Group", false)
+if not layoutElements[runtimeGroupKey]
+    or layoutElements[AD.ANCHOR_PREFIX .. runtimeFirst.id]
+    or layoutElements[AD.ANCHOR_PREFIX .. runtimeSecond.id] then
+    fail("grouped displays must expose one group Layout Mode mover")
+end
+
+runtimeFirst.group = nil
+AD.Refresh()
+if runtimeFirstHost.parent ~= UIParent or runtimeFirstHost.scale ~= 1 then
+    fail("an ungrouped display must return to UIParent at its natural scale")
+end
+if not layoutElements[AD.ANCHOR_PREFIX .. runtimeFirst.id] then
+    fail("an ungrouped display must regain its individual Layout Mode mover")
+end
+if runtimeGroupHost.width ~= 10 then
+    fail("the remaining one-member group must reflow")
+end
+
+-- Nested runtime: a child group's host flows as a block inside the parent's
+-- layout at its own scale; only the root keeps a Layout Mode mover.
+local runtimeSub = AD.GetGroup("Runtime Sub", true)
+runtimeSub.scale = 2
+if AD.SetGroupParent("Runtime Sub", "Runtime Group") ~= true then
+    fail("runtime child group must nest")
+end
+local runtimeThird = AD.NewDisplay("Runtime Third", "Runtime Sub")
+AD.Refresh()
+local runtimeSubHost = AD.GroupHostFor("Runtime Sub")
+local runtimeThirdHost = AD.HostFor(runtimeThird.id)
+if not runtimeSubHost or runtimeSubHost.parent ~= runtimeGroupHost then
+    fail("a nested group's host must be parented into the root group host")
+end
+if runtimeSubHost.scale ~= 2 or runtimeSubHost.width ~= 10 then
+    fail("a nested group keeps its own scale and natural size")
+end
+if runtimeThirdHost.parent ~= runtimeSubHost then
+    fail("nested displays must live inside their own group's host")
+end
+-- Members flow child-group first: sub (10 natural * 2 scale = 20 effective),
+-- spacing 4, then the remaining display (10) -> 34 x 20.
+if runtimeGroupHost.width ~= 34 or runtimeGroupHost.height ~= 20 then
+    fail(("root group must count the child block's scaled extent, got %sx%s")
+        :format(tostring(runtimeGroupHost.width), tostring(runtimeGroupHost.height)))
+end
+if runtimeSubHost.point[4] ~= 10 or runtimeSecondHost.point[4] ~= 29 then
+    fail("nested blocks and displays must share the parent's flow")
+end
+local runtimeSubKey = AD.GroupAnchorKey("Runtime Sub", false)
+if layoutElements[runtimeSubKey] then
+    fail("nested groups must not register their own Layout Mode mover")
+end
+if not layoutElements[runtimeGroupKey] then
+    fail("the root group must keep its Layout Mode mover")
+end
+
+AD.SetGroupParent("Runtime Sub", nil)
+AD.Refresh()
+if runtimeSubHost.parent ~= UIParent then
+    fail("a detached group must return to UIParent")
+end
+if not layoutElements[runtimeSubKey] then
+    fail("a detached group must regain its own Layout Mode mover")
+end
+if runtimeGroupHost.width ~= 10 then
+    fail("the parent must reflow after the child group detaches")
+end
+
+-- Preview drag: dragging always targets the ROOT entity's anchor, and the
+-- committed record matches Layout Mode's CENTER/CENTER shape.
+if AD.SetGroupParent("Runtime Sub", "Runtime Group") ~= true then
+    fail("re-nesting for the drag test must succeed")
+end
+AD.Refresh()
+if AD.EnablePreviewDrag("display", runtimeThird.id) ~= true then
+    fail("preview drag must enable for a nested display")
+end
+if AD.PreviewDragTarget() ~= AD.GroupAnchorKey("Runtime Group", false) then
+    fail("dragging a nested display must target its root group's anchor, got "
+        .. tostring(AD.PreviewDragTarget()))
+end
+
+if AD.EnablePreviewDrag("display", runtimeFirst.id) ~= true then
+    fail("preview drag must enable for an ungrouped display")
+end
+local firstKey = AD.ANCHOR_PREFIX .. runtimeFirst.id
+if AD.PreviewDragTarget() ~= firstKey then
+    fail("an ungrouped display must drag its own anchor")
+end
+
+runtimeFirstHost.centerX, runtimeFirstHost.centerY = 500, 300
+UIParent.centerX, UIParent.centerY = 400, 250
+if AD.CommitPreviewDragPosition() ~= true then
+    fail("committing a dragged position must succeed")
+end
+local dragRecord = profile.frameAnchoring and profile.frameAnchoring[firstKey]
+if not dragRecord or dragRecord.point ~= "CENTER" or dragRecord.relative ~= "CENTER"
+    or dragRecord.offsetX ~= 100 or dragRecord.offsetY ~= 50 then
+    fail("dragged positions must commit as CENTER/CENTER screen offsets")
+end
+
+if AD.EnablePreviewDrag("group", "Runtime Sub") ~= true then
+    fail("preview drag must enable for a group")
+end
+if AD.PreviewDragTarget() ~= AD.GroupAnchorKey("Runtime Group", false) then
+    fail("dragging a nested group must target its root group's anchor")
+end
+
+AD.DisablePreviewDrag()
+if AD.PreviewDragTarget() ~= nil then
+    fail("DisablePreviewDrag must clear the target")
+end
 
 print("PASS: aura_displays_test")
