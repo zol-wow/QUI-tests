@@ -59,8 +59,14 @@ local function NewRegion(kind, parent, capture)
     function frame:SetFrameLevel() end
     function frame:SetBackdrop() end
     function frame:SetBackdropBorderColor() end
-    function frame:RegisterEvent() end
-    function frame:SetScript() end
+    function frame:RegisterEvent(event)
+        self._events = self._events or {}
+        self._events[event] = true
+    end
+    function frame:SetScript(script, handler)
+        self._scripts = self._scripts or {}
+        self._scripts[script] = handler
+    end
     function frame:SetAllPoints() end
     function frame:SetDrawEdge() end
     function frame:SetSwipeColor() end
@@ -85,10 +91,11 @@ local function LoadDisplay(db)
     local capture = {}
     local targets = {}
     local subscriber
+    local inCombat = false
     db = db or { enabled = true }
 
     UIParent = NewRegion("Frame") -- luacheck: ignore
-    InCombatLockdown = function() return false end -- luacheck: ignore
+    InCombatLockdown = function() return inCombat end -- luacheck: ignore
     CreateFrame = function(kind, _, parent) -- luacheck: ignore
         return NewRegion(kind, parent, capture)
     end
@@ -122,6 +129,20 @@ local function LoadDisplay(db)
 
     local host = ns.QUI_IncomingCasts.GetFrame()
     local env = { db = db, targets = targets, host = host, ns = ns }
+    function env.setCombat(value)
+        inCombat = value
+    end
+    function env.frameCount()
+        return #capture
+    end
+    function env.fire(event)
+        for i = 1, #capture do
+            local frame = capture[i]
+            if frame._events and frame._events[event] and frame._scripts and frame._scripts.OnEvent then
+                frame._scripts.OnEvent(frame, event)
+            end
+        end
+    end
     function env.icons()
         local icons = {}
         for i = 1, #capture do
@@ -163,7 +184,7 @@ local cast = { texture = 135812, startMS = 0, endMS = 2000 }
 
 local env = LoadDisplay()
 local icons = env.icons()
-eq(#icons, 5, "default pool")
+eq(#icons, 150, "nameplate-sized pool")
 for i = 1, 5 do
     eq(lastScale(icons[i]), 0.01, "free slot " .. i)
 end
@@ -210,5 +231,20 @@ checkPoint(icons[2], "LEFT", env.host, "LEFT", 44, 0, "fixed icon 2")
 env.targets.np4target = MakeSecret()
 env.driver().onShow("np4", nil, cast)
 eq(lastScale(icons[1]), 1, "fixed-layout restricted target")
+
+env = LoadDisplay({ enabled = true, maxIcons = 1 })
+icons = env.icons()
+eq(#icons, 150, "layout max does not cap cast capacity")
+for i = 1, 150 do
+    env.driver().onShow("np" .. i, nil, cast)
+end
+env.setCombat(true)
+local framesBeforeOverflow = env.frameCount()
+env.driver().onShow("np151", nil, cast)
+eq(env.frameCount(), framesBeforeOverflow, "combat overflow creates no regions")
+eq(#env.icons(), 150, "combat overflow defers pool growth")
+env.setCombat(false)
+env.fire("PLAYER_REGEN_ENABLED")
+eq(#env.icons(), 151, "deferred pool growth runs after combat")
 
 print("PASS: incoming_casts_collapse_test")

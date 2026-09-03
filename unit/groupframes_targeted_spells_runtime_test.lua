@@ -23,7 +23,6 @@ local db = {
     },
 }
 
-local timers = {}
 local now = 100
 local durationObject = {
     IsZero = function()
@@ -183,8 +182,8 @@ function GetTime()
 end
 
 C_Timer = {
-    After = function(delay, callback)
-        timers[#timers + 1] = { delay = delay, callback = callback }
+    After = function()
+        error("incoming casts must not allocate timer closures")
     end,
 }
 
@@ -319,17 +318,12 @@ assert(engineFrame.events.UNIT_TARGET, "active engine should watch nameplate ret
 assert(engineFrame.events.UNIT_SPELLCAST_START, "active engine should watch cast starts")
 
 engineFrame.scripts.OnEvent(engineFrame, "NAME_PLATE_UNIT_ADDED", "nameplate1")
-assert(#timers == 2, "nameplate cast should schedule pickup and verify resolves")
-
-table.sort(timers, function(a, b)
-    return a.delay < b.delay
-end)
-while #timers > 0 do
-    local timer = table.remove(timers, 1)
-    now = now + timer.delay
-    timer.callback()
-end
-
+local scheduler = assert(engineFrame.scripts.OnUpdate, "nameplate cast should arm the shared resolve scheduler")
+now = now + 0.09
+scheduler(engineFrame)
+assert(groupFrame.children[2] == nil, "cast must not resolve before the first-read delay")
+now = now + 0.01
+scheduler(engineFrame)
 local icon = assert(groupFrame.children[2], "targeted spell icon should be parented to the group frame")
 assert(rawget(icon, "_targetedCaster") == "nameplate1", "icon should be assigned to the hostile caster")
 assert(icon.shown == true, "icon should be shown after delayed target resolution")
@@ -337,9 +331,29 @@ assert(icon._texture.texture == 135807, "icon should use the casting spell textu
 assert(icon._cooldown.durationObject == durationObject, "icon should use the Blizzard duration object cooldown path")
 assert(displayGateCalls > 0, "cast flow should gate through UnitShouldDisplaySpellTargetName")
 assert(castingDurationCalls > 0, "cast flow should query UnitCastingDuration")
+assert(engineFrame.scripts.OnUpdate == scheduler, "verify pass should reuse the same scheduler callback")
+now = now + 0.15
+scheduler(engineFrame)
+assert(engineFrame.scripts.OnUpdate == nil, "scheduler should disarm after the verify pass")
+
+local resolvesBeforeRetarget = displayGateCalls
+engineFrame.scripts.OnEvent(engineFrame, "UNIT_TARGET", "nameplate1")
+local retargetScheduler = assert(engineFrame.scripts.OnUpdate, "retarget should rearm the scheduler")
+engineFrame.scripts.OnEvent(engineFrame, "UNIT_TARGET", "nameplate1")
+assert(engineFrame.scripts.OnUpdate == retargetScheduler, "repeated retargets should reuse one callback")
+now = now + 0.05
+retargetScheduler(engineFrame)
+now = now + 0.15
+retargetScheduler(engineFrame)
+assert(displayGateCalls == resolvesBeforeRetarget + 2, "repeated retargets should coalesce to two latest resolves")
+assert(engineFrame.scripts.OnUpdate == nil, "retarget verify pass should drain the scheduler")
 
 casting = false
+engineFrame.scripts.OnEvent(engineFrame, "UNIT_TARGET", "nameplate1")
+local cancelledScheduler = assert(engineFrame.scripts.OnUpdate, "retarget should schedule before cancellation")
 engineFrame.scripts.OnEvent(engineFrame, "UNIT_SPELLCAST_STOP", "nameplate1")
+assert(engineFrame.scripts.OnUpdate == nil, "cast stop should cancel pending resolves immediately")
+cancelledScheduler(engineFrame)
 assert(rawget(icon, "_targetedCaster") == nil, "stop event should release the caster assignment")
 assert(icon.shown == false, "stop event should hide the targeted spell icon")
 assert(icon._cooldown.shown == false, "stop event should hide the cooldown swipe")
