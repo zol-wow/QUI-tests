@@ -86,6 +86,16 @@ do
     check("validate: malformed render fields rejected",
         E.Validate({ mode = "tracked", displayType = "bar", spells = { 1 },
             duration = { font = {} }, bar = { lowTimeColor = { {} } } }) == false)
+    check("validate: malformed element id rejected",
+        E.Validate({ id = {}, mode = "tracked", displayType = "icon", spells = { 1 } }) == false)
+    check("validate: malformed legacy pandemic color rejected",
+        E.Validate({ mode = "filterStrip", auraType = "HELPFUL",
+            duration = { pandemicColor = { {} } } }) == false)
+    check("validate: malformed dispel maps rejected",
+        E.Validate({ mode = "filterStrip", auraType = "HELPFUL",
+            dispelColors = { Magic = 1 } }) == false
+        and E.Validate({ mode = "filterStrip", auraType = "HELPFUL",
+            dispelAssets = { Magic = { asset = {} } } }) == false)
     check("validate: unknown mode rejected", E.Validate({ mode = "wat" }) == false)
     check("validate: non-table rejected", E.Validate(nil) == false)
     check("validate: malformed nested table rejected",

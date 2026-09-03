@@ -75,7 +75,10 @@ beta.visibility = "always"
 local solo = AD.NewDisplay("Solo")
 profile.frameAnchoring = {
     [AD.GroupAnchorKey("Pack", true)] = { point = "TOP", relative = "TOP", offsetX = 5, offsetY = -80 },
-    [AD.ANCHOR_PREFIX .. solo.id] = { point = "LEFT", relative = "LEFT", offsetX = 42, offsetY = 0 },
+    [AD.ANCHOR_PREFIX .. solo.id] = {
+        point = "LEFT", parent = "playerFrame", relative = "RIGHT",
+        offsetX = 42, offsetY = 0, hideWithParent = true, keepInPlace = false,
+    },
 }
 
 -- Group export/import ---------------------------------------------------------
@@ -150,7 +153,9 @@ if not importedSolo or importedSolo.group ~= nil then
     fail("imported ungrouped display must stay ungrouped")
 end
 local soloAnchor = profile.frameAnchoring[AD.ANCHOR_PREFIX .. importedSolo.id]
-if not soloAnchor or soloAnchor.offsetX ~= 42 then
+if not soloAnchor or soloAnchor.offsetX ~= 42 or soloAnchor.parent ~= "playerFrame"
+    or soloAnchor.relative ~= "RIGHT" or soloAnchor.hideWithParent ~= true
+    or soloAnchor.keepInPlace ~= false then
     fail("imported ungrouped display must receive the exported anchor")
 end
 
