@@ -167,6 +167,25 @@ local UnitAura =
 			},
 		},
 		{
+			Name = "GetAuraCasterGUID",
+			Type = "Function",
+			RequiresUnitAuraAccess = true,
+			RequiresValidUnitAuraInstance = true,
+			SecretWhenUnitAuraRestricted = true,
+			SecretArguments = "AllowedWhenTainted",
+
+			Arguments =
+			{
+				{ Name = "auraInstanceUnit", Type = "UnitToken", Nilable = false },
+				{ Name = "auraInstanceID", Type = "number", Nilable = false },
+			},
+
+			Returns =
+			{
+				{ Name = "casterGUID", Type = "WOWGUID", Nilable = true },
+			},
+		},
+		{
 			Name = "GetAuraDataByAuraInstanceID",
 			Type = "Function",
 			RequiresUnitAuraAccess = true,
@@ -634,6 +653,7 @@ local UnitAura =
 	Tables =
 	{
 	},
+
 	Predicates =
 	{
 	},

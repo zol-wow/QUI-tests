@@ -1208,6 +1208,8 @@ function CooldownViewerSettingsMixin:SetupScrollFrame()
 
 		self:CheckAddScrollFramePadding();
 	end);
+
+	self.ReorderMarker = self.CooldownScroll.Content.ReorderMarker;
 end
 
 function CooldownViewerSettingsMixin:SetupEventEditFrame()

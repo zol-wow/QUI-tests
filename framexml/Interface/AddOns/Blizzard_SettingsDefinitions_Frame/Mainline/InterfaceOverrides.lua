@@ -142,6 +142,11 @@ function InterfaceOverrides.CreateRaidFrameSettings(category, layout)
 		-- Dispel Overlay Flashing Animation
 		local _, dispelOverlayAnimationInitializer = Settings.SetupCVarCheckbox(category, "raidFramesDispelIndicatorOverlayAnimation", COMPACT_UNIT_FRAME_PROFILE_DISPLAY_DISPEL_OVERLAY_FLASHING_ANIMATION, OPTION_TOOLTIP_COMPACT_UNIT_FRAME_PROFILE_DISPLAY_DISPEL_OVERLAY_FLASHING_ANIMATION);
 		dispelOverlayAnimationInitializer:SetParentInitializer(dispelInitializer, IsModifiable);
+
+		-- Dispel Overlay Animated Border (MarchingAnts)
+		local _, animatedBorderInitializer = Settings.SetupCVarCheckbox(category, "raidFramesDispelIndicatorAnimatedBorder", COMPACT_UNIT_FRAME_PROFILE_DISPLAY_DISPEL_OVERLAY_ANIMATED_BORDER, OPTION_TOOLTIP_COMPACT_UNIT_FRAME_PROFILE_DISPLAY_DISPEL_OVERLAY_ANIMATED_BORDER);
+		animatedBorderInitializer:SetParentInitializer(dispelInitializer, IsModifiable);
+	
 	end
 
 	-- Health Text
@@ -229,6 +234,8 @@ function InterfaceOverrides.CreateCoordinatesSettings(category, layout)
 
 	Settings.SetupCVarCheckbox(category, "worldMapShowPlayerCoords", SETTINGS_PLAYER_MAP_COORDS, SETTINGS_PLAYER_MAP_COORDS_TOOLTIP);
 	Settings.SetupCVarCheckbox(category, "worldMapShowCursorCoords", SETTINGS_CURSOR_MAP_COORDS, SETTINGS_CURSOR_MAP_COORDS_TOOLTIP);
+	Settings.SetupCVarCheckbox(category, "minimapShowPlayerCoords", SETTINGS_MINIMAP_PLAYER_COORDS, SETTINGS_MINIMAP_PLAYER_COORDS_TOOLTIP);
+	Settings.SetupCVarCheckbox(category, "coordsByTenths", SETTINGS_COORDS_BY_TENTHS, SETTINGS_COORDS_BY_TENTHS_TOOLTIP);
 end
 
 -- These popups have a "Don't show this again" checkbox that the player can click to skip them in the future.

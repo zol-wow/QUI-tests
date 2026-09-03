@@ -320,6 +320,7 @@ function CustomAuraContainerSharedMixin:AddAuraGroup(groupKey, filterString, opt
 
 	self:AddForbiddenAspects(Enum.ForbiddenAspect.UntrustedLayoutScriptExecution);
 
+	self:UpdateEventRegistrations();
 	self:UpdateAllAuras();
 end
 
@@ -352,6 +353,17 @@ function CustomAuraContainerSharedMixin:GetAuraGroupFrameCount(groupKey)
 	return auraFrameCount;
 end
 
+function CustomAuraContainerSharedMixin:IsAuraGroupEnabled(groupKey)
+	return GetRequiredAuraGroup(self, groupKey):IsEnabled();
+end
+
+function CustomAuraContainerSharedMixin:SetAuraGroupEnabled(groupKey, enabled)
+	assert(type(enabled) == "boolean", "enabled must be a boolean.");
+
+	local auraGroup = GetRequiredAuraGroup(self, groupKey);
+	ManagedAuraContainerPrivateMixin.SetAuraGroupEnabled(self, auraGroup, enabled);
+end
+
 function CustomAuraContainerSharedMixin:SetAuraGroupFilterString(groupKey, filterString)
 	local auraGroup = GetRequiredAuraGroup(self, groupKey);
 	assert(AuraUtil.IsValidFilterString(filterString));
@@ -369,7 +381,7 @@ function CustomAuraContainerSharedMixin:SetAuraGroupMaxFrameCount(groupKey, maxF
 
 	if auraGroup:GetMaxFrameCount() ~= maxFrameCount then
 		auraGroup:SetMaxFrameCount(maxFrameCount);
-		self:MarkDirty(AuraContainerDirtyMask.AuraFrameAssignments);
+		self:RequestFrameAssignmentRefresh();
 	end
 end
 
@@ -378,6 +390,8 @@ function CustomAuraContainerSharedMixin:SetAuraGroupCandidateFilters(groupKey, c
 	candidateFilters = GetInboundCandidateFilters(candidateFilters);
 
 	auraGroup:SetCandidateFilters(candidateFilters);
+
+	self:UpdateEventRegistrations();
 	self:UpdateAllAuras();
 end
 
@@ -386,7 +400,7 @@ function CustomAuraContainerSharedMixin:SetAuraGroupSortMethod(groupKey, sortMet
 	ValidateSortOptions(sortMethod, sortDirection);
 
 	auraGroup:SetAuraComparator(AuraContainerUtil.GetAuraSortComparator(sortMethod, sortDirection));
-	self:MarkDirty(AuraContainerDirtyMask.AuraFrameAssignments);
+	self:RequestFrameAssignmentRefresh();
 end
 
 function CustomAuraContainerSharedMixin:SetAuraGroupLayout(groupKey, layoutOptions)
@@ -414,10 +428,29 @@ function CustomAuraContainerSharedMixin:AddAuraSlot(slotKey, filterString, optio
 			auraComparator = AuraContainerUtil.GetAuraSortComparator(options.sortMethod, options.sortDirection),
 		});
 
+	self:UpdateEventRegistrations();
 	self:UpdateAllAuras();
 
 	-- Translates to public object reference automatically for inbound calls.
 	return auraFrame;
+end
+
+function CustomAuraContainerSharedMixin:GetAuraSlotFrame(slotKey)
+	local auraSlot = self:GetAuraSlot(slotKey);
+
+	-- Translates to public object reference automatically for inbound calls.
+	return auraSlot and auraSlot:GetAuraFrame() or nil;
+end
+
+function CustomAuraContainerSharedMixin:IsAuraSlotEnabled(slotKey)
+	return GetRequiredAuraSlot(self, slotKey):IsEnabled();
+end
+
+function CustomAuraContainerSharedMixin:SetAuraSlotEnabled(slotKey, enabled)
+	assert(type(enabled) == "boolean", "enabled must be a boolean.");
+
+	local auraSlot = GetRequiredAuraSlot(self, slotKey);
+	ManagedAuraContainerPrivateMixin.SetAuraSlotEnabled(self, auraSlot, enabled);
 end
 
 function CustomAuraContainerSharedMixin:SetAuraSlotFilterString(slotKey, filterString)
@@ -436,6 +469,8 @@ function CustomAuraContainerSharedMixin:SetAuraSlotCandidateFilters(slotKey, can
 	candidateFilters = GetInboundCandidateFilters(candidateFilters);
 
 	auraSlot:SetCandidateFilters(candidateFilters);
+
+	self:UpdateEventRegistrations();
 	self:UpdateAllAuras();
 end
 
@@ -444,7 +479,7 @@ function CustomAuraContainerSharedMixin:SetAuraSlotSortMethod(slotKey, sortMetho
 	ValidateSortOptions(sortMethod, sortDirection);
 
 	auraSlot:SetAuraComparator(AuraContainerUtil.GetAuraSortComparator(sortMethod, sortDirection));
-	self:MarkDirty(AuraContainerDirtyMask.AuraFrameAssignments);
+	self:RequestFrameAssignmentRefresh();
 end
 
 function CustomAuraContainerSharedMixin:AddItemEnchantment(itemEnchantmentSlot, options)
@@ -461,11 +496,34 @@ function CustomAuraContainerSharedMixin:AddItemEnchantment(itemEnchantmentSlot, 
 			hidePermanent = options.hidePermanent;
 		});
 
-	self:RefreshItemEnchantments();
+	self:RequestFrameAssignmentRefresh();
 	self:MarkDirty(AuraContainerDirtyMask.AuraFrameLayoutGroups);
 
 	-- Translates to public object reference automatically for inbound calls.
 	return auraFrame;
+end
+
+function CustomAuraContainerSharedMixin:GetItemEnchantmentFrame(itemEnchantmentSlot)
+	local itemEnchantment = self:GetItemEnchantment(itemEnchantmentSlot);
+
+	-- Translates to public object reference automatically for inbound calls.
+	return itemEnchantment and itemEnchantment:GetAuraFrame() or nil;
+end
+
+function CustomAuraContainerSharedMixin:IsItemEnchantmentEnabled(itemEnchantmentSlot)
+	local itemEnchantment = self:GetItemEnchantment(itemEnchantmentSlot);
+	assertf(itemEnchantment ~= nil, "item enchantment was not found with this slot.");
+	return itemEnchantment:IsEnabled();
+end
+
+function CustomAuraContainerSharedMixin:SetItemEnchantmentEnabled(itemEnchantmentSlot, enabled)
+	ValidateItemEnchantmentSlot(itemEnchantmentSlot);
+	assert(type(enabled) == "boolean", "enabled must be a boolean.");
+
+	local itemEnchantment = self:GetItemEnchantment(itemEnchantmentSlot);
+	assertf(itemEnchantment ~= nil, "item enchantment was not found with this slot.");
+
+	ManagedAuraContainerPrivateMixin.SetItemEnchantmentEnabled(self, itemEnchantment, enabled);
 end
 
 function CustomAuraContainerSharedMixin:SetItemEnchantmentSortMethod(sortMethod, sortDirection)
@@ -506,6 +564,7 @@ function CustomAuraContainerSharedMixin:SetAuraProcessingPolicy(policy, options)
 		self.processAuraPolicyOptions = nil;
 	end
 
+	self:UpdateEventRegistrations();
 	self:UpdateAllAuras();
 end
 
@@ -524,6 +583,58 @@ function CustomAuraContainerPrivateMixin:OnLoad()
 	self:MarkDirty(AuraContainerDirtyMask.All);
 end
 
+local FullAuraRefreshEvents =
+{
+	["PLAYER_ENTERING_WORLD"] = true,
+	["PLAYER_LEAVING_WORLD"] = true,
+	["PLAYER_REGEN_DISABLED"] = true,
+	["PLAYER_REGEN_ENABLED"] = true,
+	["PLAYER_SPECIALIZATION_CHANGED"] = true,
+	["UNIT_FACTION"] = true,
+	["UNIT_FLAGS"] = true,
+};
+
+function CustomAuraContainerPrivateMixin:OnEvent_Intrinsic(event, ...)
+	ManagedAuraContainerPrivateMixin.OnEvent_Intrinsic(self, event, ...);
+
+	if FullAuraRefreshEvents[event] then
+		self:UpdateAllAuras();
+	end
+end
+
+function CustomAuraContainerPrivateMixin:GetDynamicFrameEvents()
+	local frameEvents = ManagedAuraContainerPrivateMixin.GetDynamicFrameEvents(self);
+
+	if self.auraProcessingPolicy == CustomAuraContainerAuraProcessingPolicy.ProcessAura then
+		frameEvents["PLAYER_ENTERING_WORLD"] = true;
+		frameEvents["PLAYER_LEAVING_WORLD"] = true;
+		frameEvents["PLAYER_REGEN_DISABLED"] = true;
+		frameEvents["PLAYER_REGEN_ENABLED"] = true;
+		frameEvents["PLAYER_SPECIALIZATION_CHANGED"] = true;
+	end
+
+	return frameEvents;
+end
+
+function CustomAuraContainerPrivateMixin:GetDynamicUnitEvents()
+	local unitEvents = ManagedAuraContainerPrivateMixin.GetDynamicUnitEvents(self);
+	local unitToken = self:GetUnit();
+
+	for _index, auraGroup in self:EnumerateAuraGroups() do
+		if auraGroup:IsEnabled() then
+			AuraContainerUtil.AppendCandidateFilterUnitEvents(unitEvents, auraGroup:GetCandidateFilters(), unitToken);
+		end
+	end
+
+	for _index, auraSlot in self:EnumerateAuraSlots() do
+		if auraSlot:IsEnabled() then
+			AuraContainerUtil.AppendCandidateFilterUnitEvents(unitEvents, auraSlot:GetCandidateFilters(), unitToken);
+		end
+	end
+
+	return unitEvents;
+end
+
 function CustomAuraContainerPrivateMixin:ClearAuraGroups()
 	-- Intentionally not exposed via the inbound interface for now at least;
 	-- as we internally manage pools of frames clearing aura groups would
@@ -533,6 +644,8 @@ function CustomAuraContainerPrivateMixin:ClearAuraGroups()
 
 	ManagedAuraContainerPrivateMixin.ClearAuraGroups(self);
 	self.layoutOptionsByAuraGroup = {};
+
+	self:UpdateEventRegistrations();
 	self:UpdateAllAuras();
 end
 
@@ -541,7 +654,9 @@ function CustomAuraContainerPrivateMixin:ClearItemEnchantments()
 	self:MarkDirty(AuraContainerDirtyMask.AuraFrameLayoutGroups);
 end
 
-function CustomAuraContainerPrivateMixin:ApplyAuraMetadata(auraData)
+function CustomAuraContainerPrivateMixin:ApplyAuraMetadata(unitToken, auraData, auraSource)
+	auraData.casterGUID = auraSource:GetAuraCasterGUID(unitToken, auraData.auraInstanceID);
+
 	if self.auraProcessingPolicy == CustomAuraContainerAuraProcessingPolicy.ProcessAura then
 		local options = self.processAuraPolicyOptions;
 
@@ -558,20 +673,22 @@ function CustomAuraContainerPrivateMixin:GetFlowLayoutGroupDescriptions()
 	local descriptions = {};
 
 	for index, auraGroup in self:EnumerateAuraGroups() do
-		local layoutOptions = self.layoutOptionsByAuraGroup[auraGroup];
+		if auraGroup:IsEnabled() then
+			local layoutOptions = self.layoutOptionsByAuraGroup[auraGroup];
 
-		local description = {};
-		-- Closures are intentional because aura processing replaces each
-		-- group's visible frame list during refresh.
-		description.elements = function() return auraGroup:GetFramesByIndex(); end;
-		description.layoutIndex = layoutOptions.layoutIndex;
-		description.layoutOptions = layoutOptions;
-		description.registrationIndex = index;
+			local description = {};
+			-- Closures are intentional because aura processing replaces each
+			-- group's visible frame list during refresh.
+			description.elements = function() return auraGroup:GetFramesByIndex(); end;
+			description.layoutIndex = layoutOptions.layoutIndex;
+			description.layoutOptions = layoutOptions;
+			description.registrationIndex = index;
 
-		table.insert(descriptions, description);
+			table.insert(descriptions, description);
+		end
 	end
 
-	if self:HasAnyItemEnchantments() then
+	if self:HasAnyEnabledItemEnchantments() then
 		local layoutOptions = self.itemEnchantmentLayoutOptions;
 
 		local description = {};
