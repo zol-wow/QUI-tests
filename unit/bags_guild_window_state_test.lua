@@ -159,14 +159,13 @@ assert(not GuildWindow.CanWithdrawMoney(10000, -2, true, false),
 local guildFile = assert(io.open("QUI_Bags/bags/views/guild_window.lua", "rb"))
 local guildSource = guildFile:read("*a")
 guildFile:close()
-assert(guildSource:find('"GUILDBANK_DEPOSIT"', 1, true)
-    and guildSource:find('"GUILDBANK_WITHDRAW"', 1, true),
-    "guild money buttons must route through Blizzard's denomination-aware dialogs")
-assert(not guildSource:find("Bags.Chassis.ShowMoneyPopup", 1, true)
-    and not guildSource:find("QUI_GUILDBANK_MONEY", 1, true),
-    "QUI must not retain its whole-gold guild money callback")
-assert(guildSource:find('StaticPopup_Hide("GUILDBANK_DEPOSIT")', 1, true)
-    and guildSource:find('StaticPopup_Hide("GUILDBANK_WITHDRAW")', 1, true),
+assert(guildSource:find("Bags.Chassis.ShowMoneyPopup", 1, true)
+    and guildSource:find("QUI_GUILDBANK_MONEY", 1, true),
+    "guild money buttons must use QUI's denomination-aware dialog")
+assert(guildSource:find("DepositGuildBankMoney(amount)", 1, true)
+    and guildSource:find("WithdrawGuildBankMoney(amount)", 1, true),
+    "guild money dialog must submit the exact copper total")
+assert(guildSource:find('StaticPopup_Hide("QUI_GUILDBANK_MONEY")', 1, true),
     "guild money dialogs must close with QUI's guild window")
 
 local itemFile = assert(io.open("QUI_Bags/bags/views/item_buttons.lua", "rb"))

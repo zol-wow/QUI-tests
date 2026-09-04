@@ -153,19 +153,52 @@ assert(flashStopped and glowStopped, "hover must stop both new-item animations")
 _G.CreateFrame = prevCreateFrame
 
 local droppedMoney, clearedCursor, depositedMoney, pickedUpItem = 0, 0, 0, 0
+local currentGuildTab, selectedGuildTab, pickupTab, autostoreTab = 1, nil, nil, nil
 _G.HandleModifiedItemClick = function() return false end
 _G.GetGuildBankItemLink = function() return nil end
 _G.IsModifiedClick = function() return false end
 _G.GetCursorInfo = function() return "guildbankmoney", 123 end
+_G.GetCurrentGuildBankTab = function() return currentGuildTab end
+_G.SetCurrentGuildBankTab = function(tab)
+    currentGuildTab = tab
+    selectedGuildTab = tab
+end
 _G.DropCursorMoney = function() droppedMoney = droppedMoney + 1 end
 _G.ClearCursor = function() clearedCursor = clearedCursor + 1 end
 _G.DepositGuildBankMoney = function() depositedMoney = depositedMoney + 1 end
-_G.PickupGuildBankItem = function() pickedUpItem = pickedUpItem + 1 end
+_G.PickupGuildBankItem = function(tab)
+    pickedUpItem = pickedUpItem + 1
+    pickupTab = currentGuildTab == tab and tab or nil
+end
+_G.AutoStoreGuildBankItem = function(tab)
+    autostoreTab = currentGuildTab == tab and tab or nil
+end
 local guildButton = ItemButtons.CreateGuildLive({})
 guildButton._scripts.OnClick(guildButton, "LeftButton")
 assert(droppedMoney == 1 and clearedCursor == 1,
     "guild-bank money on the cursor must be dropped and cleared")
 assert(depositedMoney == 0 and pickedUpItem == 0,
     "guild-bank cursor money must not fall through to deposit or item pickup")
+
+guildButton._tab, guildButton._slot = 2, 9
+_G.GetCursorInfo = function() return "item", 456 end
+guildButton._scripts.OnClick(guildButton, "LeftButton")
+assert(selectedGuildTab == 2 and pickupTab == 2,
+    "guild item click must activate its tab before pickup")
+
+currentGuildTab, selectedGuildTab, autostoreTab = 1, nil, nil
+guildButton._scripts.OnClick(guildButton, "RightButton")
+assert(selectedGuildTab == 2 and autostoreTab == 2,
+    "guild item autostore must activate its tab first")
+
+currentGuildTab, selectedGuildTab, pickupTab = 1, nil, nil
+guildButton._scripts.OnReceiveDrag(guildButton)
+assert(selectedGuildTab == 2 and pickupTab == 2,
+    "guild item drop must activate its target tab first")
+
+currentGuildTab, selectedGuildTab, pickupTab = 1, nil, nil
+guildButton._scripts.OnDragStart(guildButton)
+assert(selectedGuildTab == 2 and pickupTab == 2,
+    "guild item drag must activate its source tab first")
 
 print("OK: bags_item_buttons_tooltip_test")
