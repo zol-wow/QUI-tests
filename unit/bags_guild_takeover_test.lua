@@ -1,20 +1,13 @@
 -- tests/unit/bags_guild_takeover_test.lua
 -- Run: lua tests/unit/bags_guild_takeover_test.lua
 -- Guild bank session state machine: LoD-aware GuildBankFrame suppression
--- (script neutering + reparent to a hidden holder), GUILDBANKFRAME_OPENED/
+-- (OnHide suppression + reparent to a hidden holder), GUILDBANKFRAME_OPENED/
 -- CLOSED routing (guild window + replaced bag globals; the scanner session
 -- is owned by core/storage/collector.lua, not this file), and the
 -- user-close -> CloseGuildBankFrame echo guard.
 --
--- Verified against the vendored Blizzard_GuildBankUI/Blizzard_GuildBankUI.lua:
---   OnLoad registers 11 events (GUILDBANKBAGSLOTS_CHANGED etc., lines 18-28)
---     -> unlike BankFrame, OnEvent is LIVE the moment the LoD addon loads
---   OnHide -> CloseGuildBankFrame() (line 129)
--- which is why the suppression must clear OnEvent too and must clear the
--- scripts BEFORE any Hide (a live OnHide would slam the guild session shut).
 -- Blizzard_GuildBankUI is load-on-demand: GuildBankFrame does NOT exist at
--- login, so Init() with the addon unloaded must arm a pending state and the
--- ADDON_LOADED("Blizzard_GuildBankUI") forward must complete the suppression.
+-- login, so Init() with the addon unloaded must arm a pending state.
 local loader = dofile("tests/helpers/load_bags_data.lua")
 loader.InstallBaseStubs()
 
@@ -118,8 +111,7 @@ local GuildTakeover = ns.Bags.GuildTakeover
 -- Test 1: Init with the LoD addon NOT loaded -> NO suppression (the frame
 -- does not even exist), pending armed. A wrong-name ADDON_LOADED (bags.lua
 -- forwards every arg1 verbatim) must not act. The matching ADDON_LOADED
--- completes the suppression: OnEvent (live at load!) + OnShow + OnHide
--- cleared BEFORE Hide, frame reparented to a hidden holder.
+-- must preserve Blizzard's native scripts until the bank opens.
 _G.GuildBankFrame = nil
 GuildTakeover.Init()
 assert(isLoadedQueries[#isLoadedQueries] == "Blizzard_GuildBankUI",
@@ -131,13 +123,20 @@ assert(#holders == 0, "a non-matching ADDON_LOADED must not suppress")
 local frame1 = makeGuildBankFrame()
 _G.GuildBankFrame = frame1
 GuildTakeover.OnAddonLoaded("Blizzard_GuildBankUI")
-assert(frame1:GetScript("OnEvent") == nil,
-    "suppression must clear OnEvent (live at load: OnLoad registers 11 events)")
-assert(frame1:GetScript("OnShow") == nil, "suppression must clear OnShow")
-assert(frame1:GetScript("OnHide") == nil, "suppression must clear OnHide")
-assert(frame1._hideCount == 1, "suppression must Hide the frame")
-assert(frame1._hiddenWithLiveOnHide == false,
-    "scripts must be cleared BEFORE Hide (the real OnHide calls CloseGuildBankFrame)")
+assert(frame1:GetScript("OnEvent") == frame1._origScripts.OnEvent,
+    "ADDON_LOADED must leave native OnEvent active before the bank opens")
+assert(frame1:GetScript("OnShow") == frame1._origScripts.OnShow,
+    "ADDON_LOADED must leave native OnShow active before the bank opens")
+assert(frame1:GetScript("OnHide") == frame1._origScripts.OnHide,
+    "ADDON_LOADED must not suppress OnHide before the bank opens")
+assert(frame1._parent == "UIParent", "ADDON_LOADED must not reparent before open")
+GuildTakeover.OnOpened()
+assert(frame1:GetScript("OnEvent") == frame1._origScripts.OnEvent,
+    "suppression must preserve Blizzard's native OnEvent")
+assert(frame1:GetScript("OnShow") == frame1._origScripts.OnShow,
+    "suppression must preserve Blizzard's native OnShow")
+assert(frame1:GetScript("OnHide") == nil, "suppression must clear only OnHide")
+assert(frame1._hideCount == 0, "opening suppression must not Hide the native frame")
 assert(#holders == 1, "exactly one hidden holder")
 assert(holders[1]._shown == false, "the holder must be hidden")
 assert(frame1._parent == holders[1], "GuildBankFrame must be reparented to the holder")
@@ -147,12 +146,14 @@ assert(frame1._parent == holders[1], "GuildBankFrame must be reparented to the h
 GuildTakeover.OnAddonLoaded("Blizzard_GuildBankUI")
 GuildTakeover.SuppressNow()
 assert(#holders == 1, "idempotent suppression must not create a second holder")
-assert(frame1._hideCount == 1, "idempotent suppression must not Hide again")
-assert(GuildTakeover.IsLive() == false, "not live before GUILDBANKFRAME_OPENED")
+assert(frame1._hideCount == 0, "idempotent suppression must not Hide")
+assert(GuildTakeover.IsLive() == true, "OnOpened must mark the guild bank live")
+GuildTakeover.OnClosed()
+sessionLog, openLog, closeLog = {}, {}, {}
 
 -- Test 2: fresh module instance + pristine frame, addon ALREADY loaded at
--- Init (e.g. enable-after-visit or a /reload at the vault) -> immediate
--- suppression with the same guarantees. This instance carries the session
+-- Init (e.g. enable-after-visit or a /reload at the vault) -> no early
+-- suppression. This instance carries the session
 -- machine tests below.
 addonLoaded = true
 local frame2 = makeGuildBankFrame()
@@ -160,13 +161,14 @@ _G.GuildBankFrame = frame2
 chunk("QUI", ns)
 GuildTakeover = ns.Bags.GuildTakeover
 GuildTakeover.Init()
-assert(frame2:GetScript("OnEvent") == nil, "loaded-at-Init must clear OnEvent immediately")
-assert(frame2:GetScript("OnShow") == nil, "loaded-at-Init must clear OnShow immediately")
-assert(frame2:GetScript("OnHide") == nil, "loaded-at-Init must clear OnHide immediately")
-assert(frame2._hiddenWithLiveOnHide == false,
-    "loaded-at-Init must clear scripts BEFORE Hide")
-assert(#holders == 2, "the fresh instance creates its own holder")
-assert(frame2._parent == holders[2], "loaded-at-Init must reparent to the holder")
+assert(frame2:GetScript("OnEvent") == frame2._origScripts.OnEvent,
+    "loaded-at-Init must preserve native OnEvent")
+assert(frame2:GetScript("OnShow") == frame2._origScripts.OnShow,
+    "loaded-at-Init must preserve native OnShow")
+assert(frame2:GetScript("OnHide") == frame2._origScripts.OnHide,
+    "loaded-at-Init must preserve native OnHide until open")
+assert(#holders == 1, "loaded-at-Init must not create a hidden holder")
+assert(frame2._parent == "UIParent", "loaded-at-Init must not reparent")
 
 -- Test 3: GUILDBANKFRAME_OPENED -> live; the window shows, then bags
 -- auto-open. The scanner session is owned by the core collection driver
@@ -175,6 +177,12 @@ assert(frame2._parent == holders[2], "loaded-at-Init must reparent to the holder
 sessionLog = {}
 GuildTakeover.OnOpened()
 assert(GuildTakeover.IsLive() == true, "OPENED must set live")
+assert(frame2:GetScript("OnEvent") == frame2._origScripts.OnEvent,
+    "OPENED must leave Blizzard's guild-bank event handler active")
+assert(frame2:GetScript("OnShow") == frame2._origScripts.OnShow,
+    "OPENED must leave Blizzard's guild-bank setup handler active")
+assert(frame2:GetScript("OnHide") == nil, "OPENED must suppress only native OnHide")
+assert(frame2._parent == holders[2], "OPENED must hide the native frame by reparenting")
 assert(sessionLog[1] == "window-showlive", "the window shows on open")
 assert(sessionLog[2] == "openallbags", "bags auto-open after the window")
 assert(sessionLog[1] ~= "scan-open" and sessionLog[2] ~= "scan-open",
@@ -204,6 +212,9 @@ assert(sessionLog[1] ~= "scan-close",
 assert(#closeLog == 1 and closeLog[1] == "QUI_GuildBankWindow",
     "CloseForFrame must receive the QUI_GuildBankWindow-named opener")
 assert(closeGuildBankCalls == 0, "a server-driven close must NOT call CloseGuildBankFrame")
+assert(frame2:GetScript("OnHide") == frame2._origScripts.OnHide,
+    "CLOSED must restore native OnHide for the next session")
+assert(frame2._parent == "UIParent", "CLOSED must restore the native frame parent")
 -- Test 4b: OnClosed is latched on live too (CLOSED + interaction HIDE can
 -- both arrive): a close while not live must not re-run the close chain.
 sessionLog = {}
@@ -236,8 +247,8 @@ assert(closeGuildBankCalls == 2, "user close while not live must NOT call CloseG
 -- Test 6: Revert. Belt-and-braces: a still-live session with no close in
 -- flight must be ended server-side (the restored Blizzard frame is hidden;
 -- its OnHide close would never fire). Scripts + parent restored EXACTLY,
--- with the defensive Hide running BEFORE the reparent and while the scripts
--- are still cleared. Idempotent. With a close already in flight (closing
+-- with the defensive Hide running BEFORE the reparent and while OnHide is
+-- still cleared. Idempotent. With a close already in flight (closing
 -- latch), Revert must NOT double-send.
 GuildTakeover.OnOpened()
 local callsBeforeLiveRevert = closeGuildBankCalls
@@ -276,7 +287,9 @@ assert(closeGuildBankCalls == callsBeforeLatchedRevert,
 assert(GuildTakeover.IsLive() == false, "Revert must clear live even with a close in flight")
 -- a full re-Suppress/Revert cycle still works after Revert (holder reused)
 GuildTakeover.SuppressNow()
-assert(frame2:GetScript("OnShow") == nil, "re-suppress after Revert must clear scripts")
+assert(frame2:GetScript("OnShow") == frame2._origScripts.OnShow,
+    "re-suppress after Revert must preserve OnShow")
+assert(frame2:GetScript("OnHide") == nil, "re-suppress after Revert must clear OnHide")
 assert(frame2._parent == holders[2], "re-suppress must reuse the cached holder")
 assert(#holders == 2, "no new holder on re-suppress")
 GuildTakeover.Revert()
@@ -307,15 +320,24 @@ assert(#holders == 2, "a reverted takeover must not create a holder")
 -- `(C_AddOns and C_AddOns.IsAddOnLoaded and ...) or (IsAddOnLoaded and ...)`).
 local savedCAddOns = _G.C_AddOns
 _G.C_AddOns = nil
-_G.IsAddOnLoaded = function(name) return name == "Blizzard_GuildBankUI" end
+local legacyLoadedQuery
+_G.IsAddOnLoaded = function(name)
+    legacyLoadedQuery = name
+    return name == "Blizzard_GuildBankUI"
+end
 local frame4 = makeGuildBankFrame()
 _G.GuildBankFrame = frame4
 chunk("QUI", ns)
 GuildTakeover = ns.Bags.GuildTakeover
 GuildTakeover.Init()
-assert(frame4:GetScript("OnEvent") == nil,
+assert(legacyLoadedQuery == "Blizzard_GuildBankUI",
     "Init must fall back to the legacy IsAddOnLoaded global when C_AddOns is absent")
-assert(frame4._parent == holders[#holders], "fallback path must complete the suppression")
+assert(frame4:GetScript("OnEvent") == frame4._origScripts.OnEvent,
+    "legacy loaded-at-Init path must preserve native OnEvent")
+assert(frame4._parent == "UIParent", "legacy loaded-at-Init path must wait for open")
+GuildTakeover.OnOpened()
+assert(frame4:GetScript("OnHide") == nil, "legacy fallback must suppress on open")
+assert(frame4._parent == holders[#holders], "legacy fallback must reparent on open")
 GuildTakeover.Revert()
 _G.C_AddOns = savedCAddOns
 _G.IsAddOnLoaded = nil
