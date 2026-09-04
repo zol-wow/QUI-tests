@@ -268,6 +268,50 @@ if not container.shown or container.unit ~= "player" or not AD.HostFor(C.id).sho
 end
 polarityMismatch.target = nil
 
+-- Mid-combat refreshes must not resurrect packed hosts: the reflow is
+-- deferred in combat, so a per-display refresh showing them would paint a
+-- stray copy of the group at their birth spot (screen center).
+group.growDirection = "RIGHT"
+group.alignment = "CENTER"
+AD.Refresh()
+if AD.HostFor(A.id).shown or AD.HostFor(B.id).shown then fail("packed hosts start hidden") end
+InCombatLockdown = function() return true end
+AD.Refresh()
+if AD.HostFor(A.id).shown or AD.HostFor(B.id).shown then
+    fail("a combat refresh must keep packed display hosts hidden")
+end
+if not container.shown or not AD.HostFor(C.id).shown then
+    fail("a combat refresh must leave the packed container and placed hosts alone")
+end
+InCombatLockdown = function() return false end
+
+-- A grouped display that activates mid-combat has never been placed by the
+-- reflow: it must stay hidden until the deferred reflow runs after combat.
+local late = AD.NewDisplay("Late", "Procs")
+late.enabled = false
+late.unit = "target"   -- not packable (other unit): takes the fixed-placement path
+late.auras = { enabled = true, _elements = { Tracked({ 105 }) } }
+AD.Refresh()
+local lateHost = AD.HostFor(late.id)
+if not lateHost or lateHost.shown or lateHost.parent ~= UIParent then
+    fail("an inactive grouped display keeps an unplaced, hidden host")
+end
+late.enabled = true
+InCombatLockdown = function() return true end
+AD.Refresh()
+if lateHost.shown then fail("a display activating in combat must not show before the group places it") end
+InCombatLockdown = function() return false end
+AD.Refresh()
+-- Block 36, then C, D and the late display with 4px gaps: 36+4+10+4+10+4+5.
+if not lateHost.shown or lateHost.parent ~= groupHost or lateHost.point[4] ~= 73 then
+    fail("after combat the reflow places and shows the activated display")
+end
+if AD.HostFor(A.id).shown or not container.shown then
+    fail("packing must still hold after the late display was placed")
+end
+late.enabled = false
+AD.Refresh()
+
 -- A group with nothing packable never creates a container.
 local lone = AD.NewDisplay("Lone Strip", "Strips")
 lone.auras = { enabled = true, _elements = { { mode = "filterStrip" } } }
