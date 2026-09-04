@@ -2370,6 +2370,7 @@ return {
           audioOutputDevice = "",
           autoAcceptInvites = "all",
           autoAcceptQuest = true,
+          autoAcceptSummons = "off",
           autoCombatLog = false,
           autoCombatLogRaid = false,
           autoConfirmHighCost = false,
