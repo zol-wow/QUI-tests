@@ -70,7 +70,13 @@ C_ChallengeMode = {
     GetMapTable = function() return { 1 } end,
     GetMapUIInfo = function() return "Test", nil, nil, 1 end,
 }
-C_Spell = { GetSpellCooldownDuration = function() return {} end }
+local mapFetchCalls = 0
+C_Spell = {
+    GetSpellCooldownDuration = function()
+        mapFetchCalls = mapFetchCalls + 1
+        return {}
+    end,
+}
 
 local canMutate = true
 local mapNS = {
@@ -95,15 +101,19 @@ assert(worldMap.hooks.OnShow, "map teleports must hook the world map")
 worldMap.hooks.OnShow()
 assert(mapCooldown.setCount == 1, "opening the map must paint teleport cooldowns")
 assert(mapCooldown.shown, "map teleports must show their cooldown widgets")
+assert(mapFetchCalls == 1, "opening the map must fetch one teleport cooldown")
 
 canMutate = false
 eventFrame.scripts.OnEvent(eventFrame, "SPELL_UPDATE_COOLDOWN")
 assert(mapCooldown.setCount == 1, "blocked map cooldown updates must not mutate the widget")
+assert(mapFetchCalls == 1, "blocked map cooldown updates must not allocate duration objects")
 canMutate = true
 eventFrame.scripts.OnEvent(eventFrame, "PLAYER_REGEN_ENABLED")
 assert(mapCooldown.setCount == 2, "combat exit must repaint a deferred teleport cooldown")
+assert(mapFetchCalls == 2, "combat exit must fetch the deferred map cooldown")
 eventFrame.scripts.OnEvent(eventFrame, "PLAYER_REGEN_ENABLED")
 assert(mapCooldown.setCount == 2, "combat exit must not repaint without deferred work")
+assert(mapFetchCalls == 2, "combat exit must not fetch without deferred work")
 
 local dungeonEventFrame
 local dungeonHook
@@ -126,8 +136,10 @@ local dungeonDuration = {}
 local dungeonDurationResult = dungeonDuration
 local dungeonSpellID
 local dungeonIgnoreGCD
+local dungeonFetchCalls = 0
 C_Spell = {
     GetSpellCooldownDuration = function(spellID, ignoreGCD)
+        dungeonFetchCalls = dungeonFetchCalls + 1
         dungeonSpellID, dungeonIgnoreGCD = spellID, ignoreGCD
         return dungeonDurationResult
     end,
@@ -154,15 +166,19 @@ assert(dungeonSpellID == 321 and dungeonIgnoreGCD == true,
     "instance teleports must query their spell while ignoring the global cooldown")
 assert(dungeonCooldown and dungeonCooldown.shown,
     "instance teleports must create and show a cooldown widget")
+assert(dungeonFetchCalls == 1, "initial instance paint must fetch one duration object")
 
 dungeonCanMutate = false
 dungeonEventFrame.scripts.OnEvent(dungeonEventFrame, "SPELL_UPDATE_COOLDOWN")
 assert(dungeonCooldown.setCount == 1, "blocked instance cooldown updates must not mutate the widget")
+assert(dungeonFetchCalls == 1, "blocked instance cooldown updates must not allocate duration objects")
 dungeonCanMutate = true
 dungeonEventFrame.scripts.OnEvent(dungeonEventFrame, "PLAYER_REGEN_ENABLED")
 assert(dungeonCooldown.setCount == 2, "instance teleports must repaint after a blocked mutation")
+assert(dungeonFetchCalls == 2, "instance combat exit must fetch the deferred cooldown")
 dungeonEventFrame.scripts.OnEvent(dungeonEventFrame, "PLAYER_REGEN_ENABLED")
 assert(dungeonCooldown.setCount == 2, "instance teleports must not repaint without deferred work")
+assert(dungeonFetchCalls == 2, "instance combat exit must not fetch without deferred work")
 dungeonDurationResult = nil
 dungeonEventFrame.scripts.OnEvent(dungeonEventFrame, "SPELL_UPDATE_COOLDOWN")
 assert(dungeonCooldown.clearCount == 1, "instance teleports must clear missing cooldowns through the guard")
@@ -193,9 +209,11 @@ local travelDuration = {}
 local travelDurationResult = travelDuration
 local travelSpellID
 local travelIgnoreGCD
+local travelFetchCalls = 0
 C_Spell = {
     GetSpellName = function() return "Travel Spell" end,
     GetSpellCooldownDuration = function(spellID, ignoreGCD)
+        travelFetchCalls = travelFetchCalls + 1
         travelSpellID, travelIgnoreGCD = spellID, ignoreGCD
         return travelDurationResult
     end,
@@ -236,12 +254,15 @@ assert(travelCooldown.setCount == 1 and travelCooldown.lastDuration == travelDur
 assert(travelSpellID == 654 and travelIgnoreGCD == true,
     "travel flyouts must query their spell while ignoring the global cooldown")
 assert(travelCooldown.shown, "travel flyouts must show their cooldown widgets")
+assert(travelFetchCalls == 1, "opening the travel flyout must fetch one duration object")
 
 travelFrame.scripts.OnEvent(travelFrame, "SPELL_UPDATE_COOLDOWN")
 assert(travelCooldown.setCount == 2, "visible travel flyouts must repaint on cooldown events")
+assert(travelFetchCalls == 2, "visible travel flyouts must fetch refreshed cooldowns")
 travelCombat = true
 travelFrame.scripts.OnEvent(travelFrame, "SPELL_UPDATE_COOLDOWN")
 assert(travelCooldown.setCount == 2, "travel flyouts must not mutate cooldowns during combat")
+assert(travelFetchCalls == 2, "travel flyouts must not allocate duration objects during combat")
 travelCombat = false
 travelDurationResult = nil
 travelFrame.scripts.OnEvent(travelFrame, "SPELL_UPDATE_COOLDOWN")
