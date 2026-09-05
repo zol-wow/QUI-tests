@@ -38,7 +38,7 @@ return {
     "QUI_Debug/cdm_debug.lua::24",
     "QUI_Debug/editmode_diagnose.lua::1",
     "QUI_Debug/memaudit.lua::13",
-    "QUI_Debug/performance.lua::5",
+    "QUI_Debug/performance.lua::6",
     "QUI_Debug/perftest.lua::2",
     "QUI_Debug/ui_smoke.lua::5",
     "QUI_GroupFrames/groupframes/groupframes.lua::14",
