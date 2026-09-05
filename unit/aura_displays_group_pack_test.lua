@@ -329,6 +329,17 @@ container.mouseOver = false
 group.dynamicLayout = true
 AD.Refresh()
 
+-- Disabling the module must retire the packed container along with the
+-- group host instead of leaving packed auras rendering.
+AD.Store().enabled = false
+AD.Refresh()
+if groupHost.shown or container.shown or container.enabled ~= false then
+    fail("a disabled store must hide the group host and park its pack container")
+end
+AD.Store().enabled = true
+AD.Refresh()
+if not groupHost.shown or not container.shown then fail("re-enabling must bring the packed group back") end
+
 -- A group with nothing packable never creates a container.
 local lone = AD.NewDisplay("Lone Strip", "Strips")
 lone.auras = { enabled = true, _elements = { { mode = "filterStrip" } } }

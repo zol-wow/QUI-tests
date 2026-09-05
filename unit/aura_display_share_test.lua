@@ -249,6 +249,18 @@ do
     end
 end
 
+-- Root topology: a declared root must own the whole payload.
+MalformedCase("second root group beside the declared root",
+    { root = { kind = "group", name = "R" }, groups = { { name = "R" }, { name = "Other" } }, displays = {} })
+MalformedCase("ungrouped display under a group root",
+    { root = { kind = "group", name = "R" }, groups = { { name = "R" } }, displays = { { name = "Loose" } } })
+MalformedCase("display root with groups",
+    { root = { kind = "display", name = "D" }, groups = { { name = "G" } }, displays = { { name = "D" } } })
+MalformedCase("display root with a second display",
+    { root = { kind = "display", name = "D" }, groups = {}, displays = { { name = "D" }, { name = "E" } } })
+MalformedCase("display root naming a grouped display",
+    { root = { kind = "display", name = "D" }, groups = { { name = "G" } }, displays = { { name = "D", group = "G" } } })
+
 -- Import is public: a caller bypassing Decode gets the same rejection.
 local direct, directErr = Share.Import({ type = Share.PAYLOAD_TYPE, version = 1, groups = { 1 }, displays = {} })
 if direct ~= nil or type(directErr) ~= "string" then fail("Import must reject malformed payloads itself") end
