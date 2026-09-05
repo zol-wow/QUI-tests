@@ -68,6 +68,10 @@ check("wizard collects a character name for the specific-player choice",
     and create:find("local function WizardCanCreate", 1, true) ~= nil
     and create:find("createBtn:SetEnabled(WizardCanCreate())", 1, true) ~= nil
     and create:find("unitName = cs.unitName", 1, true) ~= nil)
+check("typed names survive pane rebuilds",
+    create:find("if userInput then w.name = self:GetText() end", 1, true) ~= nil
+    and create:find("if userInput then cs.name = self:GetText() end", 1, true) ~= nil
+    and create:find("nameEdit:SetText(cs.name or \"\")", 1, true) ~= nil)
 check("wizard gates Next on the tracked-spell step",
     create:find("local function WizardCanAdvance", 1, true) ~= nil
     and create:find("state.wizardStep < 4 and WizardCanAdvance()", 1, true) ~= nil

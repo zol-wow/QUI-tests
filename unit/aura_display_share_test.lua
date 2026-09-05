@@ -261,6 +261,27 @@ MalformedCase("display root with a second display",
 MalformedCase("display root naming a grouped display",
     { root = { kind = "display", name = "D" }, groups = { { name = "G" } }, displays = { { name = "D", group = "G" } } })
 
+-- Enum-like strings must be values the editor can produce.
+MalformedCase("bogus element anchor", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = { 1 }, anchor = "BOGUS" } } } } } } })
+MalformedCase("bogus aura type", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = { 1 }, auraType = "NEUTRAL" } } } } } } })
+MalformedCase("bogus display type", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "hologram", spells = { 1 } } } } } } } })
+MalformedCase("bogus duration anchor", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = { 1 },
+        duration = { anchor = "BOGUS" } } } } } } } })
+MalformedCase("bogus bar orientation", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "bar", spells = { 1 },
+        bar = { orientation = "DIAGONAL" } } } } } } } })
+MalformedCase("bogus strip sort rule", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "filterStrip", auraType = "HELPFUL", sortRule = "RANDOM" } } } } } } })
+MalformedCase("bogus group growth", { groups = { { name = "G", growDirection = "DIAGONAL" } }, displays = {} })
+MalformedCase("bogus display visibility", { groups = {}, displays = { { name = "D", visibility = "sometimes" } } })
+MalformedCase("bogus display unit mode", { groups = {}, displays = { { name = "D", unitMode = "guess" } } })
+MalformedCase("bogus layout direction", { groups = {}, displays = { { name = "D", layout = { direction = "SIDEWAYS" } } } })
+MalformedCase("bogus anchor point", { groups = { { name = "G", anchor = { point = "MIDDLE", offsetX = 1 } } }, displays = {} })
+
 -- Import is public: a caller bypassing Decode gets the same rejection.
 local direct, directErr = Share.Import({ type = Share.PAYLOAD_TYPE, version = 1, groups = { 1 }, displays = {} })
 if direct ~= nil or type(directErr) ~= "string" then fail("Import must reject malformed payloads itself") end
