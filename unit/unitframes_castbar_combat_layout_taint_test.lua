@@ -278,16 +278,52 @@ for _, event in ipairs({"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START"})
     assert(ok, event .. " should not hit protected castbar geometry: " .. tostring(err))
     assert(setHeightCalls == 0, event .. " should defer while protected calls are denied")
     assert(#timerQueue >= 1, event .. " should queue a deferred cast")
+    local retryCallback = timerQueue[1]
+    onEvent(castbar, event, "target", "CastGUID", 133)
+    assert(#timerQueue == 1, event .. " must coalesce repeated denied events")
     for _ = 1, 3 do
         flushTimers()
         assert(setHeightCalls == 0, event .. " must recheck permission on every deferred retry")
         assert(#timerQueue == 1, event .. " must retain one retry while permission remains denied")
+        assert(timerQueue[1] == retryCallback, event .. " must reuse its callback while permission remains denied")
     end
     protectedCallsAllowed = true
     flushTimers()
     assert(setHeightCalls >= 1, event .. " should update after leaving the denied context")
+    assert(castbar.channelSpellID == 133, event .. " must replay the latest coalesced cast arguments")
     assert(#timerQueue == 0, event .. " must stop retrying once permission returns")
 end
+
+for _, event in ipairs({"UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_CHANNEL_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED"}) do
+    protectedCallsAllowed = false
+    setHeightCalls = 0
+    timerQueue = {}
+    onEvent(castbar, "UNIT_SPELLCAST_START", "target", "CastGUID", 116)
+    local castingInfo = UnitCastingInfo
+    UnitCastingInfo = function() return nil end
+    onEvent(castbar, event, "target", "CastGUID", 116)
+    flushTimers()
+    UnitCastingInfo = castingInfo
+    assert(setHeightCalls == 0, event .. " must not replay canceled cast geometry")
+    assert(#timerQueue == 0, event .. " must stop retries even while permission remains denied")
+end
+protectedCallsAllowed = true
+
+protectedCallsAllowed = false
+onEvent(castbar, "UNIT_SPELLCAST_START", "target", "CastGUID", 116)
+local castingInfo = UnitCastingInfo
+UnitCastingInfo = function() return nil end
+onEvent(castbar, "UNIT_SPELLCAST_STOP", "target", "CastGUID", 116)
+UnitCastingInfo = castingInfo
+onEvent(castbar, "UNIT_SPELLCAST_START", "target", "CastGUID", 133)
+flushTimers()
+assert(#timerQueue == 1, "a canceled callback must not revive alongside a newer cast retry")
+protectedCallsAllowed = true
+castbar:Cast(133, false, true)
+setHeightCalls = 0
+flushTimers()
+assert(setHeightCalls == 0, "an immediate permitted Cast must invalidate any pending replay")
+assert(#timerQueue == 0, "an immediate permitted Cast must stop its pending retry")
 
 inCombat = false
 local bossFrame = newRegion("Frame", UIParent)
