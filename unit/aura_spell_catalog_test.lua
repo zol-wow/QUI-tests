@@ -85,20 +85,27 @@ C_Traits = {
         if nodeID == 2 then
             return { ranksPurchased = 0, activeEntry = { entryID = 102 } }
         end
+        if nodeID == 3 then
+            -- Granted talent: active without a purchased rank.
+            return { ranksPurchased = 0, activeRank = 1, activeEntry = { entryID = 103 } }
+        end
         return {}
     end,
     GetEntryInfo = function(_, entryID)
         if entryID == 101 then return { definitionID = 201 } end
+        if entryID == 103 then return { definitionID = 203 } end
         return nil
     end,
     GetDefinitionInfo = function(definitionID)
         if definitionID == 201 then return { spellID = 373049 } end
+        if definitionID == 203 then return { spellID = 373050 } end
         return nil
     end,
 }
 C_Spell = {
     GetSpellName = function(id)
         if id == 373049 then return "Power of the Dark Side" end
+        if id == 373050 then return "Granted Passive" end
         return nil
     end,
     GetSpellTexture = function() return 12345 end,
@@ -212,9 +219,13 @@ if book.section.spells[1].name ~= "Mind Blast" then
 end
 
 local talents = byName["Talents"]
-if not talents or #talents.section.spells ~= 1
-    or talents.section.spells[1].id ~= 373049 then
-    fail("talents must resolve selected entries to spells")
+if not talents or #talents.section.spells ~= 2 then
+    fail("talents must resolve purchased and granted entries to spells")
+end
+local talentIDs = {}
+for _, spell in ipairs(talents.section.spells) do talentIDs[spell.id] = true end
+if not talentIDs[373049] or not talentIDs[373050] then
+    fail("talents must include both the purchased and the granted talent")
 end
 
 local seenSection = byName["Recently Seen"]

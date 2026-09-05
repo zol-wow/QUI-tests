@@ -681,6 +681,20 @@ local depthOK, depthReason = AD.SetGroupParent("Depth 7", "Depth 6")
 if depthOK ~= false or depthReason ~= "depth" then
     fail("nesting beyond the depth cap must be rejected")
 end
+-- Moving a subtree counts its height: Tall A > Tall B > Tall C is 3 deep, so
+-- it fits under Depth 3 (3 + 3 = 6) but not under Depth 4 (4 + 3 = 7).
+for _, name in ipairs({ "Tall A", "Tall B", "Tall C" }) do AD.GetGroup(name, true) end
+if AD.SetGroupParent("Tall B", "Tall A") ~= true or AD.SetGroupParent("Tall C", "Tall B") ~= true then
+    fail("building the tall subtree must succeed")
+end
+local tallOK, tallReason = AD.SetGroupParent("Tall A", "Depth 4")
+if tallOK ~= false or tallReason ~= "depth" then
+    fail("reparenting a subtree that would exceed the depth cap must be rejected")
+end
+if AD.SetGroupParent("Tall A", "Depth 3") ~= true then
+    fail("reparenting a subtree that exactly fits the depth cap must succeed")
+end
+AD.SetGroupParent("Tall A", nil)
 
 local roots = AD.GroupChildren(nil)
 local sawParent, sawChild = false, false
@@ -880,14 +894,16 @@ end
 if runtimeThirdHost.parent ~= runtimeSubHost then
     fail("nested displays must live inside their own group's host")
 end
--- Members flow child-group first: sub (10 natural * 2 scale = 20 effective),
--- spacing 4, then the remaining display (10) -> 34 x 20.
+-- Direct displays flow first (matching the list order), then child groups:
+-- the remaining display (10), spacing 4, then sub (10 natural * 2 scale =
+-- 20 effective) -> 34 x 20.
 if runtimeGroupHost.width ~= 34 or runtimeGroupHost.height ~= 20 then
     fail(("root group must count the child block's scaled extent, got %sx%s")
         :format(tostring(runtimeGroupHost.width), tostring(runtimeGroupHost.height)))
 end
-if runtimeSubHost.point[4] ~= 10 or runtimeSecondHost.point[4] ~= 29 then
-    fail("nested blocks and displays must share the parent's flow")
+if runtimeSecondHost.point[4] ~= 5 or runtimeSubHost.point[4] ~= 24 then
+    fail(("direct displays must precede nested blocks in the parent's flow, got %s / %s")
+        :format(tostring(runtimeSecondHost.point[4]), tostring(runtimeSubHost.point[4])))
 end
 local runtimeSubKey = AD.GroupAnchorKey("Runtime Sub", false)
 if layoutElements[runtimeSubKey] then

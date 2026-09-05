@@ -63,6 +63,26 @@ check("guided door creates via BuildWizardDisplay",
     create:find("T.BuildWizardDisplay", 1, true) ~= nil)
 check("custom door reuses quick-create", create:find("Page._QuickCreate", 1, true) ~= nil)
 check("wizard has 4 steps", create:find("BuildWizardStep4", 1, true) ~= nil)
+check("wizard collects a character name for the specific-player choice",
+    create:find("_wizardUnitNameEdit", 1, true) ~= nil
+    and create:find("local function WizardCanCreate", 1, true) ~= nil
+    and create:find("createBtn:SetEnabled(WizardCanCreate())", 1, true) ~= nil
+    and create:find("unitName = cs.unitName", 1, true) ~= nil)
+check("typed names survive pane rebuilds",
+    create:find("if userInput then w.name = self:GetText() end", 1, true) ~= nil
+    and create:find("if userInput then cs.name = self:GetText() end", 1, true) ~= nil
+    and create:find("nameEdit:SetText(cs.name or \"\")", 1, true) ~= nil)
+check("spec name lookup falls back to the global GetSpecializationInfoByID",
+    create:find("or GetSpecializationInfoByID", 1, true) ~= nil)
+check("custom tab gates Create on a resolved spell and restores it on rebuild",
+    create:find("local function CustomCanCreate", 1, true) ~= nil
+    and create:find("if not CustomCanCreate() then return end", 1, true) ~= nil
+    and create:find("createBtn:SetEnabled(CustomCanCreate())", 1, true) ~= nil
+    and create:find("spellInput.editBox:SetText(tostring(cs.spellID))", 1, true) ~= nil)
+check("wizard gates Next on the tracked-spell step",
+    create:find("local function WizardCanAdvance", 1, true) ~= nil
+    and create:find("state.wizardStep < 4 and WizardCanAdvance()", 1, true) ~= nil
+    and create:find("nextBtn:SetEnabled(WizardCanAdvance())", 1, true) ~= nil)
 
 -- Content page wiring --------------------------------------------------------
 check("New Display routes through the dialog",

@@ -130,6 +130,17 @@ if not stripAnchor or stripAnchor.point ~= "BOTTOM" then
     fail("wizard must fall back to the goal's position zone")
 end
 
+local named = T.BuildWizardDisplay({ goalID = "myBuff", spells = { 115151 },
+    unitChoice = "__name", unitName = "  Bob-Realm " })
+if not named or named.unitMode ~= "name" or named.unit ~= "Bob-Realm" then
+    fail("wizard must carry the trimmed character name for a specific-player display")
+end
+if T.BuildWizardDisplay({ goalID = "myBuff", spells = {} }) ~= nil then
+    fail("wizard must refuse a tracked goal with no spells")
+end
+if T.BuildWizardDisplay({ goalID = "myBuff", spells = { "Fade" } }) ~= nil then
+    fail("wizard must refuse a tracked goal with no numeric spell")
+end
 if T.BuildWizardDisplay({ goalID = "nope" }) ~= nil then
     fail("unknown goal must return nil")
 end
