@@ -681,6 +681,20 @@ local depthOK, depthReason = AD.SetGroupParent("Depth 7", "Depth 6")
 if depthOK ~= false or depthReason ~= "depth" then
     fail("nesting beyond the depth cap must be rejected")
 end
+-- Moving a subtree counts its height: Tall A > Tall B > Tall C is 3 deep, so
+-- it fits under Depth 3 (3 + 3 = 6) but not under Depth 4 (4 + 3 = 7).
+for _, name in ipairs({ "Tall A", "Tall B", "Tall C" }) do AD.GetGroup(name, true) end
+if AD.SetGroupParent("Tall B", "Tall A") ~= true or AD.SetGroupParent("Tall C", "Tall B") ~= true then
+    fail("building the tall subtree must succeed")
+end
+local tallOK, tallReason = AD.SetGroupParent("Tall A", "Depth 4")
+if tallOK ~= false or tallReason ~= "depth" then
+    fail("reparenting a subtree that would exceed the depth cap must be rejected")
+end
+if AD.SetGroupParent("Tall A", "Depth 3") ~= true then
+    fail("reparenting a subtree that exactly fits the depth cap must succeed")
+end
+AD.SetGroupParent("Tall A", nil)
 
 local roots = AD.GroupChildren(nil)
 local sawParent, sawChild = false, false

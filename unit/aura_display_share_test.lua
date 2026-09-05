@@ -216,6 +216,17 @@ MalformedCase("tracked element without spells", { groups = {}, displays = { { na
     auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = {} } } } } } } })
 MalformedCase("unknown element mode", { groups = {}, displays = { { name = "D",
     auras = { elements = { ["*"] = { { mode = "weird" } } } } } } })
+MalformedCase("mistyped element filterFlags", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "filterStrip", auraType = "HELPFUL", filterFlags = 5 } } } } } } })
+MalformedCase("mistyped duration fontSize", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = { 1 },
+        duration = { fontSize = "big" } } } } } } } })
+MalformedCase("mistyped bar thickness", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "bar", spells = { 1 },
+        bar = { thickness = "thick", length = 48 } } } } } } } })
+MalformedCase("non-numeric color channel", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "square", spells = { 1 },
+        color = { "red", 0, 0 } } } } } } } })
 MalformedCase("non-table element bucket", { groups = {}, displays = { { name = "D", auras = { elements = { ["*"] = 5 } } } } })
 do
     local deep = { groups = {}, displays = {} }
