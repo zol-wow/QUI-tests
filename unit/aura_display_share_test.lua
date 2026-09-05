@@ -276,6 +276,7 @@ MalformedCase("bogus bar orientation", { groups = {}, displays = { { name = "D",
         bar = { orientation = "DIAGONAL" } } } } } } } })
 MalformedCase("bogus strip sort rule", { groups = {}, displays = { { name = "D",
     auras = { elements = { ["*"] = { { mode = "filterStrip", auraType = "HELPFUL", sortRule = "RANDOM" } } } } } } })
+MalformedCase("mistyped group sort", { groups = { { name = "G", sort = {} } }, displays = {} })
 MalformedCase("bogus group growth", { groups = { { name = "G", growDirection = "DIAGONAL" } }, displays = {} })
 MalformedCase("bogus display visibility", { groups = {}, displays = { { name = "D", visibility = "sometimes" } } })
 MalformedCase("bogus display unit mode", { groups = {}, displays = { { name = "D", unitMode = "guess" } } })
