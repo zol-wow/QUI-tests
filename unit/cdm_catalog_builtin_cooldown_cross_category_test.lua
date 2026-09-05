@@ -42,20 +42,27 @@ _G.CooldownViewerSettings = {
             -- memo fields present = cache already built by a secure consumer
             -- (cold-boot taint gate reads these raw; see cdm_index/cdm_catalog)
             displayDataDirty = false,
-            displayData = {},
+            displayData = {
+                orderedCooldownIDs = { 10, 20 },
+                cooldownInfoByID = {
+                    [10] = { category = 0, isKnown = true },
+                    [20] = { category = 1, isKnown = true },
+                },
+            },
             GetLayoutManager = function() return {} end,
-            GetOrderedCooldownIDsForCategory = function(_, category, allowUnlearned)
-                requestedCategories[#requestedCategories + 1] = category
-                assert(allowUnlearned == true, "picker should request unlearned entries")
-                if category == 0 then return { 10 } end
-                if category == 1 then return { 20 } end
-                return {}
+            GetOrderedCooldownIDsForCategory = function()
+                error("native ordered getters must remain untouched")
             end,
         }
     end,
 }
 
 local catalog = assert(ns.CDMCatalog, "CDMCatalog not exported")
+local getTrackedCategorySet = catalog.GetTrackedCategorySet
+catalog.GetTrackedCategorySet = function(category, allowUnlearned)
+    requestedCategories[#requestedCategories + 1] = category
+    return getTrackedCategorySet(category, allowUnlearned)
+end
 local available = catalog.GetAvailableSpellsForContainer("essential", "cooldown", {}, {})
 
 local bySpellID = {}

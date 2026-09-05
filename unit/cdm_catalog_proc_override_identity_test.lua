@@ -112,11 +112,16 @@ _G.CooldownViewerSettings = {
             -- memo fields present = cache already built by a secure consumer
             -- (cold-boot taint gate reads these raw; see cdm_index/cdm_catalog)
             displayDataDirty = false,
-            displayData = {},
+            displayData = {
+                orderedCooldownIDs = { 1001, 1002 },
+                cooldownInfoByID = {
+                    [1001] = { category = 0, isKnown = true },
+                    [1002] = { category = 0, isKnown = true },
+                },
+            },
             GetLayoutManager = function() return {} end,
-            GetOrderedCooldownIDsForCategory = function(_, category)
-                if category == 0 then return { 1001, 1002 } end
-                return {}
+            GetOrderedCooldownIDsForCategory = function()
+                error("native ordered getters must remain untouched")
             end,
         }
     end,

@@ -363,6 +363,8 @@ bossCastbar.SetHeight = function(self, height)
 end
 
 for _, event in ipairs({"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_STOP"}) do
+    inCombat = false
+    bossCastbar:Hide()
     inCombat = true
     protectedCallsAllowed = false
     bossHeightCalls = 0
@@ -370,6 +372,7 @@ for _, event in ipairs({"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START", 
     local ok, err = pcall(bossOnEvent, bossCastbar, event, "boss1")
     assert(ok, "boss " .. event .. " should not hit protected geometry: " .. tostring(err))
     assert(bossHeightCalls == 0, "boss " .. event .. " should defer while protected calls are denied")
+    assert(not bossCastbar:IsVisible(), "boss cast must remain hidden while protected calls are denied")
     assert(#timerQueue >= 1, "boss " .. event .. " should queue a deferred cast")
     for _ = 1, 3 do
         flushTimers()
@@ -378,7 +381,23 @@ for _, event in ipairs({"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START", 
     protectedCallsAllowed = true
     flushTimers()
     assert(bossHeightCalls >= 1, "boss " .. event .. " should recover active cast geometry after deferral")
+    assert(bossCastbar:IsVisible(), "boss " .. event .. " must display the cast in combat after permission returns")
 end
+
+inCombat = false
+castbar:Hide()
+inCombat = true
+onEvent(castbar, "UNIT_SPELLCAST_START", "target", "CastGUID", 116)
+assert(castbar:IsVisible(), "a castbar hidden after preview must show for the next permitted combat cast")
+
+local bossCastingInfo = UnitCastingInfo
+UnitCastingInfo = function() return nil end
+bossOnEvent(bossCastbar, "UNIT_SPELLCAST_STOP", "boss1")
+flushTimers()
+assert(not bossCastbar:IsVisible(), "a completed boss cast must disappear during combat")
+UnitCastingInfo = bossCastingInfo
+bossOnEvent(bossCastbar, "UNIT_SPELLCAST_START", "boss1")
+assert(bossCastbar:IsVisible(), "the next boss cast must reappear during the same combat")
 
 protectedCallsAllowed = false
 timerQueue = {}
