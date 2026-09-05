@@ -64,4 +64,75 @@ assert(block:find("return self.emptyFrames", 1, true),
 assert(not block:find("_G[blizzName]", 1, true),
     "CDMProvider:GetViewerFrames must not return Blizzard globals pre-init")
 
+local function RawSetAlpha(frame, alpha)
+    frame.alpha = alpha
+end
+local function MakeFrame()
+    return {
+        alpha = 1,
+        SetAlpha = RawSetAlpha,
+        RegisterEvent = function() end,
+        SetScript = function() end,
+    }
+end
+_G.CreateFrame = MakeFrame
+_G.C_Timer = { After = function() end }
+_G.hooksecurefunc = function(target, method, callback)
+    local original = target[method]
+    target[method] = function(...)
+        original(...)
+        callback(...)
+    end
+end
+_G.wipe = function(values)
+    for key in pairs(values) do values[key] = nil end
+end
+local inCombat, ready = true, true
+_G.InCombatLockdown = function() return inCombat end
+_G.C_CooldownViewer = { IsCooldownViewerAvailable = function() return ready end }
+local profile = { ncdm = { enabled = true, trackedBar = { enabled = true } } }
+local core = { db = { profile = profile } }
+_G.QUI = core
+local nativeViewers = {}
+local ownedBar = MakeFrame()
+ownedBar._quiCdmKey = "trackedBar"
+local ns = {
+    Addon = core,
+    CDMProvider = { GetViewerFrames = function() return { ownedBar } end },
+    _cdmBoot = { wiring = { GetViewerForKey = function(_, key) return nativeViewers[key] end } },
+}
+local helperEnd = assert(hud:find("local function ShouldHideForLocationRules", 1, true))
+local applyNativeAlpha, getFrames = assert(loadstring(hud:sub(1, helperEnd - 1)
+    .. "\nreturn ApplyReanchorViewerAlpha, GetCDMFrames"))("QUI", ns)
+assert(loadfile("QUI_CDM/cdm/cdm_blizzard_buffbar_suppression.lua"))("QUI", ns)
+local suppressor = ns.CDMBlizzardBuffBarSuppressor
+assert(getFrames()[1] == ownedBar, "QUI-owned tracked bars must remain in the HUD fade collection")
+for _, scenario in ipairs({ "combat", "unready" }) do
+    inCombat = scenario == "combat"
+    ready = scenario ~= "unready"
+    for _, key in ipairs({ "essential", "utility", "buff", "trackedBar" }) do
+        nativeViewers[key] = MakeFrame()
+    end
+    local nativeBar = nativeViewers.trackedBar
+    _G.BuffBarCooldownViewer = nativeBar
+    suppressor:Apply(profile.ncdm.trackedBar)
+    assert(nativeBar.alpha == 0, scenario .. " suppression precondition failed")
+    for _, alpha in ipairs({ 1, 0.4, 0, {} }) do
+        applyNativeAlpha(alpha)
+        assert(nativeBar.alpha == 0, scenario .. " HUD fade must not bypass native tracked-bar suppression")
+        assert(nativeViewers.buff.alpha == alpha, "native buff icons must continue following the HUD fade")
+    end
+    profile.ncdm.trackedBar.enabled = false
+    suppressor:Apply(profile.ncdm.trackedBar)
+    applyNativeAlpha(0)
+    assert(nativeBar.alpha == 1, "disabled tracked bars must remain restored by the suppressor")
+    profile.ncdm.trackedBar.enabled = true
+    suppressor:Apply(profile.ncdm.trackedBar)
+    profile.ncdm.enabled = false
+    suppressor:Apply(profile.ncdm.trackedBar)
+    applyNativeAlpha(0)
+    assert(nativeBar.alpha == 1, "disabled CDM master must leave the native tracked bar restored")
+    profile.ncdm.enabled = true
+end
+
 print("OK: cdm_hud_visibility_no_blizzard_fallback_test")

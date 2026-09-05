@@ -101,4 +101,34 @@ assert(not realEnv:find("_InstallBarReskinHooks", 1, true)
     and not realEnv:find('hooksecurefunc(live, "SetBarWidth"', 1, true),
     "owned tracked bars must not install native tracked-bar reskin hooks")
 
+do
+    local start = assert(containers:find(
+        "            if EventRegistry and EventRegistry.RegisterCallback", 1, true))
+    local stop = assert(containers:find(
+        "\n        end\n        self:InstallReanchorProcGlowHooks", start, true))
+    local install = assert(loadstring("return function(ns, EventRegistry, C_Timer)\n"
+        .. containers:sub(start, stop - 1) .. "\nend"))()
+    local callbacks, timers = {}, {}
+    local iconRefreshes, barRefreshes = 0, 0
+    install({
+        _cdmReanchorHooks = { MarkAllDirty = function() iconRefreshes = iconRefreshes + 1 end },
+        _cdmTrackedBarLifecycleHooks = { MarkAllDirty = function() barRefreshes = barRefreshes + 1 end },
+    }, {
+        RegisterCallback = function(_, event, callback) callbacks[event] = callback end,
+    }, {
+        After = function(delay, callback) timers[delay] = callback end,
+    })
+    callbacks["CooldownViewerSettings.OnHide"]()
+    assert(iconRefreshes == 0 and barRefreshes == 0,
+        "settings close must let Blizzard finish before requesting reanchors")
+    assert(timers[0.1] and timers[0.3],
+        "settings close must retain the reference's delayed reanchor and later buff-bar sync")
+    timers[0.1]()
+    assert(iconRefreshes == 1 and barRefreshes == 1,
+        "settled settings close refreshes both lifecycle groups")
+    timers[0.3]()
+    assert(iconRefreshes == 1 and barRefreshes == 2,
+        "late native pool changes receive a separate buff-bar refresh")
+end
+
 print("OK: cdm_trackedbar_owned_layout_test")

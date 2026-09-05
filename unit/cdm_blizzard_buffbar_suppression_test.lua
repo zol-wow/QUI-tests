@@ -88,8 +88,17 @@ do
     assert(frame.mouseWrites.EnableMouse == false, "suppression disables mouse")
     assert(frame.mouseWrites.EnableMouseMotion == false, "suppression disables mouse motion")
 
+    frame:SetAlpha(1)
+    assert(frame.alpha == 0, "alpha-only drift is repaired while the viewer remains parked")
+    frame.alpha = 1
+    assert(Suppressor:CheckParkIntegrity() == true and frame.alpha == 0,
+        "park integrity repairs alpha even when the anchor has not changed")
+
     Suppressor:Restore()
     assert(frame.alpha == 1, "restore makes the native bar visible again")
+    frame:SetAlpha(1)
+    FlushDeferred()
+    assert(frame.alpha == 1, "installed repair hooks leave the restored viewer visible")
     assert(frame.points[1][1] == "CENTER" and frame.points[1][4] == 12 and frame.points[1][5] == -8,
         "restore returns the original anchor")
 end
@@ -152,6 +161,11 @@ do
     assert(frame.clearCalls == 0, "combat suppression must not clear protected points")
     assert(frame.pointWrites == 0, "combat suppression must not move the native viewer")
 
+    frame:SetAlpha(1)
+    assert(frame.alpha == 0, "alpha-only drift is repaired before combat parking is allowed")
+    assert(frame.clearCalls == 0 and frame.pointWrites == 0,
+        "combat alpha repair does not mutate native anchors")
+
     inCombat = false
     Suppressor:FlushPendingRestore()
     assert(frame.clearCalls == 1 and frame.pointWrites == 1,
@@ -179,6 +193,11 @@ do
     assert(frame.alpha == 0, "not-ready suppression hides the native viewer immediately")
     assert(frame.clearCalls == 0 and frame.pointWrites == 0,
         "not-ready suppression must not move the native viewer")
+
+    frame:SetAlpha(1)
+    assert(frame.alpha == 0, "alpha-only drift is repaired before data readiness")
+    assert(frame.clearCalls == 0 and frame.pointWrites == 0,
+        "not-ready alpha repair does not mutate native anchors")
 
     _G.C_CooldownViewer.IsCooldownViewerAvailable = function() return true end
     FireEvent("COOLDOWN_VIEWER_DATA_LOADED")

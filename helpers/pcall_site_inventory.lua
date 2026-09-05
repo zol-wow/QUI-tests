@@ -11,7 +11,7 @@ return {
     "QUI_CDM/cdm/cdm_bar_renderer.lua::2",
     "QUI_CDM/cdm/cdm_blizzard_buffbar_suppression.lua::1",
     "QUI_CDM/cdm/cdm_buff_layout.lua::4",
-    "QUI_CDM/cdm/cdm_catalog.lua::3",
+    "QUI_CDM/cdm/cdm_catalog.lua::2",
     "QUI_CDM/cdm/cdm_containers.lua::12",
     "QUI_CDM/cdm/cdm_frame_writes.lua::3",
     "QUI_CDM/cdm/cdm_icon_factory.lua::1",
