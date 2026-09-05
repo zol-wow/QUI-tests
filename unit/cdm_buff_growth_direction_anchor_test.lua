@@ -135,6 +135,9 @@ assert(restoreBody:find("ApplyScreenAnchor(container, point, relative,", 1, true
     "RestoreContainerPosition must pin screen entries by their own point, not CENTER")
 assert(not restoreBody:find('container:SetPoint("CENTER", UIParent, "CENTER"', 1, true),
     "RestoreContainerPosition must no longer hard-code a CENTER pin")
+assert(restoreBody:find("if point ~= want or relative ~= want then", 1, true)
+    and not restoreBody:find('want ~= "CENTER" and (point', 1, true),
+    "RestoreContainerPosition must normalize screen entries to the growth anchor, CENTER included")
 assert(containers:find("function CDMContainers_API:SetGrowthAnchor(trackerKey, point)", 1, true),
     "SetGrowthAnchor API must exist")
 assert(containers:find("SetGrowthAnchor = function(key, point) return CDMContainers_API:SetGrowthAnchor(key, point) end", 1, true),
