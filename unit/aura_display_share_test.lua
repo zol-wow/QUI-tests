@@ -42,6 +42,7 @@ ns.Helpers = {
     end,
 }
 
+assert(loadfile("core/safecall.lua"))("QUI", ns)
 assert(loadfile("core/aura_elements.lua"))("QUI", ns)
 assert(loadfile("modules/trackers/aura_displays.lua"))("QUI", ns)
 assert(loadfile("modules/trackers/aura_display_share.lua"))("QUI", ns)
