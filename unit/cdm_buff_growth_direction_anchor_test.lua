@@ -140,6 +140,9 @@ assert(restoreBody:find("if point ~= want or relative ~= want then", 1, true)
     "RestoreContainerPosition must normalize screen entries to the growth anchor, CENTER included")
 assert(containers:find("function CDMContainers_API:SetGrowthAnchor(trackerKey, point)", 1, true),
     "SetGrowthAnchor API must exist")
+assert(restoreBody:find('want ~= "CENTER" and not HasLegacyFrameAnchor(trackerKey) then', 1, true)
+    and containers:find("if HasLegacyFrameAnchor(trackerKey) then return true end", 1, true),
+    "seeding a screen entry must defer to a live legacy settings.anchorTo frame anchor")
 assert(containers:find("SetGrowthAnchor = function(key, point) return CDMContainers_API:SetGrowthAnchor(key, point) end", 1, true),
     "SetGrowthAnchor must be exported on ns.CDMContainers")
 assert(containers:find("HealGrowthAnchorIfPending(viewer)", 1, true)
