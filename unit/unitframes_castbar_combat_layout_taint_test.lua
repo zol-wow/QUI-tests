@@ -373,6 +373,14 @@ ns.Helpers.PinFrameToTargetAbsolute = function(...)
 end
 timerQueue = {}
 
+local unavailableCastbar = assert(ns.QUI_Castbar:CreateCastbar(unitFrame, "target", "target"))
+flushTimers()
+local unavailablePoint, unavailableRelativeTo = unavailableCastbar:GetPoint()
+assert(unavailablePoint and unavailableRelativeTo == UIParent,
+    "failed initial and deferred pins must leave the castbar positioned relative to UIParent")
+assert(not unavailableCastbar:IsAnchoringRestricted(),
+    "persistent unreadable geometry must not restrict the castbar")
+
 local fallbackCastbar = assert(ns.QUI_Castbar:CreateCastbar(unitFrame, "target", "target"))
 assert(not fallbackCastbar:IsAnchoringRestricted(),
     "failed absolute pin must not fall back to the protected unit frame")
@@ -381,8 +389,8 @@ pinAvailable = true
 flushTimers()
 assert(not fallbackCastbar:IsAnchoringRestricted(),
     "deferred absolute pin must keep the castbar unrestricted")
-local _, fallbackRelativeTo = fallbackCastbar:GetPoint()
-assert(fallbackRelativeTo == UIParent,
+local fallbackPoint, fallbackRelativeTo, fallbackRelativePoint = fallbackCastbar:GetPoint()
+assert(fallbackPoint == "TOP" and fallbackRelativeTo == UIParent and fallbackRelativePoint == "BOTTOMLEFT",
     "deferred absolute pin must recover the castbar position")
 
 inCombat = true
