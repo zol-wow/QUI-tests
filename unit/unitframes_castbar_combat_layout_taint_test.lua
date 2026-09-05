@@ -20,10 +20,11 @@
 -- This test drives the real OnEvent handler and proves: in combat the protected
 -- geometry does NOT run synchronously (it is deferred), and the deferred callback
 -- applies it; out of combat it runs synchronously with no defer.
--- luacheck: globals GetTime CreateFrame InCombatLockdown UnitCastingInfo UnitChannelInfo UnitClass UnitGUID UIParent RAID_CLASS_COLORS C_Timer EventRegistry
+-- luacheck: globals GetTime CreateFrame InCombatLockdown UnitCastingInfo UnitChannelInfo UnitClass UnitGUID UIParent RAID_CLASS_COLORS C_Timer C_RestrictedActions EventRegistry
 
 local function noop() end
 local inCombat = false
+local protectedCallsAllowed = true
 
 local function newRegion(frameType, parent)
     local region = {
@@ -170,6 +171,7 @@ function UnitGUID() return "Creature-0000-00000001" end
 UIParent = newRegion("Frame")
 RAID_CLASS_COLORS = { MAGE = { r = 0.25, g = 0.78, b = 0.92 } }
 C_Timer = { After = function(_, callback) timerQueue[#timerQueue + 1] = callback end }
+C_RestrictedActions = { CheckAllowProtectedFunctions = function() return protectedCallsAllowed end }
 EventRegistry = { RegisterCallback = noop }
 
 local ns = { Helpers = {}, Addon = {} }
@@ -269,11 +271,16 @@ end
 
 for _, event in ipairs({"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START"}) do
     inCombat = true
+    protectedCallsAllowed = false
     setHeightCalls = 0
     timerQueue = {}
     local ok, err = pcall(onEvent, castbar, event, "target", "CastGUID", 116)
     assert(ok, event .. " should not hit protected castbar geometry: " .. tostring(err))
-    assert(setHeightCalls >= 1, event .. " should update the unrestricted castbar immediately")
+    assert(setHeightCalls == 0, event .. " should defer while protected calls are denied")
+    assert(#timerQueue >= 1, event .. " should queue a deferred cast")
+    protectedCallsAllowed = true
+    flushTimers()
+    assert(setHeightCalls >= 1, event .. " should update after leaving the denied context")
 end
 
 inCombat = false
@@ -322,5 +329,33 @@ onEvent(castbar, "PLAYER_TARGET_CHANGED")
 assert(setHeightCalls >= 1,
     "out of combat, PLAYER_TARGET_CHANGED should run the cast synchronously "
     .. "(got " .. setHeightCalls .. ")")
+
+inCombat = false
+settings.target.castbar.anchor = "unitframe"
+local realPinFrameToTargetAbsolute = ns.Helpers.PinFrameToTargetAbsolute
+local pinAvailable = false
+ns.Helpers.PinFrameToTargetAbsolute = function(...)
+    if not pinAvailable then return false end
+    return realPinFrameToTargetAbsolute(...)
+end
+timerQueue = {}
+
+local fallbackCastbar = assert(ns.QUI_Castbar:CreateCastbar(unitFrame, "target", "target"))
+assert(not fallbackCastbar:IsAnchoringRestricted(),
+    "failed absolute pin must not fall back to the protected unit frame")
+
+pinAvailable = true
+flushTimers()
+assert(not fallbackCastbar:IsAnchoringRestricted(),
+    "deferred absolute pin must keep the castbar unrestricted")
+local _, fallbackRelativeTo = fallbackCastbar:GetPoint()
+assert(fallbackRelativeTo == UIParent,
+    "deferred absolute pin must recover the castbar position")
+
+inCombat = true
+local fallbackOnEvent = assert(fallbackCastbar.scripts and fallbackCastbar.scripts.OnEvent)
+local ok, err = pcall(fallbackOnEvent, fallbackCastbar,
+    "UNIT_SPELLCAST_START", "target", "CastGUID", 116)
+assert(ok, "restricted-anchor fallback must not block spellcast layout: " .. tostring(err))
 
 print("OK: unitframes_castbar_combat_layout_taint_test")
