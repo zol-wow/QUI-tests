@@ -135,8 +135,14 @@ assert(restoreBody:find("ApplyScreenAnchor(container, point, relative,", 1, true
     "RestoreContainerPosition must pin screen entries by their own point, not CENTER")
 assert(not restoreBody:find('container:SetPoint("CENTER", UIParent, "CENTER"', 1, true),
     "RestoreContainerPosition must no longer hard-code a CENTER pin")
+assert(restoreBody:find("if point ~= want or relative ~= want then", 1, true)
+    and not restoreBody:find('want ~= "CENTER" and (point', 1, true),
+    "RestoreContainerPosition must normalize screen entries to the growth anchor, CENTER included")
 assert(containers:find("function CDMContainers_API:SetGrowthAnchor(trackerKey, point)", 1, true),
     "SetGrowthAnchor API must exist")
+assert(restoreBody:find('want ~= "CENTER" and not HasLegacyFrameAnchor(trackerKey) then', 1, true)
+    and containers:find("if HasLegacyFrameAnchor(trackerKey) then return true end", 1, true),
+    "seeding a screen entry must defer to a live legacy settings.anchorTo frame anchor")
 assert(containers:find("SetGrowthAnchor = function(key, point) return CDMContainers_API:SetGrowthAnchor(key, point) end", 1, true),
     "SetGrowthAnchor must be exported on ns.CDMContainers")
 assert(containers:find("HealGrowthAnchorIfPending(viewer)", 1, true)
@@ -154,8 +160,8 @@ assert(layoutMode:find("getGrowAnchor = function()", 1, true),
 local lm = readAll("modules/layout/layoutmode.lua")
 local saveAt = assert(lm:find("local function SavePendingPosition(", 1, true))
 local saveBody = lm:sub(saveAt, saveAt + 9000)
-assert(saveBody:find("if def and def.getGrowAnchor then", 1, true),
-    "layout mode free-placement save must consult def.getGrowAnchor")
+assert(saveBody:find("if def and def.getGrowAnchor and not hasRealParent then", 1, true),
+    "layout mode free-placement save must consult def.getGrowAnchor, but never for an entry that still names a real parent")
 assert(lm:find("GROW_ANCHOR_FRAC_X = {", 1, true) and lm:find("LEFT = 0, CENTER = 0.5, RIGHT = 1,", 1, true),
     "layout mode growth-anchor fractions must cover edge points")
 
