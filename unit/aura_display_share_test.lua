@@ -167,4 +167,44 @@ end
 local ok3 = Share.Decode("")
 if ok3 then fail("empty input must fail") end
 
+-- Well-encoded but malformed payloads must come back as the advertised
+-- "malformed" error, never as a Lua error escaping into the import button.
+local function MalformedCase(label, payload)
+    payload.type = payload.type or Share.PAYLOAD_TYPE
+    payload.version = payload.version or Share.VERSION
+    local encoded = Share.Encode(payload)
+    if not encoded then fail(label .. ": test payload must encode") end
+    local okCall, okDecode, _, err = pcall(Share.Decode, encoded)
+    if not okCall then fail(label .. ": Decode must not raise: " .. tostring(okDecode)) end
+    if okDecode or type(err) ~= "string" or not err:find("Malformed", 1, true) then
+        fail(label .. ": must be rejected as malformed, got " .. tostring(err))
+    end
+    local okImport, summary, importErr = pcall(Share.ImportString, encoded)
+    if not okImport then fail(label .. ": ImportString must not raise: " .. tostring(summary)) end
+    if summary ~= nil or type(importErr) ~= "string" then
+        fail(label .. ": ImportString must return nil plus the error")
+    end
+end
+MalformedCase("non-table group entry", { groups = { 1 }, displays = {} })
+MalformedCase("non-table display entry", { groups = {}, displays = { "Fade" } })
+MalformedCase("group without a name", { groups = { { spacing = 2 } }, displays = {} })
+MalformedCase("mistyped group field", { groups = { { name = "G", spacing = "wide" } }, displays = {} })
+MalformedCase("mistyped group parent", { groups = { { name = "G", parent = 7 } }, displays = {} })
+MalformedCase("mistyped display auras", { groups = {}, displays = { { name = "D", auras = 5 } } })
+MalformedCase("mistyped display group", { groups = {}, displays = { { name = "D", group = { "G" } } } })
+MalformedCase("bogus root kind", { root = { kind = "bogus" }, groups = {}, displays = { { name = "D" } } })
+MalformedCase("non-table root", { root = "display", groups = {}, displays = { { name = "D" } } })
+
+-- Import is public: a caller bypassing Decode gets the same rejection.
+local direct, directErr = Share.Import({ type = Share.PAYLOAD_TYPE, version = 1, groups = { 1 }, displays = {} })
+if direct ~= nil or type(directErr) ~= "string" then fail("Import must reject malformed payloads itself") end
+
+-- A well-formed payload with only optional fields still imports.
+local minimal = Share.Encode({ type = Share.PAYLOAD_TYPE, version = Share.VERSION,
+    groups = {}, displays = { { name = "Minimal" } } })
+local minimalSummary, minimalErr = Share.ImportString(minimal)
+if not minimalSummary or minimalSummary.displays ~= 1 then
+    fail("minimal well-formed payload must import: " .. tostring(minimalErr))
+end
+
 print("OK: aura_display_share_test")
