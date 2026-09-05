@@ -92,5 +92,13 @@ check("Park clears the applied assist record",
     src:find("function S.Park(container)", 1, true) ~= nil
     and select(2, src:gsub("container%._quiAssistApplied = nil", "")) >= 2)
 
+check("dynamic layout: packed tracked icons ride one single-frame aura group per spell",
+    src:find("function S.UsesDynamicGroups", 1, true) ~= nil
+    and src:find("function S.DynamicGroups", 1, true) ~= nil
+    and src:find("maxFrameCount = 1", 1, true) ~= nil
+    and src:find("groupSpacing = spacing", 1, true) ~= nil)
+check("dynamic layout: shares the per-spell never-secret park exemption",
+    select(2, src:gsub("parkAll and not SpellNeverSecret", "")) >= 2)
+
 if fails > 0 then error(fails .. " failure(s) in aura_slots_api_test") end
 print("OK: aura_slots_api_test (all checks passed)")
