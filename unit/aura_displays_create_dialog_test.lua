@@ -63,6 +63,11 @@ check("guided door creates via BuildWizardDisplay",
     create:find("T.BuildWizardDisplay", 1, true) ~= nil)
 check("custom door reuses quick-create", create:find("Page._QuickCreate", 1, true) ~= nil)
 check("wizard has 4 steps", create:find("BuildWizardStep4", 1, true) ~= nil)
+check("wizard collects a character name for the specific-player choice",
+    create:find("_wizardUnitNameEdit", 1, true) ~= nil
+    and create:find("local function WizardCanCreate", 1, true) ~= nil
+    and create:find("createBtn:SetEnabled(WizardCanCreate())", 1, true) ~= nil
+    and create:find("unitName = cs.unitName", 1, true) ~= nil)
 check("wizard gates Next on the tracked-spell step",
     create:find("local function WizardCanAdvance", 1, true) ~= nil
     and create:find("state.wizardStep < 4 and WizardCanAdvance()", 1, true) ~= nil

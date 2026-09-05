@@ -894,14 +894,16 @@ end
 if runtimeThirdHost.parent ~= runtimeSubHost then
     fail("nested displays must live inside their own group's host")
 end
--- Members flow child-group first: sub (10 natural * 2 scale = 20 effective),
--- spacing 4, then the remaining display (10) -> 34 x 20.
+-- Direct displays flow first (matching the list order), then child groups:
+-- the remaining display (10), spacing 4, then sub (10 natural * 2 scale =
+-- 20 effective) -> 34 x 20.
 if runtimeGroupHost.width ~= 34 or runtimeGroupHost.height ~= 20 then
     fail(("root group must count the child block's scaled extent, got %sx%s")
         :format(tostring(runtimeGroupHost.width), tostring(runtimeGroupHost.height)))
 end
-if runtimeSubHost.point[4] ~= 10 or runtimeSecondHost.point[4] ~= 29 then
-    fail("nested blocks and displays must share the parent's flow")
+if runtimeSecondHost.point[4] ~= 5 or runtimeSubHost.point[4] ~= 24 then
+    fail(("direct displays must precede nested blocks in the parent's flow, got %s / %s")
+        :format(tostring(runtimeSecondHost.point[4]), tostring(runtimeSubHost.point[4])))
 end
 local runtimeSubKey = AD.GroupAnchorKey("Runtime Sub", false)
 if layoutElements[runtimeSubKey] then
