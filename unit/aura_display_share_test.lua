@@ -282,6 +282,61 @@ MalformedCase("bogus display unit mode", { groups = {}, displays = { { name = "D
 MalformedCase("bogus layout direction", { groups = {}, displays = { { name = "D", layout = { direction = "SIDEWAYS" } } } })
 MalformedCase("bogus anchor point", { groups = { { name = "G", anchor = { point = "MIDDLE", offsetX = 1 } } }, displays = {} })
 
+-- Numeric fields must be finite and sane.
+MalformedCase("infinite iconSize", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = { 1 }, iconSize = 1 / 0 } } } } } } })
+MalformedCase("NaN group scale", { groups = { { name = "G", scale = 0 / 0 } }, displays = {} })
+MalformedCase("negative group scale", { groups = { { name = "G", scale = -1 } }, displays = {} })
+MalformedCase("absurd anchor offset", { groups = { { name = "G", anchor = { point = "TOP", offsetX = 1e9 } } }, displays = {} })
+MalformedCase("out-of-range color channel", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "square", spells = { 1 }, color = { 5, 0, 0 } } } } } } } })
+MalformedCase("huge duration font", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = { 1 },
+        duration = { fontSize = 9000 } } } } } } } })
+
+-- Byte caps: oversized input is refused before decompression or
+-- deserialization can do any real work.
+do
+    local tooLong = "AD1:" .. string.rep("A", 256 * 1024 + 1)
+    local okBig, _, bigErr = Share.Decode(tooLong)
+    if okBig or not (bigErr or ""):find("too large", 1, true) then
+        fail("oversized encoded strings must be refused up front")
+    end
+    local bloated = Share.Encode({ type = Share.PAYLOAD_TYPE, version = Share.VERSION, groups = {},
+        displays = { { name = "D", auras = { elements = { ["*"] = { {
+            mode = "filterStrip", auraType = "HELPFUL", filterFlags = { [string.rep("x", 2 * 1024 * 1024 + 64)] = true },
+        } } } } } } })
+    if not bloated or #bloated > 256 * 1024 then fail("bloat fixture must compress under the encoded cap") end
+    local okBloat, _, bloatErr = Share.Decode(bloated)
+    if okBloat or not (bloatErr or ""):find("too large", 1, true) then
+        fail("payloads that decompress past the cap must be refused before deserialization")
+    end
+end
+
+-- Colliding maximum-length names stay within MAX_NAME_LENGTH after renaming.
+do
+    local longName = string.rep("N", 120)
+    local existing = AD.NewDisplay(longName)
+    if #existing.name ~= 120 then fail("fixture must create a maximum-length display name") end
+    local collide = Share.Encode({ type = Share.PAYLOAD_TYPE, version = Share.VERSION,
+        groups = {}, displays = { { name = longName } } })
+    local collideSummary, collideErr = Share.ImportString(collide)
+    if not collideSummary or collideSummary.renamed ~= 1 then
+        fail("colliding maximum-length import must rename: " .. tostring(collideErr))
+    end
+    local renamed = AD.GetDisplay(collideSummary.rootID or "") or nil
+    local found
+    for _, d in ipairs(AD.OrderedDisplays()) do
+        if d.name ~= longName and d.name:sub(1, 100) == string.rep("N", 100) then found = d end
+    end
+    if not found or #found.name > 120 or not found.name:find(" 2$") then
+        fail("renamed name must fit the limit with its suffix, got " .. tostring(found and #found.name))
+    end
+    local reexport = Share.ExportDisplayString(found.id)
+    local okRe = Share.Decode(reexport)
+    if not okRe then fail("a renamed maximum-length display must re-export and decode") end
+end
+
 -- Import is public: a caller bypassing Decode gets the same rejection.
 local direct, directErr = Share.Import({ type = Share.PAYLOAD_TYPE, version = 1, groups = { 1 }, displays = {} })
 if direct ~= nil or type(directErr) ~= "string" then fail("Import must reject malformed payloads itself") end
