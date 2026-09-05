@@ -130,6 +130,12 @@ if not stripAnchor or stripAnchor.point ~= "BOTTOM" then
     fail("wizard must fall back to the goal's position zone")
 end
 
+if T.BuildWizardDisplay({ goalID = "myBuff", spells = {} }) ~= nil then
+    fail("wizard must refuse a tracked goal with no spells")
+end
+if T.BuildWizardDisplay({ goalID = "myBuff", spells = { "Fade" } }) ~= nil then
+    fail("wizard must refuse a tracked goal with no numeric spell")
+end
 if T.BuildWizardDisplay({ goalID = "nope" }) ~= nil then
     fail("unknown goal must return nil")
 end

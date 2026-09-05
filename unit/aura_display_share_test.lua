@@ -204,6 +204,39 @@ MalformedCase("display in unknown group", { groups = { { name = "G" } }, display
 MalformedCase("root names unknown group", { root = { kind = "group", name = "Nope" }, groups = { { name = "G" } }, displays = {} })
 MalformedCase("root names unknown display", { root = { kind = "display", name = "Nope" }, groups = {}, displays = { { name = "D" } } })
 
+-- Nested records: anchors, layout, load and aura elements are type-checked.
+MalformedCase("mistyped anchor offset", { groups = { { name = "G", anchor = { point = "TOP", offsetX = "far" } } }, displays = {} })
+MalformedCase("mistyped layout spacing", { groups = {}, displays = { { name = "D", layout = { spacing = "wide" } } } })
+MalformedCase("mistyped load classes", { groups = {}, displays = { { name = "D", load = { classes = "PRIEST" } } } })
+MalformedCase("mistyped element iconSize", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = { 1 }, iconSize = "big" } } } } } } })
+MalformedCase("non-numeric spell id", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = { "Fade" } } } } } } } })
+MalformedCase("tracked element without spells", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = {} } } } } } } })
+MalformedCase("unknown element mode", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "weird" } } } } } } })
+MalformedCase("non-table element bucket", { groups = {}, displays = { { name = "D", auras = { elements = { ["*"] = 5 } } } } })
+do
+    local deep = { groups = {}, displays = {} }
+    for i = 1, AD.MAX_GROUP_DEPTH + 1 do
+        deep.groups[i] = { name = "L" .. i, parent = i > 1 and ("L" .. (i - 1)) or nil }
+    end
+    MalformedCase("nesting deeper than the runtime limit", deep)
+    local fits = { groups = {}, displays = {}, type = Share.PAYLOAD_TYPE, version = Share.VERSION }
+    for i = 1, AD.MAX_GROUP_DEPTH do
+        fits.groups[i] = { name = "M" .. i, parent = i > 1 and ("M" .. (i - 1)) or nil }
+    end
+    local fitsSummary, fitsErr = Share.ImportString(Share.Encode(fits))
+    if not fitsSummary or fitsSummary.groups ~= AD.MAX_GROUP_DEPTH then
+        fail("a chain at the runtime limit must import: " .. tostring(fitsErr))
+    end
+    local lastName = "M" .. AD.MAX_GROUP_DEPTH
+    if AD.GroupParent(lastName) ~= "M" .. (AD.MAX_GROUP_DEPTH - 1) then
+        fail("every level of the deepest allowed chain must be linked")
+    end
+end
+
 -- Import is public: a caller bypassing Decode gets the same rejection.
 local direct, directErr = Share.Import({ type = Share.PAYLOAD_TYPE, version = 1, groups = { 1 }, displays = {} })
 if direct ~= nil or type(directErr) ~= "string" then fail("Import must reject malformed payloads itself") end
