@@ -44,7 +44,7 @@ local function newRegion(frameType, parent)
     function region:SetSize(width, height) self.width = width; self.height = height end
     function region:SetWidth(width) self.width = width end
     function region:SetHeight(height)
-        if inCombat and (self.protected or self.anchoringRestricted) then
+        if not protectedCallsAllowed or (inCombat and (self.protected or self.anchoringRestricted)) then
             error("ADDON_ACTION_BLOCKED: Frame:SetHeight()")
         end
         self.height = height
@@ -278,9 +278,15 @@ for _, event in ipairs({"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START"})
     assert(ok, event .. " should not hit protected castbar geometry: " .. tostring(err))
     assert(setHeightCalls == 0, event .. " should defer while protected calls are denied")
     assert(#timerQueue >= 1, event .. " should queue a deferred cast")
+    for _ = 1, 3 do
+        flushTimers()
+        assert(setHeightCalls == 0, event .. " must recheck permission on every deferred retry")
+        assert(#timerQueue == 1, event .. " must retain one retry while permission remains denied")
+    end
     protectedCallsAllowed = true
     flushTimers()
     assert(setHeightCalls >= 1, event .. " should update after leaving the denied context")
+    assert(#timerQueue == 0, event .. " must stop retrying once permission returns")
 end
 
 inCombat = false
@@ -308,6 +314,10 @@ for _, event in ipairs({"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START", 
     assert(ok, "boss " .. event .. " should not hit protected geometry: " .. tostring(err))
     assert(bossHeightCalls == 0, "boss " .. event .. " should defer while protected calls are denied")
     assert(#timerQueue >= 1, "boss " .. event .. " should queue a deferred cast")
+    for _ = 1, 3 do
+        flushTimers()
+        assert(bossHeightCalls == 0, "boss " .. event .. " must recheck permission on every deferred retry")
+    end
     protectedCallsAllowed = true
     flushTimers()
     assert(bossHeightCalls >= 1, "boss " .. event .. " should recover active cast geometry after deferral")
@@ -336,6 +346,11 @@ assert(setHeightCalls == 0,
 assert(#timerQueue >= 1,
     "in combat, PLAYER_TARGET_CHANGED must defer Cast() to a later frame")
 
+protectedCallsAllowed = false
+flushTimers()
+assert(setHeightCalls == 0, "target-change retries must also wait for protected-call permission")
+protectedCallsAllowed = true
+
 -- Firing the deferred callback (now outside the secure context) applies the layout.
 flushTimers()
 assert(setHeightCalls >= 1,
@@ -352,6 +367,20 @@ setHeightCalls = 0
 flushTimers()
 assert(setHeightCalls == 0,
     "a deferred cast for a destroyed castbar must not touch the orphaned frame")
+castbar._quiDestroyed = nil
+
+inCombat = false
+protectedCallsAllowed = false
+timerQueue = {}
+setHeightCalls = 0
+castbar:Cast(116, false, true)
+assert(setHeightCalls == 0, "direct Cast calls must respect permission denial outside combat")
+assert(#timerQueue == 1, "direct Cast calls must queue recovery when denied")
+castbar._quiDestroyed = true
+protectedCallsAllowed = true
+flushTimers()
+assert(setHeightCalls == 0, "a deferred spellcast must not touch a destroyed castbar")
+assert(#timerQueue == 0, "destroying a castbar must stop its deferred retries")
 castbar._quiDestroyed = nil
 
 -- Out of combat there is no restriction: the cast runs synchronously, no defer.
