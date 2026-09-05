@@ -228,6 +228,18 @@ MalformedCase("mistyped bar thickness", { groups = {}, displays = { { name = "D"
 MalformedCase("non-numeric color channel", { groups = {}, displays = { { name = "D",
     auras = { elements = { ["*"] = { { mode = "tracked", displayType = "square", spells = { 1 },
         color = { "red", 0, 0 } } } } } } } })
+MalformedCase("string pandemic glow channel", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = { 1 },
+        pandemicGlow = { color = { "gold", 0.85, 0.2, 1 } } } } } } } } })
+MalformedCase("bad dispel colour entry", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "filterStrip", auraType = "HARMFUL",
+        dispelColors = { Magic = { r = 2, g = 0, b = 1 } } } } } } } } })
+MalformedCase("mistyped health tint animation", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "healthTint", spells = { 1 },
+        healthTint = { animation = 3 } } } } } } } })
+MalformedCase("bad bar low-time colour", { groups = {}, displays = { { name = "D",
+    auras = { elements = { ["*"] = { { mode = "tracked", displayType = "bar", spells = { 1 },
+        bar = { thickness = 12, length = 48, lowTimeColor = { 1, "x", 0 } } } } } } } } })
 MalformedCase("non-table element bucket", { groups = {}, displays = { { name = "D", auras = { elements = { ["*"] = 5 } } } } })
 do
     local deep = { groups = {}, displays = {} }
