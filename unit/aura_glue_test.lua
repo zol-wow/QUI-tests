@@ -24,6 +24,12 @@ do
     check("profile: BOTTOM anchor wraps UP", p.wrap == "UP")
     check("profile: offsets folded", p.offsetX == e.offsetX and p.offsetY == e.offsetY)
     check("profile: duration/stack passed through", p.duration == e.duration and p.stack == e.stack)
+    check("profile: caster names remain disabled by default", p.casterName == nil)
+    e.casterName = { showRealmName = true, useClassColors = true, fontSize = 10 }
+    e.pandemicGlow = { color = { 1, 0.85, 0.2, 1 }, style = "pulse" }
+    local auraStyle = G.ElementProfile(e)
+    check("profile: native aura text and animation settings survive projection",
+        auraStyle.casterName == e.casterName and auraStyle.pandemicGlow == e.pandemicGlow)
     check("profile: swipe fields", p.hideSwipe == false and p.reverseSwipe == false)
 
     local top = E.NewFilterStripElement("HELPFUL") -- anchor TOPLEFT

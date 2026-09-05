@@ -100,6 +100,16 @@ for _, surface in ipairs(SURFACES) do
         "got " .. hubRows .. ", want >= " .. surface.minimum)
 end
 
+for _, featureId in ipairs({ "groupFramesPage", "aurasDisplaysPage", "nameplatesPage", "aurasNameplatePage" }) do
+    local labels = {}
+    for _, entry in ipairs(settings) do
+        if entry.featureId == featureId then labels[entry.label] = true end
+    end
+    check(featureId .. " indexes native aura display controls",
+        labels["Show Caster Name"] and labels["Show Realm Name"]
+        and labels["Use Class Colors"] and labels["Pandemic Glow Style"])
+end
+
 if failures > 0 then
     print("FAIL: search_cache_dual_home_aura_routes_test (" .. failures .. " failure(s))")
     os.exit(1)
