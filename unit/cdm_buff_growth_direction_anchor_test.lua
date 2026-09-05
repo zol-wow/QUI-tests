@@ -157,8 +157,8 @@ assert(layoutMode:find("getGrowAnchor = function()", 1, true),
 local lm = readAll("modules/layout/layoutmode.lua")
 local saveAt = assert(lm:find("local function SavePendingPosition(", 1, true))
 local saveBody = lm:sub(saveAt, saveAt + 9000)
-assert(saveBody:find("if def and def.getGrowAnchor then", 1, true),
-    "layout mode free-placement save must consult def.getGrowAnchor")
+assert(saveBody:find("if def and def.getGrowAnchor and not hasRealParent then", 1, true),
+    "layout mode free-placement save must consult def.getGrowAnchor, but never for an entry that still names a real parent")
 assert(lm:find("GROW_ANCHOR_FRAC_X = {", 1, true) and lm:find("LEFT = 0, CENTER = 0.5, RIGHT = 1,", 1, true),
     "layout mode growth-anchor fractions must cover edge points")
 
