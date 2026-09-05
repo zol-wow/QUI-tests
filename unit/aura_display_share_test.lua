@@ -195,6 +195,15 @@ MalformedCase("mistyped display group", { groups = {}, displays = { { name = "D"
 MalformedCase("bogus root kind", { root = { kind = "bogus" }, groups = {}, displays = { { name = "D" } } })
 MalformedCase("non-table root", { root = "display", groups = {}, displays = { { name = "D" } } })
 
+-- Graph identity: group names are identities, references must resolve.
+MalformedCase("duplicate group names", { groups = { { name = "G" }, { name = "G" } }, displays = {} })
+MalformedCase("unknown parent", { groups = { { name = "G", parent = "Nope" } }, displays = {} })
+MalformedCase("self parent", { groups = { { name = "G", parent = "G" } }, displays = {} })
+MalformedCase("parent cycle", { groups = { { name = "A", parent = "B" }, { name = "B", parent = "A" } }, displays = {} })
+MalformedCase("display in unknown group", { groups = { { name = "G" } }, displays = { { name = "D", group = "Other" } } })
+MalformedCase("root names unknown group", { root = { kind = "group", name = "Nope" }, groups = { { name = "G" } }, displays = {} })
+MalformedCase("root names unknown display", { root = { kind = "display", name = "Nope" }, groups = {}, displays = { { name = "D" } } })
+
 -- Import is public: a caller bypassing Decode gets the same rejection.
 local direct, directErr = Share.Import({ type = Share.PAYLOAD_TYPE, version = 1, groups = { 1 }, displays = {} })
 if direct ~= nil or type(directErr) ~= "string" then fail("Import must reject malformed payloads itself") end

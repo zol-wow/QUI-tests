@@ -12,6 +12,7 @@ local h = env.LoadHarness({
                 },
                 frameAnchoring = {
                     auraDisplay_target = { offsetX = 1 },
+                    auraDisplayGroup_target = { offsetX = 4 },
                     partyFrames = { offsetX = 2 },
                     unrelated = { offsetX = 3 },
                 },
@@ -22,6 +23,7 @@ local h = env.LoadHarness({
                 raidBuffs = { iconSize = 44 },
                 frameAnchoring = {
                     auraDisplay_source = { offsetX = 11 },
+                    auraDisplayGroup_source = { offsetX = 14 },
                     partyFrames = { offsetX = 12 },
                     raidFrames = { offsetX = 13 },
                 },
@@ -69,6 +71,8 @@ assert(pins:ApplyProfileFeaturePins(h.db) == true)
 assert(h.db.profile.auraDisplays.displays[1].id == "source-updated")
 assert(h.db.profile.frameAnchoring.auraDisplay_target == nil)
 assert(h.db.profile.frameAnchoring.auraDisplay_source.offsetX == 21)
+assert(h.db.profile.frameAnchoring.auraDisplayGroup_target == nil)
+assert(h.db.profile.frameAnchoring.auraDisplayGroup_source.offsetX == 14)
 assert(h.db.profile.quiGroupFrames.party.general.fontSize == 41)
 assert(h.db.profile.quiGroupFrames.party.general.font == "Quazii")
 assert(h.db.profile.quiGroupFrames.clickCast.keep == "preserved")
