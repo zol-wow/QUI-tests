@@ -291,6 +291,39 @@ local bossCastbar = assert(ns.QUI_Castbar:CreateBossCastbar(bossFrame, "boss1", 
 assert(not bossCastbar:IsAnchoringRestricted(),
     "boss castbar should pin to UIParent instead of the protected boss frame")
 
+local bossOnEvent = assert(bossCastbar.scripts and bossCastbar.scripts.OnEvent)
+local bossSetHeight = bossCastbar.SetHeight
+local bossHeightCalls = 0
+bossCastbar.SetHeight = function(self, height)
+    bossHeightCalls = bossHeightCalls + 1
+    return bossSetHeight(self, height)
+end
+
+for _, event in ipairs({"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_STOP"}) do
+    inCombat = true
+    protectedCallsAllowed = false
+    bossHeightCalls = 0
+    timerQueue = {}
+    local ok, err = pcall(bossOnEvent, bossCastbar, event, "boss1")
+    assert(ok, "boss " .. event .. " should not hit protected geometry: " .. tostring(err))
+    assert(bossHeightCalls == 0, "boss " .. event .. " should defer while protected calls are denied")
+    assert(#timerQueue >= 1, "boss " .. event .. " should queue a deferred cast")
+    protectedCallsAllowed = true
+    flushTimers()
+    assert(bossHeightCalls >= 1, "boss " .. event .. " should recover active cast geometry after deferral")
+end
+
+protectedCallsAllowed = false
+timerQueue = {}
+bossOnEvent(bossCastbar, "UNIT_SPELLCAST_START", "boss1")
+assert(#timerQueue >= 1, "boss cast should queue before destruction")
+bossCastbar._quiDestroyed = true
+bossHeightCalls = 0
+protectedCallsAllowed = true
+flushTimers()
+assert(bossHeightCalls == 0, "a deferred boss cast must not touch a destroyed castbar")
+bossCastbar._quiDestroyed = nil
+
 -- In combat, a target-change event must NOT run protected geometry synchronously
 -- (it could be inside a secure execution context). It must defer Cast().
 inCombat = true
