@@ -143,6 +143,7 @@ local now = 100
 -- Mutable combat state and a *queuing* timer: C_Timer.After records callbacks so
 -- the test can assert work was deferred (not run) and then fire it on demand.
 local timerQueue = {}
+local timerSchedules = 0
 local function flushTimers()
     local pending = timerQueue
     timerQueue = {}
@@ -170,7 +171,25 @@ function UnitGUID() return "Creature-0000-00000001" end
 
 UIParent = newRegion("Frame")
 RAID_CLASS_COLORS = { MAGE = { r = 0.25, g = 0.78, b = 0.92 } }
-C_Timer = { After = function(_, callback) timerQueue[#timerQueue + 1] = callback end }
+C_Timer = {
+    After = function(_, callback)
+        timerSchedules = timerSchedules + 1
+        timerQueue[#timerQueue + 1] = callback
+    end,
+    NewTicker = function(interval, callback)
+        assert(interval >= 0.05, "cast permission polling must be throttled")
+        timerSchedules = timerSchedules + 1
+        local ticker = {}
+        function ticker:Cancel() self.cancelled = true end
+        local function tick()
+            if ticker.cancelled then return end
+            callback(ticker)
+            if not ticker.cancelled then timerQueue[#timerQueue + 1] = tick end
+        end
+        timerQueue[#timerQueue + 1] = tick
+        return ticker
+    end,
+}
 C_RestrictedActions = { CheckAllowProtectedFunctions = function() return protectedCallsAllowed end }
 EventRegistry = { RegisterCallback = noop }
 
@@ -281,11 +300,13 @@ for _, event in ipairs({"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START"})
     local retryCallback = timerQueue[1]
     onEvent(castbar, event, "target", "CastGUID", 133)
     assert(#timerQueue == 1, event .. " must coalesce repeated denied events")
+    local scheduled = timerSchedules
     for _ = 1, 3 do
         flushTimers()
         assert(setHeightCalls == 0, event .. " must recheck permission on every deferred retry")
         assert(#timerQueue == 1, event .. " must retain one retry while permission remains denied")
         assert(timerQueue[1] == retryCallback, event .. " must reuse its callback while permission remains denied")
+        assert(timerSchedules == scheduled, event .. " must not schedule new timers while permission remains denied")
     end
     protectedCallsAllowed = true
     flushTimers()
