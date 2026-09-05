@@ -48,6 +48,7 @@ local function NewFrame(kind, parent)
     function frame:StartMoving() end
     function frame:StopMovingOrSizing() end
     function frame:GetCenter() return 0, 0 end
+    function frame:IsMouseOver() return self.mouseOver == true end
     function frame:GetEffectiveScale() return 1 end
     if kind == "AuraContainer" then
         function frame:SetUnit(unit) self.unit = unit end
@@ -310,6 +311,22 @@ if AD.HostFor(A.id).shown or not container.shown then
     fail("packing must still hold after the late display was placed")
 end
 late.enabled = false
+AD.Refresh()
+
+-- HUD "show on mouseover" must see the packed container, since the member
+-- hosts it replaces stay hidden.
+group.growDirection = "RIGHT"
+AD.Refresh()
+if AD.IsVisibilityFrameMouseOver() then fail("nothing hovered yet") end
+container.mouseOver = true
+if not AD.IsVisibilityFrameMouseOver() then fail("hovering the packed container must count as mouseover") end
+container.mouseOver = false
+group.dynamicLayout = false
+AD.Refresh()
+container.mouseOver = true
+if AD.IsVisibilityFrameMouseOver() then fail("a parked pack container must not count as mouseover") end
+container.mouseOver = false
+group.dynamicLayout = true
 AD.Refresh()
 
 -- A group with nothing packable never creates a container.
