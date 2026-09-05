@@ -91,6 +91,7 @@ local function NewFrame(parent)
     frame.geometry = { left = 100, right = 200, top = 300, bottom = 250 }
     function frame:SetFrameStrata(s) self.strata = s end
     function frame:SetFrameLevel(l) self.level = l end
+    function frame:GetFrameLevel() return self.level or 1 end
     function frame:EnableMouse(e) self.mouse = e end
     function frame:SetSize(w, h) self.w, self.h = w, h end
     function frame:SetAlpha(a) self.alpha = a end
@@ -335,6 +336,20 @@ check("CURSOR preset anchors to UIParent at cursor / scale",
     tip.points[1][1] == "BOTTOM" and tip.points[1][2] == UIParent and tip.points[1][4] == 400 / 0.8)
 Tooltip:Show(A, "x", { anchor = "bogus" })
 check("unknown preset falls back to TOP", tip.points[1][1] == "BOTTOM" and tip.points[1][3] == "TOP")
+---------------------------------------------------------------------------
+-- Frame level tracks the anchor (popups on TOOLTIP strata, e.g. the CDM
+-- override panel at level 500, must not draw over the tip)
+---------------------------------------------------------------------------
+Tooltip:Show(A, "x")
+check("low anchor keeps base level 200", tip.level == 200, tip.level)
+local highAnchor = NewFrame(panel)
+highAnchor.level = 503
+Tooltip:Show(highAnchor, "x")
+check("high anchor lifts tip above it", tip.level == 523, tip.level)
+Tooltip:Show(A, "x")
+check("level drops back for low anchor", tip.level == 200, tip.level)
+Tooltip:Hide(true)
+
 local outside = NewFrame(UIParent)
 Tooltip:Show(outside, "x")
 check("non-panel anchor keeps scale 1", tip.scale == 1)
