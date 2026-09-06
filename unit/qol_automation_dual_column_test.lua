@@ -73,7 +73,6 @@ local expected = {
         mailContactsPanel mailRememberRecipient]],
     focusMarker = "enabled marker useMouseover writeMacro",
     healerMana = "enabled instanceOnly",
-    deathAlert = "enabled sound showKillingBlow showKiller classColorName instanceOnly duration",
     tradeMailLog = "enabled logTrades logSentMail logReceivedMail",
 }
 local remaining, expectedCount = {}, 0
@@ -111,7 +110,7 @@ assert(blankCount == expectedCount % 2, "only an odd setting count needs a blank
 assert(refreshed.combatLogging == 2, "combat logging callbacks must remain connected")
 assert(refreshed.RefreshFocusMarker == 4, "focus marker callbacks must remain connected")
 assert(refreshed.RefreshHealerMana == 2, "healer mana callbacks must remain connected")
-assert(refreshed.RefreshDeathAlert == 6, "death alert callbacks must remain connected")
+assert(refreshed.RefreshDeathAlert == nil, "death alert settings live on the Notifications page")
 for _, name in ipairs({
     "RefreshWorldMapTeleports", "ApplyPreferredAudioDevice", "RefreshCollectionFanfare",
     "RefreshEJLootSpecIcons", "RefreshGemPicker", "RefreshMailContacts",
