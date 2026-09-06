@@ -144,6 +144,8 @@ local profile = { casterName = caster, pandemicGlow = glow }
 Skin.Restyle(container, profile)
 assert(button.casterName and button.casterName.element == button._quiCaster,
     "enabled caster label must reach the real native setter")
+assert(button._quiCaster.parent == button._quiTextOverlay and button._quiCaster.point[2] == button,
+    "caster labels must share the raised text overlay while anchoring to the aura button")
 assert(button.casterName.options.showRealmName and button.casterName.options.useClassColors,
     "realm and class-color options must reach the native label")
 assert(button._quiCaster.font[2] == 10 and button._quiCaster.point[1] == "BOTTOM"
@@ -217,6 +219,8 @@ local preview = Button(false)
 Skin.WirePreviewButton(preview, profile)
 assert(preview._quiCaster and preview._quiCaster.text == "Caster-Realm",
     "plain preview must show a sample caster and enabled realm without native APIs")
+assert(preview._quiCaster.parent == preview._quiTextOverlay,
+    "preview caster labels must use the same raised text overlay as live labels")
 local previewPulse = preview._quiPandemicAnimations and preview._quiPandemicAnimations.pulse
 assert(previewPulse and previewPulse.playing and not previewPulse.adopted,
     "plain preview must play its own unrestricted pulse")

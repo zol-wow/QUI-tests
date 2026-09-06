@@ -30,12 +30,15 @@ _G.CooldownViewerSettings = {
             -- memo fields present = cache already built by a secure consumer
             -- (cold-boot taint gate reads these raw; see cdm_index/cdm_catalog)
             displayDataDirty = false,
-            displayData = {},
+            displayData = {
+                orderedCooldownIDs = { 701 },
+                cooldownInfoByID = {
+                    [701] = { category = 0, isKnown = true },
+                },
+            },
             GetLayoutManager = function() return {} end,
-            GetOrderedCooldownIDsForCategory = function(_, category, allowUnlearned)
-                assert(category == 0, "essential picker should ask for rendered Essential category")
-                assert(allowUnlearned == true, "picker requests unlearned")
-                return { 701 }
+            GetOrderedCooldownIDsForCategory = function()
+                error("native ordered getters must remain untouched")
             end,
         }
     end,

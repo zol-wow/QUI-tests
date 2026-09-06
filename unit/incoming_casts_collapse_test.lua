@@ -195,6 +195,11 @@ checkPoint(icons[3], "RIGHT", icons[1], "LEFT", -4, 0, "center icon 3")
 checkPoint(icons[4], "LEFT", icons[2], "RIGHT", 4, 0, "center icon 4")
 checkPoint(icons[5], "RIGHT", icons[3], "LEFT", -4, 0, "center icon 5")
 
+env = LoadDisplay({ enabled = true, maxIcons = false, borderSize = false })
+icons = env.icons()
+eq(env.host._width, 216, "invalid max icons uses default")
+eq(icons[1]._borderSize, 1, "invalid border size uses default")
+
 local secretTarget = MakeSecret()
 env.targets.nameplate1target = secretTarget
 env.driver().onShow("nameplate1", nil, cast)
