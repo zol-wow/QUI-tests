@@ -19,6 +19,7 @@ local seed = {
                 frameAnchoring = {
                     auraDisplay_old = { offsetX = 90 },
                     auraDisplay_stale = { offsetX = 91 },
+                    auraDisplayGroup_old = { offsetX = 97 },
                     partyFrames = { offsetX = 92 },
                     raidFrames = { offsetX = 93 },
                     spotlightFrames = { offsetX = 94 },
@@ -53,6 +54,7 @@ local seed = {
                 raidBuffs = { iconSize = 55 },
                 frameAnchoring = {
                     auraDisplay_source = { offsetX = 10 },
+                    auraDisplayGroup_source = { offsetX = 16 },
                     partyFrames = { offsetX = 11 },
                     raidFrames = { offsetX = 12 },
                     spotlightFrames = { offsetX = 13 },
@@ -108,6 +110,8 @@ assert(h.db.profile.auraDisplays.displays[2] == nil, "aura display replacement r
 assert(h.db.profile.frameAnchoring.auraDisplay_old == nil, "stale target aura anchor survived")
 assert(h.db.profile.frameAnchoring.auraDisplay_stale == nil, "second stale target aura anchor survived")
 assert(h.db.profile.frameAnchoring.auraDisplay_source.offsetX == 10, "source aura anchor was not copied")
+assert(h.db.profile.frameAnchoring.auraDisplayGroup_old == nil, "stale target aura group anchor survived")
+assert(h.db.profile.frameAnchoring.auraDisplayGroup_source.offsetX == 16, "source aura group anchor was not copied")
 assert(h.db.profile.frameAnchoring.sourceUnrelated == nil, "unrelated source anchor was copied")
 assert(h.db.profile.frameAnchoring.unrelated.offsetX == 96, "unrelated target anchor was changed")
 assert(rawget(source.auraDisplays, "enabled") == nil, "copy materialized defaults into the stored source")

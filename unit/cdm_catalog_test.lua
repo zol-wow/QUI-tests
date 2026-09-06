@@ -79,14 +79,18 @@ _G.CooldownViewerSettings = {
             -- memo fields present = cache already built by a secure consumer
             -- (cold-boot taint gate reads these raw; see cdm_index/cdm_catalog)
             displayDataDirty = false,
-            displayData = {},
+            displayData = {
+                orderedCooldownIDs = { 77, 78 },
+                cooldownInfoByID = {
+                    [77] = { category = 0, isKnown = true },
+                    [78] = { category = 0, isKnown = false },
+                },
+            },
             GetLayoutManager = function()
                 return {}
             end,
-            GetOrderedCooldownIDsForCategory = function(_, category, allowUnlearned)
-                assert(category == 0, "unexpected ordered category")
-                assert(allowUnlearned == true, "seed should preserve tracked unlearned abilities")
-                return { 77, 78 }
+            GetOrderedCooldownIDsForCategory = function()
+                error("native ordered getters must remain untouched")
             end,
         }
     end,
@@ -161,7 +165,7 @@ _G.CooldownViewerSettings = {
             displayDataDirty = false,
             displayData = {},
             GetOrderedCooldownIDsForCategory = function()
-                error("provider layout is not hydrated yet")
+                error("native ordered getters must remain untouched")
             end,
         }
     end,
@@ -190,11 +194,14 @@ _G.CooldownViewerSettings = {
             -- memo fields present = cache already built by a secure consumer
             -- (cold-boot taint gate reads these raw; see cdm_index/cdm_catalog)
             displayDataDirty = false,
-            displayData = {},
-            GetOrderedCooldownIDsForCategory = function(_, category, allowUnlearned)
-                assert(category == 2, "unexpected tracked buff category")
-                assert(allowUnlearned == true, "seed should preserve tracked unlearned aura rows")
-                return { 902 }
+            displayData = {
+                orderedCooldownIDs = { 902 },
+                cooldownInfoByID = {
+                    [902] = { category = 2, isKnown = true },
+                },
+            },
+            GetOrderedCooldownIDsForCategory = function()
+                error("native ordered getters must remain untouched")
             end,
         }
     end,
@@ -210,14 +217,17 @@ _G.CooldownViewerSettings = {
             -- memo fields present = cache already built by a secure consumer
             -- (cold-boot taint gate reads these raw; see cdm_index/cdm_catalog)
             displayDataDirty = false,
-            displayData = {},
+            displayData = {
+                orderedCooldownIDs = { 902 },
+                cooldownInfoByID = {
+                    [902] = { category = 2, isKnown = true },
+                },
+            },
             GetLayoutManager = function()
                 return {}
             end,
-            GetOrderedCooldownIDsForCategory = function(_, category, allowUnlearned)
-                assert(category == 2, "unexpected tracked buff category")
-                assert(allowUnlearned == true, "seed should preserve tracked unlearned aura rows")
-                return { 902 }
+            GetOrderedCooldownIDsForCategory = function()
+                error("native ordered getters must remain untouched")
             end,
         }
     end,

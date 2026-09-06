@@ -31,6 +31,11 @@ do
     check("tracked: auraType field present (slots need polarity)", t.auraType == "HELPFUL")
     check("tracked: displayType honored", t.displayType == "bar")
     check("tracked: bar dims seeded", t.bar and t.bar.thickness == 12 and t.bar.length == 48)
+    check("tracked: dynamicLayout seeds off (fixed slots)", t.dynamicLayout == false)
+    local legacy = E.NormalizeElement({ mode = "tracked", spells = { 12345 } })
+    check("tracked: normalize defaults dynamicLayout off", legacy.dynamicLayout == false)
+    local dyn = E.NormalizeElement({ mode = "tracked", spells = { 12345 }, dynamicLayout = true })
+    check("tracked: normalize keeps dynamicLayout on", dyn.dynamicLayout == true)
     local m = E.NewMissingRaidBuffElement()
     check("mrb: mode", m.mode == "missingRaidBuff")
 end

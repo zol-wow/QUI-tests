@@ -9,57 +9,60 @@ local function readAll(path)
 end
 
 local source = readAll("QUI_DamageMeter/damage_meter/damage_meter.lua")
-local secretSpellID = setmetatable({}, {
-    __tostring = function() error("secret spellID stringified", 2) end,
-    __concat = function() error("secret spellID concatenated", 2) end,
-    __eq = function() error("secret spellID compared", 2) end,
-})
+local SecretSentinel = dofile("tests/helpers/secret_sentinel.lua")
+local Instrument = dofile("tests/helpers/secret_instrument.lua")
+local restoreSecretStub = SecretSentinel.InstallSecretStub()
+local secretSpellID = SecretSentinel.MakeSecretSentinel()
+local secretName = SecretSentinel.MakeSecretSentinel()
+local isSecret = _G.issecretvalue
 
 local normalizeStart = assert(source:find("local _spellInfoCache", 1, true))
 local normalizeEnd = assert(source:find("Data._NormalizeSpells", normalizeStart, true))
 local normalizeChunk = source:sub(normalizeStart, normalizeEnd - 1)
-local normalizeEnv = {
+local normalizeEnv = setmetatable({
     ipairs = ipairs,
     type = type,
-    IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
+    IsSecretValue = isSecret,
     C_Spell = {
+        GetSpellName = function(spellID)
+            assert(rawequal(spellID, secretSpellID), "name lookup must receive the secret spellID unchanged")
+            return secretName
+        end,
         GetSpellInfo = function(spellID)
             assert(not rawequal(spellID, secretSpellID), "secret spellID must not reach C_Spell.GetSpellInfo")
             return { name = "Spell " .. tostring(spellID), iconID = spellID + 1000 }
         end,
     },
     Helpers = {
-        IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
+        IsSecretValue = isSecret,
     },
-}
-local normalizeLoader = assert(loadstring(normalizeChunk .. "\nreturn NormalizeSpells"))
+}, { __index = _G })
+local normalizeLoader = assert(Instrument.loadString(normalizeChunk .. "\nreturn NormalizeSpells",
+    "damage_meter_secret_spell_name"))
 setfenv(normalizeLoader, normalizeEnv)
 local NormalizeSpells = normalizeLoader()
 
 local normalized = NormalizeSpells({
-    { spellID = secretSpellID, creatureName = "Hidden Spell", totalAmount = 100, amountPerSecond = 10 },
+    { spellID = secretSpellID, creatureName = "", totalAmount = 100, amountPerSecond = 10 },
     { spellID = 123, creatureName = "Visible Spell", totalAmount = 50, amountPerSecond = 5 },
 })
 
 assert(rawequal(normalized[1].spellID, secretSpellID), "secret spellID should stay on the row by identity")
-assert(normalized[1].name == "Hidden Spell", "secret spellID row should use creatureName fallback")
+assert(rawequal(normalized[1].name, secretName), "combat spell names must resolve instead of showing an empty creature name")
 assert(normalized[1].iconID == nil, "secret spellID row should defer icon resolution to the texture sink path")
 assert(normalized[2].name == "Spell 123", "non-secret spellID should still resolve spell info")
 assert(normalized[2].iconID == 1123, "non-secret spellID should still resolve icon")
-local SecretSentinel = dofile("tests/helpers/secret_sentinel.lua")
-local Instrument = dofile("tests/helpers/secret_instrument.lua")
-local restoreSecretStub = SecretSentinel.InstallSecretStub()
 local secretTexture = SecretSentinel.MakeSecretSentinel()
 local renderStart = assert(source:find("function Breakdown:_SetSpellRow", 1, true))
 local renderEnd = assert(source:find("\nfunction Breakdown:_SetDeathRow", renderStart))
 local renderChunk = source:sub(renderStart, renderEnd - 1)
-local renderedTexture
+local renderedTexture, renderedName
 local renderEnv = setmetatable({
     type = type,
     string = string,
     Breakdown = {},
     ApplyRowBackgroundVisibility = function() end,
-    IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
+    IsSecretValue = isSecret,
     C_Spell = {
         GetSpellTexture = function(spellID)
             assert(rawequal(spellID, secretSpellID), "texture lookup must receive the secret spellID unchanged")
@@ -67,7 +70,7 @@ local renderEnv = setmetatable({
         end,
     },
     Helpers = {
-        IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
+        IsSecretValue = isSecret,
     },
     ResolveAppearance = function(_, key)
         if key == "numberFormat" then return "compact" end
@@ -90,7 +93,13 @@ local row = {
         end,
         SetTexCoord = function() end,
     },
-    Name = { SetFormattedText = function() end, SetText = function() end },
+    Name = {
+        SetFormattedText = function(_, format, rank, name)
+            assert(format == "%d. %s" and rank == 1, "combat spell names must retain their rank")
+            renderedName = name
+        end,
+        SetText = function(_, name) renderedName = name end,
+    },
     Value = { SetText = function() end },
     Bar = {
         SetMinMaxValues = function() end,
@@ -101,7 +110,10 @@ local row = {
 SetSpellRow({ parentWindowID = 1 }, row, normalized[1], 100, 100)
 assert(rawequal(renderedTexture, secretTexture),
     "secret spell texture must pass directly from C_Spell.GetSpellTexture to Texture:SetTexture")
-SecretSentinel.RestoreSecretStub(restoreSecretStub)
+assert(rawequal(renderedName, secretName), "combat spell name must reach the native font string unchanged")
+normalizeEnv.C_Spell.GetSpellName = function() return nil end
+assert(NormalizeSpells({ { spellID = secretSpellID, creatureName = "Pet" } })[1].name == "Pet",
+    "missing spell names must preserve the creature fallback")
 local reusedRow = normalized[1]
 local limited = NormalizeSpells({
     { spellID = 456, creatureName = "Limited", totalAmount = 25, amountPerSecond = 2.5 },
@@ -132,11 +144,11 @@ local combinedEnv = {
     type = type,
     tostring = tostring,
     rawequal = rawequal,
-    IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
+    IsSecretValue = isSecret,
     QUI_DamageMeter = {},
     Enum = { DamageMeterType = { HealingDone = 2, Absorbs = 8 } },
     Helpers = {
-        IsSecretValue = function(value) return rawequal(value, secretSpellID) end,
+        IsSecretValue = isSecret,
     },
 }
 local combinedLoader = assert(loadstring(combinedChunk))
@@ -195,7 +207,7 @@ assert(#limitedCombined.spells == 10, "a smaller combined limit must trim stale 
 
 local sessionKeyStart = assert(source:find("local function SessionKey", 1, true))
 local sessionKeyEnd = assert(source:find("QUI_DamageMeter.SessionKey", sessionKeyStart, true))
-local combinedViewStart = assert(source:find("function Data:GetCombinedHealingView", 1, true))
+local combinedViewStart = assert(source:find("local function CanCombineHealingView", 1, true))
 local combinedViewEnd = assert(source:find("function Data:GetCombinedHealingBreakdown", combinedViewStart, true))
 local combinedViewChunk = table.concat({
     source:sub(utilityStart, utilityEnd - 1),
@@ -253,8 +265,8 @@ absorbView = {
     sources = { { sourceGUID = secretSpellID, totalAmount = 50, amountPerSecond = 5 } },
 }
 local secretView = ViewData:GetCombinedHealingView("current")
-assert(#secretView.sources == 2 and ViewData:GetCombinedHealingView("current") == secretView,
-    "secret GUID rows must remain separate on combined-view cache misses and hits")
+assert(secretView == healingView and ViewData:GetCombinedHealingView("current") == healingView,
+    "restricted player identities must preserve native healing rows instead of duplicating players")
 absorbView = { generation = 7, totalAmount = 0, sources = {} }
 assert(ViewData:GetCombinedHealingView("current") == healingView,
     "empty absorbs must return the native cached healing view")
@@ -263,4 +275,5 @@ local clearEnd = assert(source:find("local _spellInfoCache", clearStart, true))
 assert(source:sub(clearStart, clearEnd):find("self._combinedHealingViews = {}", 1, true),
     "clearing base views must release combined player-view caches")
 
+SecretSentinel.RestoreSecretStub(restoreSecretStub)
 print("OK: damage_meter_secret_spellid_test")

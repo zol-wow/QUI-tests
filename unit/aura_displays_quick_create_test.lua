@@ -54,6 +54,11 @@ end
 
 local named = Page._QuickCreate({ kind = "filterStrip", name = "Watch",
     unitChoice = "__name" })
+local namedFull = Page._QuickCreate({ kind = "filterStrip", name = "Named Full",
+    unitChoice = "__name", unitName = " Alice-Realm " })
+if not namedFull or namedFull.unitMode ~= "name" or namedFull.unit ~= "Alice-Realm" then
+    fail("quick create must persist the trimmed character name")
+end
 if named.unitMode ~= "name" or named.unit ~= "" then
     fail("name choice must set unitMode name with empty unit for later entry")
 end

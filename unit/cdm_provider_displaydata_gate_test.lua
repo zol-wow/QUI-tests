@@ -8,15 +8,6 @@
 -- DisallowTaintedAccess aura map rejects registration). /reload healed
 -- because a SHOWN viewer rebuilds the cache securely before QUI touches it.
 --
--- Pins:
---   * cdm_index BuildOrderedMaps and cdm_catalog GetTrackedCategorySet read
---     the provider memo fields RAW (displayDataDirty / displayData) and do
---     NOT call provider getters while the cache is unbuilt or dirty.
---   * the index bail does not latch: once the cache is built (by a secure
---     consumer), the very next call rebuilds without needing a new broker
---     invalidation.
--- Run: lua tests/unit/cdm_provider_displaydata_gate_test.lua
-
 _G.wipe = function(tbl)
     for k in pairs(tbl) do
         tbl[k] = nil
@@ -62,6 +53,8 @@ _G.C_CooldownViewer = {
                 overrideSpellID = nil,
                 overrideTooltipSpellID = nil,
             }
+        elseif cooldownID >= 89 and cooldownID <= 91 then
+            return { spellID = 12345 + cooldownID - 88 }
         end
         return nil
     end,
@@ -95,26 +88,27 @@ ns.CDMSources = {
 local index = assert(ns.CDMIndex, "CDMIndex table was not exported")
 local catalog = assert(ns.CDMCatalog, "CDMCatalog table was not exported")
 
----------------------------------------------------------------------------
--- Provider stub with switchable built-ness. getterCalls counts every touch
--- of a lazily-building getter -- the gate's job is to keep this at zero
--- until the cache reads as built.
----------------------------------------------------------------------------
 local getterCalls = 0
-local providerStub = {
+local providerSourceFile = assert(io.open(
+    "tests/framexml/Interface/AddOns/Blizzard_CooldownViewer/CooldownViewerSettingsDataProvider.lua", "rb"))
+local providerSource = providerSourceFile:read("*a"):gsub("\r\n", "\n")
+providerSourceFile:close()
+local nativeMixin = {
+    CheckBuildDisplayData = function() getterCalls = getterCalls + 1 end,
+    GetDisplayData = function(self) return self.displayData end,
+}
+_G.CooldownViewerSettingsDataProviderMixin = nativeMixin
+for _, name in ipairs({ "GetOrderedCooldownIDs", "GetOrderedCooldownIDsForCategory", "GetCooldownInfoForID" }) do
+    local start = assert(providerSource:find(
+        "function CooldownViewerSettingsDataProviderMixin:" .. name .. "(", 1, true))
+    local finish = assert(providerSource:find("\nfunction ", start + 1, true))
+    assert(loadstring(providerSource:sub(start, finish - 1)))()
+end
+local providerStub = setmetatable({
     displayDataDirty = true,
     displayData = nil,
-    GetLayoutManager = function()
-        return {}
-    end,
-    GetOrderedCooldownIDsForCategory = function(_, category)
-        getterCalls = getterCalls + 1
-        if category == 0 then
-            return { 88 }
-        end
-        return {}
-    end,
-}
+    GetLayoutManager = function() return {} end,
+}, { __index = nativeMixin })
 _G.CooldownViewerSettings = {
     GetDataProvider = function()
         return providerStub
@@ -141,18 +135,45 @@ assert(getterCalls == 0, "catalog must not call provider getters while cache is 
 
 -- 4) built cache: the next index call rebuilds WITHOUT a new invalidation
 --    (the gate bail must not latch the ordered-map version).
+_G.CDM_HIDE_INVISIBLE_ITEMS = true
 providerStub.displayDataDirty = false
-providerStub.displayData = {}
+providerStub.displayData = {
+    orderedCooldownIDs = { 88, 89, 90, 91 },
+    cooldownInfoByID = {
+        [88] = { category = 0, isKnown = true },
+        [89] = { category = 0, isKnown = false },
+        [90] = { category = 0, isKnown = true, isInvisible = true },
+        [91] = { category = 2, isKnown = true },
+    },
+}
 local built = index.GetOrderedSpellMap()
 assert(built[12345] and built[12345].cooldownID == 88,
     "ordered map should populate on the first call after the cache is built")
-assert(getterCalls > 0, "provider getter should be consumed once the cache is built")
+assert(getterCalls == 0, "built provider snapshots must not enter native ordered getters")
+assert(built[12346] and built[12346].cooldownID == 89,
+    "ordered index must include unknown entries from the displayed category")
+assert(built[12347] == nil, "ordered index must exclude invisible entries when native filtering is enabled")
+
+local function IDsEqual(actual, expected)
+    assert(#actual == #expected, "filtered snapshot length differs")
+    for i, id in ipairs(expected) do assert(actual[i] == id, "filtered snapshot order differs") end
+end
+_G.CDM_HIDE_INVISIBLE_ITEMS = true
+IDsEqual(catalog.GetTrackedCategorySet(0, false), { 88 })
+IDsEqual(catalog.GetTrackedCategorySet(0, true), { 88, 89 })
+_G.CDM_HIDE_INVISIBLE_ITEMS = false
+IDsEqual(catalog.GetTrackedCategorySet(0, false), { 88, 90 })
+IDsEqual(catalog.GetTrackedCategorySet(0, true), { 88, 89, 90 })
+IDsEqual(catalog.GetTrackedCategorySet(2, true), { 91 })
+IDsEqual(catalog.GetTrackedCategorySet(1, true), {})
+assert(#providerStub.displayData.orderedCooldownIDs == 4, "snapshot reads must not edit native order")
+assert(getterCalls == 0, "category filtering must not enter native ordered getters")
 
 local callsAfterBuild = getterCalls
 assert(index.GetOrderedSpellMap() == built, "built ordered map should be cached again")
 assert(getterCalls == callsAfterBuild, "cached ordered map should not re-walk the provider")
 
--- 5) catalog serves the tracked set once built.
+
 local builtIds, builtReady = catalog.GetTrackedCategorySet(0, true)
 assert(builtReady == true and type(builtIds) == "table" and builtIds[1] == 88,
     "catalog should serve the provider tracked set once the cache is built")
@@ -167,5 +188,13 @@ assert(stale[12345] and stale[12345].cooldownID == 88,
     "index should keep serving stale ordered maps while the provider re-dirties")
 assert(getterCalls == callsBeforeRedirty,
     "index must not rebuild through a dirty provider after invalidation")
+
+providerStub.displayDataDirty = false
+local rebuilt = index.GetOrderedSpellMap()
+assert(rebuilt[12347] and rebuilt[12347].cooldownID == 90,
+    "ordered index must include invisible entries when native filtering is disabled")
+assert(rebuilt[12346] and rebuilt[12346].cooldownID == 89,
+    "ordered index must retain unknown entries after rebuilding")
+assert(getterCalls == 0, "ordered index recovery must never enter native builders")
 
 print("OK: cdm_provider_displaydata_gate_test")

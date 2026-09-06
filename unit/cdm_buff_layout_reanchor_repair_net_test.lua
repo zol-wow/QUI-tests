@@ -50,13 +50,47 @@ assert(reanchorPos < legacyPos,
 -- is irrelevant.
 local regionStart = assert(src:find("local lastAuraIconCount = 0", 1, true),
     "event-based updates header not found")
-local regionEnd = assert(src:find("InstallBarViewerLayoutHook()", regionStart, true),
-    "bar viewer hook marker not found")
+local regionEnd = assert(src:find('local barAuraCoalesce = CreateFrame("Frame")', regionStart, true),
+    "bar aura coalesce marker not found")
 local region = src:sub(regionStart, regionEnd)
 assert(region:find('AuraEvents:Subscribe("player"', 1, true),
     "player UNIT_AURA subscription must exist in the icon repair-net region")
 assert(not region:find("if iconViewer then", 1, true),
     "UNIT_AURA subscription install must NOT be gated on the init-time viewer "
     .. "(nil during ADDON_LOADED on every boot -- provider engine initializes later)")
+
+do
+    local nativeBar = { Layout = function() end }
+    local env = setmetatable({
+        BuffBarCooldownViewer = nativeBar,
+        QUI_GetCDMViewerFrame = function() return nil end,
+        C_CooldownViewer = { IsCooldownViewerAvailable = function() return true end },
+        C_Timer = { After = function() end },
+        InCombatLockdown = function() return false end,
+        CreateFrame = function()
+            return {
+                Hide = function() end,
+                RegisterEvent = function() end,
+                SetScript = function() end,
+            }
+        end,
+        hooksecurefunc = function(target, method)
+            assert(target ~= nativeBar or method ~= "Layout",
+                "buff layout must leave native BuffBar Layout unhooked during initialization")
+        end,
+    }, { __index = _G })
+    env._G = env
+    local runtimeNS = {
+        Helpers = {
+            GetCore = function() return nil end,
+            CreateStateTable = function() return {} end,
+            CreateDBGetter = function() return function() return nil end end,
+        },
+    }
+    local chunk = assert(loadfile("QUI_CDM/cdm/cdm_buff_layout.lua"))
+    setfenv(chunk, env)
+    chunk("QUI_CDM", runtimeNS)
+    runtimeNS.CDMBuffLayout.Initialize()
+end
 
 print("OK: cdm_buff_layout_reanchor_repair_net_test")
