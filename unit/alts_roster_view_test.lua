@@ -42,7 +42,7 @@ local row = {
         level = 80, ilvl = 631.4, money = 12345678,
         playedTotal = 3 * 86400 + 5 * 3600,
         restedXP = 750, xpMax = 1000,
-        zone = "Valdrakken", lastSeen = now - 7200, class = "DRUID",
+        guild = "The Night Watch", zone = "Valdrakken", lastSeen = now - 7200, class = "DRUID",
     },
     record = {
         professions = {
@@ -64,6 +64,8 @@ assert(RV.CellText(byId.rested, row, now) == "75%", "rested cell")
 -- professions: primaries only, name to 4 chars, " · " join
 assert(RV.CellText(byId.professions, row, now) == "Alch 75 · Herb 50",
     "professions compact: " .. RV.CellText(byId.professions, row, now))
+assert(byId.guild, "Guild column exists")
+assert(RV.CellText(byId.guild, row, now) == "The Night Watch", "guild cell shows name only")
 assert(RV.CellText(byId.zone, row, now) == "Valdrakken", "zone cell")
 assert(RV.CellText(byId.lastSeen, row, now) == "2h ago", "lastSeen cell")
 
@@ -80,6 +82,8 @@ assert(RV.CellText(byId.level, empty, now) == "—", "nil level → —")
 assert(RV.CellText(byId.ilvl, empty, now) == "—", "nil ilvl → —")
 assert(RV.CellText(byId.rested, empty, now) == "—", "nil rested → —")
 assert(RV.CellText(byId.professions, empty, now) == "—", "no professions → —")
+assert(RV.CellText(byId.guild, empty, now) == "—", "missing guild displays dash")
+assert(RV.CellText(byId.guild, { details = { guild = "" } }, now) == "—", "empty guild displays dash")
 assert(RV.CellText(byId.zone, empty, now) == "—", "nil zone → —")
 assert(RV.CellText(byId.lastSeen, empty, now) == "—", "nil lastSeen → —")
 -- played/gold have their own nil handling in roster_data
@@ -93,14 +97,14 @@ assert(#all == #RV.COLUMNS, "nil cfg shows all columns")
 
 -- all toggles false → only always-columns (name, level), order preserved
 local cfg = { ilvl = false, gold = false, played = false, rested = false,
-    zone = false, lastSeen = false, professions = false }
+    zone = false, lastSeen = false, professions = false, guild = false }
 local active = RV.BuildActiveColumns(cfg)
 assert(#active == 2, "only 2 always-columns survive: " .. #active)
 assert(active[1].id == "name" and active[2].id == "level", "always order preserved")
 
 -- selective: gold + zone on, others off
 local cfg2 = { ilvl = false, gold = true, played = false, rested = false,
-    zone = true, lastSeen = false, professions = false }
+    zone = true, lastSeen = false, professions = false, guild = false }
 local a2 = RV.BuildActiveColumns(cfg2)
 local got = {}
 for _, c in ipairs(a2) do got[c.id] = true end
@@ -110,5 +114,23 @@ assert(not got.ilvl and not got.played and not got.rested
 -- order: name, level, gold, zone (catalog order)
 assert(a2[1].id == "name" and a2[2].id == "level"
     and a2[3].id == "gold" and a2[4].id == "zone", "selective order preserved")
+
+local legacyCfg = { gold = true }
+local legacyGuild
+for _, col in ipairs(RV.BuildActiveColumns(legacyCfg)) do
+    if col.id == "guild" then legacyGuild = col end
+end
+assert(legacyGuild, "old column configs show new Guild column by default")
+assert(legacyCfg.guild == nil, "building columns does not mutate profile")
+legacyCfg.guild = false
+for _, col in ipairs(RV.BuildActiveColumns(legacyCfg)) do
+    assert(col.id ~= "guild", "explicit Guild off survives rebuilding")
+end
+legacyCfg.guild = true
+local guildShown = false
+for _, col in ipairs(RV.BuildActiveColumns(legacyCfg)) do
+    if col.id == "guild" then guildShown = true end
+end
+assert(guildShown, "Guild toggle enables column")
 
 print("OK: alts_roster_view_test")
