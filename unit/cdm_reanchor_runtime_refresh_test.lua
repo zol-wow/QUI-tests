@@ -220,9 +220,6 @@ do
         "sibling refresh must not sink a Blizzard frame already claimed by another QUI container")
 end
 
--- BuffIcon uses Blizzard's aura lifecycle frames. In active-only mode it is valid
--- for the configured buff list to claim zero native frames; those unmatched native
--- BuffIcon frames must not go through the generic sink path.
 do
     local buffFrame = { id = "buff-unclaimed" }
     local buffSinks, hiddenTooltips = {}, {}
@@ -230,6 +227,7 @@ do
         InstallAnchorGuard = function() end,
         Overlay = function() end,
         OverlayRect = function() end,
+        ResolveIdentity = function() return nil end,
         Sink = function(_, f) buffSinks[#buffSinks + 1] = f end,
     }
     local buffRuntime = R.New({
@@ -248,7 +246,7 @@ do
     })
 
     assert(buffRuntime:RefreshContainer("buff") == 0, "unclaimed active-only buff refresh returns no entries")
-    assert(#buffSinks == 0, "unclaimed BuffIcon native frames must not be sunk")
+    assert(#buffSinks == 0, "unidentified BuffIcon native frames retain their transient exemption")
     assert(#hiddenTooltips == 1 and hiddenTooltips[1] == buffFrame,
         "unclaimed BuffIcon frames still tear down QUI-owned tooltip overlays")
 end

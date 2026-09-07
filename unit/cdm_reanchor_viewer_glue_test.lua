@@ -10,6 +10,8 @@
 -- Blizzard's own grid layout lands icons ON the QUI container -- there is no
 -- mid-screen landing spot at all. This test drives that glue.
 local ns = {}
+LibStub = function() end
+assert(loadfile("core/utils.lua"))("QUI", ns)
 local loadChunk = dofile("tests/helpers/load_cdm_consolidated_chunk.lua")
 loadChunk("QUI_CDM/cdm/cdm_reanchor_hooks.lua", "cdm_reanchor_hooks.lua")("QUI", ns)
 local H = assert(ns.CDMReanchorHooks, "CDMReanchorHooks should be exported")

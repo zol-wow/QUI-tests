@@ -96,6 +96,57 @@ installGuard({ _cdmCombatReloadGrace = true }, { bridge = {
 assert(guarded[1] == frame and sunk[1] == frame,
     "combat /reload acquire must install the guard and sink the new Essential frame")
 
+local runtimeNS = {}
+assert(loadfile("QUI_CDM/cdm/cdm_reanchor.lua"))("QUI", runtimeNS)
+assert(loadfile("QUI_CDM/cdm/cdm_reanchor_hooks.lua"))("QUI", runtimeNS)
+local function hook(owner, method, callback)
+    local original = owner[method]
+    owner[method] = function(...)
+        original(...)
+        callback(...)
+    end
+end
+local raw = {
+    SetAlpha = function(f, alpha) f.alpha = alpha end,
+    ClearAllPoints = function(f) f.points = {} end,
+    SetPoint = function(f, point, relativeTo, relativePoint, x, y)
+        f.points[point] = { relativeTo, relativePoint, x, y }
+    end,
+}
+local screen, container = {}, {}
+local liveBridge = runtimeNS.CDMReanchor.New({raw = raw, sinkAnchor = screen, hooksecurefunc = hook})
+local ready = false
+local viewer = { RefreshLayout = function() end, OnAcquireItemFrame = function() end }
+local liveHooks = runtimeNS.CDMReanchorHooks.New({
+    keys = { "essential" },
+    hooksecurefunc = hook,
+    installGuardKeys = { essential = true },
+    isInitialReanchorDone = function() return ready end,
+    installGuard = function(f, key)
+        installGuard({}, {bridge = liveBridge}, f, key)
+    end,
+    schedule = function() end,
+})
+liveHooks:InstallViewerHooks(function() return viewer end)
+local fresh = { alpha = 1, points = {}, SetPoint = raw.SetPoint }
+viewer:OnAcquireItemFrame(fresh)
+assert(fresh.alpha == 1, "cold initialization must wait for QUI's first placement pass")
+ready = true
+for _, key in ipairs({ "essential", "utility" }) do
+    local item = { alpha = 1, points = {}, SetPoint = raw.SetPoint }
+    installGuard({}, {bridge = liveBridge}, item, key)
+    assert(item.alpha == 0, "normal pool acquisition must suppress new " .. key .. " icons before the delayed refresh")
+    item:SetPoint("CENTER", screen, "CENTER", 0, 0)
+    assert(item.points.CENTER == nil and item.points.TOPLEFT[4] == -10000,
+        "native layout cannot display an unclaimed cooldown between acquire and refresh")
+    liveBridge:Overlay(item, container)
+    installGuard({}, {bridge = liveBridge}, item, key)
+    assert(item.alpha == 1 and item.points.TOPLEFT[1] == container,
+        "reacquiring a claimed cooldown must preserve its visible placement")
+end
+viewer:OnAcquireItemFrame(fresh)
+assert(fresh.alpha == 0, "the actual acquire hook must suppress after initial placement completes")
+
 local initialize = slice(containers,
     "function ownedEngine:Initialize()",
     "local function DrainPendingLoadoutSwitch")

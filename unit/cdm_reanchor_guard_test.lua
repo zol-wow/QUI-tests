@@ -65,8 +65,6 @@ local corrections = 0
 for i = n1 + 1, #setCalls do if setCalls[i].rel == container then corrections = corrections + 1 end end
 assert(corrections == 2, "guard installs at most once per frame (single two-point correction)")
 
--- Task 2: park is retired -> the anchor guard hides a SUNK re-anchored frame
--- in place via SetAlpha(0) (taint-safe), and NEVER writes strata/level on the live frame.
 do
     local calls = {}
     local function rec(name) return function(_, ...) calls[#calls + 1] = { name, ... } end end
