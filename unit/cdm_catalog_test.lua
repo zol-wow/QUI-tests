@@ -86,6 +86,7 @@ _G.CooldownViewerSettings = {
                     [78] = { category = 0, isKnown = false },
                 },
             },
+            layoutManager = {},
             GetLayoutManager = function()
                 return {}
             end,
@@ -223,6 +224,7 @@ _G.CooldownViewerSettings = {
                     [902] = { category = 2, isKnown = true },
                 },
             },
+            layoutManager = {},
             GetLayoutManager = function()
                 return {}
             end,

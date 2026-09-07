@@ -36,6 +36,7 @@ _G.CooldownViewerSettings = {
                     [701] = { category = 0, isKnown = true },
                 },
             },
+            layoutManager = {},
             GetLayoutManager = function() return {} end,
             GetOrderedCooldownIDsForCategory = function()
                 error("native ordered getters must remain untouched")
