@@ -18,6 +18,7 @@ local container, viewer = { c = 1 }, { v = 1 }
 -- Fake bridge: the buff direct-anchor path uses InstallAnchorGuard + OverlayRect (never the
 -- shell Overlay). Isolates the test from the real bridge's geometry internals.
 local fakeBridge = {
+    ResolveIdentity = function() return 1 end,
     InstallAnchorGuard = function() end,
     OverlayRect = function() end,
     Overlay = function() error("buff must direct-anchor (OverlayRect), never shell Overlay") end,
