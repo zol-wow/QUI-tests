@@ -107,8 +107,29 @@ end
 local providerStub = setmetatable({
     displayDataDirty = true,
     displayData = nil,
-    GetLayoutManager = function() return {} end,
 }, { __index = nativeMixin })
+local function LoadNativeMethod(file, name)
+    local handle = assert(io.open("tests/framexml/Interface/AddOns/Blizzard_CooldownViewer/" .. file, "rb"))
+    local source = handle:read("*a"):gsub("\r\n", "\n")
+    handle:close()
+    local first = assert(source:find("function " .. name .. "(", 1, true))
+    local last = assert(source:find("\nend", first + 1, true))
+    assert(loadstring(source:sub(first, last + 3)))()
+end
+_G.CooldownViewerLayoutManagerMixin = {}
+_G.CooldownViewerDataStoreSerializationMixin = {}
+LoadNativeMethod("CooldownViewerSettingsDataProvider.lua", "CooldownViewerSettingsDataProviderMixin:GetLayoutManager")
+for _, method in ipairs({ "IsLoaded", "GetSerializer" }) do
+    LoadNativeMethod("CooldownViewerSettingsLayoutManager.lua", "CooldownViewerLayoutManagerMixin:" .. method)
+end
+for _, method in ipairs({ "IsLoaded", "GetSerializedData" }) do
+    LoadNativeMethod("CooldownViewerSettingsDataStoreSerialization.lua", "CooldownViewerDataStoreSerializationMixin:" .. method)
+end
+local serializer = setmetatable({
+    persistenceObject = { GetSerializedData = function() return "native saved layout" end },
+}, { __index = _G.CooldownViewerDataStoreSerializationMixin })
+providerStub.layoutManager = setmetatable({ layouts = {}, serializer = serializer },
+    { __index = _G.CooldownViewerLayoutManagerMixin })
 _G.CooldownViewerSettings = {
     GetDataProvider = function()
         return providerStub
@@ -196,5 +217,7 @@ assert(rebuilt[12347] and rebuilt[12347].cooldownID == 90,
 assert(rebuilt[12346] and rebuilt[12346].cooldownID == 89,
     "ordered index must retain unknown entries after rebuilding")
 assert(getterCalls == 0, "ordered index recovery must never enter native builders")
+
+assert(serializer.cachedSerializedData == nil, "category reads must not populate the native serializer cache")
 
 print("OK: cdm_provider_displaydata_gate_test")
