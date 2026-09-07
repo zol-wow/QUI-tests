@@ -42,6 +42,8 @@ local function FireEvent(event, ...)
 end
 
 local ns = {}
+LibStub = function() end
+assert(loadfile("core/utils.lua"))("QUI", ns)
 local chunk = assert(loadfile("QUI_CDM/cdm/cdm_blizzard_buffbar_suppression.lua"))
 
 local function MakeFrame()
