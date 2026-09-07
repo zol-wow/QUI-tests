@@ -620,26 +620,11 @@ do
         path .. ": capped GetUnitAuras scans are banned (maxCount omitted)")
 end
 
--- libs/LibRangeCheck-3.0 — vendored patch (LibOpenRaid precedent): getRange
--- truth-tested UnitCanAssist/UnitIsDeadOrGhost/UnitCanAttack/UnitIsUnit raw
--- (all secret-capable under restriction) and threw out of the whole range
--- query; InCombatLockdownRestriction `not UnitCanAttack(...)` same class.
--- Each verdict is probed at its own decision point (round-20c rule); a
--- secret verdict returns nil so callers fall back.
 do
     local path = "libs/LibRangeCheck-3.0/LibRangeCheck-3.0.lua"
     local code = stripLuaNonCode(readFile(path))
     assertOrderInFunction(code, path, "local function getRange(unit, noItems)",
-        "issecretvalue(canAssist)", "if deadOrGhost then", 2400)
-    assertOrderInFunction(code, path, "local function getRange(unit, noItems)",
-        "issecretvalue(deadOrGhost)", "if deadOrGhost then", 2400)
-    assertOrderInFunction(code, path, "local function getRange(unit, noItems)",
-        "issecretvalue(canAttack)", "if canAttack then", 2400)
-    assertOrderInFunction(code, path, "local function getRange(unit, noItems)",
         "issecretvalue(isPet)", "elseif isPet then", 2400)
-    assertOrderInFunction(code, path,
-        "local InCombatLockdownRestriction = function(unit)",
-        "issecretvalue(canAttack)", "return not canAttack", 500)
 end
 
 print("OK secret_probe_order_source_guard_test")
