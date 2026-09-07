@@ -422,6 +422,7 @@ return {
         alts = {
           columns = {
             gold = true,
+            guild = true,
             ilvl = true,
             lastSeen = true,
             played = true,
@@ -431,6 +432,8 @@ return {
           },
           currencyFilter = {},
           enabled = true,
+          equipmentHiddenCharacters = {},
+          equipmentSort = "name",
           reputationFilter = {},
           scanners = {
             lockouts = true,
