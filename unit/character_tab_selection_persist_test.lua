@@ -118,6 +118,9 @@ function InCombatLockdown() return false end
 assert(loadfile("core/uikit.lua"))("QUI", ns)
 local SkinBase = ns.SkinBase
 assert(type(SkinBase) == "table", "SkinBase must load from uikit.lua")
+-- The bottom tabs are now styled by the chrome owner; frames/character.lua's
+-- Refresh delegates to CharacterChrome.RefreshTheme -> StyleTabs.
+assert(loadfile("modules/skinning/frames/character_chrome.lua"))("QUI", ns)
 assert(loadfile("modules/skinning/frames/character.lua"))("QUI", ns)
 
 local API = _G.QUI_CharacterFrameSkinning

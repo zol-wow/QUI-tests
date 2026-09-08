@@ -97,8 +97,6 @@ do
     t.acquireEssential(t.viewers.essential, fresh)
     assert(#t.guardCalls == 2, "guard install retried on every acquire")
 
-    -- buff is NOT opted in (its unclaimed natives are intentionally visible:
-    -- skipNativeSink) -- no early guard for it.
     t.acquireBuff(t.viewers.buff, makeFrame())
     assert(#t.guardCalls == 2, "no early guard install for keys outside installGuardKeys")
 end
@@ -117,9 +115,6 @@ do
     assert(blankedSet[unclaimed], "unclaimed frames are blanked on acquire")
 end
 
--- 4) cdm_containers must wire the new deps for the re-anchor hook instance:
---    essential+utility in blankKeys and installGuardKeys, bridge-backed
---    installGuard + isClaimed.
 do
     local f = assert(io.open("QUI_CDM/cdm/cdm_containers.lua", "rb"))
     local src = f:read("*a"):gsub("\r\n", "\n")

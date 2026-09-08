@@ -28,11 +28,17 @@ local AggregateSpellsByUnit = assert(loadstring(
     extract("AggregateSpellsByUnit") .. "\nreturn AggregateSpellsByUnit"))()
 local PivotPlayerTargets = assert(loadstring(
     extract("PivotPlayerTargets") .. "\nreturn PivotPlayerTargets"))()
+local FilterSpellsByUnit = assert(loadstring(
+    extract("FilterSpellsByUnit") .. "\nreturn FilterSpellsByUnit"))()
 
 local SECRET = setmetatable({}, { __tostring = function() return "<secret>" end })
 local function isSecret(v) return v == SECRET end
-local function spell(unitName, amt, class, icon)
-    return { totalAmount = amt, combatSpellDetails = { unitName = unitName, unitClassFilename = class, specIconID = icon } }
+local function spell(unitName, amt, class, icon, perSecond)
+    return {
+        totalAmount = amt,
+        amountPerSecond = perSecond,
+        combatSpellDetails = { unitName = unitName, unitClassFilename = class, specIconID = icon },
+    }
 end
 local function names(list) local o = {} for i, e in ipairs(list) do o[i] = e.name end return table.concat(o, ",") end
 
@@ -40,12 +46,13 @@ local function names(list) local o = {} for i, e in ipairs(list) do o[i] = e.nam
 
 -- Sums per unit, sorts descending, carries class + spec icon.
 local agg = AggregateSpellsByUnit({
-    spell("Anya", 100, "MAGE", 11),
-    spell("Bok",  300, "WARRIOR", 22),
-    spell("Anya", 250, "MAGE", 11),   -- second hit by Anya -> 350 total
+    spell("Anya", 100, "MAGE", 11, 10),
+    spell("Bok",  300, "WARRIOR", 22, 30),
+    spell("Anya", 250, "MAGE", 11, 25),   -- second hit by Anya -> 350 total
 }, isSecret)
 assert(names(agg) == "Anya,Bok", "sorted desc by total (Anya 350 > Bok 300), got " .. names(agg))
 assert(agg[1].totalAmount == 350 and agg[2].totalAmount == 300, "amounts summed per unit")
+assert(agg[1].amountPerSecond == 35 and agg[2].amountPerSecond == 30, "rates summed per unit")
 assert(agg[1].classFilename == "MAGE" and agg[1].specIconID == 11, "class + spec icon carried")
 
 -- Secret unit name is skipped (can't be a table key).
@@ -69,12 +76,21 @@ assert(#AggregateSpellsByUnit({}, isSecret) == 0, "empty spells -> empty")
 -- Two enemies; Anya hit both, Bok hit one. Map keyed by player; each list
 -- sorted desc by amount; enemy names carried as values.
 local map = PivotPlayerTargets({
-    { enemyName = "Boss", players = { { name = "Anya", totalAmount = 100 }, { name = "Bok", totalAmount = 40 } } },
-    { enemyName = "Add",  players = { { name = "Anya", totalAmount = 250 } } },
+    { enemyName = "Boss", sourceGUID = "Creature-Boss", sourceCreatureID = 1, players = {
+        { name = "Anya", totalAmount = 100, amountPerSecond = 10 },
+        { name = "Bok", totalAmount = 40, amountPerSecond = 4 },
+    } },
+    { enemyName = "Add", players = {
+        { name = "Anya", totalAmount = 250, amountPerSecond = 25 },
+    } },
 })
 assert(map.Anya and #map.Anya == 2, "Anya hit two enemies")
 assert(names(map.Anya) == "Add,Boss", "Anya targets sorted desc (Add 250 > Boss 100), got " .. names(map.Anya))
 assert(map.Bok and #map.Bok == 1 and map.Bok[1].name == "Boss", "Bok hit only Boss")
+assert(map.Anya[2].sourceGUID == "Creature-Boss" and map.Anya[2].sourceCreatureID == 1,
+    "target pivot carries the enemy selector needed for drill-down")
+assert(map.Anya[1].amountPerSecond == 25 and map.Anya[2].amountPerSecond == 10,
+    "target pivot carries per-second values")
 
 -- A secret enemy name is preserved as a value (renders in a FontString later),
 -- never used as a key.
@@ -85,5 +101,15 @@ assert(#mapSecret.Anya == 1 and mapSecret.Anya[1].name == SECRET, "secret enemy 
 
 assert(next(PivotPlayerTargets({})) == nil, "empty perEnemy -> empty map")
 assert(next(PivotPlayerTargets(nil)) == nil, "nil perEnemy -> empty map")
+
+local anyaSpell = spell("Anya", 250, "MAGE", 11, 25)
+anyaSpell.spellID = 123
+local bokSpell = spell("Bok", 300, "WARRIOR", 22, 30)
+bokSpell.spellID = 456
+local filtered = FilterSpellsByUnit({ bokSpell, anyaSpell, spell(SECRET, 999) }, "Anya", isSecret)
+assert(#filtered == 1 and filtered[1] == anyaSpell,
+    "target drill-down keeps only the selected player's spells")
+assert(#FilterSpellsByUnit({ anyaSpell }, SECRET, isSecret) == 0,
+    "secret player selectors degrade to an empty spell list")
 
 print("OK: damage_meter_target_breakdown_test")

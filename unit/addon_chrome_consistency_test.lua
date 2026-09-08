@@ -196,9 +196,8 @@ do
     assertContains(src, "GetSkinBorderColor",
         "preytracker.lua: must reference GetSkinBorderColor() for hunt panel border")
 
-    -- Semantic guard: orange hunt-title color must remain
-    assertContains(src, "1, 0.82, 0",
-        "preytracker.lua: semantic orange hunt-title color 1,0.82,0 must not be removed")
+    assertAbsent(src, "1, 0%.82, 0",
+        "preytracker.lua: ordinary hunt-title text must use canonical white")
 end
 
 -- ===========================================================================

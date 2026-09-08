@@ -23,6 +23,19 @@ assert(loadfile("modules/alts/views/currencies.lua"))("QUI", ns)
 local CV = ns.Alts.CurrenciesView
 assert(CV, "CurrenciesView exported")
 
+assert(CV.ValueText(1500, { max = 2000 }) == "1,500 / 2,000", "max quantity display text")
+assert(CV.ValueText(7, { account = true }) == "7 (account)", "account display text")
+
+local nameWidth, valueWidth = CV.ColumnWidths({
+    { label = "Long Currency", valueText = "7" },
+    { label = "Short", valueText = "1,500 / 2,000 (account)" },
+}, function(text) return #text + 0.25 end)
+assert(nameWidth == #"Long Currency" + 35, "name column uses widest label, icon, gap, padding, and ceiling")
+assert(valueWidth == #"1,500 / 2,000 (account)" + 13, "value column uses widest final text and ceiling")
+
+nameWidth, valueWidth = CV.ColumnWidths({}, function(text) return #text end)
+assert(nameWidth == 34 and valueWidth == 12, "empty columns retain only layout padding")
+
 ---------------------------------------------------------------------------
 -- FormatQuantity
 ---------------------------------------------------------------------------

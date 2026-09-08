@@ -70,7 +70,8 @@ function M.populate(registry, indexTable, cfg, warn)
             include = true
         end
         if include then
-            registry:addSource(funcName)
+            registry:addSource(funcName,
+                type(meta) == "table" and meta.returnArity or nil)
         end
         -- Precondition-guarded APIs are NOT taint sources — the hazard is a
         -- hard ERROR under restrictions, not a secret return — so they
@@ -160,11 +161,11 @@ function M.populate(registry, indexTable, cfg, warn)
             local dotted = funcName:find("%.", 1) ~= nil
             if allow then
                 if dotted then
-                    registry:addSafeSinkFunction(funcName)
+                    registry:addSafeSinkFunction(funcName, meta.neverSecretArguments)
                 else
-                    registry:addSafeSinkMethod(funcName)
+                    registry:addSafeSinkMethod(funcName, meta.neverSecretArguments)
                     if not meta.scriptObject then
-                        registry:addSafeSinkFunction(funcName)
+                        registry:addSafeSinkFunction(funcName, meta.neverSecretArguments)
                     end
                 end
             elseif restricted then

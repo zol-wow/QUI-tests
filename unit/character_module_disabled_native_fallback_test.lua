@@ -12,37 +12,54 @@ local function assertContains(text, needle, reason)
     assert(text:find(needle, 1, true), reason)
 end
 
+-- The shell / decoration hiding moved from frames/character.lua into the
+-- chrome owner (modules/skinning/frames/character_chrome.lua); the
+-- "leave the native stats pane alone when the enhancement is off" contract
+-- is pinned there now.
+local characterChrome = readFile("modules/skinning/frames/character_chrome.lua")
 local characterFrameSkin = readFile("modules/skinning/frames/character.lua")
 local inspectFrameSkin = readFile("modules/skinning/frames/inspect.lua")
 local inspectPane = readFile("modules/skinning/character_pane/inspect.lua")
 
 local hideStart = assert(
-    characterFrameSkin:find("local function HideBlizzardDecorations()", 1, true),
-    "Character frame skin should have a decoration-hiding helper")
+    characterChrome:find("local function HideBlizzardDecorations(permanent)", 1, true),
+    "Character chrome owner should have a decoration-hiding helper")
 local hideEnd = assert(
-    characterFrameSkin:find("local function SetCharacterFrameBgExtended(", hideStart, true),
-    "Character frame skin helper should precede the background API")
-local hideBlock = characterFrameSkin:sub(hideStart, hideEnd)
+    characterChrome:find("local function ApplyShellColors()", hideStart, true),
+    "Character chrome decoration helper should precede the shell colour helper")
+local hideBlock = characterChrome:sub(hideStart, hideEnd)
 
 assertContains(
-    characterFrameSkin,
-    "local function IsCharacterPaneEnabled()",
-    "Frame skinning must know whether the QUI character pane replacement is enabled")
+    characterChrome,
+    "local function IsEnhancementOn()",
+    "Chrome owner must know whether the QUI character pane replacement is enabled")
 
 assertContains(
-    characterFrameSkin,
+    characterChrome,
     "local function RestoreNativeStatsPane()",
-    "Frame skinning must be able to restore Blizzard's native stats pane when the replacement is disabled")
+    "Chrome owner must be able to restore Blizzard's native stats pane when the replacement is disabled")
 
 assertContains(
     hideBlock,
-    "if IsCharacterPaneEnabled() then",
-    "CharacterFrame skin must only mask Blizzard's native stats pane when the QUI stats replacement is enabled")
+    'if ownership.statsPane == "enhancement" then',
+    "Chrome owner must only mask Blizzard's native stats pane when the QUI stats replacement is enabled")
+
+assertContains(
+    hideBlock,
+    'elseif ownership.statsPane == "chrome" then',
+    "Chrome owner must give the native stats pane a legible chrome-only skin when only the frame skin is on")
 
 assertContains(
     hideBlock,
     "RestoreNativeStatsPane()",
-    "CharacterFrame skin must leave native stats visible when the QUI character module is disabled")
+    "Chrome owner must leave native stats visible when neither gate owns the stats pane")
+
+assertContains(
+    characterFrameSkin,
+    "chrome.SetExtended(extended)",
+    "Frame skinning must delegate the shell to the chrome owner")
+assert(not characterFrameSkin:find("CreateFrame(\"Frame\", \"QUI_CharacterFrameBg_Skin\"", 1, true),
+    "Frame skinning must not build its own shell any more")
 
 assertContains(
     inspectFrameSkin,

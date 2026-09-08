@@ -205,6 +205,10 @@ local function StubFrame(name, silent)
     end
     function f:GetWidth() return self.width or 100 end
     function f:GetHeight() return self.height or 100 end
+    function f:GetLeft() return self.left or 0 end
+    function f:GetRight() return self:GetLeft() + self:GetWidth() end
+    function f:GetBottom() return self.bottom or 0 end
+    function f:GetTop() return self:GetBottom() + self:GetHeight() end
     function f:SetWidth(w) self.width = w end
     function f:SetHeight(h) self.height = h end
     function f:GetEffectiveScale() return 1 end
@@ -228,9 +232,13 @@ local env = setmetatable({
 }, { __index = _G })
 env._G = env
 env.UIParent = StubFrame("UIParent", true)
+_G.UIParent = env.UIParent
 
 local frameAnchoring = {}
-ns.Addon = { db = { profile = { frameAnchoring = frameAnchoring } } }
+ns.Addon = { db = { profile = {
+    frameAnchoring = frameAnchoring,
+    quiUnitFrames = { target = { castbar = { width = 340 } } },
+} } }
 
 local ANCHORING = "modules/layout/anchoring.lua"
 local chunk = assert(loadstring(readFile(ANCHORING), "@" .. ANCHORING))
@@ -366,6 +374,62 @@ for _, case in ipairs(gateCases) do
 end
 combatChild.protectedAnswer = false
 combatChild.restrictedAnswer = false
+
+local targetCastbar = StubFrame("targetCastbar")
+local targetUnitFrame = StubFrame("targetUnitFrame")
+targetCastbar.restrictedAnswer = true
+targetUnitFrame.protectedAnswer = true
+targetUnitFrame.left = 20
+targetUnitFrame.bottom = 30
+targetUnitFrame.width = 220
+targetUnitFrame.height = 40
+ns.QUI_Castbar = { castbars = { target = targetCastbar } }
+ns.QUI_UnitFrames = { frames = { target = targetUnitFrame } }
+frameAnchoring.targetCastbar = {
+    parent = "targetFrame", point = "TOP", relative = "BOTTOM",
+    offsetX = 3, offsetY = -4, autoWidth = true,
+}
+
+check("target castbar resolver sees the runtime frame",
+    env.QUI_ResolveAnchorApplyFrame("targetCastbar") == targetCastbar)
+check("target frame resolver sees the protected parent",
+    env.QUI_ResolveAnchorTargetFrame("targetFrame") == targetUnitFrame)
+
+resetGeom()
+inCombat = false
+env.QUI_ApplyFrameAnchor("targetCastbar")
+runScheduled()
+check("target castbar apply claims layout ownership",
+    ns.QUI_Anchoring.layoutOwnedFrames[targetCastbar] == "targetCastbar")
+local firstCastbarPoint = targetCastbar.points[1]
+check("restricted castbar pins to UIParent",
+    firstCastbarPoint and firstCastbarPoint.rel == env.UIParent, geomSummary())
+check("auto-width castbar matches its anchor target",
+    targetCastbar.width == targetUnitFrame.width, tostring(targetCastbar.width))
+local firstCastbarX = firstCastbarPoint and firstCastbarPoint.x
+
+targetUnitFrame.left = 60
+env.QUI_ApplyFrameAnchor("targetCastbar")
+runScheduled()
+local movedCastbarPoint = targetCastbar.points[1]
+check("restricted castbar pin follows parent on reapply",
+    movedCastbarPoint and movedCastbarPoint.rel == env.UIParent
+        and movedCastbarPoint.x ~= firstCastbarX,
+    geomSummary())
+
+frameAnchoring.targetCastbar.autoWidth = false
+targetCastbar.width = 220
+env.QUI_ApplyFrameAnchor("targetCastbar")
+runScheduled()
+check("manual-width castbar uses its configured width with an anchor target",
+    targetCastbar.width == 340, tostring(targetCastbar.width))
+
+frameAnchoring.targetCastbar.parent = "disabled"
+targetCastbar.width = 220
+env.QUI_ApplyFrameAnchor("targetCastbar")
+runScheduled()
+check("manual-width castbar uses its configured width with anchoring disabled",
+    targetCastbar.width == 340, tostring(targetCastbar.width))
 
 ---------------------------------------------------------------------------
 -- (b) hideWithParent visibility reads.

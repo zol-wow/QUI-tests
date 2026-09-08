@@ -3,7 +3,7 @@
 --
 -- Behavioral test for SkinBase.SkinFontString (the shared global-font helper)
 -- and the opt-in {font=true} path on SkinButton. Mirrors the peer convention in
--- statustracking.lua: global font face + outline, default near-white text color,
+-- statustracking.lua: global font face + outline, default white text color,
 -- and the fontstring's current size is preserved unless overridden.
 
 -- luacheck: globals CreateFrame C_Timer hooksecurefunc ScrollUtil STANDARD_TEXT_FONT
@@ -105,14 +105,14 @@ local SkinBase = ns.SkinBase
 
 assert(type(SkinBase.SkinFontString) == "function", "SkinBase.SkinFontString must exist")
 
--- Default: global font face + outline, preserve current size, near-white color
+-- Default: global font face + outline, preserve current size, white color
 local fs = NewFontString(14)
 SkinBase.SkinFontString(fs)
 assert(fs.font == "Interface\\QUIFont.ttf", "SkinFontString must apply the global QUI font face")
 assert(fs.flags == "OUTLINE", "SkinFontString must apply the global font outline")
 assert(fs.size == 14, "SkinFontString must preserve the fontstring's current size by default")
-assert(fs.color[1] == 0.95 and fs.color[2] == 0.95 and fs.color[3] == 0.95,
-    "SkinFontString must default to near-white themed text color")
+assert(fs.color[1] == 1 and fs.color[2] == 1 and fs.color[3] == 1,
+    "SkinFontString must default to white themed text color")
 
 -- Overrides: explicit size, outline, color
 local fs2 = NewFontString(10)

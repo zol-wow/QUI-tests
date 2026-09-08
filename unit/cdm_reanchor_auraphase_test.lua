@@ -1,8 +1,6 @@
 -- tests/unit/cdm_reanchor_auraphase_test.lua
 -- Run: lua tests/unit/cdm_reanchor_auraphase_test.lua
 -- Locks the hook contract of the re-anchor swipe colour owner.
--- :Hook installs only taint-safe visual post-hooks (never
--- RefreshSpellCooldownInfo or native timing/desaturation hooks).
 
 local ns = {}
 -- Task 45f: cdm_reanchor_auraphase.lua routes discarded-result pcall guards
@@ -80,6 +78,149 @@ do
         "G13: still NEVER hooks RefreshSpellCooldownInfo (secret-value taint)")
 end
 
+do
+    local hooked
+    local requested
+    local inst = M.New({
+        securecall = function(fn, ...) return fn(...) end,
+        hooksecurefunc = function(_, method, fn) hooked = fn end,
+        requestAuraPhaseRefresh = function(frame, key, show)
+            requested = { frame = frame, key = key, show = show }
+        end,
+    })
+    local cd = { SetUseAuraDisplayTime = function() end }
+    local frame = {
+        cooldownUseAuraDisplayTime = false,
+        GetCooldownFrame = function() return cd end,
+    }
+    inst:Hook(frame, "essential")
+    hooked(cd, true)
+    assert(requested and requested.frame == frame and requested.key == "essential"
+        and requested.show == true,
+        "native aura-mode changes request a safe reanchor")
+end
+
+do
+    local hooks = {}
+    local requested = {}
+    local inst = M.New({
+        securecall = function(fn, ...) return fn(...) end,
+        hooksecurefunc = function(_, method, fn) hooks[method] = fn end,
+        isAuraPhaseEnabled = function() return false end,
+        requestAuraPhaseRefresh = function(_, key, show)
+            requested[#requested + 1] = { key = key, show = show }
+        end,
+    })
+    local cd = {
+        SetCooldown = function() end,
+        SetCooldownFromDurationObject = function() end,
+        SetUseAuraDisplayTime = function() end,
+    }
+    local frame = {
+        cooldownUseAuraDisplayTime = true,
+        GetCooldownFrame = function() return cd end,
+    }
+    inst:Hook(frame, "essential")
+    hooks.SetCooldown(cd)
+    hooks.SetCooldownFromDurationObject(cd)
+    assert(#requested == 2 and requested[1].key == "essential"
+        and requested[1].show == true,
+        "disabled aura phase rechecks native cooldown pushes")
+end
+
+do
+    local hooks, textureHooks = {}, {}
+    local repairs = {}
+    local inst
+    local texture = {
+        SetDesaturated = function() end,
+        SetDesaturation = function() end,
+    }
+    local cd = {
+        Clear = function() end,
+        SetUseAuraDisplayTime = function() end,
+        SetCooldownFromDurationObject = function() end,
+    }
+    local frame = {
+        cooldownInfo = { linkedSpellID = 9001 },
+        auraInstanceID = nil,
+        wasSetFromAura = false,
+        Icon = texture,
+        GetCooldownFrame = function() return cd end,
+    }
+    inst = M.New({
+        securecall = function(fn, ...) return fn(...) end,
+        hooksecurefunc = function(obj, method, fn)
+            if obj == texture then textureHooks[method] = fn else hooks[method] = fn end
+        end,
+        isNativeCooldownRepairFrame = function(_, key) return key == "essential" end,
+        repairStaleLinkedAura = function(f, cdw, entry, reason)
+            repairs[#repairs + 1] = { frame = f, cd = cdw, entry = entry, reason = reason }
+            inst:OnNativeRepairDriver(f, cdw, reason)
+        end,
+    })
+    local entry = { spellID = 9001 }
+    inst:Hook(frame, "essential", entry)
+    assert(hooks.Clear and textureHooks.SetDesaturated and textureHooks.SetDesaturation,
+        "stale-link repair hooks native Clear and both desaturation drivers")
+    hooks.Clear(cd)
+    assert(#repairs == 1 and repairs[1].entry == entry and repairs[1].reason == "clear",
+        "stale-link repair runs once and is re-entry guarded")
+    textureHooks.SetDesaturated(texture)
+    textureHooks.SetDesaturation(texture)
+    assert(#repairs == 3, "desaturation drivers recheck stale linked state")
+    frame.auraInstanceID = 12
+    hooks.Clear(cd)
+    assert(#repairs == 3, "active aura instance blocks native cooldown repair")
+    frame.auraInstanceID = nil
+    frame.wasSetFromAura = true
+    textureHooks.SetDesaturated(texture)
+    assert(#repairs == 3, "native aura ownership blocks native cooldown repair")
+end
+
+do
+    local repairs = 0
+    local inst = M.New({
+        isNativeCooldownRepairFrame = function(_, key) return key == "essential" end,
+        repairStaleLinkedAura = function() repairs = repairs + 1 end,
+    })
+    local cd = {}
+    local frame = {
+        cooldownInfo = { linkedSpellID = 9002 },
+        auraInstanceID = nil,
+        wasSetFromAura = false,
+    }
+    inst:Hook(frame, "buff", { spellID = 9002 })
+    assert(inst:IsNativeCooldownRepairFrame(frame, "buff") == false,
+        "buff frames are excluded from stale-link repair")
+    inst:OnNativeRepairDriver(frame, cd, "clear")
+    assert(repairs == 0, "excluded frames never invoke stale-link repair")
+    frame.cooldownInfo.linkedSpellID = nil
+    inst:OnNativeRepairDriver(frame, cd, "clear")
+    assert(repairs == 0, "frames without a linked spell are ignored")
+end
+
+do
+    local hooks = {}
+    local requested = {}
+    local inst = M.New({
+        securecall = function(fn, ...) return fn(...) end,
+        hooksecurefunc = function(_, method, fn) hooks[method] = fn end,
+        requestAuraPhaseRefresh = function(_, _, show) requested[#requested + 1] = show end,
+    })
+    local cd = { SetUseAuraDisplayTime = function() end, SetDrawEdge = function() end }
+    local frame = {
+        cooldownUseAuraDisplayTime = true,
+        GetCooldownFrame = function() return cd end,
+    }
+    inst:Hook(frame, "essential")
+    frame.cooldownUseAuraDisplayTime = false
+    hooks.SetDrawEdge(cd, false)
+    hooks.SetDrawEdge(cd, false)
+    assert(#requested == 1 and requested[1] == false,
+        "expired edge refresh requests only once when aura mode changes")
+end
+
 -- G13: OnDrawEdge -> reassertEdge once (re-entry guarded so the reassert's own
 -- SetDrawEdge(false), which re-fires the hook, cannot recurse); nil cd is a no-op.
 do
@@ -120,8 +261,7 @@ do
     assert(calls == 2, "OnDrawSwipe guard must clear after each call")
 end
 
--- Native CDM timing and desaturation setters are untainted-only. QUI leaves
--- Blizzard's timing and saturation state alone.
+-- Without a native re-arm dependency, timing and desaturation hooks are absent.
 do
     local hooked = {}
     local texHooked = {}
@@ -139,7 +279,7 @@ do
     local frame = { GetCooldownFrame = function() return cd end, Icon = tex }
     inst:Hook(frame)
     assert(hooked["SetCooldown"] == nil,
-        "Hook must not install an untainted-only SetCooldown hook")
+        "without a re-arm dependency, no native timing hook is installed")
     assert(texHooked["SetDesaturated"] == nil,
         "Hook must not install an untainted-only SetDesaturated hook")
     assert(hooked["RefreshSpellCooldownInfo"] == nil,

@@ -31,6 +31,11 @@ do
     check("tracked: auraType field present (slots need polarity)", t.auraType == "HELPFUL")
     check("tracked: displayType honored", t.displayType == "bar")
     check("tracked: bar dims seeded", t.bar and t.bar.thickness == 12 and t.bar.length == 48)
+    check("tracked: dynamicLayout seeds off (fixed slots)", t.dynamicLayout == false)
+    local legacy = E.NormalizeElement({ mode = "tracked", spells = { 12345 } })
+    check("tracked: normalize defaults dynamicLayout off", legacy.dynamicLayout == false)
+    local dyn = E.NormalizeElement({ mode = "tracked", spells = { 12345 }, dynamicLayout = true })
+    check("tracked: normalize keeps dynamicLayout on", dyn.dynamicLayout == true)
     local m = E.NewMissingRaidBuffElement()
     check("mrb: mode", m.mode == "missingRaidBuff")
 end
@@ -58,9 +63,15 @@ do
     check("tracked: runtime candidates retain ability and linked aura IDs",
         candidates[100] == true and candidates[200] == true and candidates[300] == true)
     local legacy = { mode = "tracked", spells = { 100 }, onlyMineSpells = { [100] = true } }
+    legacy.auraSounds = {
+        [100] = { added = "Raid Warning" },
+        [999] = { removed = "Raid Warning" },
+    }
     E.NormalizeElement(legacy)
     check("tracked: normalization migrates legacy spell and per-spell gate IDs",
         legacy.spells[1] == 200 and legacy.onlyMineSpells[200] == true)
+    check("tracked: normalization migrates configured sound IDs and prunes removed spells",
+        legacy.auraSounds[200].added == "Raid Warning" and legacy.auraSounds[999] == nil)
     ns.CDMAuraRuntime, ns.CDMSpellData = oldRuntime, oldSpellData
 end
 

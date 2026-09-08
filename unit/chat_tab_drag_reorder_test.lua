@@ -407,8 +407,8 @@ stubCustomTabs[1] = tabA; stubCustomTabs[2] = tabB; stubCustomTabs[3] = tabC
 local overflowBar = getBar()
 overflowBar.width = 200
 TU.Rebuild()
-assert(inst1().scrollRightBtn and inst1().scrollRightBtn:IsShown(), "(e6) right scroll control shown")
-inst1().scrollRightBtn._OnClick(inst1().scrollRightBtn)
+assert(inst1().overflowBtn and inst1().overflowBtn:IsShown(), "(e6) exact-tab picker shown")
+assert(inst1().ScrollTabs(1), "(e6) visible slice advances")
 assert(inst1().visibleFirst == 2 and inst1().visibleLast == 3,
     "(e6) scrolled slice should show slots 2-3")
 assignGeometry()

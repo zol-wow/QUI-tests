@@ -26,6 +26,7 @@ _G.Enum = _G.Enum or {}
 _G.Enum.CustomAuraButtonDispelTypeTextureStyle = {
     Border = 0, BorderWithIcon = 1, Icon = 2, PreserveAsset = 3, CustomAsset = 4,
 }
+_G.CreateColor = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end
 
 local scriptInstalls = 0
 
@@ -35,8 +36,12 @@ local function MakeTexture()
     function t:DisablePixelSnap() end
     function t:SetColorTexture() end
     function t:SetTexture(path) self._texture = path end
+    function t:SetTexCoord(...) self._texCoord = { ... } end
     function t:SetBlendMode(mode) self._blend = mode end
     function t:SetVertexColor(r, g, b, a) self._vertex = { r, g, b, a } end
+    function t:SetGradient(orientation, minColor, maxColor)
+        self._gradient = { orientation, minColor, maxColor }
+    end
     function t:ClearAllPoints() self._points = {} end
     function t:SetPoint(...) self._points = self._points or {}; self._points[#self._points + 1] = { ... } end
     function t:SetAllPoints(region) self._allPoints = region end
@@ -108,7 +113,10 @@ end
 ----------------------------------------------------------------------------
 -- Load the module
 ----------------------------------------------------------------------------
-local ns = { QUI_GroupFrameChrome = { LEVELS = { DISPEL = 8 } } }
+-- Load the real chrome module first: the feeder delegates cleanse-glow art to
+-- Chrome.StyleCleanseGlowArt, and the test should exercise the real strips.
+local ns = {}
+assert(loadfile("core/group_frame_chrome.lua"))("QUI", ns)
 local F = assert(loadfile("QUI_GroupFrames/groupframes/groupframes_dispel_feeder.lua"))("QUI_GroupFrames", ns)
 check("module publishes ns.QUI_GFDispelFeeder", ns.QUI_GFDispelFeeder == F and type(F.Sync) == "function")
 
@@ -203,10 +211,19 @@ end
 check("icon binding added with the engine Icon style", iconRegs == 1, iconRegs)
 
 local glowSlot = c._slots.glow
-local glowTex = glowSlot and glowSlot._quiDispelArt and glowSlot._quiDispelArt.glow
-check("glow art styled with the configured color",
-    glowTex and glowTex._vertex and glowTex._vertex[1] == 0.3 and glowTex._vertex[2] == 1
-        and glowTex._blend == "ADD")
+local gArt = glowSlot and glowSlot._quiDispelArt
+local gTop = gArt and gArt.glowTop
+check("glow art is four additive edge strips, not a stretched ring",
+    gTop and gArt.glowBottom and gArt.glowLeft and gArt.glowRight
+        and gTop._blend == "ADD" and gTop._texture == nil)
+check("glow gradient peaks at the frame edge in the configured color",
+    gTop and gTop._gradient and gTop._gradient[1] == "VERTICAL"
+        and gTop._gradient[2].a == 0
+        and gTop._gradient[3].r == 0.3 and gTop._gradient[3].g == 1
+        and gTop._gradient[3].a == 0.9)
+check("side strips fade inward horizontally",
+    gArt and gArt.glowLeft._gradient and gArt.glowLeft._gradient[1] == "HORIZONTAL"
+        and gArt.glowLeft._gradient[2].a == 0.9 and gArt.glowLeft._gradient[3].a == 0)
 check("still no script handlers after restyle", scriptInstalls == 0)
 
 ----------------------------------------------------------------------------
@@ -222,6 +239,113 @@ F.SetLifeGate(frame, true)
 check("life gate re-shows the container after resurrection", c._shown == true)
 F.SetLifeGate(MakeHostFrame(), false)
 check("life gate on a frame without a feeder is a safe no-op", true)
+
+----------------------------------------------------------------------------
+-- (2c) BY_ME_PLUS_TYPED: by-me visual + typed awareness-gradient slot
+----------------------------------------------------------------------------
+settings.dispelOverlay.scope = "BY_ME_PLUS_TYPED"
+settings.dispelOverlay.gradientStartOpacity = 0.75
+settings.dispelOverlay.gradientEndOpacity = 0.25
+complete = F.Sync(frame, "party1", true, settings, "HORIZONTAL")
+check("gradient-scope sync completes", complete == true)
+check("visual slot returns to the by-me filter", c._filters.visual == BY_ME)
+check("visual slot drops candidate filters in gradient scope", c._cf.visual == nil)
+-- One slot per dispel type: a shared slot holds a single aura, so an
+-- actionable Magic debuff could crowd out a concurrent non-actionable Bleed.
+local TYPED_KEYS = {
+    "typedMagic", "typedCurse", "typedDisease", "typedPoison", "typedBleed",
+}
+local allTypedOk = true
+for _, key in ipairs(TYPED_KEYS) do
+    local kcf = c._cf[key]
+    if c._filters[key] ~= "HARMFUL" or type(kcf) ~= "table"
+        or type(kcf.includeDispelTypes) ~= "table" then
+        allTypedOk = false
+    end
+end
+check("every dispel type gets its own bare-HARMFUL gradient slot", allTypedOk)
+local mcf = c._cf.typedMagic
+check("per-type candidate filters select exactly their own type",
+    mcf and mcf.includeDispelTypes.Magic == true
+        and mcf.includeDispelTypes.Bleed == nil
+        and mcf.excludeDispelTypes == nil)
+local bcf = c._cf.typedBleed
+check("Bleed slot also admits Enrage (shared color alias)",
+    bcf and bcf.includeDispelTypes.Bleed == true
+        and bcf.includeDispelTypes.Enrage == true
+        and bcf.includeDispelTypes.Magic == nil)
+
+local typedSlot = c._slots.typedMagic
+local gradTex = typedSlot and typedSlot._quiDispelArt and typedSlot._quiDispelArt.gradient
+check("gradient art uses the alpha-ramp asset",
+    gradTex and type(gradTex._texture) == "string"
+        and gradTex._texture:find("dispel_gradient", 1, true) ~= nil,
+    gradTex and gradTex._texture)
+
+-- Opacity MUST ride the asset's per-pixel alpha through a texcoord sub-range:
+-- the engine rewrites SetAlpha on registered dispel-type textures and
+-- overwrites vertex color from its RGB-only color map on every aura update.
+check("gradient does not lean on SetAlpha for opacity",
+    gradTex and gradTex._alpha == 1, gradTex and gradTex._alpha)
+-- Horizontal fill rotates 90 degrees: UL/LL sample the start opacity (left
+-- edge = fill origin), UR/LR the end opacity.
+check("horizontal texcoords encode both endpoints at the right corners",
+    gradTex and gradTex._texCoord and #gradTex._texCoord == 8
+        and gradTex._texCoord[2] == 0.75 and gradTex._texCoord[4] == 0.75
+        and gradTex._texCoord[6] == 0.25 and gradTex._texCoord[8] == 0.25,
+    gradTex and table.concat(gradTex._texCoord or {}, ","))
+
+local gradReg
+for _, reg in ipairs(typedSlot and typedSlot._dispelRegs or {}) do
+    if reg.texture == gradTex then gradReg = reg end
+end
+check("gradient bound via PreserveAsset with the custom color map",
+    gradReg and gradReg.opts.style == 3 and gradReg.opts.customDispelColorMap ~= nil)
+check("gradient slot registers exactly one texture",
+    typedSlot and #typedSlot._dispelRegs == 1, typedSlot and #typedSlot._dispelRegs)
+
+complete = F.Sync(frame, "party1", true, settings, "VERTICAL")
+-- Vertical fill needs no rotation: top samples the end opacity, bottom the
+-- start opacity.
+check("vertical texcoords run end (top) -> start (bottom)",
+    complete == true and gradTex._texCoord and #gradTex._texCoord == 4
+        and gradTex._texCoord[3] == 0.25 and gradTex._texCoord[4] == 0.75,
+    gradTex and table.concat(gradTex._texCoord or {}, ","))
+
+-- End above start inverts the range; WoW samples a flipped texcoord natively.
+settings.dispelOverlay.gradientStartOpacity = 0.25
+settings.dispelOverlay.gradientEndOpacity = 0.75
+complete = F.Sync(frame, "party1", true, settings, "VERTICAL")
+check("inverted endpoints flip the sampled range",
+    complete == true and gradTex._texCoord
+        and gradTex._texCoord[3] == 0.75 and gradTex._texCoord[4] == 0.25)
+
+-- Equal endpoints degenerate to a flat fill at that opacity.
+settings.dispelOverlay.gradientStartOpacity = 0.5
+settings.dispelOverlay.gradientEndOpacity = 0.5
+complete = F.Sync(frame, "party1", true, settings, "VERTICAL")
+check("equal endpoints sample a single alpha row (flat fill)",
+    complete == true and gradTex._texCoord
+        and gradTex._texCoord[3] == 0.5 and gradTex._texCoord[4] == 0.5)
+
+-- Out-of-range values clamp rather than sampling outside the asset.
+settings.dispelOverlay.gradientStartOpacity = 5
+settings.dispelOverlay.gradientEndOpacity = -3
+complete = F.Sync(frame, "party1", true, settings, "VERTICAL")
+check("endpoints clamp into the 0..1 texcoord range",
+    complete == true and gradTex._texCoord
+        and gradTex._texCoord[3] == 0 and gradTex._texCoord[4] == 1)
+
+settings.dispelOverlay.gradientStartOpacity = 0.75
+settings.dispelOverlay.gradientEndOpacity = 0.25
+settings.dispelOverlay.scope = "PLAYER_DISPELLABLE"
+complete = F.Sync(frame, "party1", true, settings)
+local allParked = complete == true
+for _, key in ipairs(TYPED_KEYS) do
+    if not isParked(c._cf[key]) then allParked = false end
+end
+check("typed slots all park when leaving the gradient scope", allParked)
+check("no script handlers after gradient styling", scriptInstalls == 0)
 
 ----------------------------------------------------------------------------
 -- (3) Feature fully off: park everything, disable the container

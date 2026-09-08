@@ -88,6 +88,10 @@ local slotCooldownStart = 11418.804
 local slotCooldownDuration = 90
 local itemUseSpellCooldownActive = false
 local itemUseSpellCooldownDur = { token = "item-use-spell-cooldown-dur" }
+local healthstoneCooldownActive = true
+local healthstoneItemCooldownKnownInactive = false
+local healthstoneCategorySpellID = 91005
+local healthstoneScannerActive = false
 local gcdSpellActive = false
 local chargeQueryCounts = {}
 
@@ -286,9 +290,10 @@ local ns = {
                     return chargeDur
                 end
                 if spellID == 60001 or spellID == 60002 or spellID == 60003
-                    or spellID == 60004 or spellID == 60005 or spellID == 60006 then
+                    or spellID == 60004 or spellID == 60006 then
                     return chargeDur
                 end
+                if spellID == 60005 then return cooldownDur end
                 -- Talent-override case: both spellIDs return a DurationObject
                 -- but they carry different timing. C_Spell.GetSpellCooldownDuration
                 -- on the registered base (50334) returns a DurObj whose
@@ -359,6 +364,13 @@ local ns = {
             if itemID == 90004 then
                 return "Slot Item Use", 91004
             end
+            if itemID == 90005 then
+                return "Healthstone Use", 91005
+            end
+            return nil, nil
+        end,
+        QueryLastCategoryCooldownSource = function(categoryID)
+            if categoryID == 1711 then return healthstoneCategorySpellID, 90005 end
             return nil, nil
         end,
         QueryInventoryItemID = function(unit, slotID)
@@ -368,6 +380,12 @@ local ns = {
             return nil
         end,
         QueryScannedItemAuraInfo = function(itemID, itemSpellID)
+            if itemID == 90005 and healthstoneScannerActive then
+                return {
+                    active = true,
+                    useSpellID = itemSpellID,
+                }
+            end
             if itemID == 90001 and itemSpellID == 91001 then
                 if itemRuntimeAuraInstanceActive then
                     return {
@@ -400,6 +418,12 @@ local ns = {
             end
             if itemID == 90004 and itemSlotCooldownActive then
                 return 11418.804, 90, true
+            end
+            if itemID == 90005 and healthstoneCooldownActive then
+                if healthstoneItemCooldownKnownInactive then
+                    return 0, 0, 1
+                end
+                return 300, 60, 1
             end
             return nil, nil, nil
         end,
@@ -564,19 +588,25 @@ assert(state.isOnCooldown == true,
 assert(state.durObj == chargeDur,
     "active cooldown with a secret charge count should carry the recharge DurationObject")
 
+inCombat = true
 state = resolve({
+    owner = {
+        _blizzCooldown = {
+            HasVisualDataSource_Charges = function() return true end,
+        },
+    },
     entry = {
         type = "spell",
         kind = "cooldown",
         id = 60005,
         spellID = 60005,
         viewerType = "essential",
-        hasCharges = true,
     },
     runtimeSpellID = 60005,
     containerKey = "essential",
     useBuffSwipe = false,
 })
+inCombat = false
 
 assert(state.mode == "cooldown", "active cooldown with one secret charge should resolve as cooldown")
 assert(state.isOnCooldown == true,
@@ -1034,6 +1064,73 @@ assert(state.durObj ~= createdDurationObjects[1],
     "a second icon should not reuse another icon's item DurationObject")
 assert(#createdDurationObjects == 2,
     "clean item DurationObject reuse should not be keyed by the shared cooldown entry")
+
+createdDurationObjects = {}
+durationObjectSetCalls = {}
+state = resolve({
+    entry = {
+        type = "consumable",
+        kind = "cooldown",
+        id = 1711,
+        name = "Healthstone",
+        viewerType = "custom",
+    },
+    runtimeSpellID = 1711,
+    containerKey = "custom",
+    useBuffSwipe = true,
+    showGCDSwipe = true,
+})
+
+assert(state.mode == "item-cooldown",
+    "category consumables must resolve their last source item when no event itemID is cached")
+assert(state.spellID == 91005,
+    "category consumables must retain the source spellID from the last cooldown source")
+assert(state.start == 300 and state.duration == 60,
+    "category consumables must use the source item's cooldown timing")
+
+healthstoneItemCooldownKnownInactive = true
+healthstoneScannerActive = true
+state = resolve({
+    entry = {
+        type = "consumable",
+        kind = "cooldown",
+        id = 1711,
+        name = "Healthstone",
+        viewerType = "custom",
+    },
+    runtimeSpellID = 1711,
+    containerKey = "custom",
+    useBuffSwipe = true,
+    showGCDSwipe = true,
+})
+
+assert(state.mode == "inactive" and state.durObj == nil and state.sourceID == nil,
+    "cooldown-kind category consumables must ignore item-aura state and inactive category spell timing")
+healthstoneItemCooldownKnownInactive = false
+healthstoneScannerActive = false
+
+healthstoneCategorySpellID = 91006
+state = resolve({
+    entry = {
+        type = "consumable",
+        kind = "cooldown",
+        id = 1711,
+        itemID = 99999,
+        name = "Healthstone",
+        viewerType = "custom",
+    },
+    runtimeSpellID = 6262,
+    containerKey = "custom",
+    useBuffSwipe = true,
+    showGCDSwipe = true,
+})
+
+assert(state.mode == "item-cooldown"
+    and state.spellID == 91006
+    and state.start == 300
+    and state.duration == 60,
+    "category source spell and item must outrank mutable consumable entry identity")
+healthstoneCategorySpellID = 91005
 
 createdDurationObjects = {}
 durationObjectSetCalls = {}

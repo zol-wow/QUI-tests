@@ -7,13 +7,15 @@ local function noop() end
 local created = 0
 local nilContainer = false
 CreateFrame = function(kind, _name, parent)
-    if kind ~= "AuraContainer" then return nil end
+    if kind ~= "AuraContainer" and kind ~= "Frame" then return nil end
     if nilContainer then return nil end
-    created = created + 1
+    if kind == "AuraContainer" then created = created + 1 end
     local c = {
         _parent = parent, _shown = false, _enabled = nil, _unit = nil,
-        _points = {}, _index = created,
+        _points = {}, _index = created, _frameLevel = kind == "AuraContainer" and 5 or 0,
         SetSize = noop, ClearAllPoints = noop,
+        GetFrameLevel = function(self) return self._frameLevel end,
+        SetFrameLevel = function(self, level) self._frameLevel = level end,
         SetPoint = function(self, ...) self._points[#self._points + 1] = { ... } end,
         SetUnit = function(self, u) self._unit = u end,
         SetEnabled = function(self, v) self._enabled = v end,
@@ -24,7 +26,7 @@ CreateFrame = function(kind, _name, parent)
 end
 
 local ns = {}
-local configureCalls, syncCalls, parkCalls = {}, {}, {}
+local configureCalls, syncCalls, inactiveCalls, parkCalls = {}, {}, {}, {}
 local nextConfigureResult, nextSyncResult = true, true
 
 ns.AuraGlue = {
@@ -47,6 +49,14 @@ ns.AuraSlots = {
         }
         return nextSyncResult
     end,
+    SyncInactiveIcons = function(container, element, allowCreate, shown)
+        inactiveCalls[#inactiveCalls + 1] = {
+            container = container, element = element,
+            allowCreate = allowCreate, shown = shown,
+        }
+        return true
+    end,
+    HideInactiveIcons = noop,
     Park = function(container) parkCalls[#parkCalls + 1] = container end,
 }
 
@@ -144,6 +154,65 @@ S.ApplyElementPass(overrideHost, { tracked }, BaseOpts({ profileOverrides = mark
 if syncCalls[#syncCalls].overrides ~= marker then
     fail("profileOverrides must be forwarded to AuraSlots.Sync")
 end
+
+local inactiveHost = NewHost()
+S.ApplyElementPass(inactiveHost, { tracked }, BaseOpts({ showInactive = true }))
+local inactiveCall = inactiveCalls[#inactiveCalls]
+if not inactiveCall or inactiveCall.container._parent ~= inactiveHost
+    or inactiveCall.container == inactiveHost._quiAuraContainers[1]
+    or inactiveCall.element ~= tracked or inactiveCall.shown ~= true then
+    fail("showInactive must reconcile host-owned inactive tracked icons")
+end
+if inactiveCall.container:GetFrameLevel() >= inactiveHost._quiAuraContainers[1]:GetFrameLevel() then
+    fail("inactive tracked icons must stay below the native AuraContainer")
+end
+
+-- Dynamic tracked elements ride aura groups (one per spell) instead of slots:
+-- RunConfigPass receives the groups, Sync is never called, leftover slots are
+-- parked, and no inactive placeholder icons are reconciled.
+local dynamicGroupsCalls = {}
+ns.AuraSlots.UsesDynamicGroups = function(element) return element.dynamic == true end
+ns.AuraSlots.DynamicGroups = function(container, element, profile)
+    dynamicGroupsCalls[#dynamicGroupsCalls + 1] = {
+        container = container, element = element, profile = profile,
+    }
+    return { { key = "d1", tag = element.tag } }
+end
+local dynamicTracked = { mode = "tracked", tag = "t2", dynamic = true }
+local syncBefore, parkBefore, inactiveBefore = #syncCalls, #parkCalls, #inactiveCalls
+local dynHost = NewHost()
+local dynOK = S.ApplyElementPass(dynHost, { dynamicTracked }, BaseOpts({ showInactive = true }))
+if dynOK ~= true then fail("dynamic tracked pass must return true") end
+if #syncCalls ~= syncBefore then fail("dynamic tracked element must not call AuraSlots.Sync") end
+if #parkCalls ~= parkBefore + 1 or parkCalls[#parkCalls] ~= dynHost._quiAuraContainers[1] then
+    fail("dynamic tracked element must park leftover slots on its container")
+end
+if #dynamicGroupsCalls ~= 1 or dynamicGroupsCalls[1].container ~= dynHost._quiAuraContainers[1]
+    or dynamicGroupsCalls[1].profile.tag ~= "t2" then
+    fail("DynamicGroups must receive the element's container and profile")
+end
+local dynConfigure = configureCalls[#configureCalls]
+if dynConfigure.container ~= dynHost._quiAuraContainers[1]
+    or type(dynConfigure.groups) ~= "table" or dynConfigure.groups[1].key ~= "d1" then
+    fail("RunConfigPass must receive the dynamic groups")
+end
+if #inactiveCalls ~= inactiveBefore then
+    fail("dynamic tracked element must not reconcile inactive placeholder icons")
+end
+if not dynHost._quiAuraContainers[1]._shown or dynHost._quiAuraContainers[1]._enabled ~= true then
+    fail("dynamic tracked container must be enabled and shown")
+end
+
+nextConfigureResult = false
+local dynFail = S.ApplyElementPass(NewHost(), { dynamicTracked }, BaseOpts())
+nextConfigureResult = true
+if dynFail ~= false then fail("dynamic tracked RunConfigPass failure must mark the pass incomplete") end
+
+-- A tracked element that does NOT opt in still takes the slot path.
+local fixedTracked = { mode = "tracked", tag = "t3" }
+syncBefore = #syncCalls
+S.ApplyElementPass(NewHost(), { fixedTracked }, BaseOpts())
+if #syncCalls ~= syncBefore + 1 then fail("fixed tracked element must still use AuraSlots.Sync") end
 
 if S.ApplyElementPass(nil, {}, BaseOpts()) ~= false then fail("nil host must return false") end
 if S.ApplyElementPass(NewHost(), {}, { unit = nil }) ~= false then fail("missing unit must return false") end

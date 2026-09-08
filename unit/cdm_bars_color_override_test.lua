@@ -15,7 +15,7 @@ assert(source:find("ColorStateChanged(fingerprint.override,", 1, true),
     "bar state must include the per-spell override color")
 assert(source:find("bar._cfgFingerprint", 1, true),
     "bar state must be cached on each bar")
-assert(source:find("if configChanged or bar._cfgActive ~= bar._active", 1, true),
-    "color changes must re-run ConfigureBar")
+assert(source:find("if configChanged or bar._cfgActive ~= displayActive", 1, true),
+    "color or displayed activity changes must re-run ConfigureBar")
 
 print("OK: cdm_bars_color_override_test")

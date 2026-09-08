@@ -28,6 +28,8 @@ check("creation gated on InCombatLockdown (AddAuraSlot creates a forbidden frame
     src:find("InCombatLockdown()", 1, true) ~= nil)
 check("slot frames wired through AuraSkin.WireButton",
     src:find("AuraSkin.WireButton(", 1, true) ~= nil)
+check("inactive icons reuse the active icon crop and border styling",
+    src:find("AuraSkin.StyleIconArt(frame, profile)", 1, true) ~= nil)
 check("onlyMine routed to isFromPlayerOrPlayerPet",
     src:find("isFromPlayerOrPlayerPet", 1, true) ~= nil)
 check("per-spell include map drives the slot filter",
@@ -89,6 +91,14 @@ check("Sync is the WRITER of the applied assist state (never a reader cache)",
 check("Park clears the applied assist record",
     src:find("function S.Park(container)", 1, true) ~= nil
     and select(2, src:gsub("container%._quiAssistApplied = nil", "")) >= 2)
+
+check("dynamic layout: packed tracked icons ride one single-frame aura group per spell",
+    src:find("function S.UsesDynamicGroups", 1, true) ~= nil
+    and src:find("function S.DynamicGroups", 1, true) ~= nil
+    and src:find("maxFrameCount = 1", 1, true) ~= nil
+    and src:find("groupSpacing = spacing", 1, true) ~= nil)
+check("dynamic layout: shares the per-spell never-secret park exemption",
+    select(2, src:gsub("parkAll and not SpellNeverSecret", "")) >= 2)
 
 if fails > 0 then error(fails .. " failure(s) in aura_slots_api_test") end
 print("OK: aura_slots_api_test (all checks passed)")
