@@ -37,6 +37,16 @@ _G.Enum = {
     },
 }
 
+local viewerEnabled = true
+_G.C_CVar = {
+    GetCVarBool = function(name)
+        assert(name == "cooldownViewerEnabled", "only inspect the native viewer setting")
+        return viewerEnabled
+    end,
+    SetCVar = function() error("QUI must not write Blizzard's native viewer setting") end,
+}
+_G.SetCVar = _G.C_CVar.SetCVar
+
 local layoutInfoToReturn
 _G.C_EditMode = {
     GetLayouts = function() return layoutInfoToReturn end,
@@ -205,6 +215,37 @@ do
     assert(popupsShown[1] == "QUI_CDM_EDITMODE_MANUAL", "regen shows manual instructions")
     assert(regs["PLAYER_REGEN_ENABLED"] == nil, "regen listener unregisters after firing")
     _G.InCombatLockdown = nil
+end
+
+do
+    viewerEnabled = false
+    local editMode = _G.C_EditMode
+    for _, scenario in ipairs({ "correct custom layout", "preset layout", "unavailable layout API" }) do
+        popupsShown = {}
+        layoutInfoToReturn = { activeLayout = 3, layouts = { { systems = mkSystems({}) } } }
+        _G.C_EditMode = editMode
+        if scenario == "preset layout" then layoutInfoToReturn.activeLayout = 1 end
+        if scenario == "unavailable layout API" then _G.C_EditMode = nil end
+        local disabledNS = {}
+        loadChunk("QUI_CDM/cdm/cdm_editmode_policy.lua", "cdm_editmode_policy.lua")("QUI", disabledNS)
+        eventHandler(nil, "PLAYER_ENTERING_WORLD")
+        assert(popupsShown[1] == "QUI_CDM_EDITMODE_MANUAL", scenario .. " must warn when native viewers are disabled")
+        local text = _G.StaticPopupDialogs.QUI_CDM_EDITMODE_MANUAL.text
+        assert(text:find("is disabled", 1, true) and text:find("Open WoW Options", 1, true)
+            and text:find("Enable Cooldown Manager", 1, true), "notice explains how to enable native viewers")
+        disabledNS.CDMEditModePolicy.Enforce()
+        assert(#popupsShown == 1, "disabled viewers prompt once per login")
+        assert(viewerEnabled == false, "notice leaves the native setting unchanged")
+    end
+    _G.C_EditMode = editMode
+    popupsShown = {}
+    _G.QUI_IsCDMMasterEnabled = function() return false end
+    local disabledModuleNS = {}
+    loadChunk("QUI_CDM/cdm/cdm_editmode_policy.lua", "cdm_editmode_policy.lua")("QUI", disabledModuleNS)
+    eventHandler(nil, "PLAYER_ENTERING_WORLD")
+    assert(#popupsShown == 0, "disabled QUI CDM must not prompt to enable native viewers")
+    _G.QUI_IsCDMMasterEnabled = function() return true end
+    viewerEnabled = true
 end
 
 local toc = assert(io.open("QUI_CDM/QUI_CDM.toc", "r"))

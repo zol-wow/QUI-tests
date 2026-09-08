@@ -51,16 +51,19 @@ assert(loadfile("modules/trackers/aura_displays.lua"))("QUI", ns)
 local AD = ns.QUI_AuraDisplays
 local element = ns.AuraElements.NewTrackedElement({ 12345 }, "icon")
 element.auraSounds = {
-    [12345] = {
+    ["12345"] = {
         added = "Test Sound",
         applicationsIncreased = "Test Sound",
         removed = "Test Sound",
     },
+    [99999] = { added = "Test Sound" },
 }
 local display = AD.NewDisplay("Alerts")
 display.auras = { enabled = true, elements = { ["*"] = { element } } }
 
 AD._ReconcileAuraSounds(AD.Store())
+assert(element.auraSounds[12345] and element.auraSounds[99999] == nil,
+    "sound reconciliation should normalize legacy keys and discard untracked spells")
 assert(#additions == 3, "three configured native aura sounds should register")
 assert(additions[1].info.unitToken == "player", "registration should use the display's fixed unit")
 assert(additions[1].info.spellID == 12345, "registration should use the tracked aura spell")
