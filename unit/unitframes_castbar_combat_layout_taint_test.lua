@@ -373,16 +373,57 @@ for _, event in ipairs({"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START", 
     assert(ok, "boss " .. event .. " should not hit protected geometry: " .. tostring(err))
     assert(bossHeightCalls == 0, "boss " .. event .. " should defer while protected calls are denied")
     assert(not bossCastbar:IsVisible(), "boss cast must remain hidden while protected calls are denied")
-    assert(#timerQueue >= 1, "boss " .. event .. " should queue a deferred cast")
+    assert(#timerQueue == 1, "boss " .. event .. " should queue one deferred cast")
+    local retryCallback = timerQueue[1]
+    bossOnEvent(bossCastbar, "UNIT_SPELLCAST_SUCCEEDED", "boss1")
+    assert(#timerQueue == 1, "boss events must coalesce while permission is denied")
+    assert(bossCastbar._quiPendingCastRetry.fromCastStart == nil,
+        "boss retry must retain the latest refresh argument")
+    bossOnEvent(bossCastbar, "UNIT_SPELLCAST_START", "boss1")
+    assert(bossCastbar._quiPendingCastRetry.fromCastStart == true,
+        "boss retry must retain the latest START argument")
+    local scheduled = timerSchedules
     for _ = 1, 3 do
         flushTimers()
         assert(bossHeightCalls == 0, "boss " .. event .. " must recheck permission on every deferred retry")
+        assert(#timerQueue == 1 and timerQueue[1] == retryCallback,
+            "boss retries must retain one reusable callback")
+        assert(timerSchedules == scheduled, "boss retries must not allocate new timers each tick")
     end
     protectedCallsAllowed = true
     flushTimers()
     assert(bossHeightCalls >= 1, "boss " .. event .. " should recover active cast geometry after deferral")
     assert(bossCastbar:IsVisible(), "boss " .. event .. " must display the cast in combat after permission returns")
 end
+
+for _, event in ipairs({"UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_CHANNEL_STOP", "UNIT_SPELLCAST_FAILED",
+    "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_SUCCEEDED"}) do
+    protectedCallsAllowed = false
+    bossHeightCalls = 0
+    bossOnEvent(bossCastbar, "UNIT_SPELLCAST_START", "boss1")
+    local originalCastingInfo = UnitCastingInfo
+    UnitCastingInfo = function() return nil end
+    bossOnEvent(bossCastbar, event, "boss1")
+    flushTimers()
+    UnitCastingInfo = originalCastingInfo
+    assert(#timerQueue == 0 and bossCastbar._quiPendingCastRetry == nil,
+        "boss " .. event .. " must cancel retries when the cast has ended")
+    assert(bossHeightCalls == 0, "canceled boss retries must not change geometry")
+end
+bossOnEvent(bossCastbar, "UNIT_SPELLCAST_START", "boss1")
+local originalCastingInfo = UnitCastingInfo
+UnitCastingInfo = function() return nil end
+bossOnEvent(bossCastbar, "UNIT_SPELLCAST_STOP", "boss1")
+UnitCastingInfo = originalCastingInfo
+bossOnEvent(bossCastbar, "UNIT_SPELLCAST_START", "boss1")
+flushTimers()
+assert(#timerQueue == 1, "a canceled boss callback must not revive beside a new cast")
+protectedCallsAllowed = true
+bossCastbar:Cast(true)
+bossHeightCalls = 0
+flushTimers()
+assert(bossHeightCalls == 0 and #timerQueue == 0,
+    "an immediate permitted boss Cast must cancel pending replay")
 
 inCombat = false
 castbar:Hide()
@@ -409,6 +450,13 @@ protectedCallsAllowed = true
 flushTimers()
 assert(bossHeightCalls == 0, "a deferred boss cast must not touch a destroyed castbar")
 bossCastbar._quiDestroyed = nil
+protectedCallsAllowed = false
+bossOnEvent(bossCastbar, "UNIT_SPELLCAST_START", "boss1")
+ns.QUI_Castbar.DestroyCastbar(bossCastbar)
+flushTimers()
+assert(#timerQueue == 0 and bossCastbar._quiPendingCastRetry == nil,
+    "boss destruction must cancel retries while permission is still denied")
+protectedCallsAllowed = true
 
 -- In combat, a target-change event must NOT run protected geometry synchronously
 -- (it could be inside a secure execution context). It must defer Cast().

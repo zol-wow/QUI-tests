@@ -415,26 +415,22 @@ local externalMicroMenuOwner = NewFrame()
 microMenu.parent = externalMicroMenuOwner
 env.BuildBar("microbar")
 
-if actionBars.pendingMicroBuild then
-    check("microbar cold start defers while Blizzard owns the menu",
-        microMenu:GetParent() == externalMicroMenuOwner
-            and actionBars.nativeButtons.microbar == nil)
+check("microbar cold start defers while Blizzard owns the menu",
+    microMenu:GetParent() == externalMicroMenuOwner
+        and actionBars.pendingMicroBuild
+        and actionBars.nativeButtons.microbar == nil)
 
-    microMenu.parent = microMenuContainer
-    env.ReclaimBarButtons("microbar")
+microMenu.parent = microMenuContainer
+env.ReclaimBarButtons("microbar")
 
-    local coldStartButtonsOwned = actionBars.nativeButtons.microbar
-        and #actionBars.nativeButtons.microbar == #env.MICRO_BUTTON_NAMES
-    for _, name in ipairs(env.MICRO_BUTTON_NAMES) do
-        coldStartButtonsOwned = coldStartButtonsOwned
-            and _G[name]:GetParent() == actionBars.containers.microbar
-    end
-    check("microbar reclaim completes a deferred cold-start build",
-        coldStartButtonsOwned and not actionBars.pendingMicroBuild)
-else
-    microMenu.parent = microMenuContainer
-    env.BuildBar("microbar")
+local coldStartButtonsOwned = actionBars.nativeButtons.microbar
+    and #actionBars.nativeButtons.microbar == #env.MICRO_BUTTON_NAMES
+for _, name in ipairs(env.MICRO_BUTTON_NAMES) do
+    coldStartButtonsOwned = coldStartButtonsOwned
+        and _G[name]:GetParent() == actionBars.containers.microbar
 end
+check("microbar reclaim completes a deferred cold-start build",
+    coldStartButtonsOwned and not actionBars.pendingMicroBuild)
 
 check("microbar build detaches Blizzard's layout owner before moving its children",
     microMenu:GetParent() == UIParent and layoutCalls > 0,
