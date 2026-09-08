@@ -70,6 +70,13 @@ do
     E.NormalizeElement(legacy)
     check("tracked: normalization migrates legacy spell and per-spell gate IDs",
         legacy.spells[1] == 200 and legacy.onlyMineSpells[200] == true)
+    local configuredSounds = legacy.auraSounds
+    local auras = { elements = { ["*"] = { legacy } } }
+    E.EnsureSeeded(auras)
+    E.EnsureSeeded(auras)
+    check("tracked: render-time seeding leaves sound configuration untouched",
+        legacy.auraSounds == configuredSounds and legacy.auraSounds[100] ~= nil)
+    E.NormalizeAuraSounds(legacy)
     check("tracked: normalization migrates configured sound IDs and prunes removed spells",
         legacy.auraSounds[200].added == "Raid Warning" and legacy.auraSounds[999] == nil)
     ns.CDMAuraRuntime, ns.CDMSpellData = oldRuntime, oldSpellData
