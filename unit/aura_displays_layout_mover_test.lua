@@ -136,7 +136,6 @@ local visibilityFrames = AD.GetVisibilityFrames()
 if #visibilityFrames ~= 0 then
     fail("inactive Aura Displays must not enter the visibility frame list")
 end
-local reusesVisibilityFrames = AD.GetVisibilityFrames() == visibilityFrames
 
 local mover = LM._handles[key]
 if not mover then fail("an inactive Aura Display must retain a Layout Mode mover") end
@@ -161,7 +160,7 @@ local activeVisibilityFrames = AD.GetVisibilityFrames()
 if #activeVisibilityFrames ~= 1 or activeVisibilityFrames[1] ~= host then
     fail("active Aura Displays must enter the visibility frame list")
 end
-if reusesVisibilityFrames and activeVisibilityFrames ~= visibilityFrames then
+if activeVisibilityFrames ~= visibilityFrames then
     fail("Aura Display visibility must keep reusing its active-host list")
 end
 
@@ -186,7 +185,7 @@ local inactiveVisibilityFrames = AD.GetVisibilityFrames()
 if #inactiveVisibilityFrames ~= 0 then
     fail("Aura Display visibility lists must clear stale hosts")
 end
-if reusesVisibilityFrames and inactiveVisibilityFrames ~= visibilityFrames then
+if inactiveVisibilityFrames ~= visibilityFrames then
     fail("Aura Display visibility must keep reusing its cleared host list")
 end
 

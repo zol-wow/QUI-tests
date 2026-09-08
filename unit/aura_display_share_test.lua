@@ -230,6 +230,32 @@ MalformedCase("mistyped element filterFlags", { groups = {}, displays = { { name
 MalformedCase("mistyped duration fontSize", { groups = {}, displays = { { name = "D",
     auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = { 1 },
         duration = { fontSize = "big" } } } } } } } })
+do
+    local legacyCases = {
+        { durationFontSize = "big" },
+        { durationFontSize = 9000 },
+        { durationOffsetX = {} },
+        { durationOffsetY = 9000 },
+        { durationAnchor = "BOGUS" },
+        { durationColor = { "red", 0, 0 } },
+        { duration = { pandemicColor = { "gold", 0.85, 0.2, 1 } } },
+    }
+    for i, element in ipairs(legacyCases) do
+        element.mode, element.auraType = "filterStrip", "HELPFUL"
+        MalformedCase("legacy duration field " .. i, { groups = {}, displays = { { name = "D",
+            auras = { elements = { ["*"] = { element } } } } } })
+    end
+    local legacy = { type = Share.PAYLOAD_TYPE, version = Share.VERSION, groups = {},
+        displays = { { name = "Legacy", auras = { elements = { ["*"] = { {
+            mode = "filterStrip", auraType = "HELPFUL", durationFontSize = 12,
+            durationAnchor = "TOP", durationOffsetX = 3, durationOffsetY = -2,
+            durationColor = { 1, 0.5, 0, 1 },
+        } } } } } } }
+    local legacySummary, legacyErr = Share.ImportString(Share.Encode(legacy))
+    if not legacySummary or legacySummary.displays ~= 1 then
+        fail("valid legacy duration fields must import: " .. tostring(legacyErr))
+    end
+end
 MalformedCase("mistyped bar thickness", { groups = {}, displays = { { name = "D",
     auras = { elements = { ["*"] = { { mode = "tracked", displayType = "bar", spells = { 1 },
         bar = { thickness = "thick", length = 48 } } } } } } } })
