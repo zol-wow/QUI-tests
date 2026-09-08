@@ -91,7 +91,15 @@ ns.AuraGlue = {
         return true
     end,
 }
-ns.AuraSurface = { ApplyElementPass = function() return true end }
+local elementPasses = {}
+ns.AuraSurface = { ApplyElementPass = function(host, elements, opts)
+    elementPasses[host] = { elements = elements, unit = opts.unit, allowCreate = opts.allowCreate }
+    return true
+end }
+ns.AuraPreview = {
+    Show = function(host) host.preview = true end,
+    Hide = function(host) host.preview = nil end,
+}
 ns.Addon = { AuraSkin = { LayoutAnchor = function() return "TOPLEFT" end } }
 local polarityMismatch = {}
 ns.AuraSlots = {
@@ -348,5 +356,61 @@ AD.Refresh()
 if AD.GroupHostFor("Strips")._quiPackContainer then
     fail("a group without packable displays must not create a pack container")
 end
+
+AD.ShowPreviewFor(A.id)
+if not AD.HostFor(A.id).shown or not AD.HostFor(A.id).preview or container.shown
+    or AD.HostFor(A.id)._quiGroupPacked then
+    fail("individual preview must suspend packing and show its own positioned host")
+end
+AD.HidePreviewFor(A.id)
+if AD.HostFor(A.id).shown or AD.HostFor(A.id).preview or not container.shown then
+    fail("closing the individual preview must restore packing")
+end
+
+local encounter = AD.NewDisplay("Encounter Only", "Encounter Child")
+encounter.unit = "boss1"
+encounter.load.encounters[42] = true
+encounter.auras = { enabled = true, _elements = { Tracked({ 106 }) } }
+AD.GetGroup("Encounter Child", true).dynamicLayout = true
+AD.GetGroup("Encounter Root", true)
+assert(AD.SetGroupParent("Encounter Child", "Encounter Root"))
+AD.Refresh()
+local encounterHost = AD.HostFor(encounter.id)
+local encounterGroup = AD.GroupHostFor("Encounter Child")
+local encounterRoot = AD.GroupHostFor("Encounter Root")
+local prepared = elementPasses[encounterHost]
+if not encounterHost._quiGroupPlaced or encounterHost.parent ~= encounterGroup
+    or encounterGroup.parent ~= encounterRoot or not encounterGroup.shown or not encounterRoot.shown then
+    fail("encounter displays and their ancestor groups must reserve positions before combat")
+end
+if encounterHost.alpha ~= 0 or #prepared.elements ~= 1 or prepared.unit ~= "boss1"
+    or not prepared.allowCreate then
+    fail("encounter display containers must prepare before combat without showing their auras")
+end
+local originalPoint = encounterHost.point
+local originalCreateFrame = CreateFrame
+CreateFrame = function() fail("encounter activation must not create frames in combat") end
+InCombatLockdown = function() return true end
+AD.SetEncounter(41)
+AD.Refresh()
+if encounterHost.alpha ~= 0 then fail("a different encounter must not reveal the display") end
+AD.SetEncounter(42)
+AD.Refresh()
+if not encounterHost.shown or encounterHost.alpha ~= 1 or encounterHost.point ~= originalPoint
+    or encounterHost.parent ~= encounterGroup or elementPasses[encounterHost].allowCreate then
+    fail("matching encounter must activate its prepared host without a combat reflow")
+end
+AD.SetEncounter(nil)
+AD.Refresh()
+if encounterHost.alpha ~= 0 then fail("ending the encounter must hide the prepared display") end
+InCombatLockdown = function() return false end
+CreateFrame = originalCreateFrame
+AD.SetEncounter(42)
+AD.Refresh()
+if encounterGroup._quiPackContainer or encounterHost._quiGroupPacked or not encounterHost.shown then
+    fail("encounter-gated displays must retain independently controlled hosts even in dynamic groups")
+end
+AD.SetEncounter(nil)
+AD.Refresh()
 
 print("PASS: aura_displays_group_pack_test")

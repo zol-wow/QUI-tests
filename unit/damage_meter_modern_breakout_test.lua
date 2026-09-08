@@ -18,6 +18,7 @@ local function widget(parent)
     function value:SetSize(width, height) self.width, self.height = width, height end
     function value:SetWidth(width) self.width = width end
     function value:SetHeight(height) self.height = height end
+    function value:SetAlpha(alpha) self.alpha = alpha end
     function value:GetWidth() return rawget(self, "width") or 0 end
     function value:GetHeight() return rawget(self, "height") or 0 end
     function value:SetText(text) self.text = text end
@@ -375,5 +376,37 @@ WindowManager:CloseBreakoutForOwner(ownerOne)
 assert(breakout:IsShown())
 WindowManager:CloseBreakoutForOwner(ownerTwo)
 assert(not breakout:IsShown() and breakout.ownerWindow == nil)
+
+local recapID
+ns.QUI_DamageMeter.GetDeathRecapRows = function(id) recapID = id; return {}, 1 end
+ownerOne.damageMeterType = env.Enum.DamageMeterType.Deaths
+for _, localPlayer in ipairs({ false, true }) do
+    sources = {
+        { name = "One", sourceGUID = "Player-One", specIconID = 101,
+            isLocalPlayer = localPlayer, deathRecapID = 20 },
+        { name = "One", sourceGUID = "Player-One", specIconID = 101,
+            isLocalPlayer = localPlayer, deathRecapID = 10 },
+    }
+    assert(WindowManager:OpenBreakout(ownerOne, sources[2], nil, nil, false))
+    assert(recapID == 10, "opening an older death must retain its recap")
+    assert(breakout.sections.players.rows[1].Bar.alpha == 0.72
+        and breakout.sections.players.rows[2].Bar.alpha == 1,
+        "only the selected death must be highlighted")
+    sources[2] = { name = "One", sourceGUID = "Player-One", specIconID = 101,
+        isLocalPlayer = localPlayer, deathRecapID = 10 }
+    breakout:Refresh()
+    assert(breakout.source == sources[2] and recapID == 10,
+        "refresh must reconcile recreated rows by recap ID")
+    local rows = breakout.sections.players.rows
+    rows[1].scripts.OnClick(rows[1], "LeftButton")
+    assert(recapID == 20)
+    rows[2].scripts.OnClick(rows[2], "LeftButton")
+    assert(recapID == 10, "clicking an older death must retain its recap")
+    sources = { sources[1] }
+    breakout:Refresh()
+    assert(breakout.source == sources[1] and recapID == 20,
+        "a removed death must fall back to an available recap")
+    breakout:Close()
+end
 
 print("OK: damage_meter_modern_breakout_test")
