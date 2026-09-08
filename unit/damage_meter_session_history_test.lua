@@ -1,5 +1,6 @@
 -- tests/unit/damage_meter_session_history_test.lua
 -- Run: lua tests/unit/damage_meter_session_history_test.lua
+-- luacheck: globals Helpers
 
 local function readAll(path)
     local file = assert(io.open(path, "rb"))
@@ -29,20 +30,23 @@ assert(src:find("GetCombatSessionSourceFromID", 1, true),
     "breakdowns must support C_DamageMeter.GetCombatSessionSourceFromID")
 assert(src:find("GetAvailableCombatSessions", 1, true),
     "menu must use C_DamageMeter.GetAvailableCombatSessions")
-assert(src:find('root:CreateButton(ns.L["Previous"]', 1, true),
-    "Session menu must expose a Previous submenu")
+assert(src:find("TakeTrailingSessions(sessions, 20)", 1, true),
+    "Session menu must cap Blizzard history to the trailing 20 sessions")
 assert(src:find('root:CreateRadio(ns.L["Current"]', 1, true),
     "Current session row should keep the normal radio selector")
 assert(src:find('root:CreateRadio(ns.L["Overall"]', 1, true),
     "Overall session row should keep the normal radio selector")
-assert(not src:find("previousMenu:CreateButton(availableSession.name", 1, true),
-    "Previous submenu must not pass raw session names directly to menu text")
-assert(src:find("previousMenu:CreateButton(BuildPreviousSessionLabel", 1, true),
-    "Previous submenu rows must use sanitized session labels")
-assert(not src:find("previousMenu:CreateRadio", 1, true),
-    "Previous submenu must not use radio rows because the left glyph looks like a session-name prefix")
+assert(not src:find("root:CreateRadio(availableSession.name", 1, true),
+    "Historical rows must not pass raw session names directly to menu text")
+assert(src:find("local sessionLabel = BuildPreviousSessionLabel(availableSession)", 1, true)
+    and src:find("root:CreateRadio(sessionLabel", 1, true),
+    "Historical rows must use sanitized session labels")
+assert(src:find("self:_SelectSession(nil, sessionID, sessionLabel)", 1, true),
+    "Historical selection must pass its display label to the window header")
+assert(src:find("function() return self.sessionID == sessionID end", 1, true),
+    "Historical rows must identify the active selected segment")
 assert(src:find("availableSession.name", 1, true),
-    "Previous submenu rows must use Blizzard's session name field")
+    "Historical rows must use Blizzard's session name field")
 assert(src:find("self.sessionID = nil", 1, true),
     "Window runtime state must initialize sessionID to nil")
 
@@ -51,6 +55,7 @@ assert(src:find("self.sessionID = nil", 1, true),
 local mmssSrc = readAll("core/utils.lua"):match("(function Helpers%.FormatMMSS.-\nend\n)")
 assert(mmssSrc, "could not locate Helpers.FormatMMSS in core/utils.lua")
 _G.Helpers = { IsSecretValue = function() return false end }
+_G.IsSecretValue = Helpers.IsSecretValue
 assert(loadstring(mmssSrc))()
 
 local fmtStart = src:find("local function FormatDuration", 1, true)
@@ -66,6 +71,10 @@ assert(BuildPreviousSessionLabel({ sessionID = 3, name = "(!)", durationSeconds 
     "empty labels after prefix stripping must fall back to Combat <sessionID>")
 assert(BuildPreviousSessionLabel({ sessionID = 4, name = "", durationSeconds = 65 }) == "Combat 4 [1:05]",
     "blank labels must fall back to Combat <sessionID> and keep duration")
+local separateLabel, separateDuration = BuildPreviousSessionLabel(
+    { sessionID = 7, name = "(!) Ara-Kara", durationSeconds = 125 }, true)
+assert(separateLabel == "Ara-Kara" and separateDuration == "2:05",
+    "separate historical labels must keep duration only in the value column")
 
 local defaults = readAll("core/defaults.lua")
 local nativeStart = defaults:find("native = {", 1, true)

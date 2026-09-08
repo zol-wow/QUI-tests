@@ -140,6 +140,7 @@ return {
         UNIT_SPELLCAST_INTERRUPTED = { 3, 4, 5, 6, gateGoverned = false },
         UNIT_SPELLCAST_EMPOWER_STOP = { 3, 4, 5, 6, 7, gateGoverned = false },
         UNIT_SPELLCAST_SENT = { 3, 4, 5, 6, gateGoverned = false },
+        VOICE_CHAT_TTS_PLAYBACK_BOOKMARK = { 4, gateGoverned = false },
         -- GUILD_MOTD / READY_CHECK: SecretInChatMessagingLockdown
         -- (GuildInfoDocumentation:450 / PartyInfoDocumentation:841) — the
         -- whole payload secretizes under chat-messaging lockdown, which the

@@ -24,17 +24,29 @@ end
 ---------------------------------------------------------------------------
 local ah = readFile("modules/skinning/frames/auctionhouse.lua")
 
-assertContains(ah, "SkinTabGroup(AuctionHouseFrame.Tabs, AuctionHouseFrame, { font = true })",
+assertContains(ah, "SkinTabGroup(AuctionHouseFrame.Tabs, AuctionHouseFrame, { font = true, resizeToText = true })",
     "AH tabs must opt in to the global QUI font")
 assertContains(ah, "SkinEditBox(searchBar.SearchBox, { font = true })",
     "AH search box must use the global QUI font")
 assertContains(ah, "local AH_CATEGORY_TEXT_COLOR",
     "AH category buttons must use a muted idle text color instead of hover-bright text")
--- ApplyButtonFontObjects re-faces AND re-colors button.Text on every rebind (it calls
--- SkinFontString(button.Text, { color = opts.color }) internally), so it is the single
--- source of truth for the AH category label font/color — a separate SkinFontString is redundant.
-assertContains(ah, "SkinBase.ApplyButtonFontObjects(button, { color = AH_CATEGORY_TEXT_COLOR })",
-    "AH category buttons must reapply the muted QUI font/color on every Blizzard rebind")
+-- The idle colour is handed to SkinCategoryButton as `textColor`; the state
+-- colour is owned by RefreshCategorySelected. A trailing colour-carrying
+-- ApplyButtonFontObjects used to overwrite the SELECTED row back to idle on
+-- every rebind (R2), so it must stay colour-free.
+assertContains(ah, "textColor = AH_CATEGORY_TEXT_COLOR",
+    "AH category buttons must pass the muted idle colour to SkinCategoryButton")
+assertContains(ah, "selectedTextColor = AH_CATEGORY_SELECTED_TEXT_COLOR",
+    "AH category buttons must pass a bright selected colour to SkinCategoryButton")
+assertContains(ah, "SkinBase.ApplyButtonFontObjects(button)\n",
+    "AH category buttons must reapply the QUI font face (colour-free) on every Blizzard rebind")
+assert(not ah:find("ApplyButtonFontObjects(button, { color = AH_CATEGORY_TEXT_COLOR })", 1, true),
+    "AH category rebind must not overwrite the selected row's text colour with the idle colour")
+local styleRowStart = assert(ah:find("local function StyleCategoryRow(button)", 1, true))
+local styleRowBody = ah:sub(styleRowStart, (ah:find("\n    end\n", styleRowStart, true)))
+local fontAt = assert(styleRowBody:find("SkinBase.ApplyButtonFontObjects(button)", 1, true))
+local refreshAt = assert(styleRowBody:find("SkinBase.RefreshCategorySelected(button)", 1, true))
+assert(fontAt < refreshAt, "AH category state colour must be applied AFTER the font-face reapply")
 assertContains(ah, "SkinButton(commoditiesSell.PostButton, { font = true })",
     "AH action buttons must use the global QUI font")
 assertContains(ah, "SkinQuantityInputFrame(commoditiesSell.QuantityInput)",
@@ -55,7 +67,7 @@ assertContains(ah, "SkinBase.RefreshWidget(quantityInput.MaxButton)",
 ---------------------------------------------------------------------------
 local co = readFile("modules/skinning/frames/craftingorders.lua")
 
-assertContains(co, "SkinTabGroup(tabs, frame, { font = true })",
+assertContains(co, "SkinTabGroup(tabs, frame, { font = true, resizeToText = true })",
     "CO tabs must opt in to the global QUI font")
 assertContains(co, "SkinEditBox(searchBar.SearchBox, { font = true })",
     "CO search box must use the global QUI font")

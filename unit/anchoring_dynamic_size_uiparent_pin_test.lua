@@ -51,6 +51,9 @@ if anchorOrPinStart then
     check("AnchorOrPin gates on IsDynamicSizeAnchorKey(key)",
         funcBody:find("IsDynamicSizeAnchorKey(key)", 1, true) ~= nil)
 
+    check("AnchorOrPin pins castbar keys independently of the self-restriction gate",
+        funcBody:find("CASTBAR_ANCHOR_KEYS[key]", 1, true) ~= nil)
+
     check("AnchorOrPin gates on ParentRestricts(parentFrame)",
         funcBody:find("ParentRestricts(parentFrame)", 1, true) ~= nil)
 

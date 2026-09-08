@@ -412,6 +412,10 @@ ns.CDMResolvers = {
             mode = "cooldown",
             active = true,
             isActive = true,
+            isOnCooldown = true,
+            rechargeActive = true,
+            hasCharges = true,
+            hasChargesRemaining = false,
             durObj = spellCooldownDurObj,
             spellID = spellID,
             resolvedAuraSpellID = spellID,
@@ -466,6 +470,11 @@ assert(spellCooldownBar._durObj == spellCooldownDurObj,
     "non-mirror spell cooldown bar should retain the cooldown DurationObject")
 assert(spellCooldownTimerDuration == spellCooldownDurObj,
     "non-mirror spell cooldown bar should drive status-bar fill from the cooldown DurationObject")
+assert(spellCooldownBar._cdmRuntimeState.isOnCooldown == true
+    and spellCooldownBar._cdmRuntimeState.rechargeActive == true
+    and spellCooldownBar._cdmRuntimeState.hasCharges == true
+    and spellCooldownBar._cdmRuntimeState.hasChargesRemaining == false,
+    "non-mirror spell cooldown bars should publish cooldown alert state")
 
 local itemCooldownDurObj = {
     token = "item-cooldown-duration",

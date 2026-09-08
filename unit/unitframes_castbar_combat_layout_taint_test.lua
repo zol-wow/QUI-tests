@@ -20,9 +20,11 @@
 -- This test drives the real OnEvent handler and proves: in combat the protected
 -- geometry does NOT run synchronously (it is deferred), and the deferred callback
 -- applies it; out of combat it runs synchronously with no defer.
--- luacheck: globals GetTime CreateFrame InCombatLockdown UnitCastingInfo UnitChannelInfo UnitClass UnitGUID UIParent RAID_CLASS_COLORS C_Timer EventRegistry
+-- luacheck: globals GetTime CreateFrame InCombatLockdown UnitCastingInfo UnitChannelInfo UnitClass UnitGUID UIParent RAID_CLASS_COLORS C_Timer C_RestrictedActions EventRegistry
 
 local function noop() end
+local inCombat = false
+local protectedCallsAllowed = true
 
 local function newRegion(frameType, parent)
     local region = {
@@ -35,15 +37,43 @@ local function newRegion(frameType, parent)
         frameLevel = 1,
         frameStrata = "MEDIUM",
         points = {},
+        protected = false,
+        anchoringRestricted = false,
     }
 
     function region:SetSize(width, height) self.width = width; self.height = height end
     function region:SetWidth(width) self.width = width end
-    function region:SetHeight(height) self.height = height end
+    function region:SetHeight(height)
+        if not protectedCallsAllowed or (inCombat and (self.protected or self.anchoringRestricted)) then
+            error("ADDON_ACTION_BLOCKED: Frame:SetHeight()")
+        end
+        self.height = height
+    end
     function region:GetWidth() return self.width end
     function region:GetHeight() return self.height end
-    function region:SetPoint(...) self.points[#self.points + 1] = {...} end
-    function region:ClearAllPoints() self.points = {} end
+    function region:GetLeft() return self.left or 0 end
+    function region:GetRight() return self:GetLeft() + self.width end
+    function region:GetBottom() return self.bottom or 0 end
+    function region:GetTop() return self:GetBottom() + self.height end
+    function region:GetEffectiveScale() return 1 end
+    function region:GetNumPoints() return #self.points end
+    function region:GetPoint(index)
+        local point = self.points[index or 1]
+        if point then return unpack(point) end
+    end
+    function region:SetPoint(...)
+        local point = {...}
+        self.points[#self.points + 1] = point
+        local relativeTo = point[2]
+        self.anchoringRestricted = relativeTo and relativeTo ~= UIParent
+            and ((relativeTo.IsProtected and relativeTo:IsProtected())
+                or (relativeTo.IsAnchoringRestricted and relativeTo:IsAnchoringRestricted()))
+            or false
+    end
+    function region:ClearAllPoints()
+        self.points = {}
+        self.anchoringRestricted = false
+    end
     function region:SetAllPoints(anchor) self.allPoints = anchor or self.parent or true end
     function region:Show() self.shown = true end
     function region:Hide() self.shown = false end
@@ -56,6 +86,8 @@ local function newRegion(frameType, parent)
     function region:SetFrameLevel(level) self.frameLevel = level end
     function region:GetFrameLevel() return self.frameLevel end
     function region:GetParent() return self.parent end
+    function region:IsProtected() return self.protected end
+    function region:IsAnchoringRestricted() return self.anchoringRestricted end
     function region:CreateTexture() return newRegion("Texture", self) end
 
     function region:CreateFontString()
@@ -110,8 +142,8 @@ local now = 100
 
 -- Mutable combat state and a *queuing* timer: C_Timer.After records callbacks so
 -- the test can assert work was deferred (not run) and then fire it on demand.
-local inCombat = false
 local timerQueue = {}
+local timerSchedules = 0
 local function flushTimers()
     local pending = timerQueue
     timerQueue = {}
@@ -128,7 +160,7 @@ function InCombatLockdown() return inCombat end
 function UnitCastingInfo(unit)
     -- The target castbar watches "target"; report an active (non-channeled) cast
     -- so Cast() enters the real-cast branch that applies the protected geometry.
-    if unit == "target" or unit == "player" then
+    if unit == "target" or unit == "player" or unit == "boss1" then
         return "Frostbolt", "Frostbolt", 135846, (now - 0.2) * 1000, (now + 2.8) * 1000, false, "CastGUID", false, 116, nil, 0
     end
     return nil
@@ -139,7 +171,26 @@ function UnitGUID() return "Creature-0000-00000001" end
 
 UIParent = newRegion("Frame")
 RAID_CLASS_COLORS = { MAGE = { r = 0.25, g = 0.78, b = 0.92 } }
-C_Timer = { After = function(_, callback) timerQueue[#timerQueue + 1] = callback end }
+C_Timer = {
+    After = function(_, callback)
+        timerSchedules = timerSchedules + 1
+        timerQueue[#timerQueue + 1] = callback
+    end,
+    NewTicker = function(interval, callback)
+        assert(interval >= 0.05, "cast permission polling must be throttled")
+        timerSchedules = timerSchedules + 1
+        local ticker = {}
+        function ticker:Cancel() self.cancelled = true end
+        local function tick()
+            if ticker.cancelled then return end
+            callback(ticker)
+            if not ticker.cancelled then timerQueue[#timerQueue + 1] = tick end
+        end
+        timerQueue[#timerQueue + 1] = tick
+        return ticker
+    end,
+}
+C_RestrictedActions = { CheckAllowProtectedFunctions = function() return protectedCallsAllowed end }
 EventRegistry = { RegisterCallback = noop }
 
 local ns = { Helpers = {}, Addon = {} }
@@ -160,6 +211,14 @@ ns.Helpers.Clamp = function(value, minValue, maxValue)
     return value
 end
 ns.Helpers.CreateStateTable = function() return setmetatable({}, { __mode = "k" }) end
+ns.Helpers.FrameMutationRestricted = function(frame)
+    return frame and (frame:IsProtected() or frame:IsAnchoringRestricted()) or false
+end
+ns.Helpers.PinFrameToTargetAbsolute = function(frame, sourcePoint)
+    frame:ClearAllPoints()
+    frame:SetPoint(sourcePoint, UIParent, "BOTTOMLEFT", 0, 0)
+    return true
+end
 ns.Helpers.CHROME = { BORDER_PX = 1, BG_FALLBACK = { 0.05, 0.05, 0.05, 0.95 }, BORDER_FALLBACK = { 0, 0, 0, 1 }, BUTTON_BOOST = 0.07, SCROLLROW_BOOST = 0.03, DEPTH = { PANEL = { boost = 0, alpha = 0.95 }, SUBPANEL = { boost = 0.04, alpha = 0.85 }, ROW = { boost = 0.07, alpha = 0.75 } } }
 
 function ns.Addon:PixelRound(value) return math.floor((value / pixelScale) + 0.5) * pixelScale end
@@ -168,6 +227,7 @@ function ns.Addon:GetPixelSize() return pixelScale end
 function ns.Addon:SetPixelPerfectSize(frame, width, height) frame:SetSize(math.floor(width + 0.5) * pixelScale, math.floor(height + 0.5) * pixelScale) end
 function ns.Addon:SetPixelPerfectHeight(frame, height) frame:SetHeight(math.floor(height + 0.5) * pixelScale) end
 function ns.Addon:SetPixelPerfectPoint(frame, point, relativeTo, relativePoint, x, y) frame:SetPoint(point, relativeTo, relativePoint, x, y) end
+function ns.Addon:SetSnappedPoint(frame, point, relativeTo, relativePoint, x, y) frame:SetPoint(point, relativeTo, relativePoint, x, y) end
 function ns.Addon:ApplyPixelSnapping() end
 function ns.Addon:ApplyFont(fontString, _, size, path, outline) fontString:SetFont(path, size, outline) end
 
@@ -198,6 +258,7 @@ local settings = {
         },
     },
 }
+settings.boss = settings.target
 
 ns.QUI_Castbar:SetHelpers({
     GetUnitSettings = function(unit) return settings[unit] end,
@@ -210,9 +271,12 @@ ns.QUI_Castbar:SetHelpers({
 
 local unitFrame = newRegion("Frame", UIParent)
 unitFrame:SetSize(220, 40)
+unitFrame.protected = true
 
 -- A target castbar registers PLAYER_TARGET_CHANGED -- the secure-execution vector.
 local castbar = assert(ns.QUI_Castbar:CreateCastbar(unitFrame, "target", "target"))
+assert(not castbar:IsAnchoringRestricted(),
+    "target castbar should pin to UIParent instead of the protected unit frame")
 local onEvent = assert(castbar.scripts and castbar.scripts.OnEvent,
     "castbar should wire an OnEvent handler")
 
@@ -223,6 +287,128 @@ castbar.SetHeight = function(self, height)
     setHeightCalls = setHeightCalls + 1
     return realSetHeight(self, height)
 end
+
+for _, event in ipairs({"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START"}) do
+    inCombat = true
+    protectedCallsAllowed = false
+    setHeightCalls = 0
+    timerQueue = {}
+    local ok, err = pcall(onEvent, castbar, event, "target", "CastGUID", 116)
+    assert(ok, event .. " should not hit protected castbar geometry: " .. tostring(err))
+    assert(setHeightCalls == 0, event .. " should defer while protected calls are denied")
+    assert(#timerQueue >= 1, event .. " should queue a deferred cast")
+    local retryCallback = timerQueue[1]
+    onEvent(castbar, event, "target", "CastGUID", 133)
+    assert(#timerQueue == 1, event .. " must coalesce repeated denied events")
+    local scheduled = timerSchedules
+    for _ = 1, 3 do
+        flushTimers()
+        assert(setHeightCalls == 0, event .. " must recheck permission on every deferred retry")
+        assert(#timerQueue == 1, event .. " must retain one retry while permission remains denied")
+        assert(timerQueue[1] == retryCallback, event .. " must reuse its callback while permission remains denied")
+        assert(timerSchedules == scheduled, event .. " must not schedule new timers while permission remains denied")
+    end
+    protectedCallsAllowed = true
+    flushTimers()
+    assert(setHeightCalls >= 1, event .. " should update after leaving the denied context")
+    assert(castbar.channelSpellID == 133, event .. " must replay the latest coalesced cast arguments")
+    assert(#timerQueue == 0, event .. " must stop retrying once permission returns")
+end
+
+for _, event in ipairs({"UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_CHANNEL_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED"}) do
+    protectedCallsAllowed = false
+    setHeightCalls = 0
+    timerQueue = {}
+    onEvent(castbar, "UNIT_SPELLCAST_START", "target", "CastGUID", 116)
+    local castingInfo = UnitCastingInfo
+    UnitCastingInfo = function() return nil end
+    onEvent(castbar, event, "target", "CastGUID", 116)
+    flushTimers()
+    UnitCastingInfo = castingInfo
+    assert(setHeightCalls == 0, event .. " must not replay canceled cast geometry")
+    assert(#timerQueue == 0, event .. " must stop retries even while permission remains denied")
+end
+protectedCallsAllowed = true
+
+protectedCallsAllowed = false
+onEvent(castbar, "UNIT_SPELLCAST_START", "target", "CastGUID", 116)
+local castingInfo = UnitCastingInfo
+UnitCastingInfo = function() return nil end
+onEvent(castbar, "UNIT_SPELLCAST_STOP", "target", "CastGUID", 116)
+UnitCastingInfo = castingInfo
+onEvent(castbar, "UNIT_SPELLCAST_START", "target", "CastGUID", 133)
+flushTimers()
+assert(#timerQueue == 1, "a canceled callback must not revive alongside a newer cast retry")
+protectedCallsAllowed = true
+castbar:Cast(133, false, true)
+setHeightCalls = 0
+flushTimers()
+assert(setHeightCalls == 0, "an immediate permitted Cast must invalidate any pending replay")
+assert(#timerQueue == 0, "an immediate permitted Cast must stop its pending retry")
+
+inCombat = false
+local bossFrame = newRegion("Frame", UIParent)
+bossFrame:SetSize(220, 40)
+bossFrame.protected = true
+local bossCastbar = assert(ns.QUI_Castbar:CreateBossCastbar(bossFrame, "boss1", 1))
+assert(not bossCastbar:IsAnchoringRestricted(),
+    "boss castbar should pin to UIParent instead of the protected boss frame")
+
+local bossOnEvent = assert(bossCastbar.scripts and bossCastbar.scripts.OnEvent)
+local bossSetHeight = bossCastbar.SetHeight
+local bossHeightCalls = 0
+bossCastbar.SetHeight = function(self, height)
+    bossHeightCalls = bossHeightCalls + 1
+    return bossSetHeight(self, height)
+end
+
+for _, event in ipairs({"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_STOP"}) do
+    inCombat = false
+    bossCastbar:Hide()
+    inCombat = true
+    protectedCallsAllowed = false
+    bossHeightCalls = 0
+    timerQueue = {}
+    local ok, err = pcall(bossOnEvent, bossCastbar, event, "boss1")
+    assert(ok, "boss " .. event .. " should not hit protected geometry: " .. tostring(err))
+    assert(bossHeightCalls == 0, "boss " .. event .. " should defer while protected calls are denied")
+    assert(not bossCastbar:IsVisible(), "boss cast must remain hidden while protected calls are denied")
+    assert(#timerQueue >= 1, "boss " .. event .. " should queue a deferred cast")
+    for _ = 1, 3 do
+        flushTimers()
+        assert(bossHeightCalls == 0, "boss " .. event .. " must recheck permission on every deferred retry")
+    end
+    protectedCallsAllowed = true
+    flushTimers()
+    assert(bossHeightCalls >= 1, "boss " .. event .. " should recover active cast geometry after deferral")
+    assert(bossCastbar:IsVisible(), "boss " .. event .. " must display the cast in combat after permission returns")
+end
+
+inCombat = false
+castbar:Hide()
+inCombat = true
+onEvent(castbar, "UNIT_SPELLCAST_START", "target", "CastGUID", 116)
+assert(castbar:IsVisible(), "a castbar hidden after preview must show for the next permitted combat cast")
+
+local bossCastingInfo = UnitCastingInfo
+UnitCastingInfo = function() return nil end
+bossOnEvent(bossCastbar, "UNIT_SPELLCAST_STOP", "boss1")
+flushTimers()
+assert(not bossCastbar:IsVisible(), "a completed boss cast must disappear during combat")
+UnitCastingInfo = bossCastingInfo
+bossOnEvent(bossCastbar, "UNIT_SPELLCAST_START", "boss1")
+assert(bossCastbar:IsVisible(), "the next boss cast must reappear during the same combat")
+
+protectedCallsAllowed = false
+timerQueue = {}
+bossOnEvent(bossCastbar, "UNIT_SPELLCAST_START", "boss1")
+assert(#timerQueue >= 1, "boss cast should queue before destruction")
+bossCastbar._quiDestroyed = true
+bossHeightCalls = 0
+protectedCallsAllowed = true
+flushTimers()
+assert(bossHeightCalls == 0, "a deferred boss cast must not touch a destroyed castbar")
+bossCastbar._quiDestroyed = nil
 
 -- In combat, a target-change event must NOT run protected geometry synchronously
 -- (it could be inside a secure execution context). It must defer Cast().
@@ -235,6 +421,11 @@ assert(setHeightCalls == 0,
     .. "(got " .. setHeightCalls .. ") -- secure-execution taint vector")
 assert(#timerQueue >= 1,
     "in combat, PLAYER_TARGET_CHANGED must defer Cast() to a later frame")
+
+protectedCallsAllowed = false
+flushTimers()
+assert(setHeightCalls == 0, "target-change retries must also wait for protected-call permission")
+protectedCallsAllowed = true
 
 -- Firing the deferred callback (now outside the secure context) applies the layout.
 flushTimers()
@@ -254,6 +445,20 @@ assert(setHeightCalls == 0,
     "a deferred cast for a destroyed castbar must not touch the orphaned frame")
 castbar._quiDestroyed = nil
 
+inCombat = false
+protectedCallsAllowed = false
+timerQueue = {}
+setHeightCalls = 0
+castbar:Cast(116, false, true)
+assert(setHeightCalls == 0, "direct Cast calls must respect permission denial outside combat")
+assert(#timerQueue == 1, "direct Cast calls must queue recovery when denied")
+castbar._quiDestroyed = true
+protectedCallsAllowed = true
+flushTimers()
+assert(setHeightCalls == 0, "a deferred spellcast must not touch a destroyed castbar")
+assert(#timerQueue == 0, "destroying a castbar must stop its deferred retries")
+castbar._quiDestroyed = nil
+
 -- Out of combat there is no restriction: the cast runs synchronously, no defer.
 inCombat = false
 setHeightCalls = 0
@@ -262,5 +467,41 @@ onEvent(castbar, "PLAYER_TARGET_CHANGED")
 assert(setHeightCalls >= 1,
     "out of combat, PLAYER_TARGET_CHANGED should run the cast synchronously "
     .. "(got " .. setHeightCalls .. ")")
+
+inCombat = false
+settings.target.castbar.anchor = "unitframe"
+local realPinFrameToTargetAbsolute = ns.Helpers.PinFrameToTargetAbsolute
+local pinAvailable = false
+ns.Helpers.PinFrameToTargetAbsolute = function(...)
+    if not pinAvailable then return false end
+    return realPinFrameToTargetAbsolute(...)
+end
+timerQueue = {}
+
+local unavailableCastbar = assert(ns.QUI_Castbar:CreateCastbar(unitFrame, "target", "target"))
+flushTimers()
+local unavailablePoint, unavailableRelativeTo = unavailableCastbar:GetPoint()
+assert(unavailablePoint and unavailableRelativeTo == UIParent,
+    "failed initial and deferred pins must leave the castbar positioned relative to UIParent")
+assert(not unavailableCastbar:IsAnchoringRestricted(),
+    "persistent unreadable geometry must not restrict the castbar")
+
+local fallbackCastbar = assert(ns.QUI_Castbar:CreateCastbar(unitFrame, "target", "target"))
+assert(not fallbackCastbar:IsAnchoringRestricted(),
+    "failed absolute pin must not fall back to the protected unit frame")
+
+pinAvailable = true
+flushTimers()
+assert(not fallbackCastbar:IsAnchoringRestricted(),
+    "deferred absolute pin must keep the castbar unrestricted")
+local fallbackPoint, fallbackRelativeTo, fallbackRelativePoint = fallbackCastbar:GetPoint()
+assert(fallbackPoint == "TOP" and fallbackRelativeTo == UIParent and fallbackRelativePoint == "BOTTOMLEFT",
+    "deferred absolute pin must recover the castbar position")
+
+inCombat = true
+local fallbackOnEvent = assert(fallbackCastbar.scripts and fallbackCastbar.scripts.OnEvent)
+local ok, err = pcall(fallbackOnEvent, fallbackCastbar,
+    "UNIT_SPELLCAST_START", "target", "CastGUID", 116)
+assert(ok, "restricted-anchor fallback must not block spellcast layout: " .. tostring(err))
 
 print("OK: unitframes_castbar_combat_layout_taint_test")

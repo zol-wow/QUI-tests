@@ -23,7 +23,6 @@ local db = {
     },
 }
 
-local timers = {}
 local now = 100
 local durationObject = {
     IsZero = function()
@@ -32,11 +31,15 @@ local durationObject = {
 }
 local displayGateCalls = 0
 local castingDurationCalls = 0
+local visiblePlates = {}
+local inCombat = false
+local createdRegions = 0
 
 local function noop() end
 
 local frameMT
 local function NewFrame(parent)
+    createdRegions = createdRegions + 1
     local frame = {
         parent = parent,
         children = {},
@@ -51,7 +54,9 @@ local function NewFrame(parent)
 
     frameMT = frameMT or {
         __index = function(_, key)
-            if key == "RegisterEvent" then
+            if key:sub(1, 1) == "_" then
+                return nil
+            elseif key == "RegisterEvent" then
                 return function(self, event)
                     self.events[event] = true
                 end
@@ -182,15 +187,19 @@ function GetTime()
     return now
 end
 
+function InCombatLockdown()
+    return inCombat
+end
+
 C_Timer = {
-    After = function(delay, callback)
-        timers[#timers + 1] = { delay = delay, callback = callback }
+    After = function()
+        error("incoming casts must not allocate timer closures")
     end,
 }
 
 C_NamePlate = {
     GetNamePlates = function()
-        return {}
+        return visiblePlates
     end,
 }
 
@@ -312,36 +321,79 @@ assert(loadfile("QUI_GroupFrames/groupframes/groupframes_targeted_spells.lua"))(
 assert(ns.QUI_GroupFrameTargetedSpells, "targeted spells module should export its API")
 local moduleFrame = assert(rootFrames[2], "targeted spells module should create an event frame")
 assert(moduleFrame.events.PLAYER_LOGIN, "module should listen for login activation")
+assert(moduleFrame.events.PLAYER_REGEN_ENABLED, "module should finish deferred pool growth after combat")
 
 moduleFrame.scripts.OnEvent(moduleFrame, "PLAYER_LOGIN")
 assert(engineFrame.events.NAME_PLATE_UNIT_ADDED, "active engine should watch nameplate additions")
 assert(engineFrame.events.UNIT_TARGET, "active engine should watch nameplate retargets")
 assert(engineFrame.events.UNIT_SPELLCAST_START, "active engine should watch cast starts")
+assert(#groupFrame.children == 4, "login should preallocate three targeted-spell markers")
+local icon = assert(groupFrame.children[2], "preallocated marker should be parented to the group frame")
+assert(icon.shown == false, "preallocated marker should remain hidden")
+local preallocatedRegionCount = createdRegions
 
+inCombat = true
 engineFrame.scripts.OnEvent(engineFrame, "NAME_PLATE_UNIT_ADDED", "nameplate1")
-assert(#timers == 2, "nameplate cast should schedule pickup and verify resolves")
-
-table.sort(timers, function(a, b)
-    return a.delay < b.delay
-end)
-while #timers > 0 do
-    local timer = table.remove(timers, 1)
-    now = now + timer.delay
-    timer.callback()
-end
-
-local icon = assert(groupFrame.children[2], "targeted spell icon should be parented to the group frame")
+local scheduler = assert(engineFrame.scripts.OnUpdate, "nameplate cast should arm the shared resolve scheduler")
+now = now + 0.09
+scheduler(engineFrame)
+assert(not rawget(icon, "_targetedCaster"), "cast must not resolve before the first-read delay")
+now = now + 0.01
+scheduler(engineFrame)
 assert(rawget(icon, "_targetedCaster") == "nameplate1", "icon should be assigned to the hostile caster")
+assert(#groupFrame.children == 4, "cast resolution should reuse the preallocated marker pool")
+assert(createdRegions == preallocatedRegionCount, "combat cast resolution should create no UI regions")
 assert(icon.shown == true, "icon should be shown after delayed target resolution")
 assert(icon._texture.texture == 135807, "icon should use the casting spell texture")
 assert(icon._cooldown.durationObject == durationObject, "icon should use the Blizzard duration object cooldown path")
 assert(displayGateCalls > 0, "cast flow should gate through UnitShouldDisplaySpellTargetName")
 assert(castingDurationCalls > 0, "cast flow should query UnitCastingDuration")
+assert(engineFrame.scripts.OnUpdate == scheduler, "verify pass should reuse the same scheduler callback")
+now = now + 0.15
+scheduler(engineFrame)
+assert(engineFrame.scripts.OnUpdate == nil, "scheduler should disarm after the verify pass")
+inCombat = false
+
+local resolvesBeforeRetarget = displayGateCalls
+engineFrame.scripts.OnEvent(engineFrame, "UNIT_TARGET", "nameplate1")
+local retargetScheduler = assert(engineFrame.scripts.OnUpdate, "retarget should rearm the scheduler")
+engineFrame.scripts.OnEvent(engineFrame, "UNIT_TARGET", "nameplate1")
+assert(engineFrame.scripts.OnUpdate == retargetScheduler, "repeated retargets should reuse one callback")
+now = now + 0.05
+retargetScheduler(engineFrame)
+now = now + 0.15
+retargetScheduler(engineFrame)
+assert(displayGateCalls == resolvesBeforeRetarget + 2, "repeated retargets should coalesce to two latest resolves")
+assert(engineFrame.scripts.OnUpdate == nil, "retarget verify pass should drain the scheduler")
 
 casting = false
+engineFrame.scripts.OnEvent(engineFrame, "UNIT_TARGET", "nameplate1")
+local cancelledScheduler = assert(engineFrame.scripts.OnUpdate, "retarget should schedule before cancellation")
 engineFrame.scripts.OnEvent(engineFrame, "UNIT_SPELLCAST_STOP", "nameplate1")
-assert(rawget(icon, "_targetedCaster") == nil, "stop event should release the caster assignment")
+assert(engineFrame.scripts.OnUpdate == nil, "cast stop should cancel pending resolves immediately")
+cancelledScheduler(engineFrame)
+assert(not rawget(icon, "_targetedCaster"), "stop event should release the caster assignment")
 assert(icon.shown == false, "stop event should hide the targeted spell icon")
 assert(icon._cooldown.shown == false, "stop event should hide the cooldown swipe")
+
+casting = true
+visiblePlates = { { namePlateUnitToken = "nameplate1" } }
+engineFrame.scripts.OnEvent(engineFrame, "PLAYER_REGEN_ENABLED")
+local regenScheduler = assert(engineFrame.scripts.OnUpdate, "combat exit should reseed an active visible cast")
+now = now + 0.11
+regenScheduler(engineFrame)
+assert(rawget(icon, "_targetedCaster") == "nameplate1", "combat-exit reseed should restore the caster assignment")
+assert(icon.shown == true, "combat-exit reseed should restore the targeted spell icon")
+now = now + 0.15
+regenScheduler(engineFrame)
+assert(engineFrame.scripts.OnUpdate == nil, "combat-exit reseed should drain the scheduler")
+
+db.party.targetedSpells.maxIcons = 4
+inCombat = true
+ns.QUI_GroupFrameTargetedSpells:ApplySettings()
+assert(#groupFrame.children == 4, "combat settings refresh should defer marker-pool growth")
+inCombat = false
+moduleFrame.scripts.OnEvent(moduleFrame, "PLAYER_REGEN_ENABLED")
+assert(#groupFrame.children == 5, "combat exit should finish deferred marker-pool growth")
 
 print("OK: groupframes_targeted_spells_runtime_test")

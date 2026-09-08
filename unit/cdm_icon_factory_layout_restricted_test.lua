@@ -168,8 +168,8 @@ local effectsSource = effectsFile:read("*a")
 effectsFile:close()
 local _, restrictedEffectFrames = effectsSource:gsub(
     'icon%._quiLayoutRestricted and "DisableUntrustedLayoutScriptsTemplate" or nil', "")
-assert(restrictedEffectFrames == 2,
-    "texture and pandemic glow frames must inherit the restricted layout template")
+assert(restrictedEffectFrames == 3,
+    "texture, pandemic, and cast-highlight frames must inherit the restricted layout template")
 
 local keybindFile = assert(io.open("modules/utility/keybinds.lua", "rb"))
 local keybindSource = keybindFile:read("*a")

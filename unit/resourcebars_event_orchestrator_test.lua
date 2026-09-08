@@ -66,4 +66,11 @@ local instantBlock = extract("local instantFeedbackTypes = {", "\n}")
 assert(not instantBlock:find("Runes", 1, true),
     "Runes must not bypass the throttle")
 
+local powerEvents = extract('local powerEventFrame = CreateFrame("Frame")',
+    '\n\n    self:RegisterEvent("PLAYER_REGEN_DISABLED"')
+assert(powerEvents:find('powerEventFrame:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")', 1, true),
+    "player display-power changes must refresh resource selection")
+assert(powerEvents:find('self:OnUnitPower(event, unit, ...)', 1, true),
+    "display-power changes must reach the token-less full-refresh path")
+
 print("PASS resourcebars_event_orchestrator_test")

@@ -1,7 +1,4 @@
 -- tests/unit/bags_tooltip_counts_test.lua
--- Pure-formatter tests for TooltipCounts.BuildCountLines. The in-game hook
--- (TooltipDataProcessor post call) is registration-guarded and never runs
--- here: no TooltipDataProcessor global exists in this harness.
 -- Run: lua tests/unit/bags_tooltip_counts_test.lua
 
 -- Class-color fixture: the formatter reads RAID_CLASS_COLORS directly
@@ -11,10 +8,44 @@ _G.RAID_CLASS_COLORS = {
     BROKEN = {}, -- entry without colorStr must fall back to uncolored
 }
 
+local callbacks, added = {}, {}
+local settings = { behavior = { tooltipCounts = "on" } }
+local shiftHeld = false
+local currencyInfo = {}
+local records = {
+    ["Main-TestRealm"] = { details = { class = "MAGE" }, currencies = { [2706] = 3, [2803] = 999 } },
+    ["Alpha-TestRealm"] = { details = {}, currencies = { [2706] = 9, [2803] = 999 } },
+    ["Zulu-TestRealm"] = { details = {}, currencies = { [2706] = 9, [2803] = 999 } },
+}
+
+_G.Enum = { TooltipDataType = { Item = 0, Currency = 5 } }
+_G.TooltipDataProcessor = {
+    AddTooltipPostCall = function(kind, callback) callbacks[kind] = callback end,
+}
+_G.GameTooltip = {
+    AddLine = function(_, text) added[#added + 1] = text end,
+}
+_G.ItemRefTooltip = {}
+_G.IsShiftKeyDown = function() return shiftHeld end
+_G.C_CurrencyInfo = {
+    GetCurrencyInfo = function(id) return currencyInfo[id] end,
+}
+
 local ns = {
-    -- tooltip_counts.lua resolves its settings getter at load (house idiom);
-    -- the formatter itself never consults settings.
-    Helpers = { CreateDBGetter = function() return function() return nil end end },
+    Helpers = { CreateDBGetter = function() return function() return settings end end },
+    Bags = { IsActive = function() return true end },
+    Storage = {
+        Summaries = {
+            WARBAND_OWNER = ":warband",
+            GUILD_PREFIX = ":guild:",
+            GetCounts = function() return {} end,
+        },
+        Store = {
+            GetCurrentCharacterKey = function() return "Main-TestRealm" end,
+            ListCharacters = function() return { "Alpha-TestRealm", "Main-TestRealm", "Zulu-TestRealm" } end,
+            GetCharacter = function(key) return records[key] end,
+        },
+    },
 }
 (dofile("tests/helpers/locale.lua"))(ns)
 local chunk = assert(loadfile("QUI_Bags/bags/tooltip_counts.lua"))
@@ -130,5 +161,40 @@ do
     assert(#lines == 1, "zero-total owner must be skipped, got " .. #lines .. " lines")
     assert(lines[1] == "Alt: 3 (bags 3)", "remaining owner wrong: " .. lines[1])
 end
+
+assert(type(callbacks[Enum.TooltipDataType.Item]) == "function",
+    "item TooltipDataProcessor callback must remain registered")
+local currencyPostCall = assert(callbacks[Enum.TooltipDataType.Currency],
+    "currency TooltipDataProcessor callback must be registered")
+
+currencyInfo[2706] = { isAccountWide = false, quantity = 500 }
+added = {}
+currencyPostCall(GameTooltip, { id = 2706 })
+assert(#added == 5, "blank + 3 characters + total expected")
+assert(added[1] == " ", "currency rows need a separator")
+assert(added[2] == "|cff3fc7ebMain|r: 3", "current character must sort first")
+assert(added[3] == "Alpha: 9", "equal totals must tie-break by label")
+assert(added[4] == "Zulu: 9", "equal-total ordering wrong")
+assert(added[5] == "Total: 21", "character total wrong")
+
+currencyInfo[2803] = { isAccountWide = true, quantity = 41 }
+added = {}
+currencyPostCall(GameTooltip, { id = 2803 })
+assert(#added == 2 and added[1] == " " and added[2] == "Warband (account-wide): 41",
+    "account-wide currency must use the live Warband quantity once")
+
+settings.behavior.tooltipCounts = "off"
+added = {}
+currencyPostCall(GameTooltip, { id = 2706 })
+assert(#added == 0, "off mode must suppress currency counts")
+
+settings.behavior.tooltipCounts = "modifier"
+shiftHeld = false
+currencyPostCall(GameTooltip, { id = 2706 })
+assert(#added == 0, "modifier mode must suppress counts without Shift")
+
+shiftHeld = true
+currencyPostCall(GameTooltip, { id = 2706 })
+assert(#added > 0, "modifier mode must show counts with Shift")
 
 print("OK: bags_tooltip_counts_test")

@@ -25,7 +25,7 @@ check("pin: feature.apply routed through ns.SafeCall bulkhead",
     framework:find('ns.SafeCall("bulkhead", feature.apply', 1, true) ~= nil)
 
 check("pin: _quiTooltipAugment routed through ns.SafeCall bulkhead",
-    framework:find('ns.SafeCallMethod("bulkhead", self, "_quiTooltipAugment", GameTooltip)', 1, true) ~= nil)
+    framework:find('ns.SafeCallMethod("bulkhead", self, "_quiTooltipAugment", tip)', 1, true) ~= nil)
 
 check("pin: feature.searchNavigate routed through ns.SafeCall bulkhead, ok/handled preserved",
     framework:find('local ok, handled = ns.SafeCall("bulkhead", feature.searchNavigate, entry, {', 1, true) ~= nil

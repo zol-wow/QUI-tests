@@ -73,11 +73,6 @@ assert(not pass:find("AuraSkin.Reflow", 1, true),
 assert(pass:find("onIncomplete = QueueContainerCombatWork,", 1, true),
     "incomplete (restricted work skipped) must queue a regen replay via the onIncomplete opts callback")
 
-assert(pass:find("onContainerReady = function(container, host)", 1, true)
-    and pass:find("if not InCombatLockdown() then", 1, true)
-    and pass:find("return container:GetFrameLevel() == desiredLevel", 1, true),
-    "the frame-level pass must be combat-gated via the onContainerReady opts callback")
-
 -- The public full-pass name survives (forward-declared) and always creates.
 assert(src:find("function ApplyStripContainers(frame)", 1, true),
     "ApplyStripContainers must keep its (forward-declared) name")

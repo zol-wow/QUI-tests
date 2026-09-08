@@ -10,8 +10,10 @@ local r = Registry.new()
 assert_false(r:isSource("C_Spell.GetSpellCharges"), "no built-in sources")
 
 -- Add a source manually (api-index integration in later task)
-r:addSource("C_Spell.GetSpellCharges")
+r:addSource("C_Spell.GetSpellCharges", 2)
 assert_true(r:isSource("C_Spell.GetSpellCharges"), "added source detected")
+assert_true(r:sourceReturnArity("C_Spell.GetSpellCharges") == 2,
+    "source return arity retained")
 
 -- Safe sinks: method names (any obj:Method) + qualified names (Module.fn)
 -- MINIMAL hand-kept seed: argless visibility/geometry methods only.
@@ -111,29 +113,41 @@ do
     local mini = {
         -- widget method, some system allows tainted → sink (method track)
         ["TestSinkText"] = { secretArguments = "AllowedWhenUntainted",
-                            secretArgumentsAnyTainted = true, scriptObject = true },
+                            secretArgumentsAnyTainted = true,
+                            neverSecretArguments = { 2 }, scriptObject = true },
         -- widget method, no system allows tainted → documented reject (method track)
         ["TestRejectShown"] = { secretArguments = "AllowedWhenUntainted", scriptObject = true },
         -- DurationObject arg → sink even though AllowedWhenUntainted
         ["TestDurationSink"] = { secretArguments = "AllowedWhenUntainted",
                                  durationObjectArg = true, scriptObject = true },
         -- namespaced function, tainted-allowed → function sink
-        ["C_Test.TestFmt"] = { secretArguments = "AllowedWhenTainted" },
+        ["C_Test.TestFmt"] = { secretArguments = "AllowedWhenTainted",
+                               neverSecretArguments = { 1, 3 } },
         -- namespaced function, forbidden → function reject
         ["C_Test.TestForbid"] = { secretArguments = "NotAllowed" },
         -- bare global (no scriptObject) → registers on BOTH tracks
         ["TestGlobalReject"] = { secretArguments = "AllowedWhenUntainted" },
         -- event entries never touch sink tracks
         ["event:TEST_EVENT"] = { secretPayload = true },
+        ["C_Test.Source"] = { isSecretReturn = true, returnArity = 1 },
+        ["C_Test.VariadicSource"] = { isSecretReturn = true },
     }
     IndexLoad.populate(rIdx, mini, cfg, function() end)
 
     assert_true(rIdx:isSafeSinkMethod("TestSinkText"), "anyTainted widget method → sink")
+    assert_true(rIdx:safeSinkMethodRejectsArgument("TestSinkText", 2),
+        "widget NeverSecret argument rejects taint")
+    assert_false(rIdx:safeSinkMethodRejectsArgument("TestSinkText", 1),
+        "widget secret-capable argument accepts taint")
     assert_false(rIdx:isSafeSinkMethod("TestRejectShown"), "untainted-only method is NOT a sink")
     assert_true(rIdx:docArgRestrictionMethod("TestRejectShown") == "AllowedWhenUntainted",
         "untainted-only method lands in the documented reject-set")
     assert_true(rIdx:isSafeSinkMethod("TestDurationSink"), "DurationObject arg → sink")
     assert_true(rIdx:isSafeSinkFunction("C_Test.TestFmt"), "namespaced tainted-allowed → function sink")
+    assert_true(rIdx:safeSinkFunctionRejectsArgument("C_Test.TestFmt", 1),
+        "NeverSecret argument rejects taint")
+    assert_false(rIdx:safeSinkFunctionRejectsArgument("C_Test.TestFmt", 2),
+        "secret-capable argument accepts taint")
     assert_true(rIdx:docArgRestrictionFunction("C_Test.TestForbid") == "NotAllowed",
         "namespaced NotAllowed → function reject")
     assert_true(rIdx:docArgRestrictionMethod("TestGlobalReject") == "AllowedWhenUntainted"
@@ -141,6 +155,11 @@ do
         "bare non-ScriptObject key registers on both tracks")
     assert_true(not rIdx:isSafeSinkMethod("event:TEST_EVENT") and not rIdx:isSource("event:TEST_EVENT"),
         "event keys never register as sinks")
+    assert_true(rIdx:sourceReturnArity("C_Test.Source") == 1,
+        "index source retains documented return arity")
+    assert_true(rIdx:isSource("C_Test.VariadicSource")
+        and rIdx:sourceReturnArity("C_Test.VariadicSource") == nil,
+        "unknown source arity stays conservative")
 end
 
 print("index_load population test passed")

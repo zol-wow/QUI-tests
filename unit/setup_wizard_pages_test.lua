@@ -122,6 +122,13 @@ _G.QUI = {
 
 local ns = {
     L = setmetatable({}, { __index = function(_, key) return key end }),
+    UIKit = {
+        CreateCloseButton = function(_, opts)
+            local button = NewFrame()
+            button.onClick = opts.onClick
+            return button
+        end,
+    },
     Helpers = {
         GetCore = function() return coreStub end,
         PlaceRow = function(_, _, sy) return (sy or 0) - 32 end,

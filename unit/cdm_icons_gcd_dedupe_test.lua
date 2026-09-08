@@ -31,6 +31,7 @@ C_Timer = {
 
 local gcdDuration = { token = "gcd-duration" }
 local resolvedDuration = gcdDuration
+local resolvedMode = "gcd-only"
 
 local ns = {
     Helpers = {
@@ -70,7 +71,7 @@ local ns = {
         ResolveCooldownActivityState = function() return nil end,
         ResolveCooldownState = function()
             return {
-                mode = "gcd-only",
+                mode = resolvedMode,
                 active = true,
                 isActive = true,
                 durObj = resolvedDuration,
@@ -91,6 +92,7 @@ local ns = {
 
 dofile("tests/helpers/load_cdm_icon_runtime.lua")(ns)
 assert(loadfile("QUI_CDM/cdm/cdm_icon_renderer.lua"))("QUI", ns)
+local RuntimeQueries = ns.CDMRuntimeQueries
 
 local durationBindingKeyBuilds
 for _, probe in ipairs(ns._memprobes or {}) do
@@ -100,9 +102,13 @@ for _, probe in ipairs(ns._memprobes or {}) do
     end
 end
 
+local durationApplyCalls = 0
+local lastAppliedDuration
 local icon = {
     Cooldown = {
-        SetCooldownFromDurationObject = function()
+        SetCooldownFromDurationObject = function(_, durObj)
+            durationApplyCalls = durationApplyCalls + 1
+            lastAppliedDuration = durObj
             return true
         end,
         SetReverse = noop,
@@ -127,6 +133,8 @@ local icon = {
     },
 }
 
+RuntimeQueries.BeginRuntimeQueryBatch()
+icon._lastDurationBindingEpoch = RuntimeQueries.GetActiveBatchEpoch()
 local keyBuildsBefore = durationBindingKeyBuilds and durationBindingKeyBuilds() or 0
 local applied = ns.CDMIcons.ApplyResolvedCooldown(icon)
 local keyBuildsAfter = durationBindingKeyBuilds and durationBindingKeyBuilds() or 0
@@ -136,5 +144,40 @@ assert(keyBuildsAfter == keyBuildsBefore,
     "legacy duration binding comparison should not allocate a replacement key")
 assert(icon._showingGCDSwipe == true, "deduped GCD duration should restore the GCD swipe flag")
 assert(icon._showingRealCooldownSwipe == nil, "deduped GCD duration should clear real cooldown swipe state")
+
+local rechargeDuration = { token = "next-charge-duration" }
+resolvedMode = "cooldown"
+resolvedDuration = rechargeDuration
+icon._lastDurObjKey = "cooldown:12345"
+icon._lastDurObj = gcdDuration
+icon._lastResolvedMode = "cooldown"
+icon._lastResolvedSourceID = 12345
+RuntimeQueries.EndRuntimeQueryBatch()
+
+RuntimeQueries.BeginRuntimeQueryBatch()
+applied = ns.CDMIcons.ApplyResolvedCooldown(icon)
+assert(applied == true, "fresh recharge duration should be applied")
+assert(durationApplyCalls == 1,
+    "same-source cooldown should rebind when its DurationObject changes")
+assert(lastAppliedDuration == rechargeDuration,
+    "same-source cooldown should bind the fresh DurationObject")
+
+applied = ns.CDMIcons.ApplyResolvedCooldown(icon)
+assert(applied == true, "deduped recharge duration should still be treated as applied")
+assert(durationApplyCalls == 1,
+    "same DurationObject should remain deduped after the refresh")
+RuntimeQueries.EndRuntimeQueryBatch()
+
+RuntimeQueries.BeginRuntimeQueryBatch()
+applied = ns.CDMIcons.ApplyResolvedCooldown(icon)
+assert(applied == true, "next-batch recharge duration should be applied")
+assert(durationApplyCalls == 2,
+    "same DurationObject should rebind in a later runtime query batch")
+
+applied = ns.CDMIcons.ApplyResolvedCooldown(icon)
+assert(applied == true, "same-batch recharge duration should remain applied")
+assert(durationApplyCalls == 2,
+    "same DurationObject should remain deduped within one runtime query batch")
+RuntimeQueries.EndRuntimeQueryBatch()
 
 print("OK: cdm_icons_gcd_dedupe_test")

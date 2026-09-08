@@ -422,6 +422,7 @@ return {
         alts = {
           columns = {
             gold = true,
+            guild = true,
             ilvl = true,
             lastSeen = true,
             played = true,
@@ -431,6 +432,8 @@ return {
           },
           currencyFilter = {},
           enabled = true,
+          equipmentHiddenCharacters = {},
+          equipmentSort = "name",
           reputationFilter = {},
           scanners = {
             lockouts = true,
@@ -440,6 +443,7 @@ return {
           window = {
             height = 540,
             point = "CENTER",
+            relativePoint = "CENTER",
             width = 920,
             x = 0,
             y = 0
@@ -488,7 +492,23 @@ return {
           }
         },
         auraDisplays = {
-          enabled = true
+          enabled = true,
+          hudVisibility = {
+            dontHideInDungeonsRaids = false,
+            fadeDuration = 0.20000000000000001,
+            fadeOutAlpha = 0,
+            hideWhenFlying = false,
+            hideWhenInVehicle = false,
+            hideWhenMounted = false,
+            hideWhenSkyriding = false,
+            showAlways = true,
+            showInCombat = false,
+            showInGroup = false,
+            showInInstance = false,
+            showOnMouseover = false,
+            showWhenMounted = false,
+            showWhenTargetExists = false
+          }
         },
         bags = {
           appearance = {
@@ -629,6 +649,7 @@ return {
           },
           height = 50,
           hideBorder = false,
+          hideWhenUnavailable = false,
           noChargesColor = {
             [1] = 1,
             [2] = 0.29999999999999999,
@@ -1244,25 +1265,40 @@ return {
             autoResetOnChallengeStart = true,
             autoSwapChallengeSessions = false,
             breakdownAnchor = "row",
+            breakoutLayout = {
+              height = 640,
+              leftWidth = 220,
+              middleWidth = 500,
+              playersHeight = 360,
+              spellsHeight = 390,
+              width = 1100
+            },
             combineAbsorbsIntoHealing = true,
             enabled = true,
+            hoverTooltipScale = 100,
             refreshRateCombat = 0.5,
             refreshRateIdle = 2,
             shortenNames = true,
+            showAllBreakdownSpells = true,
             showHoverTooltip = true,
             showPinnedSelf = true,
+            showSpellTooltips = true,
             visibility = "always",
             windowCount = 1,
             windows = {
               [1] = {
+                autoCurrentOnCombat = false,
                 damageMeterType = 0,
                 hidden = false,
+                hideTimer = false,
+                mythicStartDMType = false,
                 name = "",
                 sessionType = 1,
                 size = {
                   h = 180,
                   w = 240
-                }
+                },
+                syncSegments = false
               }
             }
           }
@@ -2337,6 +2373,7 @@ return {
           audioOutputDevice = "",
           autoAcceptInvites = "all",
           autoAcceptQuest = true,
+          autoAcceptSummons = "off",
           autoCombatLog = false,
           autoCombatLogRaid = false,
           autoConfirmHighCost = false,
@@ -2352,6 +2389,7 @@ return {
           autoSelectGossip = true,
           autoTurnInQuest = true,
           autoUnwrapCollections = false,
+          blockReleaseInRaid = false,
           closeBagsOnKeystoneInsert = false,
           communitiesPrivacy = false,
           consumableAnchorMode = true,
@@ -2416,10 +2454,15 @@ return {
           darkModeHealthOpacity = 0.69999999999999996,
           darkModeOpacity = 0.69999999999999996,
           deathAlert = {
+            classColorName = true,
+            duration = 3,
             enabled = false,
             fontSize = 24,
+            instanceOnly = false,
             offsetX = 0,
             offsetY = 220,
+            showKiller = false,
+            showKillingBlow = true,
             sound = "None"
           },
           defaultBgColor = {
@@ -2734,6 +2777,7 @@ return {
           },
           borderColorSource = "inherit",
           borderSize = 1,
+          collapseGaps = true,
           enabled = false,
           growDirection = "CENTER",
           iconSize = 40,
@@ -4914,6 +4958,7 @@ return {
             durationSize = 12,
             enabled = true,
             growOnApply = false,
+            growthAnchor = "CENTER",
             growthDirection = "CENTERED_HORIZONTAL",
             hideDurationText = false,
             iconDisplayMode = "active",
@@ -4956,6 +5001,7 @@ return {
               durationSize = 12,
               enabled = true,
               growOnApply = false,
+              growthAnchor = "CENTER",
               growthDirection = "CENTERED_HORIZONTAL",
               hideDurationText = false,
               iconDisplayMode = "active",
@@ -4982,6 +5028,7 @@ return {
               iconDisplayMode = "always",
               layoutDirection = "HORIZONTAL",
               name = "Essential",
+              pressedEffect = "qui",
               rangeColor = {
                 [1] = 0.80000000000000004,
                 [2] = 0.10000000000000001,
@@ -5174,6 +5221,7 @@ return {
               iconDisplayMode = "always",
               layoutDirection = "HORIZONTAL",
               name = "Utility",
+              pressedEffect = "qui",
               rangeColor = {
                 [1] = 0.80000000000000004,
                 [2] = 0.10000000000000001,
@@ -5307,6 +5355,7 @@ return {
             greyOutInactiveBuffs = false,
             iconDisplayMode = "always",
             layoutDirection = "HORIZONTAL",
+            pressedEffect = "qui",
             rangeColor = {
               [1] = 0.80000000000000004,
               [2] = 0.10000000000000001,
@@ -5501,6 +5550,7 @@ return {
             greyOutInactiveBuffs = false,
             iconDisplayMode = "always",
             layoutDirection = "HORIZONTAL",
+            pressedEffect = "qui",
             rangeColor = {
               [1] = 0.80000000000000004,
               [2] = 0.10000000000000001,
@@ -6122,6 +6172,8 @@ return {
                 },
                 enabled = true,
                 fillOpacity = 0.17999999999999999,
+                gradientEndOpacity = 0,
+                gradientStartOpacity = 1,
                 iconAnchor = "TOPRIGHT",
                 iconOffsetX = 0,
                 iconOffsetY = 0,
@@ -6517,6 +6569,8 @@ return {
                 },
                 enabled = true,
                 fillOpacity = 0.17999999999999999,
+                gradientEndOpacity = 0,
+                gradientStartOpacity = 1,
                 iconAnchor = "TOPRIGHT",
                 iconOffsetX = 0,
                 iconOffsetY = 0,
@@ -8368,7 +8422,7 @@ return {
       Default = {
         _defaultsVersion = 3,
         _needsLateAbImport = true,
-        _schemaVersion = 61,
+        _schemaVersion = 62,
         damageMeter = {
           appearance = {
             global = {

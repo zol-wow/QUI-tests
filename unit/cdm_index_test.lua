@@ -88,20 +88,20 @@ assert(index.Get(12347) == entry, "linked aliases should share the same index en
 local orderedCalls = 0
 _G.CooldownViewerSettings = {
     GetDataProvider = function()
+        orderedCalls = orderedCalls + 1
         return {
             -- memo fields present = cache already built by a secure consumer
             -- (cold-boot taint gate reads these raw; see cdm_index/cdm_catalog)
             displayDataDirty = false,
-            displayData = {},
-            GetOrderedCooldownIDsForCategory = function(_, category, includeHidden)
-                orderedCalls = orderedCalls + 1
-                assert(includeHidden == true, "ordered map should include hidden provider rows")
-                if category == 0 then
-                    return { 88 }
-                elseif category == 2 then
-                    return { 22 }
-                end
-                return {}
+            displayData = {
+                orderedCooldownIDs = { 88, 22 },
+                cooldownInfoByID = {
+                    [88] = { category = 0, isKnown = true },
+                    [22] = { category = 2, isKnown = true },
+                },
+            },
+            GetOrderedCooldownIDsForCategory = function()
+                error("native ordered getters must remain untouched")
             end,
         }
     end,

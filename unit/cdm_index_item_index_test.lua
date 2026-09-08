@@ -50,17 +50,20 @@ assert(byCat.cooldownID == 801, "wrong cooldownID for spellCategoryID 4")
 local orderedCalls = 0
 _G.CooldownViewerSettings = {
     GetDataProvider = function()
+        orderedCalls = orderedCalls + 1
         return {
             -- memo fields present = cache already built by a secure consumer
             -- (cold-boot taint gate reads these raw; see cdm_index/cdm_catalog)
             displayDataDirty = false,
-            displayData = {},
-            GetOrderedCooldownIDsForCategory = function(_, category, includeHidden)
-                orderedCalls = orderedCalls + 1
-                assert(includeHidden == true, "ordered item map should include hidden provider rows")
-                if category == 0 then return { 701 } end
-                if category == 3 then return { 801 } end
-                return {}
+            displayData = {
+                orderedCooldownIDs = { 701, 801 },
+                cooldownInfoByID = {
+                    [701] = { category = 0, isKnown = true },
+                    [801] = { category = 3, isKnown = true },
+                },
+            },
+            GetOrderedCooldownIDsForCategory = function()
+                error("native ordered getters must remain untouched")
             end,
         }
     end,

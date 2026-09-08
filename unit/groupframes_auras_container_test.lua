@@ -97,7 +97,8 @@ check("opts forwards profileOverrides (also needed directly by AuraSlots.Sync)",
     src:find("profileOverrides = profileOverrides,", 1, true) ~= nil)
 check("opts forwards profileFor",
     src:find("profileFor = function(element)", 1, true) ~= nil
-    and src:find("return AuraGlue.ElementProfile(element, profileOverrides)", 1, true) ~= nil)
+    and src:find("local profile = AuraGlue.ElementProfile(element, profileOverrides)", 1, true) ~= nil
+    and src:find("return profile", 1, true) ~= nil)
 check("opts forwards anchorContainer",
     src:find("anchorContainer = function(container, host, element)", 1, true) ~= nil
     and src:find("AnchorElementContainer(container, host, element)", 1, true) ~= nil)
