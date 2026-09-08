@@ -68,7 +68,7 @@ return {
     "QUI_ResourceBars/resourcebars/resourcebars.lua::8",
     "QUI_ResourceBars/resourcebars/settings/resource_bars_preview_driver.lua::1",
     "QUI_UnitFrames/unitframes/castbar.lua::15",
-    "QUI_UnitFrames/unitframes/unitframes.lua::19",
+    "QUI_UnitFrames/unitframes/unitframes.lua::20",
     "core/aura_elements.lua::1",
     "core/aura_events.lua::2",
     "core/aura_glue.lua::3",
