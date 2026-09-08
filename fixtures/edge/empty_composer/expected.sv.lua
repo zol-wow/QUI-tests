@@ -6061,6 +6061,7 @@ return {
                 [3] = 0.20000000000000001,
                 [4] = 1
               },
+              hideTooltipsInCombat = false,
               showTooltips = true,
               texture = "Quazii v5",
               useClassColor = true
@@ -6445,6 +6446,7 @@ return {
                 [3] = 0.20000000000000001,
                 [4] = 1
               },
+              hideTooltipsInCombat = false,
               showTooltips = true,
               texture = "Quazii v5",
               useClassColor = true
