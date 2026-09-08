@@ -6662,6 +6662,7 @@ return {
               groupGrowDirection = "RIGHT",
               groupSpacing = 10,
               growDirection = "DOWN",
+              hideBenchGroupsInMythic = false,
               limitGroupsByRaidSize = false,
               sortByRole = true,
               sortMethod = "INDEX",
