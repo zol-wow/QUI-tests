@@ -2390,6 +2390,22 @@ return {
           autoTurnInQuest = true,
           autoUnwrapCollections = false,
           blockReleaseInRaid = false,
+          bonusRoll = {
+            announce = true,
+            difficulty = {
+              ["*"] = {
+                encounters = {
+                  ["*"] = false
+                },
+                hide = false
+              }
+            },
+            enabled = false,
+            mythicPlus = {
+              minLevel = 10,
+              mode = "show"
+            }
+          },
           closeBagsOnKeystoneInsert = false,
           communitiesPrivacy = false,
           consumableAnchorMode = true,
