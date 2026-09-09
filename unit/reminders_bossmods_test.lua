@@ -41,6 +41,7 @@ C_EncounterTimeline = {
 }
 Enum = { EncounterTimelineEventState = { Active = 0, Paused = 1, Finished = 2, Canceled = 3 } }
 
+assert(loadfile("core/safecall.lua"))("QUI", ns)
 assert(loadfile("QUI_Reminders/reminders/bossmods.lua"))("QUI_Reminders", ns)
 local B = assert(ns.BossMods)
 
@@ -50,7 +51,7 @@ local function record(kind)
 end
 assert(B.Subscribe("test", {
     onTimer = record("timer"), onTimerStop = record("stop"), onMessage = record("message"),
-    onStage = record("stage"), onReset = record("reset"),
+    onStage = record("stage"), onReset = record("reset"), onTimerResume = record("resume"),
 }))
 local function last() return got[#got] end
 local function count() return #got end
@@ -76,7 +77,11 @@ BigWigsLoader.registered.BigWigs_Timer("BigWigs_Timer", {}, SECRET, 8, nil, "Ano
 assert(last().evt.spellID == nil and last().evt.key == nil and last().evt.approximate == true, "secret key collapses to nil")
 
 BigWigsLoader.registered.BigWigs_StopBar("BigWigs_StopBar", {}, "Tail Thrash (2)")
-assert(last().kind == "stop" and last().evt.barID == "bigwigs:Tail Thrash (2)")
+assert(last().kind == "stop" and last().evt.barID == "bigwigs:Tail Thrash (2)" and last().evt.reason == "stop")
+BigWigsLoader.registered.BigWigs_PauseBar("BigWigs_PauseBar", {}, "Tail Thrash (2)")
+assert(last().kind == "stop" and last().evt.reason == "pause")
+BigWigsLoader.registered.BigWigs_ResumeBar("BigWigs_ResumeBar", {}, "Tail Thrash (2)")
+assert(last().kind == "resume" and last().evt.barID == "bigwigs:Tail Thrash (2)", "resume is published")
 BigWigsLoader.registered.BigWigs_Message("BigWigs_Message", {}, 12345, "Tail Thrash!", "orange", 136041, true)
 assert(last().kind == "message" and last().evt.spellID == 12345 and last().evt.emphasized == true)
 BigWigsLoader.registered.BigWigs_SetStage("BigWigs_SetStage", {}, 2)
@@ -96,7 +101,11 @@ e = last().evt
 assert(last().kind == "timer" and e.source == "dbm" and e.spellID == 555 and e.duration == 15, "DBM timer fields")
 assert(e.barID == "dbm:timer555cd", "DBM bar identity is the timer id")
 DBM.registered.DBM_TimerStop("DBM_TimerStop", "timer555cd")
-assert(last().kind == "stop" and last().evt.barID == "dbm:timer555cd")
+assert(last().kind == "stop" and last().evt.barID == "dbm:timer555cd" and last().evt.reason == "stop")
+DBM.registered.DBM_TimerPause("DBM_TimerPause", "timer555cd")
+assert(last().evt.reason == "pause")
+DBM.registered.DBM_TimerResume("DBM_TimerResume", "timer555cd")
+assert(last().kind == "resume" and last().evt.barID == "dbm:timer555cd")
 DBM.registered.DBM_Announce("DBM_Announce", "Bite incoming", 136041, "spell", 555)
 assert(last().kind == "message" and last().evt.spellID == 555 and last().evt.text == "Bite incoming")
 DBM.registered.DBM_SetStage("DBM_SetStage", {}, "mod", 3)
@@ -121,12 +130,20 @@ tlFrame.OnEvent(tlFrame, "ENCOUNTER_TIMELINE_EVENT_ADDED", { id = 8, source = 1,
 assert(last().evt.spellID == 4242 and last().evt.secretIdentity == false and last().evt.text == "Scripted", "script events are readable")
 timelineState[7] = Enum.EncounterTimelineEventState.Paused
 tlFrame.OnEvent(tlFrame, "ENCOUNTER_TIMELINE_EVENT_STATE_CHANGED", 7)
-assert(last().kind == "stop" and last().evt.barID == "timeline:7", "pause stops the bar")
+assert(last().kind == "stop" and last().evt.barID == "timeline:7" and last().evt.reason == "pause", "pause stops the bar")
 timelineState[7] = Enum.EncounterTimelineEventState.Active
 tlFrame.OnEvent(tlFrame, "ENCOUNTER_TIMELINE_EVENT_STATE_CHANGED", 7)
 assert(last().kind == "timer" and last().evt.duration == 4 and last().evt.barID == "timeline:7", "resume re-arms with remaining time")
 tlFrame.OnEvent(tlFrame, "ENCOUNTER_TIMELINE_EVENT_REMOVED", 7)
-assert(last().kind == "stop")
+assert(last().kind == "stop" and last().evt.reason == "stop", "removal without completion is a cancel")
+timelineState[8] = Enum.EncounterTimelineEventState.Finished
+tlFrame.OnEvent(tlFrame, "ENCOUNTER_TIMELINE_EVENT_STATE_CHANGED", 8)
+assert(last().evt.reason == "finished", "finished state reports completion")
+tlFrame.OnEvent(tlFrame, "ENCOUNTER_TIMELINE_EVENT_REMOVED", 8)
+assert(last().evt.reason == "finished", "removal after completion still reads as finished")
+timelineState[8] = Enum.EncounterTimelineEventState.Canceled
+tlFrame.OnEvent(tlFrame, "ENCOUNTER_TIMELINE_EVENT_STATE_CHANGED", 8)
+assert(last().evt.reason == "stop", "cancel is never completion")
 
 -- A preferred source that is missing yields no active source at all.
 local savedDBM = DBM

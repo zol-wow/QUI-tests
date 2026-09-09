@@ -63,7 +63,9 @@ local ns = {
 -- Collaborator stubs -------------------------------------------------------
 local ready = { [48792] = false, [55233] = true, ["slot:13"] = true }
 local tanking, covered = true, false
+local watched
 ns.RemindersDefensives = {
+    SetWatchedSpells = function(list) watched = list end,
     PlayerSpecID = function() return 250 end,
     PlayerRole = function() return "TANK" end,
     IsTankingBoss = function() return tanking end,
@@ -110,6 +112,7 @@ local R = assert(ns.Reminders)
 -- Login refresh subscribes when enabled.
 assert(R.IsSubscribed() and bus.subs.QUI_Reminders == R.Handlers, "enabled profile subscribes to the bus")
 assert(bus.preferred == "auto")
+assert(watched and watched[2] == 55233, "refresh hands the priority list to the GCD watcher")
 local H = R.Handlers
 
 -- Not opted in: nothing armed. Opted in: armed at duration - lead.
@@ -138,9 +141,9 @@ assert(#timers == 1 and timers[1].delay == 4, "glow timer scheduled for the ling
 -- Dedupe: the message for the same cast inside the linger window is silent.
 H.onMessage({ source = "bigwigs", spellID = 777, text = "B" })
 assert(#shown == 1, "duplicate within linger window suppressed")
-now = now + 10
+now = now + 13
 H.onMessage({ source = "bigwigs", spellID = 777, text = "B" })
-assert(#shown == 2, "message after the window fires again")
+assert(#shown == 2, "message after the window and past the landing fires again")
 
 -- Chat + TTS outputs.
 db.chat.enabled = true
@@ -198,32 +201,154 @@ timers = {}
 H.onTimer({ source = "bigwigs", spellID = 777, duration = 5, barID = "bigwigs:D" })
 assert(timers[1].delay == 7, "negative lead time arms after the landing")
 H.onTimerStop({ source = "bigwigs", barID = "bigwigs:D" })
-assert(R.PendingCount() == 0, "stop disarms the delayed call")
+assert(R.PendingCount() == 0 and timers[1].cancelled, "a stop 5s before the bar's end cancels the delayed call")
 db.leadTime = 3
+
+-- An explicit stop releases the countdown's claim on its ability; a completed
+-- one keeps it through the landing.
+now = now + 20
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 60, barID = "bigwigs:S" })
+assert(R.HasPendingForSpell(777), "armed countdown claims the spell")
+H.onTimerStop({ source = "bigwigs", barID = "bigwigs:S", reason = "stop" })
+assert(R.PendingCount() == 0 and not R.HasPendingForSpell(777), "explicit stop releases the claim")
+timers = {}
+H.onTimer({ source = "timeline", spellID = 777, duration = 5, barID = "timeline:S" })
+fireTimers()
+now = now + 5
+H.onTimerStop({ source = "timeline", barID = "timeline:S", reason = "finished" })
+assert(R.HasPendingForSpell(777), "completion keeps the claim through the landing slack")
+now = now + 3
+assert(not R.HasPendingForSpell(777), "claim expires after the slack")
+
+-- Negative warning time: a "finished" stop keeps the delayed call armed; an
+-- explicit stop, pause or cancel disarms it even at the bar's end.
+db.leadTime = -2
+now = now + 10
+timers = {}
+H.onTimer({ source = "timeline", spellID = 777, duration = 5, barID = "timeline:F" })
+now = now + 5
+H.onTimerStop({ source = "timeline", barID = "timeline:F", reason = "finished" })
+assert(R.PendingCount() == 1 and not timers[1].cancelled, "completion does not cancel a post-landing call")
+now = now + 2
+fireTimers()
+assert(R.PendingCount() == 0, "the post-landing call fired")
+timers = {}
+H.onTimer({ source = "timeline", spellID = 777, duration = 5, barID = "timeline:G" })
+now = now + 5
+H.onTimerStop({ source = "timeline", barID = "timeline:G", reason = "pause" })
+assert(R.PendingCount() == 0 and timers[1].cancelled, "a pause at the bar's end still disarms")
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 5, barID = "bigwigs:G" })
+now = now + 5
+H.onTimerStop({ source = "bigwigs", barID = "bigwigs:G", reason = "stop" })
+assert(R.PendingCount() == 0 and timers[1].cancelled, "an explicit stop disarms a post-landing call")
+db.leadTime = 3
+
+-- A message for an ability whose countdown is already armed does not pre-empt it.
+now = now + 10
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 10, barID = "bigwigs:M" })
+local beforeMsg = #shown
+H.onMessage({ source = "bigwigs", spellID = 777, text = "M" })
+assert(#shown == beforeMsg and R.PendingCount() == 1, "message defers to the armed countdown")
+fireTimers()
+assert(#shown == beforeMsg + 1, "the armed countdown still fires on schedule")
+now = now + 10
+H.onMessage({ source = "bigwigs", spellID = 888, text = "Bite" })
+assert(#shown == beforeMsg + 2, "a message with no countdown fires at once")
+
+-- Warning time longer than linger: the early callout fires, then the landing
+-- message must still defer to the countdown it belongs to.
+db.leadTime = 10
+db.linger = 4
+now = now + 20
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 15, barID = "bigwigs:L" })
+fireTimers()
+local afterEarly = #shown
+now = now + 15
+H.onMessage({ source = "bigwigs", spellID = 777, text = "L" })
+assert(#shown == afterEarly, "landing message after the early callout is absorbed")
+now = now + 5
+H.onMessage({ source = "bigwigs", spellID = 777, text = "L again" })
+assert(#shown == afterEarly + 1, "well after landing, a fresh message fires again")
+db.leadTime = 3
+
+-- Armed timers re-check eligibility when they fire.
+now = now + 10
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 10, barID = "bigwigs:H" })
+local before = #shown
+db.abilities[2001][777] = nil
+R.MarkAbilitiesDirty()
+fireTimers()
+assert(#shown == before, "an ability unticked while armed does not fire")
+db.abilities[2001][777] = true
+R.MarkAbilitiesDirty()
+ns.BossMods.ActiveSource = function() return "dbm" end
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 10, barID = "bigwigs:I" })
+fireTimers()
+assert(#shown == before, "a source switched away while armed does not fire")
+ns.BossMods.ActiveSource = nil
+
+-- Pause keeps the remaining countdown; resume re-arms it at the same landing.
+now = now + 20
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 20, barID = "bigwigs:P" })
+now = now + 5
+H.onTimerStop({ source = "bigwigs", barID = "bigwigs:P", reason = "pause" })
+assert(R.PendingCount() == 0 and timers[1].cancelled, "pause disarms")
+now = now + 30
+H.onTimerResume({ source = "bigwigs", barID = "bigwigs:P" })
+assert(R.PendingCount() == 1 and timers[2].delay == 12, "resume re-arms with the 15s that were left minus lead")
+H.onTimerStop({ source = "bigwigs", barID = "bigwigs:P", reason = "stop" })
+H.onTimerResume({ source = "bigwigs", barID = "bigwigs:P" })
+assert(R.PendingCount() == 0, "resume after an explicit stop is ignored")
+
+-- A source change drops the previous source's timers and claims.
+now = now + 20
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 60, barID = "bigwigs:X" })
+assert(R.PendingCount() == 1 and R.HasPendingForSpell(777))
+H.onMessage({ source = "dbm", spellID = 777, text = "switched" })
+assert(R.PendingCount() == 0 and timers[1].cancelled, "a message from a different active source resets the old source's state")
+H.onTimer({ source = "dbm", spellID = 777, duration = 60, barID = "dbm:X" })
+assert(R.PendingCount() == 1)
+db.source = "bigwigs"
+ns.BossMods.ActiveSource = function() return "bigwigs" end
+R.Refresh()
+assert(R.PendingCount() == 0 and not R.HasPendingForSpell(777), "changing the preferred source resets pending state")
+ns.BossMods.ActiveSource = nil
+db.source = "auto"
+R.Refresh()
 
 -- Blizzard timeline: anonymous events count only when the option says so.
 now = now + 10
+local base = #shown
 H.onTimer({ source = "timeline", secretIdentity = true, duration = 1, barID = "timeline:9" })
-assert(#shown == 8, "timeline event with unknown identity fires under timelineAllEvents")
+assert(#shown == base + 1, "timeline event with unknown identity fires under timelineAllEvents")
 db.timelineAllEvents = false
 now = now + 10
 H.onTimer({ source = "timeline", secretIdentity = true, duration = 1, barID = "timeline:10" })
-assert(#shown == 8, "timelineAllEvents off: anonymous events ignored")
+assert(#shown == base + 1, "timelineAllEvents off: anonymous events ignored")
 db.timelineAllEvents = true
 
 -- Context gates.
 instanceType = "none"
 now = now + 10
+base = #shown
 H.onMessage({ source = "bigwigs", spellID = 777 })
-assert(#shown == 8, "outside instances: silent by default")
+assert(#shown == base, "outside instances: silent by default")
 db.elsewhere = true
 H.onMessage({ source = "bigwigs", spellID = 777 })
-assert(#shown == 9, "elsewhere on: fires")
+assert(#shown == base + 1, "elsewhere on: fires")
 instanceType = "raid"
 db.inRaids = false
 now = now + 10
 H.onMessage({ source = "bigwigs", spellID = 777 })
-assert(#shown == 9, "raids off: silent")
+assert(#shown == base + 1, "raids off: silent")
 db.inRaids = true
 instanceType = "party"
 
@@ -238,8 +363,15 @@ eventFrame.OnEvent(eventFrame, "ENCOUNTER_START", 3001)
 assert(R.ActiveEncounter() == 3001)
 eventFrame.OnEvent(eventFrame, "ENCOUNTER_START", SECRET)
 assert(R.ActiveEncounter() == nil, "secret encounter id collapses to nil")
+assert(R.LastFiredCount() > 0, "dedupe entries exist mid-encounter")
 eventFrame.OnEvent(eventFrame, "ENCOUNTER_END")
 assert(R.PendingCount() == 0 and timers[1].cancelled, "encounter end disarms")
+assert(R.LastFiredCount() == 0, "encounter end clears the dedupe map")
+now = now + 10
+H.onTimer({ source = "timeline", secretIdentity = true, duration = 1, barID = "timeline:old" })
+now = now + 100
+H.onTimer({ source = "timeline", secretIdentity = true, duration = 1, barID = "timeline:new" })
+assert(R.LastFiredCount() == 1, "expired dedupe entries are pruned on the next fire")
 
 -- Opted-in set is cached and invalidated on demand.
 assert(R.OptedSpells()[777] and R.OptedSpells()[888] and not R.OptedSpells()[111])
@@ -252,6 +384,7 @@ assert(R.OptedSpells()[111], "dirty mark rebuilds the union")
 db.enabled = false
 R.Refresh()
 assert(not R.IsSubscribed() and bus.subs.QUI_Reminders == nil, "disabled profile unsubscribes")
+assert(watched and #watched == 0, "disabling clears the cooldown watcher")
 
 -- Test command reports the pick without gates.
 db.enabled = true
@@ -259,10 +392,14 @@ R.Refresh()
 local pick = R.Test()
 assert(pick and pick.spellID == 55233)
 
--- Seen catalogue stays bounded.
+-- Seen catalogue stays bounded and keeps the newest entries.
+local clock = 1700000000
+time = function() clock = clock + 1; return clock end
+QUI.db.global.reminders.seen = {}
 for i = 1, 450 do R.RecordSeen({ spellID = 10000 + i, source = "bigwigs" }) end
 local n = 0
 for _ in pairs(QUI.db.global.reminders.seen) do n = n + 1 end
 assert(n <= 400, "seen catalogue capped, got " .. n)
+assert(QUI.db.global.reminders.seen[10450] and not QUI.db.global.reminders.seen[10001], "newest kept, oldest evicted")
 
 print("OK: reminders_engine_test")

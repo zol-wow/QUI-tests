@@ -46,7 +46,7 @@ end
 local defaults = readAll("core/defaults.lua")
 has(defaults, "        reminders = {\n            enabled = false,", "profile defaults ship off")
 has(defaults, "            remindersCallout = {", "frameAnchoring default for the callout")
-has(defaults, "        reminders = { seen = {} },", "account-wide seen catalogue")
+has(defaults, "    global = {\n        reminders = { seen = {} },", "account-wide seen catalogue under defaults.global")
 local profileIO = readAll("core/profile_io.lua")
 has(profileIO, 'topLevelKeys = { "reminders" }', "selective export category")
 local modulesPage = readAll("core/settings/content/module_addons_content.lua")
@@ -55,6 +55,15 @@ local callout = readAll("QUI_Reminders/reminders/callout.lua")
 has(callout, 'local ANCHOR_KEY = "remindersCallout"', "anchor key")
 has(callout, "QUI_RegisterFrameResolver(ANCHOR_KEY", "frame resolver registered at runtime")
 has(callout, "um:RegisterElement({", "layout mode element registered at runtime")
+for _, field in ipairs({ "getFrame = ", "isEnabled = ", "setEnabled = ", "onOpen = ", "onClose = ", "setGameplayHidden = " }) do
+    has(callout, field, "layout element uses the RegisterElement contract: " .. field)
+end
+assert(not callout:find("previewOn", 1, true), "no adapter-only shorthand fields")
+has(callout, "gameplayHidden = hide and true or false", "gameplay-hidden state is remembered")
+has(callout, "if gameplayHidden then return false end", "a hidden element does not show a new callout")
+has(callout, "if GetTime() >= hideAt then", "unhiding drops an expired callout")
+local engine = readAll("QUI_Reminders/reminders/engine.lua")
+assert(not engine:find("_G.QUI_", 1, true), "engine exports on ns.*, never _G")
 
 -- Shared seams the module leans on.
 local mainToc = readAll("QUI.toc")
@@ -70,6 +79,10 @@ local effects = readAll("QUI_CDM/cdm/cdm_effects.lua")
 has(effects, "ns._OwnedGlows.FindIconBySpellID = FindIconBySpellID", "CDM icon lookup exported")
 local init = readAll("init.lua")
 has(init, 'input:match("^reminders%s+test%s*$")', "slash test command")
+
+-- The priority list follows spec switches and edits the spec shown at click time.
+has(content, 'frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")', "priority section repaints on spec change")
+has(content, "specID ~= shownSpecID", "row callbacks verify the displayed spec")
 
 -- Hovering a row shows the real spell or trinket tooltip on every list.
 has(content, "GameTooltip.SetSpellByID, GameTooltip, r.tooltipSpellID", "spell rows show the spell tooltip")
