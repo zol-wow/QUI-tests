@@ -77,10 +77,10 @@ hasnot(anchoring, "frame:SetPoint(pt, relativeTo, relPt, x, y)",
 --    that can target ChatFrame1. It must use the same override-bypass helpers.
 has(anchoring, "H.BaseClearAllPoints(resolved)",
     "QUI_ReanchorFramePositionOnly must clear points via the override-bypass helper")
-has(anchoring, "H.BaseSetPoint(resolved, \"CENTER\", parentFrame, \"CENTER\", centerX, centerY)",
-    "QUI_ReanchorFramePositionOnly must center-anchor via the override-bypass helper")
-has(anchoring, "H.BaseSetPoint(resolved, point, parentFrame, relative, offsetX, offsetY)",
-    "QUI_ReanchorFramePositionOnly must normal-anchor via the override-bypass helper")
+has(anchoring, "AnchorOrPin(key, resolved, \"CENTER\", parentFrame, \"CENTER\", centerX, centerY)",
+    "QUI_ReanchorFramePositionOnly must center-anchor via the shared override-bypass route")
+has(anchoring, "AnchorOrPin(key, resolved, point, parentFrame, relative, offsetX, offsetY)",
+    "QUI_ReanchorFramePositionOnly must normal-anchor via the shared override-bypass route")
 hasnot(anchoring, "resolved:ClearAllPoints()",
     "QUI_ReanchorFramePositionOnly must not call the overridden resolved:ClearAllPoints")
 hasnot(anchoring, "resolved:SetPoint(\"CENTER\", parentFrame",

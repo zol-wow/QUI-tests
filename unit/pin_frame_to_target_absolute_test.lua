@@ -18,8 +18,9 @@ local Helpers = ns.Helpers
 -- Helper to build a frame mock that records SetPoint calls the way
 -- Helpers.BaseSetPoint expects: it tries frame.SetPointBase then frame.SetPoint.
 -- GetNumPoints/GetPoint reflect the last SetPoint so the idempotency guard works.
-local function makeFrame()
+local function makeFrame(scale)
   local f = {}
+  f.GetEffectiveScale = function() return scale or 1 end
   f._setPointCount = 0
   f.SetPoint = function(self, pt, rel, relPt, x, y)
     self._points = { pt = pt, rel = rel, relPt = relPt, x = x, y = y }
@@ -67,6 +68,39 @@ assert(f2._points.x == 100 and f2._points.y == 200, "BOTTOMLEFT corner")
 local f3, t3 = makeFrame(), makeTarget(100, 200, 40, 20, 2)  -- center 120,210 * 2
 assert(Helpers.PinFrameToTargetAbsolute(f3, "CENTER", t3, "CENTER", 0, 0))
 assert(f3._points.x == 240 and f3._points.y == 420, "scale-normalized")
+
+do
+  _G.UIParent.GetEffectiveScale = function() return 0.8 end
+  local scaled = makeFrame(1.6)
+  local scaledTarget = makeTarget(100, 200, 40, 20, 1.2)
+  local success, px, py = Helpers.PinFrameToTargetAbsolute(scaled, "TOP", scaledTarget, "CENTER", 6, -7)
+  assert(success, "scaled child must pin")
+  assert(math.abs(px - 186) < 0.000001 and math.abs(py - 308) < 0.000001,
+    "returned coordinates and offsets must remain in UIParent space")
+  assert(math.abs(scaled._points.x * 1.6 - px * 0.8) < 0.000001
+    and math.abs(scaled._points.y * 1.6 - py * 0.8) < 0.000001,
+    "scaled child anchor must land at the intended screen coordinates")
+  assert(Helpers.PinFrameToTargetAbsolute(scaled, "TOP", scaledTarget, "CENTER", 6, -7))
+  assert(scaled._setPointCount == 1, "scaled stationary child must not be repinned")
+  assert(Helpers.PinFrameToTargetAbsolute(scaled, "TOP", scaledTarget, "CENTER", 6.4, -7))
+  assert(scaled._setPointCount == 1, "pin tolerance must remain in UIParent space")
+  assert(Helpers.PinFrameToTargetAbsolute(scaled, "TOP", scaledTarget, "CENTER", 6.6, -7))
+  assert(scaled._setPointCount == 2, "scaled child must repin beyond UIParent-space tolerance")
+  _G.UIParent.GetEffectiveScale = function() return 1 end
+end
+
+do
+  local scaled = makeFrame({ secret = true })
+  scaled:SetPoint("CENTER", UIParent, "CENTER", 15, 25)
+  local savedPoint = scaled._points
+  assert(Helpers.PinFrameToTargetAbsolute(scaled, "CENTER", target, "CENTER", 0, 0) == false)
+  assert(scaled._points == savedPoint and scaled._setPointCount == 1,
+    "secret child scale must preserve the existing anchor")
+  scaled.GetEffectiveScale = function() return 0 end
+  assert(Helpers.PinFrameToTargetAbsolute(scaled, "CENTER", target, "CENTER", 0, 0) == false)
+  assert(scaled._points == savedPoint and scaled._setPointCount == 1,
+    "zero child scale must preserve the existing anchor")
+end
 
 -- 4. Secret rect → no pin, returns false, frame untouched.
 local f4 = makeFrame()
