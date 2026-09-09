@@ -123,6 +123,7 @@ local function reset()
     preview = false
 end
 reset()
+assert(setfenv(assert(loadfile("core/safecall.lua")), env))("QUI", ns)
 assert(setfenv(assert(loadfile("modules/qol/bonus_roll.lua")), env))("QUI", ns)
 local api = ns.BonusRoll
 local events = frames[#frames]
