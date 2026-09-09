@@ -17,6 +17,7 @@ local frames = {}
 function CreateFrame()
     local f = { events = {} }
     function f:RegisterEvent(e) self.events[e] = true end
+    function f:UnregisterEvent(e) self.events[e] = nil end
     function f:SetScript(name, fn) self[name] = fn end
     frames[#frames + 1] = f
     return f
@@ -98,6 +99,10 @@ frames[1].OnEvent(frames[1], "SPELL_UPDATE_COOLDOWN")
 assert(D.IsReady(D.Describe(2)) == false, "snapshot refreshed: real cooldown")
 D.SetWatchedSpells({ 3 })
 assert(D.IsReady(D.Describe(2)) == nil, "unwatching clears the stale snapshot")
+D.SetWatchedSpells({})
+assert(not D.IsWatching() and not frames[1].events.SPELL_UPDATE_COOLDOWN, "empty watch list unregisters the cooldown event")
+D.SetWatchedSpells({ 2, 3 })
+assert(D.IsWatching() and frames[1].events.SPELL_UPDATE_COOLDOWN, "watching again re-registers")
 D.SetWatchedSpells({ 2, 3 })
 cooldowns[8] = { isActive = false, isEnabled = false }
 assert(D.IsReady(D.Describe(8)) == false, "a cooldown on hold is not ready")

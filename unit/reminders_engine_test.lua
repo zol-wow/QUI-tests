@@ -299,6 +299,7 @@ assert(R.OptedSpells()[111], "dirty mark rebuilds the union")
 db.enabled = false
 R.Refresh()
 assert(not R.IsSubscribed() and bus.subs.QUI_Reminders == nil, "disabled profile unsubscribes")
+assert(watched and #watched == 0, "disabling clears the cooldown watcher")
 
 -- Test command reports the pick without gates.
 db.enabled = true
