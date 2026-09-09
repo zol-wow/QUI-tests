@@ -1253,9 +1253,6 @@ return {
                 headerShowIcons = true,
                 iconStyle = "spec",
                 numberFormat = "compact",
-                reminders = {
-                  seen = {}
-                },
                 showRowBackground = true,
                 showSecondaryValue = true,
                 textures = {},

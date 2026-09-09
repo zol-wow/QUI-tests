@@ -63,7 +63,9 @@ local ns = {
 -- Collaborator stubs -------------------------------------------------------
 local ready = { [48792] = false, [55233] = true, ["slot:13"] = true }
 local tanking, covered = true, false
+local watched
 ns.RemindersDefensives = {
+    SetWatchedSpells = function(list) watched = list end,
     PlayerSpecID = function() return 250 end,
     PlayerRole = function() return "TANK" end,
     IsTankingBoss = function() return tanking end,
@@ -110,6 +112,7 @@ local R = assert(ns.Reminders)
 -- Login refresh subscribes when enabled.
 assert(R.IsSubscribed() and bus.subs.QUI_Reminders == R.Handlers, "enabled profile subscribes to the bus")
 assert(bus.preferred == "auto")
+assert(watched and watched[2] == 55233, "refresh hands the priority list to the GCD watcher")
 local H = R.Handlers
 
 -- Not opted in: nothing armed. Opted in: armed at duration - lead.
@@ -198,32 +201,71 @@ timers = {}
 H.onTimer({ source = "bigwigs", spellID = 777, duration = 5, barID = "bigwigs:D" })
 assert(timers[1].delay == 7, "negative lead time arms after the landing")
 H.onTimerStop({ source = "bigwigs", barID = "bigwigs:D" })
-assert(R.PendingCount() == 0, "stop disarms the delayed call")
+assert(R.PendingCount() == 0 and timers[1].cancelled, "a stop 5s before the bar's end cancels the delayed call")
 db.leadTime = 3
+
+-- Negative warning time: a stop at the bar's natural end keeps the delayed
+-- call armed; a stop well before the end cancels it.
+db.leadTime = -2
+now = now + 10
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 5, barID = "bigwigs:F" })
+now = now + 5
+H.onTimerStop({ source = "bigwigs", barID = "bigwigs:F" })
+assert(R.PendingCount() == 1 and not timers[1].cancelled, "natural end does not cancel a post-landing call")
+now = now + 2
+fireTimers()
+assert(R.PendingCount() == 0, "the post-landing call fired")
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 5, barID = "bigwigs:G" })
+now = now + 1
+H.onTimerStop({ source = "bigwigs", barID = "bigwigs:G" })
+assert(R.PendingCount() == 0 and timers[1].cancelled, "an early stop cancels even a post-landing call")
+db.leadTime = 3
+
+-- Armed timers re-check eligibility when they fire.
+now = now + 10
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 10, barID = "bigwigs:H" })
+local before = #shown
+db.abilities[2001][777] = nil
+R.MarkAbilitiesDirty()
+fireTimers()
+assert(#shown == before, "an ability unticked while armed does not fire")
+db.abilities[2001][777] = true
+R.MarkAbilitiesDirty()
+ns.BossMods.ActiveSource = function() return "dbm" end
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 10, barID = "bigwigs:I" })
+fireTimers()
+assert(#shown == before, "a source switched away while armed does not fire")
+ns.BossMods.ActiveSource = nil
 
 -- Blizzard timeline: anonymous events count only when the option says so.
 now = now + 10
+local base = #shown
 H.onTimer({ source = "timeline", secretIdentity = true, duration = 1, barID = "timeline:9" })
-assert(#shown == 8, "timeline event with unknown identity fires under timelineAllEvents")
+assert(#shown == base + 1, "timeline event with unknown identity fires under timelineAllEvents")
 db.timelineAllEvents = false
 now = now + 10
 H.onTimer({ source = "timeline", secretIdentity = true, duration = 1, barID = "timeline:10" })
-assert(#shown == 8, "timelineAllEvents off: anonymous events ignored")
+assert(#shown == base + 1, "timelineAllEvents off: anonymous events ignored")
 db.timelineAllEvents = true
 
 -- Context gates.
 instanceType = "none"
 now = now + 10
+base = #shown
 H.onMessage({ source = "bigwigs", spellID = 777 })
-assert(#shown == 8, "outside instances: silent by default")
+assert(#shown == base, "outside instances: silent by default")
 db.elsewhere = true
 H.onMessage({ source = "bigwigs", spellID = 777 })
-assert(#shown == 9, "elsewhere on: fires")
+assert(#shown == base + 1, "elsewhere on: fires")
 instanceType = "raid"
 db.inRaids = false
 now = now + 10
 H.onMessage({ source = "bigwigs", spellID = 777 })
-assert(#shown == 9, "raids off: silent")
+assert(#shown == base + 1, "raids off: silent")
 db.inRaids = true
 instanceType = "party"
 
@@ -259,10 +301,14 @@ R.Refresh()
 local pick = R.Test()
 assert(pick and pick.spellID == 55233)
 
--- Seen catalogue stays bounded.
+-- Seen catalogue stays bounded and keeps the newest entries.
+local clock = 1700000000
+time = function() clock = clock + 1; return clock end
+QUI.db.global.reminders.seen = {}
 for i = 1, 450 do R.RecordSeen({ spellID = 10000 + i, source = "bigwigs" }) end
 local n = 0
 for _ in pairs(QUI.db.global.reminders.seen) do n = n + 1 end
 assert(n <= 400, "seen catalogue capped, got " .. n)
+assert(QUI.db.global.reminders.seen[10450] and not QUI.db.global.reminders.seen[10001], "newest kept, oldest evicted")
 
 print("OK: reminders_engine_test")

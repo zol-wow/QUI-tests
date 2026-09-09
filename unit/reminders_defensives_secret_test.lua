@@ -13,6 +13,15 @@ local SECRET = setmetatable({ __secret = true }, {
 })
 function issecretvalue(v) return type(v) == "table" and rawget(v, "__secret") == true end
 
+local frames = {}
+function CreateFrame()
+    local f = { events = {} }
+    function f:RegisterEvent(e) self.events[e] = true end
+    function f:SetScript(name, fn) self[name] = fn end
+    frames[#frames + 1] = f
+    return f
+end
+
 local ns = {
     Helpers = {
         IsSecretValue = function(v) return issecretvalue(v) end,
@@ -67,16 +76,30 @@ assert(cands[#cands].spellID == 4, "unknown spells sort last")
 local trinkets = D.TrinketCandidates()
 assert(#trinkets == 1 and trinkets[1].id == "slot:13" and trinkets[1].spellID == 90001 and trinkets[1].kind == "item")
 
--- Readiness: booleans decide; secret numbers are never touched.
+-- Readiness: booleans decide; secret numbers are never touched. isOnGCD is
+-- only believed from the SPELL_UPDATE_COOLDOWN snapshot.
 cooldowns[1] = { isActive = false, startTime = SECRET, duration = SECRET }
 assert(D.IsReady(D.Describe(1)) == true, "inactive cooldown is ready even with secret numbers")
 cooldowns[2] = { isActive = true, isOnGCD = true, startTime = SECRET, duration = SECRET }
-assert(D.IsReady(D.Describe(2)) == true, "GCD-only counts as ready")
+cooldowns[61304] = { isActive = true }
+assert(D.IsReady(D.Describe(2)) == nil, "live isOnGCD is not trusted: unknowable while the GCD runs")
+cooldowns[61304] = { isActive = false }
+assert(D.IsReady(D.Describe(2)) == false, "no global cooldown running: the active cooldown is real")
+D.SetWatchedSpells({ 2, 3 })
+assert(#frames == 1 and frames[1].events.SPELL_UPDATE_COOLDOWN, "watcher listens for SPELL_UPDATE_COOLDOWN")
+cooldowns[61304] = { isActive = true }
+assert(D.IsReady(D.Describe(2)) == true, "snapshot taken on watch: GCD-only counts as ready")
+cooldowns[2].isOnGCD = false
+assert(D.IsReady(D.Describe(2)) == true, "stale live flag ignored until the next cooldown event")
+frames[1].OnEvent(frames[1], "SPELL_UPDATE_COOLDOWN")
+assert(D.IsReady(D.Describe(2)) == false, "snapshot refreshed: real cooldown")
 cooldowns[3] = { isActive = true, isOnGCD = false, startTime = SECRET, duration = SECRET }
 charges[3] = { currentCharges = SECRET, maxCharges = 2, isActive = true }
+frames[1].OnEvent(frames[1], "SPELL_UPDATE_COOLDOWN")
 assert(D.IsReady(D.Describe(3)) == false, "active, not GCD, charges unreadable: on cooldown")
 charges[3] = { currentCharges = 1, maxCharges = 2, isActive = true }
 assert(D.IsReady(D.Describe(3)) == true, "a readable spare charge is ready")
+cooldowns[61304] = { isActive = SECRET }
 cooldowns[5] = { isActive = SECRET, startTime = SECRET, duration = SECRET }
 assert(D.IsReady(D.Describe(5)) == nil, "nothing readable: unknowable, not false")
 cooldowns[6] = { isActive = true, isOnGCD = false, startTime = 100, duration = 1.5 }
