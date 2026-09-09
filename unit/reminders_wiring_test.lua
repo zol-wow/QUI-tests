@@ -61,6 +61,7 @@ end
 assert(not callout:find("previewOn", 1, true), "no adapter-only shorthand fields")
 has(callout, "gameplayHidden = hide and true or false", "gameplay-hidden state is remembered")
 has(callout, "if gameplayHidden then return false end", "a hidden element does not show a new callout")
+has(callout, "if GetTime() >= hideAt then", "unhiding drops an expired callout")
 local engine = readAll("QUI_Reminders/reminders/engine.lua")
 assert(not engine:find("_G.QUI_", 1, true), "engine exports on ns.*, never _G")
 

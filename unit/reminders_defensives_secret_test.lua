@@ -132,6 +132,10 @@ itemCooldowns[5555] = { 100, 90, 1 }
 assert(D.IsReady(D.Describe("slot:13")) == false, "trinket on cooldown")
 itemCooldowns[5555] = { SECRET, SECRET, 1 }
 assert(D.IsReady(D.Describe("slot:13")) == nil, "secret trinket cooldown is unknowable")
+itemCooldowns[5555] = { 0, 0, false }
+assert(D.IsReady(D.Describe("slot:13")) == false, "trinket cooldown on hold is not ready")
+itemCooldowns[5555] = { 0, 0, 0 }
+assert(D.IsReady(D.Describe("slot:13")) == false, "numeric on-hold flag is honoured too")
 assert(D.Describe("slot:14") == nil, "empty slot resolves to nothing")
 
 -- Pick: first ready wins; unknowns are a fallback, never preferred over ready.

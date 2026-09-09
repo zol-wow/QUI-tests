@@ -293,6 +293,20 @@ fireTimers()
 assert(#shown == before, "a source switched away while armed does not fire")
 ns.BossMods.ActiveSource = nil
 
+-- Pause keeps the remaining countdown; resume re-arms it at the same landing.
+now = now + 20
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 20, barID = "bigwigs:P" })
+now = now + 5
+H.onTimerStop({ source = "bigwigs", barID = "bigwigs:P", reason = "pause" })
+assert(R.PendingCount() == 0 and timers[1].cancelled, "pause disarms")
+now = now + 30
+H.onTimerResume({ source = "bigwigs", barID = "bigwigs:P" })
+assert(R.PendingCount() == 1 and timers[2].delay == 12, "resume re-arms with the 15s that were left minus lead")
+H.onTimerStop({ source = "bigwigs", barID = "bigwigs:P", reason = "stop" })
+H.onTimerResume({ source = "bigwigs", barID = "bigwigs:P" })
+assert(R.PendingCount() == 0, "resume after an explicit stop is ignored")
+
 -- A source change drops the previous source's timers and claims.
 now = now + 20
 timers = {}
