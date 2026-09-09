@@ -55,8 +55,10 @@ local function NewWidget()
 end
 
 local iconFrame
+local allFrames = {}
 function CreateFrame(kind, name)
     local f = NewWidget()
+    allFrames[#allFrames + 1] = f
     function f:CreateTexture() self.icon = NewWidget(); return self.icon end
     function f:CreateFontString() self.keybindText = NewWidget(); return self.keybindText end
     if name == "QUI_RotationAssistIcon" then iconFrame = f end
@@ -121,11 +123,38 @@ nextSpell = 200
 poll._Tick()
 check("next valid suggestion repaints the texture", iconFrame.icon.texture == "tex:200")
 
+-- Target change resets the query cache; an empty answer afterwards must
+-- still repaint (the cache and the painted state are not the same thing).
+local function FireEvent(event)
+    for _, f in ipairs(allFrames) do
+        if f.OnEvent then f.OnEvent(f, event) end
+    end
+end
+nextSpell = nil
+FireEvent("PLAYER_TARGET_CHANGED")
+check("target change with no suggestion clears the old texture", iconFrame.icon.texture == "tex:9999")
+nextSpell = 300
+poll._Tick()
+check("suggestion after target change repaints", iconFrame.icon.texture == "tex:300")
+nextSpell = 310
+FireEvent("PLAYER_TARGET_CHANGED")
+nextSpell = nil
+poll._Tick()
+check("poller nil after a target-change reset still clears", iconFrame.icon.texture == "tex:9999")
+nextSpell = 200
+poll._Tick()
+check("suggestion after poller clear repaints", iconFrame.icon.texture == "tex:200")
+
 -- Assisted Combat going away clears without re-querying.
 nextSpell = 200 -- API would still answer with the stale spell
 C_AssistedCombat.IsAvailable = function() return false end
 poll.Reset()
 check("unavailable spec clears the stale texture even though the API still answers", iconFrame.icon.texture == "tex:9999")
+
+-- Refreshing the icon while unavailable re-queries (API still answers 200)
+-- and re-subscribes; the subscribe must deliver the clear again.
+_G.QUI_RefreshRotationAssistIcon()
+check("refresh while unavailable does not resurrect the stale suggestion", iconFrame.icon.texture == "tex:9999")
 
 -- Disabling the icon unsubscribes.
 C_AssistedCombat.IsAvailable = function() return true end

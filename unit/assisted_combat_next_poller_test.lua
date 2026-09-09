@@ -170,6 +170,23 @@ poll.Reset()
 poll._Tick()
 check("availability returning dispatches the current suggestion", seenCount == 11 and seenLast == 500)
 
+-- 8d. A consumer that (re)subscribes while unavailable gets the clear too,
+-- even though the shared latch already fired for earlier subscribers.
+isAvailable = false
+poll.Reset()
+check("sanity: unavailable clear delivered to existing subscriber", seenCount == 12 and seenLast == nil)
+local lateCount, lateLast = 0, "unset"
+poll.Subscribe("late", function(id) lateCount = lateCount + 1; lateLast = id end)
+check("late subscriber receives nil while unavailable", lateCount == 1 and lateLast == nil)
+check("existing subscriber is not re-cleared by the late subscribe", seenCount == 12)
+poll.Subscribe("test", function(id) seenCount = seenCount + 1; seenLast = id end)
+check("re-subscribing the same key while unavailable re-delivers nil", seenCount == 13 and seenLast == nil)
+poll.Unsubscribe("late")
+isAvailable = true
+poll.Reset()
+poll._Tick()
+check("availability returning after late subscribe dispatches the suggestion", seenCount == 14 and seenLast == 500)
+
 -- 9. Unsubscribing the last consumer stops the ticker.
 poll.Unsubscribe("test")
 check("last unsubscribe cancels the ticker", not poll.IsPolling())
