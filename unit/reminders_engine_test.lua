@@ -293,6 +293,23 @@ fireTimers()
 assert(#shown == before, "a source switched away while armed does not fire")
 ns.BossMods.ActiveSource = nil
 
+-- A source change drops the previous source's timers and claims.
+now = now + 20
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 60, barID = "bigwigs:X" })
+assert(R.PendingCount() == 1 and R.HasPendingForSpell(777))
+H.onMessage({ source = "dbm", spellID = 777, text = "switched" })
+assert(R.PendingCount() == 0 and timers[1].cancelled, "a message from a different active source resets the old source's state")
+H.onTimer({ source = "dbm", spellID = 777, duration = 60, barID = "dbm:X" })
+assert(R.PendingCount() == 1)
+db.source = "bigwigs"
+ns.BossMods.ActiveSource = function() return "bigwigs" end
+R.Refresh()
+assert(R.PendingCount() == 0 and not R.HasPendingForSpell(777), "changing the preferred source resets pending state")
+ns.BossMods.ActiveSource = nil
+db.source = "auto"
+R.Refresh()
+
 -- Blizzard timeline: anonymous events count only when the option says so.
 now = now + 10
 local base = #shown

@@ -79,6 +79,10 @@ has(effects, "ns._OwnedGlows.FindIconBySpellID = FindIconBySpellID", "CDM icon l
 local init = readAll("init.lua")
 has(init, 'input:match("^reminders%s+test%s*$")', "slash test command")
 
+-- The priority list follows spec switches and edits the spec shown at click time.
+has(content, 'frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")', "priority section repaints on spec change")
+has(content, "specID ~= shownSpecID", "row callbacks verify the displayed spec")
+
 -- Hovering a row shows the real spell or trinket tooltip on every list.
 has(content, "GameTooltip.SetSpellByID, GameTooltip, r.tooltipSpellID", "spell rows show the spell tooltip")
 has(content, 'GameTooltip.SetInventoryItem, GameTooltip, "player", r.tooltipSlot', "trinket rows show the item tooltip")
