@@ -1253,6 +1253,9 @@ return {
                 headerShowIcons = true,
                 iconStyle = "spec",
                 numberFormat = "compact",
+                reminders = {
+                  seen = {}
+                },
                 showRowBackground = true,
                 showSecondaryValue = true,
                 textures = {},
@@ -2116,6 +2119,20 @@ return {
             keepInPlace = true,
             offsetX = 0,
             offsetY = 0,
+            parent = "screen",
+            point = "CENTER",
+            relative = "CENTER",
+            sizeStable = true,
+            widthAdjust = 0
+          },
+          remindersCallout = {
+            autoHeight = false,
+            autoWidth = false,
+            heightAdjust = 0,
+            hideWithParent = false,
+            keepInPlace = true,
+            offsetX = 0,
+            offsetY = 120,
             parent = "screen",
             point = "CENTER",
             relative = "CENTER",
@@ -7910,6 +7927,40 @@ return {
           },
           updateRate = 0.10000000000000001,
           useClassColor = false
+        },
+        reminders = {
+          abilities = {},
+          cdmGlow = true,
+          chat = {
+            channel = "SAY",
+            enabled = false
+          },
+          display = {
+            glow = true,
+            iconSize = 56,
+            showIcon = true,
+            showText = true,
+            textSide = "BOTTOM",
+            textSize = 18
+          },
+          elsewhere = false,
+          enabled = false,
+          fireOnMessages = true,
+          inDungeons = true,
+          inRaids = true,
+          leadTime = 3,
+          linger = 4,
+          onlyWhenTanking = true,
+          priorities = {},
+          skipWhenCovered = true,
+          sound = {
+            mode = "off",
+            sound = "None",
+            ttsMode = "name",
+            ttsText = ""
+          },
+          source = "auto",
+          timelineAllEvents = true
         },
         reticle = {
           customColor = {
