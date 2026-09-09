@@ -257,4 +257,16 @@ assert(#api.GetEncounterGroups(999) == 1 and #api.GetEncounterGroups(998) == 1, 
 assert(global.seenDifficulties[999] and global.seenEncounters[901].name == "Encounter 901")
 assert(api.GetSeenDifficulties()[1] == 998, "seen difficulty list sorted")
 
+local sourceFile = assert(io.open("modules/qol/bonus_roll.lua"))
+local runtimeSource = sourceFile:read("*a")
+sourceFile:close()
+local extractor = assert(loadfile("tools/i18n/extract_strings.lua"))()
+local runtimeKeys = extractor.collectKeys(runtimeSource)
+for _, key in ipairs({
+    "Encounter %d", "Bonus Roll", "Show bonus roll", "Bonus roll hidden: %s. %s",
+    "That bonus roll is no longer available.", "The bonus roll is already showing.", "Other Encounters",
+}) do
+    assert(runtimeKeys[key], "bonus-roll runtime text must reach the locale extractor: " .. key)
+end
+
 print("OK: bonus_roll_filter_test")
