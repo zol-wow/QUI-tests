@@ -204,6 +204,23 @@ H.onTimerStop({ source = "bigwigs", barID = "bigwigs:D" })
 assert(R.PendingCount() == 0 and timers[1].cancelled, "a stop 5s before the bar's end cancels the delayed call")
 db.leadTime = 3
 
+-- An explicit stop releases the countdown's claim on its ability; a completed
+-- one keeps it through the landing.
+now = now + 20
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 60, barID = "bigwigs:S" })
+assert(R.HasPendingForSpell(777), "armed countdown claims the spell")
+H.onTimerStop({ source = "bigwigs", barID = "bigwigs:S", reason = "stop" })
+assert(R.PendingCount() == 0 and not R.HasPendingForSpell(777), "explicit stop releases the claim")
+timers = {}
+H.onTimer({ source = "timeline", spellID = 777, duration = 5, barID = "timeline:S" })
+fireTimers()
+now = now + 5
+H.onTimerStop({ source = "timeline", barID = "timeline:S", reason = "finished" })
+assert(R.HasPendingForSpell(777), "completion keeps the claim through the landing slack")
+now = now + 3
+assert(not R.HasPendingForSpell(777), "claim expires after the slack")
+
 -- Negative warning time: a "finished" stop keeps the delayed call armed; an
 -- explicit stop, pause or cancel disarms it even at the bar's end.
 db.leadTime = -2
