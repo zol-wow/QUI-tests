@@ -228,6 +228,19 @@ H.onTimerStop({ source = "bigwigs", barID = "bigwigs:G", reason = "stop" })
 assert(R.PendingCount() == 0 and timers[1].cancelled, "an explicit stop disarms a post-landing call")
 db.leadTime = 3
 
+-- A message for an ability whose countdown is already armed does not pre-empt it.
+now = now + 10
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 10, barID = "bigwigs:M" })
+local beforeMsg = #shown
+H.onMessage({ source = "bigwigs", spellID = 777, text = "M" })
+assert(#shown == beforeMsg and R.PendingCount() == 1, "message defers to the armed countdown")
+fireTimers()
+assert(#shown == beforeMsg + 1, "the armed countdown still fires on schedule")
+now = now + 10
+H.onMessage({ source = "bigwigs", spellID = 888, text = "Bite" })
+assert(#shown == beforeMsg + 2, "a message with no countdown fires at once")
+
 -- Armed timers re-check eligibility when they fire.
 now = now + 10
 timers = {}
@@ -285,8 +298,15 @@ eventFrame.OnEvent(eventFrame, "ENCOUNTER_START", 3001)
 assert(R.ActiveEncounter() == 3001)
 eventFrame.OnEvent(eventFrame, "ENCOUNTER_START", SECRET)
 assert(R.ActiveEncounter() == nil, "secret encounter id collapses to nil")
+assert(R.LastFiredCount() > 0, "dedupe entries exist mid-encounter")
 eventFrame.OnEvent(eventFrame, "ENCOUNTER_END")
 assert(R.PendingCount() == 0 and timers[1].cancelled, "encounter end disarms")
+assert(R.LastFiredCount() == 0, "encounter end clears the dedupe map")
+now = now + 10
+H.onTimer({ source = "timeline", secretIdentity = true, duration = 1, barID = "timeline:old" })
+now = now + 100
+H.onTimer({ source = "timeline", secretIdentity = true, duration = 1, barID = "timeline:new" })
+assert(R.LastFiredCount() == 1, "expired dedupe entries are pruned on the next fire")
 
 -- Opted-in set is cached and invalidated on demand.
 assert(R.OptedSpells()[777] and R.OptedSpells()[888] and not R.OptedSpells()[111])
