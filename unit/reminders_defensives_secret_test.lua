@@ -51,8 +51,9 @@ function GetInventoryItemTexture() return 2 end
 local auras = {}
 C_UnitAuras = { GetPlayerAuraBySpellID = function(id) return auras[id] end }
 local bossExists, threat = true, nil
-function UnitExists(unit) return unit == "boss1" and bossExists end
-function UnitThreatSituation() return threat end
+local threatByUnit = {}
+function UnitExists(unit) return (unit == "boss1" and bossExists) or threatByUnit[unit] ~= nil end
+function UnitThreatSituation(_, unit) if threatByUnit[unit] ~= nil then return threatByUnit[unit] end return threat end
 LIB_OPEN_RAID_COOLDOWNS_INFO = {
     [48792] = { class = "DEATHKNIGHT", type = 2, specs = { 250, 251, 252 } },
     [55233] = { class = "DEATHKNIGHT", type = 2, specs = { 250 } },
@@ -88,11 +89,18 @@ assert(D.IsReady(D.Describe(2)) == false, "no global cooldown running: the activ
 D.SetWatchedSpells({ 2, 3 })
 assert(#frames == 1 and frames[1].events.SPELL_UPDATE_COOLDOWN, "watcher listens for SPELL_UPDATE_COOLDOWN")
 cooldowns[61304] = { isActive = true }
-assert(D.IsReady(D.Describe(2)) == true, "snapshot taken on watch: GCD-only counts as ready")
+assert(D.IsReady(D.Describe(2)) == nil, "watching alone takes no snapshot: still unknowable")
+frames[1].OnEvent(frames[1], "SPELL_UPDATE_COOLDOWN")
+assert(D.IsReady(D.Describe(2)) == true, "snapshot from the event: GCD-only counts as ready")
 cooldowns[2].isOnGCD = false
 assert(D.IsReady(D.Describe(2)) == true, "stale live flag ignored until the next cooldown event")
 frames[1].OnEvent(frames[1], "SPELL_UPDATE_COOLDOWN")
 assert(D.IsReady(D.Describe(2)) == false, "snapshot refreshed: real cooldown")
+D.SetWatchedSpells({ 3 })
+assert(D.IsReady(D.Describe(2)) == nil, "unwatching clears the stale snapshot")
+D.SetWatchedSpells({ 2, 3 })
+cooldowns[8] = { isActive = false, isEnabled = false }
+assert(D.IsReady(D.Describe(8)) == false, "a cooldown on hold is not ready")
 cooldowns[3] = { isActive = true, isOnGCD = false, startTime = SECRET, duration = SECRET }
 charges[3] = { currentCharges = SECRET, maxCharges = 2, isActive = true }
 frames[1].OnEvent(frames[1], "SPELL_UPDATE_COOLDOWN")
@@ -146,6 +154,13 @@ threat = 3
 assert(D.IsTankingBoss() == true)
 threat = 0
 assert(D.IsTankingBoss() == false)
+threatByUnit.boss2 = SECRET
+assert(D.IsTankingBoss() == nil, "one readable non-tanking boss plus one unknown boss: unknowable")
+threatByUnit.boss2 = 3
+assert(D.IsTankingBoss() == true, "tanking the second boss counts")
+threatByUnit.boss2 = 1
+assert(D.IsTankingBoss() == false, "every boss readably elsewhere: not tanking")
+threatByUnit.boss2 = nil
 
 assert(D.PlayerClass() == "DEATHKNIGHT" and D.PlayerSpecID() == 250)
 

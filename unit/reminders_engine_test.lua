@@ -204,23 +204,28 @@ H.onTimerStop({ source = "bigwigs", barID = "bigwigs:D" })
 assert(R.PendingCount() == 0 and timers[1].cancelled, "a stop 5s before the bar's end cancels the delayed call")
 db.leadTime = 3
 
--- Negative warning time: a stop at the bar's natural end keeps the delayed
--- call armed; a stop well before the end cancels it.
+-- Negative warning time: a "finished" stop keeps the delayed call armed; an
+-- explicit stop, pause or cancel disarms it even at the bar's end.
 db.leadTime = -2
 now = now + 10
 timers = {}
-H.onTimer({ source = "bigwigs", spellID = 777, duration = 5, barID = "bigwigs:F" })
+H.onTimer({ source = "timeline", spellID = 777, duration = 5, barID = "timeline:F" })
 now = now + 5
-H.onTimerStop({ source = "bigwigs", barID = "bigwigs:F" })
-assert(R.PendingCount() == 1 and not timers[1].cancelled, "natural end does not cancel a post-landing call")
+H.onTimerStop({ source = "timeline", barID = "timeline:F", reason = "finished" })
+assert(R.PendingCount() == 1 and not timers[1].cancelled, "completion does not cancel a post-landing call")
 now = now + 2
 fireTimers()
 assert(R.PendingCount() == 0, "the post-landing call fired")
 timers = {}
+H.onTimer({ source = "timeline", spellID = 777, duration = 5, barID = "timeline:G" })
+now = now + 5
+H.onTimerStop({ source = "timeline", barID = "timeline:G", reason = "pause" })
+assert(R.PendingCount() == 0 and timers[1].cancelled, "a pause at the bar's end still disarms")
+timers = {}
 H.onTimer({ source = "bigwigs", spellID = 777, duration = 5, barID = "bigwigs:G" })
-now = now + 1
-H.onTimerStop({ source = "bigwigs", barID = "bigwigs:G" })
-assert(R.PendingCount() == 0 and timers[1].cancelled, "an early stop cancels even a post-landing call")
+now = now + 5
+H.onTimerStop({ source = "bigwigs", barID = "bigwigs:G", reason = "stop" })
+assert(R.PendingCount() == 0 and timers[1].cancelled, "an explicit stop disarms a post-landing call")
 db.leadTime = 3
 
 -- Armed timers re-check eligibility when they fire.
