@@ -141,9 +141,9 @@ assert(#timers == 1 and timers[1].delay == 4, "glow timer scheduled for the ling
 -- Dedupe: the message for the same cast inside the linger window is silent.
 H.onMessage({ source = "bigwigs", spellID = 777, text = "B" })
 assert(#shown == 1, "duplicate within linger window suppressed")
-now = now + 10
+now = now + 13
 H.onMessage({ source = "bigwigs", spellID = 777, text = "B" })
-assert(#shown == 2, "message after the window fires again")
+assert(#shown == 2, "message after the window and past the landing fires again")
 
 -- Chat + TTS outputs.
 db.chat.enabled = true
@@ -240,6 +240,23 @@ assert(#shown == beforeMsg + 1, "the armed countdown still fires on schedule")
 now = now + 10
 H.onMessage({ source = "bigwigs", spellID = 888, text = "Bite" })
 assert(#shown == beforeMsg + 2, "a message with no countdown fires at once")
+
+-- Warning time longer than linger: the early callout fires, then the landing
+-- message must still defer to the countdown it belongs to.
+db.leadTime = 10
+db.linger = 4
+now = now + 20
+timers = {}
+H.onTimer({ source = "bigwigs", spellID = 777, duration = 15, barID = "bigwigs:L" })
+fireTimers()
+local afterEarly = #shown
+now = now + 15
+H.onMessage({ source = "bigwigs", spellID = 777, text = "L" })
+assert(#shown == afterEarly, "landing message after the early callout is absorbed")
+now = now + 5
+H.onMessage({ source = "bigwigs", spellID = 777, text = "L again" })
+assert(#shown == afterEarly + 1, "well after landing, a fresh message fires again")
+db.leadTime = 3
 
 -- Armed timers re-check eligibility when they fire.
 now = now + 10

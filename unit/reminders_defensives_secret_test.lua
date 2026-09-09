@@ -45,7 +45,11 @@ C_Item = {
     GetItemSpell = function() return "Use", 90001 end,
     GetItemNameByID = function() return "Shiny Trinket" end,
 }
-function IsPlayerSpell(id) return id ~= 4 end
+function IsPlayerSpell(id) return id ~= 4 and id ~= 9 end
+C_SpellBook = {
+    IsSpellInSpellBook = function() return true end,      -- true even for unknown overrides
+    IsSpellKnown = function(id) return id ~= 4 and id ~= 9 end,
+}
 function UnitClass() return "Player", "DEATHKNIGHT" end
 function GetInventoryItemID(_, slot) if slot == 13 then return 5555 end end
 function GetInventoryItemTexture() return 2 end
@@ -120,6 +124,7 @@ assert(D.IsReady(D.Describe(6)) == true, "short readable duration is the GCD")
 cooldowns[7] = nil
 assert(D.IsReady(D.Describe(7)) == nil, "no cooldown info: unknowable")
 assert(D.IsReady(D.Describe(4)) == false, "unknown spell is never ready")
+assert(D.SpellKnown(9) == false, "spellbook membership alone does not make a spell known")
 
 itemCooldowns[5555] = { 0, 0, 1 }
 assert(D.IsReady(D.Describe("slot:13")) == true, "trinket off cooldown")

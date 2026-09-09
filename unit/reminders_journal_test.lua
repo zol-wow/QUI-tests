@@ -9,7 +9,8 @@
 
 local ns = { L = setmetatable({}, { __index = function(_, k) return k end }) }
 
-local selectedTier, selectedInstance = 3, nil
+local selectedTier, selectedInstance, selectedEncounter = 3, nil, nil
+function EJ_SelectEncounter(id) selectedEncounter = id end
 function EJ_GetNumTiers() return 5 end
 function EJ_GetCurrentTier() return selectedTier end
 function EJ_SelectTier(tier) selectedTier = tier end
@@ -65,9 +66,10 @@ assert(names[0] == "Tank" and names[1] == "Dps" and names[2] == "Healer" and nam
 -- Open journal: refuse to move its selection.
 EncounterJournal = { IsShown = function() return true end }
 assert(J.Get() == nil and not J.IsCached(), "no scrape while the journal is open")
-EncounterJournal = nil
+EncounterJournal = { IsShown = function() return false end, instanceID = 2002, encounterID = 3003 }
 
 local catalog = assert(J.Get())
+assert(selectedInstance == 2002 and selectedEncounter == 3003, "journal instance and encounter selection restored")
 assert(loaded.Blizzard_EncounterJournal, "journal addon loaded on demand")
 assert(catalog.tier == 5 and selectedTier == 3, "walks the latest tier and restores the previous selection")
 assert(#catalog.instances == 3, "dungeons then raids")
