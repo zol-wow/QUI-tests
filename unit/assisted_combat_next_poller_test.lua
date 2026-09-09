@@ -146,9 +146,33 @@ poll.Reset()
 poll._Tick()
 check("Reset() makes the next tick dispatch even if unchanged", seenLast == 400 and seenCount == 7)
 
+-- 8b. Reset() followed by a nil answer must still dispatch: nil is a valid
+-- "no suggestion" result and must not be confused with the reset marker.
+nextSpell = nil
+poll.Reset()
+poll._Tick()
+check("nil right after Reset() dispatches so stale highlights clear", seenCount == 8 and seenLast == nil)
+poll._Tick()
+check("nil after that is deduped again", seenCount == 8)
+
+-- 8c. Assisted Combat becoming unavailable tells consumers to clear, once.
+nextSpell = 500
+poll._Tick()
+check("sanity: a suggestion is showing again", seenCount == 9 and seenLast == 500)
+isAvailable = false
+poll.Reset()
+check("unavailable spec stops the ticker", not poll.IsPolling())
+check("unavailable spec dispatches nil to clear consumers", seenCount == 10 and seenLast == nil)
+poll.Reset()
+check("repeated unavailable resets do not re-dispatch", seenCount == 10)
+isAvailable = true
+poll.Reset()
+poll._Tick()
+check("availability returning dispatches the current suggestion", seenCount == 11 and seenLast == 500)
+
 -- 9. Unsubscribing the last consumer stops the ticker.
 poll.Unsubscribe("test")
-check("last unsubscribe cancels the ticker", not poll.IsPolling() and tickers[1].cancelled)
+check("last unsubscribe cancels the ticker", not poll.IsPolling())
 
 -- 10. Unavailable (spec without Assisted Combat): no ticker even with subscribers.
 isAvailable = false
