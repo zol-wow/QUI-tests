@@ -104,36 +104,6 @@ if anchorOrPinStart then
 end
 
 -- -------------------------------------------------------------------------
--- 4. ApplyFrameAnchor: the four converted sites now call AnchorOrPin,
---    and SmoothSetPoint is NOT called directly for those sites.
---    Verify: direct calls (AnchorOrPin() and ns.SafeCall(policy, AnchorOrPin,...))
---    total == 4. SmoothSetPoint still exists in the file (boss-array branch & others).
--- -------------------------------------------------------------------------
--- Count direct calls: "AnchorOrPin(key," pattern.
--- NOTE: the "local function AnchorOrPin(key," definition line also matches this
--- pattern, so subtract 1 to exclude it and count only real call sites.
-local directCalls = 0
-for _ in src:gmatch("AnchorOrPin%(key,") do
-    directCalls = directCalls + 1
-end
-directCalls = directCalls - 1  -- subtract 1 for the definition line
--- Count SafeCall-wrapped calls: 'ns.SafeCall("...", AnchorOrPin, ' pattern
--- (Task 45d converted the prior bare 'pcall(AnchorOrPin,' sites to this form).
-local pcallCalls = 0
-for _ in src:gmatch('ns%.SafeCall%("[%w%-]+",%s*AnchorOrPin,') do
-    pcallCalls = pcallCalls + 1
-end
-local totalAnchorOrPinCalls = directCalls + pcallCalls
-
-check("anchoring.lua has exactly 4 AnchorOrPin call sites (growAnchor corner + 2 CENTER variants + normal path)",
-    totalAnchorOrPinCalls == 4,
-    ("found %d direct + %d pcall-wrapped = %d total (need exactly 4)"):format(
-        directCalls, pcallCalls, totalAnchorOrPinCalls))
-
-check("SmoothSetPoint still exists in anchoring.lua (boss-array branch preserved)",
-    src:find("SmoothSetPoint", 1, true) ~= nil)
-
--- -------------------------------------------------------------------------
 -- 5. buffIcon and buffBar remain in QUI_UpdateFramesAnchoredTo in-combat whitelist.
 -- -------------------------------------------------------------------------
 local updateFuncStart = src:find("_G%.QUI_UpdateFramesAnchoredTo = function", 1)

@@ -1784,6 +1784,255 @@ do
     runScheduled()
 end
 
+do
+    inCombat = false
+    local savedUF, savedCastbars = ns.QUI_UnitFrames, ns.QUI_Castbar
+    local savedHooks = env.hooksecurefunc
+    local methodHooks = {}
+    env.hooksecurefunc = function(frame, method, callback)
+        methodHooks[frame] = methodHooks[frame] or {}
+        methodHooks[frame][method] = methodHooks[frame][method] or {}
+        table.insert(methodHooks[frame][method], callback)
+    end
+    local function fireMethod(frame, method, ...)
+        for _, callback in ipairs(methodHooks[frame] and methodHooks[frame][method] or {}) do
+            callback(frame, ...)
+        end
+    end
+    local bar = StubFrame("isolationBar")
+    local direct = StubFrame("isolationDirect")
+    local bridge = StubFrame("isolationBridge")
+    local indirect = StubFrame("isolationIndirect")
+    local live = StubFrame("isolationLive")
+    local boss1, boss2 = StubFrame("isolationBoss1"), StubFrame("isolationBoss2")
+    local unrelated = StubFrame("isolationUnrelated")
+    local protectedFrames = { direct, indirect, boss1, boss2, unrelated }
+    for _, frame in ipairs(protectedFrames) do frame.protectedAnswer = true end
+    ns.QUI_UnitFrames = { frames = { player = direct, target = indirect, boss1 = boss1, boss2 = boss2 } }
+    ns.QUI_Castbar = { castbars = { player = bar } }
+    local keys = { "playerCastbar", "playerFrame", "targetFrame", "bossFrames", "qtestCastBridge", "qtestCastLive", "qtestCastUnrelated" }
+    local savedSettings = {}
+    for _, key in ipairs(keys) do savedSettings[key] = frameAnchoring[key] end
+    env.QUI_RegisterFrameResolver("qtestCastBridge", { resolver = function() return bridge end })
+    env.QUI_RegisterFrameResolver("qtestCastLive", { resolver = function() return live end })
+    env.QUI_RegisterFrameResolver("qtestCastUnrelated", { resolver = function() return unrelated end })
+    local function settings(parent)
+        return { parent = parent, point = "TOP", relative = "TOP", offsetX = 0, offsetY = -10, sizeStable = false, keepInPlace = true }
+    end
+    frameAnchoring.playerCastbar = settings("screen")
+    frameAnchoring.playerFrame = settings("playerCastbar")
+    frameAnchoring.qtestCastBridge = settings("playerCastbar")
+    frameAnchoring.targetFrame = settings("qtestCastBridge")
+    frameAnchoring.qtestCastLive = settings("playerCastbar")
+    frameAnchoring.bossFrames = settings("playerCastbar")
+    frameAnchoring.qtestCastUnrelated = settings("qtestParent")
+    parentFrame.protectedAnswer = true
+    local function reaches(frame, target, seen)
+        if frame == target then return true end
+        seen = seen or {}
+        if seen[frame] then return false end
+        seen[frame] = true
+        for _, point in ipairs(frame.points or {}) do
+            if point.rel and reaches(point.rel, target, seen) then return true end
+        end
+        return false
+    end
+    function bar:SetHeight(height)
+        if inCombat then
+            for _, frame in ipairs(protectedFrames) do
+                if reaches(frame, self) then error("protected dependent blocks SetHeight") end
+            end
+        end
+        self.height = height
+    end
+    direct:SetPoint("TOP", bar, "TOP", 0, 0)
+    inCombat = true
+    check("isolation model rejects castbar resize with a protected anchor dependent",
+        not pcall(bar.SetHeight, bar, 40))
+    inCombat = false
+    direct:SetPoint("TOP", bar, "TOP", 0, -10)
+    for _, key in ipairs(keys) do env.QUI_ApplyFrameAnchor(key) end
+    check("existing matching native castbar anchor migrates to an absolute pin",
+        direct.points[1] and direct.points[1].rel == env.UIParent)
+    for _, frame in ipairs({ direct, bridge, indirect, live, boss1, boss2 }) do
+        check("castbar chain pins " .. frame.__name .. " to UIParent",
+            frame.points[1] and frame.points[1].rel == env.UIParent)
+    end
+    check("castbar isolation preserves unrelated protected native anchors",
+        unrelated.points[1] and unrelated.points[1].rel == parentFrame)
+    env.QUI_ReanchorFramePositionOnly("targetFrame")
+    check("position-only preserves indirect castbar isolation",
+        indirect.points[1] and indirect.points[1].rel == env.UIParent)
+    do
+        local setPoint, clearPoints = indirect.SetPoint, indirect.ClearAllPoints
+        local baseSets, overrideCalls = 0, 0
+        indirect.SetPointBase = function(self, ...)
+            baseSets = baseSets + 1
+            return setPoint(self, ...)
+        end
+        indirect.ClearAllPointsBase = clearPoints
+        indirect.SetPoint = function()
+            overrideCalls = overrideCalls + 1
+            error("Edit Mode SetPoint override must be bypassed")
+        end
+        indirect.ClearAllPoints = function()
+            overrideCalls = overrideCalls + 1
+            error("Edit Mode ClearAllPoints override must be bypassed")
+        end
+        env.QUI_ReanchorFramePositionOnly("targetFrame")
+        check("position-only castbar isolation bypasses Edit Mode geometry overrides",
+            baseSets == 1 and overrideCalls == 0
+            and indirect.points[1] and indirect.points[1].rel == env.UIParent)
+        indirect.SetPoint, indirect.ClearAllPoints = setPoint, clearPoints
+        indirect.SetPointBase, indirect.ClearAllPointsBase = nil, nil
+    end
+    check("castbar isolation preserves saved logical links",
+        frameAnchoring.playerFrame.parent == "playerCastbar"
+        and frameAnchoring.targetFrame.parent == "qtestCastBridge"
+        and frameAnchoring.qtestCastBridge.parent == "playerCastbar"
+        and frameAnchoring.bossFrames.parent == "playerCastbar")
+    local oldDirectX = direct.points[1] and direct.points[1].x
+    local oldDirectY = direct.points[1] and direct.points[1].y
+    local oldLiveX = live.points[1] and live.points[1].x
+    local oldLiveY = live.points[1] and live.points[1].y
+    inCombat = true
+    local resized, resizeError = pcall(bar.SetHeight, bar, 80)
+    check("isolated castbar can resize in combat without protected dependents",
+        resized and bar.height == 80, tostring(resizeError))
+    if bar.hookScripts.OnSizeChanged then bar.hookScripts.OnSizeChanged(bar, bar:GetWidth(), bar:GetHeight()) end
+    runScheduled()
+    check("unrestricted pinned follower tracks castbar resize in combat",
+        live.points[1] and live.points[1].rel == env.UIParent and live.points[1].y ~= oldLiveY)
+    bar.left = 200
+    fireMethod(bar, "SetPoint", "TOP", env.UIParent, "TOP", 200, 0)
+    runScheduled()
+    check("unrestricted pinned follower tracks castbar movement in combat",
+        live.points[1] and live.points[1].rel == env.UIParent and live.points[1].x ~= oldLiveX)
+    check("protected castbar follower retains its combat position",
+        direct.points[1] and direct.points[1].x == oldDirectX and direct.points[1].y == oldDirectY)
+    fireRegen()
+    check("protected castbar follower catches up after combat",
+        direct.points[1] and direct.points[1].rel == env.UIParent and direct.points[1].x ~= oldDirectX)
+    do
+        local replacement = StubFrame("isolationReplacement")
+        replacement.left = 400
+        ns.QUI_Castbar.castbars.focus = replacement
+        fireMethod(bar, "SetPoint", "TOP", env.UIParent, "TOP", 200, 0)
+        frameAnchoring.qtestCastLive.parent = "focusCastbar"
+        env.QUI_ApplyFrameAnchor("qtestCastLive")
+        local replacementX = live.points[1] and live.points[1].x
+        local liveApplies, realApply = 0, env.QUI_ApplyFrameAnchor
+        env.QUI_ApplyFrameAnchor = function(key)
+            if key == "qtestCastLive" then liveApplies = liveApplies + 1 end
+            return realApply(key)
+        end
+        runScheduled()
+        check("queued old target notification ignores a reassigned follower",
+            liveApplies == 0 and live.points[1] and live.points[1].x == replacementX)
+        env.QUI_ApplyFrameAnchor = realApply
+        replacement.left = 500
+        fireMethod(replacement, "SetPoint", "TOP", env.UIParent, "TOP", 500, 0)
+        runScheduled()
+        check("reassigned follower tracks its replacement castbar",
+            live.points[1] and live.points[1].rel == env.UIParent and live.points[1].x ~= replacementX)
+        local waiting = StubFrame("isolationWaiting")
+        env.QUI_RegisterFrameResolver("qtestCastWaiting", { resolver = function() return waiting end })
+        frameAnchoring.qtestCastWaiting = settings("focusCastbar")
+        local getLeft = replacement.GetLeft
+        replacement.GetLeft = function() return nil end
+        replacement.GetRight = function() return nil end
+        env.QUI_ApplyFrameAnchor("qtestCastWaiting")
+        check("unavailable target geometry does not create a native castbar dependency",
+            #waiting.points == 0)
+        replacement.GetLeft = getLeft
+        replacement.GetRight = function(self) return self:GetLeft() + self:GetWidth() end
+        if replacement.hookScripts.OnSizeChanged then
+            replacement.hookScripts.OnSizeChanged(replacement, replacement:GetWidth(), replacement:GetHeight())
+        end
+        runScheduled()
+        check("castbar size notification recovers an initially unreadable target position",
+            waiting.points[1] and waiting.points[1].rel == env.UIParent)
+        frameAnchoring.qtestCastWaiting = nil
+    end
+    do
+        local a, b = StubFrame("isolationCycleA"), StubFrame("isolationCycleB")
+        env.QUI_RegisterFrameResolver("qtestCastCycleA", { resolver = function() return a end })
+        env.QUI_RegisterFrameResolver("qtestCastCycleB", { resolver = function() return b end })
+        frameAnchoring.qtestCastCycleA = settings("qtestCastCycleB")
+        frameAnchoring.qtestCastCycleB = settings("qtestCastCycleA")
+        local okCycle = pcall(env.QUI_ApplyFrameAnchor, "qtestCastCycleA")
+        check("non-castbar saved-link cycle terminates without forcing isolation",
+            okCycle and a.points[1] and a.points[1].rel == b)
+        frameAnchoring.qtestCastCycleA, frameAnchoring.qtestCastCycleB = nil, nil
+    end
+    do
+        runScheduled()
+        local cyclicBar, cyclicBridge = StubFrame("isolationCyclicBar"), StubFrame("isolationCyclicBridge")
+        ns.QUI_Castbar.castbars.pet = cyclicBar
+        local savedPet = frameAnchoring.petCastbar
+        env.QUI_RegisterFrameResolver("qtestCastReciprocal", { resolver = function() return cyclicBridge end })
+        frameAnchoring.petCastbar = settings("qtestCastReciprocal")
+        frameAnchoring.qtestCastReciprocal = settings("petCastbar")
+        for _, frame in ipairs({ cyclicBar, cyclicBridge }) do
+            local setPoint = frame.SetPoint
+            frame.SetPoint = function(self, ...)
+                setPoint(self, ...)
+                fireMethod(self, "SetPoint", ...)
+            end
+        end
+        local queuedBefore = #scheduled
+        env.QUI_ApplyFrameAnchor("petCastbar")
+        env.QUI_ApplyFrameAnchor("qtestCastReciprocal")
+        check("saved castbar cycle still isolates both frames from native dependencies",
+            cyclicBar.points[1] and cyclicBar.points[1].rel == env.UIParent
+            and cyclicBridge.points[1] and cyclicBridge.points[1].rel == env.UIParent)
+        for _, frame in ipairs({ cyclicBar, cyclicBridge }) do
+            if frame.hookScripts.OnSizeChanged then
+                frame.hookScripts.OnSizeChanged(frame, frame:GetWidth(), frame:GetHeight())
+            end
+        end
+        check("saved castbar cycle installs no reciprocal live-follow notifications",
+            #scheduled == queuedBefore, ("%d additional callbacks"):format(#scheduled - queuedBefore))
+        frameAnchoring.petCastbar, frameAnchoring.qtestCastReciprocal = savedPet, nil
+        runScheduled()
+    end
+    do
+        local buffMover, debuffMover = StubFrame("isolationBuffMover"), StubFrame("isolationDebuffMover")
+        local buffLive, debuffLive = StubFrame("isolationBuffLive"), StubFrame("isolationDebuffLive")
+        buffLive.protectedAnswer, debuffLive.protectedAnswer = true, true
+        buffMover._quiLiveContainer, debuffMover._quiLiveContainer = buffLive, debuffLive
+        buffLive._quiHostMover, debuffLive._quiHostMover = buffMover, debuffMover
+        local oldBuff, oldDebuff = env.QUI_BuffIconContainer, env.QUI_DebuffIconContainer
+        local oldBuffSettings, oldDebuffSettings = frameAnchoring.buffFrame, frameAnchoring.debuffFrame
+        env.QUI_BuffIconContainer, env.QUI_DebuffIconContainer = buffMover, debuffMover
+        frameAnchoring.buffFrame = settings("playerCastbar")
+        frameAnchoring.debuffFrame = settings("buffFrame")
+        table.insert(protectedFrames, buffLive)
+        table.insert(protectedFrames, debuffLive)
+        env.QUI_ApplyFrameAnchor("buffFrame")
+        env.QUI_ApplyFrameAnchor("debuffFrame")
+        check("first secure aura header is isolated from its castbar target",
+            buffLive.points[1] and buffLive.points[1].rel == env.UIParent)
+        check("secure aura header followers preserve their native live-header anchor",
+            debuffLive.points[1] and debuffLive.points[1].rel == buffLive)
+        check("secure aura chain has no native dependency on the castbar",
+            not reaches(buffLive, bar) and not reaches(debuffLive, bar))
+        inCombat = true
+        local resized, resizeError = pcall(bar.SetHeight, bar, 75)
+        check("castbar still resizes in combat with a secure aura-header chain",
+            resized and bar.height == 75, tostring(resizeError))
+        fireRegen()
+        table.remove(protectedFrames)
+        table.remove(protectedFrames)
+        env.QUI_BuffIconContainer, env.QUI_DebuffIconContainer = oldBuff, oldDebuff
+        frameAnchoring.buffFrame, frameAnchoring.debuffFrame = oldBuffSettings, oldDebuffSettings
+    end
+    parentFrame.protectedAnswer = false
+    ns.QUI_UnitFrames, ns.QUI_Castbar = savedUF, savedCastbars
+    env.hooksecurefunc = savedHooks
+    for _, key in ipairs(keys) do frameAnchoring[key] = savedSettings[key] end
+end
+
 print(("\n%d failure(s)"):format(failures))
 if failures == 0 then
     print("OK: anchoring_apply_frame_anchor_secret_gate_test")
