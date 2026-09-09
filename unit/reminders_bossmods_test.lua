@@ -41,6 +41,7 @@ C_EncounterTimeline = {
 }
 Enum = { EncounterTimelineEventState = { Active = 0, Paused = 1, Finished = 2, Canceled = 3 } }
 
+assert(loadfile("core/safecall.lua"))("QUI", ns)
 assert(loadfile("QUI_Reminders/reminders/bossmods.lua"))("QUI_Reminders", ns)
 local B = assert(ns.BossMods)
 

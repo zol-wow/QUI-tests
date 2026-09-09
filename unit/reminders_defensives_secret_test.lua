@@ -52,6 +52,7 @@ LIB_OPEN_RAID_COOLDOWNS_INFO = {
     [4]     = { class = "DEATHKNIGHT", type = 2, specs = {} },            -- not known on this character
 }
 
+assert(loadfile("core/safecall.lua"))("QUI", ns)
 assert(loadfile("QUI_Reminders/reminders/defensives.lua"))("QUI_Reminders", ns)
 local D = assert(ns.RemindersDefensives)
 

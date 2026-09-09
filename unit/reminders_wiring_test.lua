@@ -55,6 +55,8 @@ local callout = readAll("QUI_Reminders/reminders/callout.lua")
 has(callout, 'local ANCHOR_KEY = "remindersCallout"', "anchor key")
 has(callout, "QUI_RegisterFrameResolver(ANCHOR_KEY", "frame resolver registered at runtime")
 has(callout, "um:RegisterElement({", "layout mode element registered at runtime")
+local engine = readAll("QUI_Reminders/reminders/engine.lua")
+assert(not engine:find("_G.QUI_", 1, true), "engine exports on ns.*, never _G")
 
 -- Shared seams the module leans on.
 local mainToc = readAll("QUI.toc")

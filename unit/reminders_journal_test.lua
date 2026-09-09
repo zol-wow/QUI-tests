@@ -54,6 +54,7 @@ C_AddOns = {
     LoadAddOn = function(name) loaded[name] = true; return true end,
 }
 
+assert(loadfile("core/safecall.lua"))("QUI", ns)
 assert(loadfile("QUI_Reminders/reminders/journal.lua"))("QUI_Reminders", ns)
 local J = assert(ns.RemindersJournal)
 
