@@ -591,11 +591,10 @@ assert(eTagSecretBody.s == true and eTagSecretBody.w == "W:ann",
     "secret body still tagged via non-secret sender, got w=" .. tostring(eTagSecretBody.w))
 assert(eTagSecretBody.wn == "Ann", "secret body keeps counterparty name, got " .. tostring(eTagSecretBody.wn))
 
--- Secret IDENTITY blocks tagging (entry untagged, falls to type filters)
 fire("CHAT_MSG_WHISPER", secret, secretSender)
 local eTagSecretId; Store.ForEach(function(e) eTagSecretId = e end)
-assert(eTagSecretId.s == true and eTagSecretId.w == nil and eTagSecretId.wn == nil,
-    "secret identity -> untagged")
+assert(eTagSecretId.s == true and eTagSecretId.w == "WHISPERS" and rawequal(eTagSecretId.wn, secretSender),
+    "restricted identity reaches the QUI shared whisper conversation without inspecting the sender")
 Store.Clear()
 
 fire("CHAT_MSG_CHANNEL", secret, "Ann", nil, "2. Trade", nil, nil, nil, 2, "Trade")
@@ -862,26 +861,19 @@ assert(Store.Size() == 1, "reported sender's lines purged, got " .. Store.Size()
 local survivor; Store.ForEach(function(e) survivor = e end)
 assert(survivor.gid == "Player-2-OK", "unreported sender survives")
 
--- R-to-reply parity: Blizzard records the last whisperer via
--- ChatFrameUtil.SetLastTellTarget inside its per-frame handler — which is
--- event-neutered under the takeover — so capture must mirror the bookkeeping
--- or the REPLY keybind (ChatFrameUtil.ReplyTell) finds no target and no-ops.
--- Incoming only; secret senders skipped.
 local tellCalls = {}
 _G.ChatFrameUtil.SetLastTellTarget = function(target, chatType)
     tellCalls[#tellCalls + 1] = { target, chatType }
 end
 fire("CHAT_MSG_WHISPER", "psst", "Whisperer-Realm")
-assert(#tellCalls == 1 and tellCalls[1][1] == "Whisperer-Realm" and tellCalls[1][2] == "WHISPER",
-    "incoming whisper records the reply target")
+assert(#tellCalls == 0, "native whisper events own reply history; capture must not taint it")
 fire("CHAT_MSG_BN_WHISPER", "psst", "Aria", nil, nil, nil, nil, nil, nil, nil, nil, 31337, nil, 77)
-assert(#tellCalls == 2 and tellCalls[2][1] == "Aria" and tellCalls[2][2] == "BN_WHISPER",
-    "incoming BN whisper records the reply target")
+assert(#tellCalls == 0, "native Battle.net events own reply history; capture must not taint it")
 fire("CHAT_MSG_WHISPER_INFORM", "re", "Target-Realm")
 fire("CHAT_MSG_BN_WHISPER_INFORM", "re", "Aria", nil, nil, nil, nil, nil, nil, nil, nil, 31338, nil, 77)
-assert(#tellCalls == 2, "outgoing (_INFORM) whispers must NOT touch the reply target")
+assert(#tellCalls == 0, "outgoing (_INFORM) whispers must NOT touch the reply target")
 fire("CHAT_MSG_WHISPER", "psst", secret)
-assert(#tellCalls == 2, "secret sender skipped")
+assert(#tellCalls == 0, "restricted sender remains owned by native reply handling")
 
 -- 12.1 Discord guild chat: args 15-18 (isSubtitle, hideSenderInLetterbox,
 -- suppressRaidIcons, discordInfo) must survive capture's vararg unpack and

@@ -14,6 +14,13 @@ local secret = setmetatable({}, { __tostring = explode, __concat = explode, __le
 local function makeFrame()
     local f = { points = {}, scripts = {}, shown = true, added = {} }
     function f:GetName() return self.name end
+    function f:GetParent() return self.parent end
+    function f:SetParent(parent) self.parent = parent end
+    function f:GetFrameLevel() return 20 end
+    function f:SetFrameLevel() end
+    function f:SetWidth(width) self.w = width end
+    function f:SetAlpha(alpha) self.alpha = alpha end
+    function f:GetRegions() end
     function f:SetSize(w, h) self.w, self.h = w, h end
     function f:SetHeight(h) self.h = h end
     function f:SetPoint(...) self.points[#self.points + 1] = { ... } end
@@ -640,5 +647,29 @@ do
     watcher.scripts.OnEvent(watcher, "PLAYER_REGEN_ENABLED")
     assert(c1.w == 111, "pending flag drained after the regen re-apply")
 end
+
+settings.editBox = { enabled = true, positionTop = false }
+local internals = ns.QUI.Chat._internals
+internals.editBoxState, internals.editBoxBackdrops = {}, {}
+internals.ApplySurfaceStyle = function() end
+assert(loadfile("QUI_Chat/chat/editbox_basics.lua"))("QUI", ns)
+local primary, secondary = makeFrame(), makeFrame()
+primary.name, secondary.name = "ChatFrame1", "ChatFrame3"
+primary.editBox, secondary.editBox = makeFrame(), makeFrame()
+_G.ChatFrame1 = primary
+_G.ChatFrameUtil = { GetActiveWindow = function() return secondary.editBox end }
+Display.SetActiveWindow(1)
+ns.QUI.Chat.EditBoxBasics.StyleEditBox(secondary)
+local secondaryBackdrop = internals.editBoxBackdrops[secondary]
+assert(secondaryBackdrop:GetParent() == Display.GetContainer(1),
+    "secondary native input starts in the active QUI window")
+Display.SetActiveWindow(2)
+assert(secondaryBackdrop:GetParent() == Display.GetContainer(2) and secondaryBackdrop:IsShown(),
+    "switching QUI windows must move an already shown secondary native input and backdrop")
+assert(secondary.editBox.points[1][2] == secondaryBackdrop,
+    "the secondary native input must remain anchored to its moved backdrop")
+Display.DeleteWindow(2)
+assert(secondaryBackdrop:GetParent() == Display.GetContainer(1) and secondaryBackdrop:IsShown(),
+    "deleting the active QUI window must recover the secondary input from the hidden container")
 
 print("OK: chat_display_layer_test")

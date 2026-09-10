@@ -204,4 +204,25 @@ for _, p in ipairs(editBox.points or {}) do
 end
 assert(sawStock, "RemoveEditBoxStyle must restore the stock TOPLEFT anchor")
 
+settings.enabled = true
+settings.editBox.enabled = true
+settings.editBox.positionTop = false
+local activeInput
+_G.ChatFrameUtil = { GetActiveWindow = function() return activeInput end }
+local secondary = createFrame()
+secondary.name = "ChatFrame3"
+secondary.editBox = createFrame()
+EditBoxBasics.StyleEditBox(chatFrame)
+EditBoxBasics.StyleEditBox(secondary)
+local secondaryBackdrop = ns.QUI.Chat._internals.editBoxBackdrops[secondary]
+assert(backdrop.shown and not secondaryBackdrop.shown,
+    "detached secondary inputs must not stack their backgrounds over the primary input")
+activeInput = secondary.editBox
+EditBoxBasics.StyleEditBox(secondary)
+assert(not backdrop.shown and secondaryBackdrop.shown,
+    "only the native-selected input owns the visible background")
+activeInput = nil
+secondary.editBox:RunHooks("OnHide")
+assert(backdrop.shown and not secondaryBackdrop.shown,
+    "closing the secondary input restores the primary background")
 print("OK: chat_editbox_top_focus_test")
