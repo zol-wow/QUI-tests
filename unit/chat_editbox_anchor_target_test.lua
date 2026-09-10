@@ -53,8 +53,8 @@ container2._shown = true
 assert(EB._GetAnchorFrame(chatFrame1, 1) == container1,
     "enabled chat anchors frame 1 to window-1 container when window 1 is active")
 
--- enabled, other frames stay on their Blizzard frame
-assert(EB._GetAnchorFrame(chatFrame3, 3) == chatFrame3, "other frames unaffected")
+assert(EB._GetAnchorFrame(chatFrame3, 3) == container1,
+    "native input selected from another chat frame must remain visible inside QUI")
 
 -- container hidden -> fall back to blizzard frame
 container1._shown = false

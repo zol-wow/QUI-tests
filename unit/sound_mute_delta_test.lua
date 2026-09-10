@@ -82,4 +82,25 @@ if failures > 0 then
     print(failures .. " failure(s)")
     os.exit(1)
 end
+local settings = { soundMute = { enabled = false } }
+local active = true
+local muted = {}
+_G.MuteSoundFile = function(id) muted[id] = true end
+_G.UnmuteSoundFile = function(id) muted[id] = nil end
+local ns = {
+    Helpers = { CreateDBGetter = function() return function() return settings end end },
+    SoundMuteCatalog = { categories = { { entries = { { key = "iface_whisper", ids = { 567421 } } } } } },
+    QUI = { Chat = { BlizzardSuppress = { IsActive = function() return active end } } },
+}
+assert(loadfile("modules/qol/sound_mute.lua"))("QUI", ns)
+ns.RefreshSoundMute()
+assert(muted[567421], "QUI chat suppresses native whisper audio without changing native reply state")
+settings.soundMute.enabled = true
+settings.soundMute.iface_whisper = true
+active = false
+ns.RefreshSoundMute()
+assert(muted[567421], "disabling QUI chat preserves the user's explicit whisper mute")
+settings.soundMute.iface_whisper = false
+ns.RefreshSoundMute()
+assert(not muted[567421], "native whisper audio returns when neither owner requests a mute")
 print("all passed")
