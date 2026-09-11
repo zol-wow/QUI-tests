@@ -53,7 +53,7 @@ local function chatFrame(id)
     f.id = id
     frame(name .. "Tab", _G.GeneralDockManager)
     frame(name .. "ButtonFrame", f)
-    f.editBox = frame(name .. "EditBox", f)
+    f.editBox = frame(name .. "EditBox", UIParent)
     f.editBox.chatFrame = f
     f.editBox.header = frame(nil, f.editBox)
     _G.CHAT_FRAMES[#_G.CHAT_FRAMES + 1] = name

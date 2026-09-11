@@ -10,14 +10,19 @@ C_UnitAuras = setmetatable({}, { __index = function(_, key)
 end })
 InCombatLockdown = function() return combat end
 issecretvalue = function() return false end
-local function Frame()
+local function Frame(layoutRestricted)
     return {
+        layoutRestricted = layoutRestricted,
         shown = false,
         Show = function(self) self.shown = true end,
         Hide = function(self) self.shown = false end,
         SetSize = function(self, width, height) self.width, self.height = width, height end,
         ClearAllPoints = function(self) self.point = nil end,
-        SetPoint = function(self, ...) self.point = { ... } end,
+        SetPoint = function(self, point, relative, ...)
+            assert(not relative.layoutRestricted or self.layoutRestricted,
+                "Anchoring disallowed: dependent would inherit UntrustedLayoutScriptExecution")
+            self.point = { point, relative, ... }
+        end,
         SetAllPoints = function() end,
         SetFrameLevel = function() end,
         GetFrameLevel = function() return 1 end,
@@ -30,7 +35,7 @@ local function Frame()
     }
 end
 CreateFrame = function(kind, _, _, template)
-    local frame = Frame()
+    local frame = Frame(kind == "AuraContainer" or template == "DisableUntrustedLayoutScriptsTemplate")
     if kind == "AuraContainer" then
         frame.SetUnit = function(self, unit) self.unit = unit end
         frame.SetEnabled = function(self, enabled) self.enabled = enabled end
@@ -44,7 +49,7 @@ CreateFrame = function(kind, _, _, template)
         frame.GetWidth = function() error("native width is secret") end
         frame.GetHeight = function() error("native height is secret") end
         frame.AddAuraSlot = function(self, key, filter, opts)
-            local button = Frame()
+            local button = Frame(true)
             button.IsShown = function() error("native presence must remain opaque") end
             button.GetAuraData = function() error("native aura data must remain opaque") end
             button.SetScript = function() error("native scripts belong to Blizzard") end
@@ -73,7 +78,7 @@ ns._OwnedSwipe = { GetSettings = function() return { showCooldownIconAuraPhase =
 ns.Helpers = {}
 ns.AuraSkin = { WireButton = function() end }
 ns.CDMSpellData = { GetCapturedAuraForLookup = function() error("captured aura state is removed") end }
-for _, name in ipairs({ "cdm_managed_aura_mirrors", "cdm_custom_aura_runs", "cdm_reanchor_realenv", "cdm_reanchor_runtime", "cdm_placement_planner" }) do
+for _, name in ipairs({ "cdm_managed_aura_mirrors", "cdm_custom_aura_runs", "cdm_reanchor_realenv", "cdm_reanchor", "cdm_reanchor_runtime", "cdm_placement_planner" }) do
     assert(loadfile("QUI_CDM/cdm/" .. name .. ".lua"))("QUI", ns)
 end
 local owner = Frame()
@@ -89,7 +94,7 @@ local runtime = ns.CDMReanchorRuntime.New({
     inCombat = function() return combat end,
     getAdditional = function() return {} end,
     frameIsActive = function(frame) return frame.active end,
-    mintOwned = function() return Frame() end,
+    mintOwned = function() return Frame(true) end,
     releaseOwned = function() end,
     acquireAuraMirror = env.acquireAuraMirror,
     positionAuraMirror = env.positionAuraMirror,
@@ -260,10 +265,15 @@ local nativeBEntry = { id = 910002, type = "spell", kind = "aura", source = "bli
 local auraC = { id = 910003, type = "spell", kind = "aura" }
 local nativeB = Frame()
 nativeB.active = true
-runtime._bridge = {
-    InstallAnchorGuard = function() end,
-    OverlayRect = function(_, frame, relative) frame:SetPoint("CENTER", relative, "CENTER", 0, 0) end,
-}
+runtime._bridge = ns.CDMReanchor.New({
+    hooksecurefunc = function(frame, method, hook)
+        local original = frame[method]
+        frame[method] = function(self, ...)
+            original(self, ...)
+            hook(self, ...)
+        end
+    end,
+})
 curated = { auraA, nativeBEntry, auraC }
 matched = { { entry = nativeBEntry, frame = nativeB } }
 frameless = { auraA, auraC }
@@ -282,6 +292,10 @@ end
 local beforeCombat = layoutCombatEntries()
 local preparedA, preparedC = beforeCombat[1].auraMirror, beforeCombat[3].auraMirror
 assert(preparedA.host ~= preparedC.host, "native middle icon must separate prepared runs")
+assert(nativeB.point[2] == owner and runtime._bridge:GetData(nativeB).overlayRect.relativeTo == owner,
+    "Blizzard buff icons must retain their container rect outside restricted aura dependencies")
+assert(preparedC.host.point[2] == nativeB and preparedC.host.point[4] == 2,
+    "custom aura runs after a Blizzard icon must retain their padding and follow its safe anchor")
 combat = true
 nativeB.active = false
 local collapsed = layoutCombatEntries()
@@ -304,3 +318,25 @@ assert(sharedHost.point[2] == owner,
     "a prepared native host must be positioned once when a middle native icon reappears")
 combat = false
 print("OK: combat native aura records retain identity across native icon visibility changes")
+
+for _, case in ipairs({
+    { "RIGHT", "LEFT", "RIGHT", 2, 0 },
+    { "LEFT", "RIGHT", "LEFT", -2, 0 },
+    { "UP", "BOTTOM", "TOP", 0, 2 },
+    { "DOWN", "TOP", "BOTTOM", 0, -2 },
+}) do
+    settings.growthDirection = case[1]
+    local result = layoutCombatEntries()
+    local rect = runtime._bridge:GetData(nativeB).overlayRect
+    assert(rect.relativeTo == owner and rect.tlX == -16 and rect.tlY == 16
+        and rect.brX == 16 and rect.brY == -16,
+        case[1] .. ": Blizzard icon must retain its planned position and size")
+    local point = result[3].auraMirror.host.point
+    assert(point[1] == case[2] and point[2] == nativeB and point[3] == case[3]
+        and point[4] == case[4] and point[5] == case[5],
+        case[1] .. ": following native aura must retain growth direction and padding")
+    nativeB:SetPoint("CENTER", Frame(), "CENTER", 0, 0)
+    assert(nativeB.point[2] == owner,
+        "Blizzard layout repairs must reassert the safe container anchor")
+end
+print("OK: mixed buff rows preserve safe anchors in all growth directions")
