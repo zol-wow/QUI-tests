@@ -266,4 +266,28 @@ for _, disableBeforeReplacement in ipairs({ true, false }) do
         "A user replacement must remain unowned after reload")
 end
 
+assert(loadfile("QUI_CDM/cdm/cdm_custom_aura_runs.lua"))("QUI", ns)
+for _, selfAura in ipairs({ true, false }) do
+    local filtered = entry(selfAura and 128 or 129, "Bell")
+    containers = { { key = "buff", settings = { ownedSpells = { filtered } } } }
+    Alerts.ReconcileNativeSounds()
+    local registrationID = #added
+    assert(Alerts.IsNativeSoundRegistered(filtered, "auraApplied"))
+    filtered._selfAura = selfAura
+    Alerts.ReconcileNativeSounds()
+    assert(#added == registrationID and removed[registrationID] == 1
+        and not Alerts.IsNativeSoundRegistered(filtered, "auraApplied"),
+        "Player-cast aura filters must not register file sounds for every caster")
+    assert(Alerts.GetNativeSoundStatus("buff", filtered, "auraApplied"):find("own casts", 1, true))
+    local config = filtered.quiAlerts.auraApplied
+    assert(config.enabled and config.sound == "Bell", "Unsupported file alerts must retain their configuration")
+    local previewCount = #playback
+    Alerts.Preview(config, filtered, "auraApplied")
+    assert(#playback == previewCount + 1, "Unsupported native file alerts must remain previewable")
+    config.sound = "kit:3"
+    Alerts.ReconcileNativeSounds()
+    assert(Alerts.IsNativeSoundRegistered(filtered, "auraApplied") and #nativeAlerts(filtered.id) == 1,
+        "Player-cast auras must retain supported Blizzard viewer sound alerts")
+end
+
 print("OK: cdm_native_sound_registration_test")
