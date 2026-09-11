@@ -29,11 +29,12 @@ local function Frame()
         SetMouseMotionEnabled = function() end,
     }
 end
-CreateFrame = function(kind)
+CreateFrame = function(kind, _, _, template)
     local frame = Frame()
     if kind == "AuraContainer" then
         frame.SetUnit = function(self, unit) self.unit = unit end
         frame.SetEnabled = function(self, enabled) self.enabled = enabled end
+        if template ~= "CustomAuraContainerTemplate" then return frame end
         frame.groups = {}
         frame.SetFlowLayoutAxis = function(self, value) self.axis = value end
         frame.SetFlowLayoutAnchorPoint = function(self, value) self.anchor = value end
