@@ -6,6 +6,7 @@ function InCombatLockdown() return inCombat end
 function issecretvalue() return false end
 C_Secrets = { ShouldAurasBeSecret = function() return secretAuras end }
 local containers, buttons = {}, {}
+local animationCreates, pointCreates = 0, 0
 local function Frame(parent)
     local frame = { parent = parent, shown = true, points = {}, attributes = {} }
     function frame:ClearAllPoints() self.points = {} end
@@ -37,6 +38,7 @@ local function Frame(parent)
             self.playCalls = (self.playCalls or 0) + 1
         end
         function group:CreateAnimation(kind)
+            animationCreates = animationCreates + 1
             local anim = { kind = kind, controls = {}, SetScript = forbidden, HookScript = forbidden }
             self.animations[#self.animations + 1] = anim
             function anim:SetTarget(target) self.target = target end
@@ -48,6 +50,7 @@ local function Frame(parent)
             function anim:SetFlipBookFrameWidth(width) self.frameWidth = width end
             function anim:SetFlipBookFrameHeight(height) self.frameHeight = height end
             function anim:CreateControlPoint(_, _, order)
+                pointCreates = pointCreates + 1
                 local point = {}
                 self.controls[order] = point
                 function point:SetOffset(x, y) self.x, self.y = x, y end
@@ -469,3 +472,44 @@ for nativeButton in pairs(batchButtons) do
 end
 inCombat, secretAuras = false, false
 print("OK: ten native buttons retain 480 active-aura paths and stop 280 inactive proc paths")
+
+local animationsBefore, pointsBefore = animationCreates, pointCreates
+local sampleButton = next(batchButtons)
+local sampleEffect = sampleButton._quiCDMNativeGlow[1]
+local playsBefore, stopsBefore = sampleEffect.group.playCalls, sampleEffect.group.stopCalls
+for _ = 1, 20 do
+    assert(Runs.Apply(batchOwner, batchSettings, batchPlan, { batchIcon }, false, "custom"))
+end
+assert(animationCreates == animationsBefore and pointCreates == pointsBefore,
+    "unchanged native layouts must not recreate animations or control points")
+assert(sampleEffect.group.playCalls == playsBefore and sampleEffect.group.stopCalls == stopsBefore,
+    "unchanged native layouts must preserve running animation progress")
+
+local profile = Runs.BuildProfile({ size = 39 }, batchSettings, batchIcon._spellEntry)
+profile.iconWidth, profile.iconHeight = 30.135592, 30.135592
+Runs.ConfigureNativeEffects(sampleButton, profile, batchIcon)
+assert(animationCreates == animationsBefore and pointCreates == pointsBefore,
+    "pixel-snapped size changes must reuse existing Path animations and control points")
+local path = sampleEffect.group.animations[1]
+assert(path.controls[1].x == profile.iconWidth and path.controls[1].y == 0,
+    "reused paths must follow the new icon dimensions")
+profile.cdmActiveGlow.color[1] = 0.25
+profile.cdmActiveGlow.frequency = -0.5
+Runs.ConfigureNativeEffects(sampleButton, profile, batchIcon)
+assert(sampleEffect.texture.vertexColor[1] == 0.25 and path.duration == 2,
+    "in-place color and frequency changes must invalidate the value cache")
+assert(path.controls[1].x == 0 and path.controls[1].y == 0,
+    "negative frequency must reverse the reused path")
+assert(animationCreates == animationsBefore and pointCreates == pointsBefore,
+    "color and frequency edits must not allocate replacement native animations")
+profile.cdmActiveGlow = nil
+Runs.ConfigureNativeEffects(sampleButton, profile, batchIcon)
+assert(not sampleEffect.group.playing and sampleEffect.texture.alpha == 0,
+    "disabling a cached active glow must stop and hide it")
+profile.cdmActiveGlow = { glowType = "Pixel Glow", color = { 0.7, 0.6, 0.5, 1 } }
+Runs.ConfigureNativeEffects(sampleButton, profile, batchIcon)
+assert(sampleEffect.group.playing and sampleEffect.texture.vertexColor[1] == 0.7,
+    "reenabling a cached active glow must restore it")
+assert(animationCreates == animationsBefore and pointCreates == pointsBefore,
+    "reenabling the same effect kind must reuse its native objects")
+print("OK: native glow layout and geometry refreshes reuse animation objects")

@@ -1,6 +1,7 @@
 local ns = {}
 local containers, slots = {}, {}
 local apiAccesses = 0
+local animationsCreated, pointsCreated, animationPlays = 0, 0, 0
 local combat = false
 AnchorUtil = { FlowLayoutAxis = { Horizontal = 0, Vertical = 1 },
     FlowDirection = { Right = 1, Left = -1, Up = 1, Down = -1 } }
@@ -29,13 +30,40 @@ local function Frame(layoutRestricted)
         EnableMouse = function() end,
         SetAttribute = function() end,
         SetAlpha = function(self, alpha) self.alpha = alpha end,
+        SetVertexColor = function() end,
+        SetTexCoord = function() end,
+        SetBlendMode = function() end,
+        SetColorTexture = function() end,
+        CreateTexture = function(self) return Frame(self.layoutRestricted) end,
+        CreateAnimationGroup = function()
+            return {
+                Stop = function() end,
+                RemoveAnimations = function() end,
+                SetLooping = function() end,
+                Play = function() animationPlays = animationPlays + 1 end,
+                CreateAnimation = function(_, kind)
+                    assert(kind == "Path")
+                    animationsCreated = animationsCreated + 1
+                    return {
+                        SetTarget = function() end,
+                        SetDuration = function() end,
+                        SetCurveType = function() end,
+                        CreateControlPoint = function()
+                            pointsCreated = pointsCreated + 1
+                            return { SetOffset = function() end }
+                        end,
+                    }
+                end,
+            }
+        end,
         RegisterForClicks = function() end,
         SetMouseClickEnabled = function() end,
         SetMouseMotionEnabled = function() end,
     }
 end
-CreateFrame = function(kind, _, _, template)
-    local frame = Frame(kind == "AuraContainer" or template == "DisableUntrustedLayoutScriptsTemplate")
+CreateFrame = function(kind, _, parent, template)
+    local frame = Frame(kind == "AuraContainer" or template == "DisableUntrustedLayoutScriptsTemplate"
+        or parent and parent.layoutRestricted)
     if kind == "AuraContainer" then
         frame.SetUnit = function(self, unit) self.unit = unit end
         frame.SetEnabled = function(self, enabled) self.enabled = enabled end
@@ -75,6 +103,9 @@ CreateFrame = function(kind, _, _, template)
     return frame
 end
 ns._OwnedSwipe = { GetSettings = function() return { showCooldownIconAuraPhase = false } end }
+ns._OwnedGlows = { ResolveGlowForEntry = function()
+    return { glowType = "Pixel Glow", lines = 2, thickness = 3 }
+end }
 ns.Helpers = {}
 ns.AuraSkin = { WireButton = function() end }
 ns.CDMSpellData = { GetCapturedAuraForLookup = function() error("captured aura state is removed") end }
@@ -134,6 +165,25 @@ assert(entries[1].auraMirror.dynamic and entries[1].auraMirror.host == entries[2
 assert(entries[3].auraMirror.host.point[2] == entries[1].auraMirror.host)
 assert(entries[3].auraMirror.host.point[4] == -1)
 assert(entries[4].auraMirror.host.point[2] == entries[3].auraMirror.host)
+local preparedAnimations, preparedPoints, preparedPlays = animationsCreated, pointsCreated, animationPlays
+assert(preparedAnimations > 0 and preparedPoints == preparedAnimations * 5,
+    "real reanchor placement must configure native glow paths")
+for _ = 1, 100 do
+    assert(env.beginAuraMirrorPass(owner))
+    assert(runtime:PositionEntries(owner, { placements = placements }, "buff") == 4)
+    env.endAuraMirrorPass(owner)
+end
+assert(#slots == 4, "repeated placement passes must retain prepared native frames")
+assert(animationsCreated == preparedAnimations and pointsCreated == preparedPoints,
+    string.format("unchanged reanchor placement must reuse native animations and control points: %d -> %d animations, %d -> %d points",
+        preparedAnimations, animationsCreated, preparedPoints, pointsCreated))
+assert(animationPlays == preparedPlays, "unchanged reanchor placement must not restart native animations")
+for _, entry in ipairs(entries) do
+    local effects = entry.auraMirror.frames[1]._quiCDMNativeProcGlow
+    assert(#effects > 0 and entry.frame._quiNativeProcGlows[effects],
+        "cached native effects must re-register after placement resets proc ownership")
+end
+print("OK: repeated realenv placements preserve native glow animations and proc registration")
 local flowFile = assert(io.open("tests/framexml/Interface/AddOns/Blizzard_SharedXMLBase/AnchorUtil.lua"))
 local flowSource = flowFile:read("*a")
 flowFile:close()
