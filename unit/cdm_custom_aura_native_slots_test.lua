@@ -29,10 +29,13 @@ local function Frame(parent)
     function frame:CreateAnimationGroup()
         self.animationGroups = self.animationGroups or {}
         local group = { animations = {}, SetScript = forbidden, HookScript = forbidden }
-        function group:Stop() self.playing = false end
+        function group:Stop() self.playing = false; self.stopCalls = (self.stopCalls or 0) + 1 end
         function group:RemoveAnimations() self.animations = {} end
         function group:SetLooping(looping) self.looping = looping end
-        function group:Play(reverse, offset) self.playing, self.reverse, self.offset = true, reverse, offset end
+        function group:Play(reverse, offset)
+            self.playing, self.reverse, self.offset = true, reverse, offset
+            self.playCalls = (self.playCalls or 0) + 1
+        end
         function group:CreateAnimation(kind)
             local anim = { kind = kind, controls = {}, SetScript = forbidden, HookScript = forbidden }
             self.animations[#self.animations + 1] = anim
@@ -103,7 +106,9 @@ function CreateFrame(kind, _, parent, template)
         function frame:SetAuraSlotCandidateFilters(key, filters) self.slots[key].options.candidateFilters = filters end
         function frame:HasAuraGroup(key) return self.groups[key] ~= nil end
         function frame:AddAuraGroup(key, filter, options)
-            self.groups[key] = self:AddAuraSlot(key, filter, options)
+            local group = {}
+            for i = 1, 10 do group[i] = self:AddAuraSlot(key .. ":" .. i, filter, options) end
+            self.groups[key] = group
         end
     end
     return frame
@@ -197,12 +202,22 @@ assert(button._quiCDMNativeEffectHost.parent == button)
 assert(nativeGlow.group.animations[1].target == nativeGlow.texture)
 assert(nativeGlow.group.animations[1].kind == "Path" and nativeGlow.group.animations[1].duration == 4)
 local procGlow = button._quiCDMNativeProcGlow[1]
-assert(procGlow.texture.alpha == 0 and procGlow.group.playing)
+assert(procGlow.texture.alpha == 0 and not procGlow.group.playing,
+    "inactive native proc effects must stop animating")
+inCombat, secretAuras = true, true
 Runs.SetNativeProcGlow(icon, true)
-assert(procGlow.texture.alpha == 1 and nativeGlow.texture.alpha == 1)
+assert(procGlow.texture.alpha == 1 and procGlow.group.playing and nativeGlow.texture.alpha == 1)
+local procPlayCalls = procGlow.group.playCalls
+Runs.SetNativeProcGlow(icon, true)
+assert(procGlow.group.playCalls == procPlayCalls, "repeated proc updates must not restart animations")
 Runs.SetNativeProcGlow(icon, false)
-assert(procGlow.texture.alpha == 0 and nativeGlow.texture.alpha == 1,
+assert(procGlow.texture.alpha == 0 and not procGlow.group.playing
+    and nativeGlow.texture.alpha == 1 and nativeGlow.group.playing,
     "clean proc state must control its native layer independently of active-aura glow")
+local procStopCalls = procGlow.group.stopCalls
+Runs.SetNativeProcGlow(icon, false)
+assert(procGlow.group.stopCalls == procStopCalls, "repeated inactive proc updates must not stop animations again")
+inCombat, secretAuras = false, false
 button.shown = true
 assert(button.parent.shown and icon.shown, "native aura and inactive base have independent visibility")
 button.shown = false
@@ -415,3 +430,42 @@ assert(ordinaryIcon._quiNativeProcGlowActive == false and ordinaryIcon._quiNativ
 Runs.SetNativeProcGlow(ordinaryIcon, true)
 assert(ordinaryIcon._quiNativeProcGlowActive == true, "proc state must survive until native effects are prepared")
 print("OK: ordinary proc glow updates avoid native effect allocations")
+
+ns._OwnedGlows.ResolveGlowForEntry = function() return { lines = 14 } end
+local batchOwner, batchIcon = Frame(), Frame()
+batchIcon._spellEntry = { id = 1307927, kind = "aura", _useManagedAura = true,
+    _managedAuraRoute = "player:HELPFUL", viewerType = "custom" }
+local batchSettings = { containerType = "customBar", dynamicLayout = true,
+    showOnlyWhenActive = true, row1 = { iconCount = 1 }, entries = { batchIcon._spellEntry } }
+local batchPlan = { metrics = { iconWidth = 39 },
+    placements = { { icon = batchIcon, rowConfig = { size = 39 }, x = 0, y = 0 } } }
+assert(Runs.Apply(batchOwner, batchSettings, batchPlan, { batchIcon }, false, "custom"))
+local batchButtons = batchOwner._quiCDMAuraRunRecords[1].container._quiCDMNativeButtons
+local batchCount, activeGroups, procGroups, playingProcGroups = 0, 0, 0, 0
+for nativeButton in pairs(batchButtons) do
+    batchCount = batchCount + 1
+    for _, effect in ipairs(nativeButton._quiCDMNativeGlow) do
+        if effect.group.playing then activeGroups = activeGroups + 1 end
+    end
+    for _, effect in ipairs(nativeButton._quiCDMNativeProcGlow) do
+        procGroups = procGroups + 1
+        if effect.group.playing then playingProcGroups = playingProcGroups + 1 end
+    end
+end
+assert(batchCount == 10 and activeGroups == 480 and procGroups == 280)
+assert(playingProcGroups == 0, "native ten-button batches must not animate inactive proc layers")
+inCombat, secretAuras = true, true
+Runs.SetNativeProcGlow(batchIcon, true)
+for nativeButton in pairs(batchButtons) do
+    for _, effect in ipairs(nativeButton._quiCDMNativeProcGlow) do
+        assert(effect.group.playing and effect.texture.alpha == 1)
+    end
+end
+Runs.SetNativeProcGlow(batchIcon, false)
+for nativeButton in pairs(batchButtons) do
+    for _, effect in ipairs(nativeButton._quiCDMNativeProcGlow) do
+        assert(not effect.group.playing and effect.texture.alpha == 0)
+    end
+end
+inCombat, secretAuras = false, false
+print("OK: ten native buttons retain 480 active-aura paths and stop 280 inactive proc paths")

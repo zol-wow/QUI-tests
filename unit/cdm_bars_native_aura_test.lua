@@ -380,9 +380,11 @@ for _, combatState in ipairs({ false, true }) do
     for i, event in ipairs(events) do
         cooldownActive = true
         event()
+        if refresh.barQueue.scheduled then refresh.barQueue.frame.scripts.OnUpdate() end
         assert(eventBar._active and eventBar.shown, "custom bar must activate without an icon pool for event " .. i)
         cooldownActive = false
         event()
+        if refresh.barQueue.scheduled then refresh.barQueue.frame.scripts.OnUpdate() end
         assert(not eventBar._active and not eventBar.shown, "custom bar must expire without an icon pool for event " .. i)
     end
 end

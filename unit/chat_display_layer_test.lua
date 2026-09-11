@@ -12,7 +12,7 @@ local secret = setmetatable({}, { __tostring = explode, __concat = explode, __le
 
 -- Recording frame factory --------------------------------------------------
 local function makeFrame()
-    local f = { points = {}, scripts = {}, shown = true, added = {} }
+    local f = { points = {}, scripts = {}, scriptWrites = {}, shown = true, added = {} }
     function f:GetName() return self.name end
     function f:GetParent() return self.parent end
     function f:SetParent(parent) self.parent = parent end
@@ -33,7 +33,10 @@ local function makeFrame()
     function f:Show() self.shown = true end
     function f:Hide() self.shown = false end
     function f:IsShown() return self.shown end
-    function f:SetScript(k, v) self.scripts[k] = v end
+    function f:SetScript(k, v)
+        self.scriptWrites[k] = true
+        self.scripts[k] = v
+    end
     function f:HookScript(k, v) self.scripts["hook_" .. k] = v end
     function f:SetMovable() end
     function f:SetResizable() end
@@ -75,11 +78,29 @@ local function makeFrame()
     return f
 end
 
+assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_ChatFrameBase/Shared/ChatFrame.lua"))()
+assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanelTemplates/Shared/UIPanelTemplatesShared.lua"))()
+
+local xmlFile = assert(io.open("tests/framexml/Interface/AddOns/Blizzard_UIPanelTemplates/Mainline/UIPanelTemplates.xml"))
+local inlineTemplate = assert(xmlFile:read("*a"):match('<Frame name="InlineHyperlinkFrameTemplate".-</Frame>'))
+xmlFile:close()
+
 local frames = {}
 local createdFrameCount = 0
-function _G.CreateFrame(ftype, name)
+function _G.CreateFrame(ftype, name, parent, template)
     local f = makeFrame()
-    f.ftype, f.name = ftype, name
+    f.ftype, f.name, f.parent = ftype, name, parent
+    for inherited in (template or ""):gmatch("[^, ]+") do
+        if inherited == "ChatFrameTemplate" then
+            for _, script in ipairs({ "OnHyperlinkClick", "OnHyperlinkEnter", "OnHyperlinkLeave" }) do
+                f.scripts[script] = _G.ChatFrameMixin[script]
+            end
+        elseif inherited == "InlineHyperlinkFrameTemplate" then
+            for script, fn in inlineTemplate:gmatch('<(On%w+) function="([^"]+)"') do
+                f.scripts[script] = assert(_G[fn], fn)
+            end
+        end
+    end
     frames[#frames + 1] = f
     createdFrameCount = createdFrameCount + 1
     if name then _G[name] = f end
@@ -466,29 +487,61 @@ settings.fade.enabled = false
 Display.Refresh()
 assert(smf1.fading == false, "fade re-disabled: SetFading(false) called")
 
--- Hyperlink click context frame --------------------------------------------
--- Hyperlink taint launderer. Clicking a player/channel name must NOT run any
--- QUI-owned OnHyperlinkClick: a QUI closure calling SetItemRef taints the unit
--- popup it spawns, which forbids the restricted CopyToClipboard ("Copy
--- Character Name") with ADDON_ACTION_FORBIDDEN. The SMF therefore wires NO
--- hyperlink scripts and instead PROPAGATES events to its parent linkHandler --
--- a real ChatFrameTemplate whose Blizzard-owned ChatFrameMixin:OnHyperlinkClick
--- calls SetItemRef untainted, so the menu is born clean and Copy works.
--- The editbox-less-frame crash guard (player/BN/channel links deref
--- frame.editBox via ChooseBoxForSend) moves onto that launderer: its .editBox
--- points at ChatFrame1's live editbox.
 do
-    assert(smf1.scripts.OnHyperlinkClick == nil,
-        "SMF must NOT own OnHyperlinkClick -- a QUI closure would taint the unit popup and forbid Copy")
-    assert(smf1.scripts.OnHyperlinkEnter == nil and smf1.scripts.OnHyperlinkLeave == nil,
-        "SMF must NOT own hover scripts -- the launderer fires them via propagation")
-    assert(smf1.hyperlinkPropagate == true,
-        "SMF propagates hyperlink events up to its parent launderer")
-
-    local linkHandler = _G.QUI_CustomChatMessagesLinkHandler
-    assert(linkHandler ~= nil, "window 1 has a link-handler launderer (ChatFrameTemplate child of container)")
-    assert(linkHandler.editBox == _G.ChatFrame1EditBox and linkHandler.editBox ~= nil,
-        "launderer carries ChatFrame1's editbox (ChooseBoxForSend reads .editBox)")
+    ChatFrameConstants = { MaxRememberedWhisperTargets = 10 }
+    assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_ChatFrameBase/Shared/ChatFrameUtil.lua"))()
+    local hoverEvent, hoverFrame
+    EventRegistry = { TriggerEvent = function(_, event, source)
+        hoverEvent, hoverFrame = event, source
+    end }
+    C_Glue = { IsOnGlueScreen = function() return false end }
+    IsVoiceTranscription = function() return false end
+    local nativeFrame = { editBox = makeFrame() }
+    nativeFrame.editBox:SetParent(UIParent)
+    ChatFrame1.editBox = ChatFrame1EditBox
+    FCFDock_GetSelectedWindow = function() return nativeFrame end
+    local style, expected, received = "im", nativeFrame.editBox
+    GetCVar = function() return style end
+    SetItemRef = function(link, text, button, preferredFrame)
+        local selected = ChatFrameUtil.ChooseBoxForSend(preferredFrame)
+        assert(selected == expected, "hyperlink must use Blizzard's selected input instead of QUI's proxy field")
+        assert(preferredFrame == nil, "native link dispatch must not pass an addon-owned input reference")
+        received = { link, text, button }
+    end
+    for _, chatStyle in ipairs({ "im", "classic" }) do
+        style = chatStyle
+        expected = style == "classic" and ChatFrame1EditBox or nativeFrame.editBox
+        for _, lastActive in ipairs({ false, nativeFrame.editBox }) do
+            LAST_ACTIVE_CHAT_EDIT_BOX = lastActive or nil
+            for _, smf in ipairs({ smf1, Display.GetMessageFrame(2) }) do
+                assert(smf.scripts.OnHyperlinkClick == nil and smf.hyperlinkPropagate,
+                    "messages must propagate hyperlink input to the native handler")
+                assert(smf.scripts.OnHyperlinkEnter == nil and smf.scripts.OnHyperlinkLeave == nil,
+                    "messages must preserve native hover propagation")
+                local handler = smf:GetParent()
+                for _, link in ipairs({ "player:Player-Realm", "BNplayer:BattleFriend:123", "channel:CHANNEL:1", "item:19019" }) do
+                    for _, button in ipairs({ "LeftButton", "RightButton" }) do
+                        handler.scripts.OnHyperlinkClick(handler, link, "display text", button)
+                        assert(received[1] == link and received[2] == "display text" and received[3] == button,
+                            "native dispatch must preserve the hyperlink and mouse button")
+                    end
+                end
+                assert(handler.scripts.OnHyperlinkClick == _G.InlineHyperlinkFrame_OnClick,
+                    "click binding must be Blizzard's function without a QUI wrapper")
+                assert(not handler.scriptWrites.OnHyperlinkClick,
+                    "native click binding must be inherited without addon SetScript replacement")
+                assert(handler.editBox == nil, "hyperlink handler must not supply a tainted editBox field")
+                handler.scripts.OnHyperlinkEnter(handler, "item:19019", "display text")
+                assert(hoverEvent == "ChatFrame.OnHyperlinkEnter" and hoverFrame == handler,
+                    "hover must still notify the chat tooltip listeners")
+                handler.scripts.OnHyperlinkLeave(handler)
+                assert(hoverEvent == "ChatFrame.OnHyperlinkLeave" and hoverFrame == handler,
+                    "leaving a link must still notify the chat tooltip listeners")
+            end
+        end
+    end
+    ChatFrameUtil = nil
+    LAST_ACTIVE_CHAT_EDIT_BOX = nil
 end
 
 -- Active-window tracking ---------------------------------------------------
