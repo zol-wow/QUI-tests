@@ -1,7 +1,7 @@
 local function forbidden() error("native aura state must not be queried by CDM") end
 C_UnitAuras = setmetatable({}, { __index = forbidden })
 AuraUtil = setmetatable({}, { __index = forbidden })
-local inCombat, secretAuras = false, false
+local inCombat, secretAuras, stateDriverRunning = false, false, false
 function InCombatLockdown() return inCombat end
 function issecretvalue() return false end
 C_Secrets = { ShouldAurasBeSecret = function() return secretAuras end }
@@ -57,8 +57,14 @@ local function Frame(parent)
     end
     function frame:SetFrameLevel(level) self.level = level end
     function frame:GetFrameLevel() return self.level or 1 end
-    function frame:Show() self.shown = true end
-    function frame:Hide() self.shown = false end
+    function frame:Show()
+        assert(not inCombat or stateDriverRunning or not self.protected, "addon cannot show protected frames in combat")
+        self.shown = true
+    end
+    function frame:Hide()
+        assert(not inCombat or stateDriverRunning or not self.protected, "addon cannot hide protected frames in combat")
+        self.shown = false
+    end
     function frame:CreateTexture() return Frame(self) end
     function frame:EnableMouse(enabled) self.mouse = enabled end
     function frame:SetMouseClickEnabled(enabled) self.click = enabled end
@@ -76,6 +82,7 @@ function CreateFrame(kind, _, parent, template)
         function frame:SetEnabled(enabled) self.enabled = enabled end
         function frame:AddAuraSlot(key, filter, options)
             local button = Frame(self)
+            if options.templateNames then self.protected, button.protected = true, true end
             button.key, button.filter, button.options = key, filter, options
             self.slots[key] = button
             buttons[#buttons + 1] = button
@@ -91,6 +98,39 @@ function CreateFrame(kind, _, parent, template)
         end
     end
     return frame
+end
+local driverEnv = setmetatable({
+    table = setmetatable({ wipe = function(t) for key in pairs(t) do t[key] = nil end end }, { __index = table }),
+    strmatch = string.match,
+    SecureCmdOptionParse = function(values)
+        assert(values == "[combat] show; hide")
+        return inCombat and "show" or "hide"
+    end,
+    CreateFrame = function()
+        local frame = Frame()
+        frame.scripts = {}
+        function frame:SetScript(key, fn) self.scripts[key] = fn end
+        function frame:RegisterEvent() end
+        function frame:SetAttribute(key, value)
+            self.attributes[key] = value
+            stateDriverRunning = true
+            self.scripts.OnAttributeChanged(self, key, value)
+            stateDriverRunning = false
+        end
+        return frame
+    end,
+}, { __index = _G })
+local driverChunk = assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_RestrictedAddOnEnvironment/SecureStateDriver.lua"))
+setfenv(driverChunk, driverEnv)
+driverChunk()
+RegisterStateDriver, UnregisterStateDriver = driverEnv.RegisterStateDriver, driverEnv.UnregisterStateDriver
+local function CombatTransition(combat)
+    inCombat = combat
+    local manager = driverEnv.SecureStateDriverManager
+    stateDriverRunning = true
+    manager.scripts.OnEvent(manager, combat and "PLAYER_REGEN_DISABLED" or "PLAYER_REGEN_ENABLED")
+    manager.scripts.OnUpdate(manager, 0.3)
+    stateDriverRunning = false
 end
 local ns = {
     Helpers = {},
@@ -226,6 +266,26 @@ prepare(icon, { type = "item", id = 9000 }, "custom")
 Runs.ConfigureNativeClick(button, icon.clickButton)
 assert(button:GetAttribute("type") == nil and not button.click, "disabling clicks must clear native cast bindings")
 settings.clickableIcons = true
+settings.showOnlyInCombat = true
+assert(Runs.Apply(owner, settings, plan, { icon }, false, "custom"))
+assert(button.parent == containers[1] and not button.parent.shown and button.parent.enabled,
+    "combat-only visibility must hide the native parent while aura matching remains enabled")
+button.shown = true
+CombatTransition(true)
+assert(button.parent.shown and button.shown, "the native state driver must reveal matched auras in combat")
+CombatTransition(false)
+assert(not button.parent.shown and button.shown, "combat exit must hide the native parent without changing aura state")
+ns.Helpers.IsEditModeActive = function() return true end
+assert(Runs.Apply(owner, settings, plan, { icon }, false, "custom"))
+assert(button.parent.shown and not button.parent._quiCDMCombatVisibility,
+    "edit mode must release native parent combat visibility")
+ns.Helpers.IsEditModeActive = nil
+settings.showOnlyInCombat = false
+assert(Runs.Apply(owner, settings, plan, { icon }, false, "custom"))
+assert(button.parent.shown, "disabling combat-only visibility must restore the native parent")
+CombatTransition(true)
+CombatTransition(false)
+assert(button.parent.shown, "disabled combat visibility drivers must stay unregistered")
 for _, field in ipairs({ "dynamicLayout", "showOnlyWhenActive", "showOnlyOnCooldown", "showOnlyInCombat", "hideNonUsable" }) do
     settings[field] = true
     assert(Runs.Apply(owner, settings, plan, { icon }, false, "custom"), field .. " must retain native aura tracking")
@@ -273,11 +333,13 @@ local hiddenOverride = true
 local visibilityChunk = assert(loadstring(
     "return function(icon, entry, containerDB, editMode, inCombat)" .. visibilitySource .. "\nend"))
 setfenv(visibilityChunk, setmetatable({
+    ns = ns,
     GetIconSpellOverride = function() return { hidden = hiddenOverride } end,
     SyncCooldownBling = function() end,
 }, { __index = _G }))
 local updateVisibility = visibilityChunk()
 local placeholder = Frame()
+placeholder.Icon = { SetDesaturated = function(self, value) self.desaturated = value end }
 placeholder.IsShown = function(self) return self.shown end
 local managedEntry = { _useManagedAura = true }
 updateVisibility(placeholder, managedEntry, { iconDisplayMode = "always" }, false, false)
@@ -285,6 +347,45 @@ assert(placeholder.shown == false, "hidden override must beat managed always-vis
 hiddenOverride = false
 updateVisibility(placeholder, managedEntry, { iconDisplayMode = "always" }, false, false)
 assert(placeholder.shown == true, "clearing hidden override restores the inactive placeholder")
+local combatSettings = { iconDisplayMode = "always", showOnlyInCombat = true }
+placeholder.protected = true
+placeholder.clickButton = Frame(placeholder)
+placeholder.Icon.desaturated = false
+updateVisibility(placeholder, managedEntry, combatSettings, false, false)
+assert(not placeholder.shown, "combat-only managed placeholders must hide outside combat")
+assert(placeholder.Icon.desaturated, "native visibility drivers must retain inactive placeholder desaturation")
+CombatTransition(true)
+updateVisibility(placeholder, managedEntry, combatSettings, false, true)
+assert(placeholder.shown, "the native driver must reveal protected placeholders without addon combat Show")
+CombatTransition(false)
+updateVisibility(placeholder, managedEntry, combatSettings, false, false)
+assert(not placeholder.shown)
+updateVisibility(placeholder, managedEntry, combatSettings, true, false)
+assert(placeholder.shown and not placeholder._quiCDMCombatVisibility, "edit mode must release combat visibility")
+assert(not placeholder.Icon.desaturated, "edit mode must restore placeholder color")
+updateVisibility(placeholder, managedEntry, { iconDisplayMode = "combat" }, false, false)
+CombatTransition(true)
+updateVisibility(placeholder, managedEntry, { iconDisplayMode = "combat" }, false, true)
+assert(placeholder.shown, "combat placeholder mode must use native visibility even without the combat-only toggle")
+CombatTransition(false)
+hiddenOverride = true
+updateVisibility(placeholder, managedEntry, combatSettings, false, false)
+CombatTransition(true)
+assert(not placeholder.shown and not placeholder._quiCDMCombatVisibility,
+    "hidden overrides must unregister native visibility before the next combat")
+CombatTransition(false)
+hiddenOverride = false
+updateVisibility(placeholder, managedEntry, combatSettings, false, false)
+local acquireSource = assert(rendererSource:match(
+    "function CDMIcons.OnFactoryIconAcquired%b()(.-)\nend\n\nfunction CDMIcons.OnFactoryIconReleased"))
+local acquireChunk = assert(loadstring("return function(icon, entry, reused)" .. acquireSource .. "\nend"))
+setfenv(acquireChunk, setmetatable({ ns = ns, CDMIcons = {}, }, { __index = _G }))
+acquireChunk()(placeholder, { viewerType = "buff" }, false)
+assert(not placeholder._quiCDMCombatVisibility, "reacquired icons must release the old native visibility driver")
+placeholder:Show()
+CombatTransition(true)
+CombatTransition(false)
+assert(placeholder.shown, "released visibility drivers must not hide a reused icon")
 updateVisibility(placeholder, managedEntry, { iconDisplayMode = "active" }, false, false)
 assert(placeholder.shown == false, "active-only mode must leave visibility to the native aura")
 placeholder._quiManagedAuraProxy = true

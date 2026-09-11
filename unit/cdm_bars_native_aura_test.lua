@@ -303,3 +303,66 @@ ns.CDMResolvers.ResolveCooldownState = function() return { isActive = true } end
 bars:UpdateOwnedBars()
 assert(bars:GetActiveBars()[1]._active)
 print("OK: cdm_bars_native_aura_test")
+local enumerateBars
+for i = 1, 30 do
+    local name, value = debug.getupvalue(bars.UpdateOwnedBars, i)
+    if name == "EnumerateBars" then enumerateBars = value; break end
+end
+assert(enumerateBars, "bar updates must expose their shared pool iterator")
+local firstIterator = enumerateBars()
+assert(firstIterator == enumerateBars(), "bar enumeration must reuse its iterator without allocating a closure")
+
+assert(loadfile("QUI_CDM/cdm/cdm_icon_runtime_refresh.lua"))("QUI", ns)
+local eventContainer = CreateFrame("Frame")
+local eventEntry = { id = 42, spellID = 42, kind = "cooldown", type = "spell", viewerType = "custom2" }
+local cooldownActive = false
+local eventResolves = 0
+ns.CDMResolvers.ResolveCooldownState = function(entry)
+    assert(entry.kind == "cooldown", "cooldown events must leave native aura state to Blizzard")
+    eventResolves = eventResolves + 1
+    return { isActive = cooldownActive, isOnCooldown = cooldownActive }
+end
+bars:Refresh(eventContainer, settings, nil, "custom2", nil, { aura(1307927, "custom2"), eventEntry })
+local eventBar = bars:GetActiveBars("custom2")[2]
+local dirty = false
+local opaqueRecovery = {}
+Constants = { SpellCooldownConsts = { GLOBAL_RECOVERY_CATEGORY = 133 } }
+local refresh = ns.CDMIconRuntimeRefresh.Create({
+    isRuntimeEnabled = function() return true end,
+    getIconPools = function() return {} end,
+    updateCooldownOnly = noop,
+    isSecretValue = function(value) return value == opaqueRecovery end,
+    setBarsDirty = function(value) dirty = value end,
+    runDirtyBarUpdate = function()
+        if dirty then dirty = false; bars:UpdateOwnedBars() end
+    end,
+})
+local events = {
+    function() refresh:HandleCooldownChanged(nil, 42, nil, "refresh") end,
+    function() refresh:HandleChargesChanged(nil, 42) end,
+    function() refresh:HandleCooldownChanged(nil, 42, nil, "cast_start") end,
+    function() refresh:HandleCooldownChanged(nil, 42, nil, "cast_succeeded") end,
+    function() refresh:HandleFrameEvent("UNIT_SPELLCAST_STOP", "player", nil, 42) end,
+    function() refresh:HandleFrameEvent("UNIT_SPELLCAST_CHANNEL_START", "player", nil, 42) end,
+    function() refresh:HandleFrameEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", nil, 42) end,
+    function() refresh:HandleFrameEvent("BAG_UPDATE_COOLDOWN") end,
+    function() refresh:HandleFrameEvent("PLAYER_EQUIPMENT_CHANGED", 13) end,
+    function() refresh:HandleFrameEvent("PLAYER_TOTEM_UPDATE") end,
+}
+for _, combatState in ipairs({ false, true }) do
+    inCombat = combatState
+    for i, event in ipairs(events) do
+        cooldownActive = true
+        event()
+        assert(eventBar._active and eventBar.shown, "custom bar must activate without an icon pool for event " .. i)
+        cooldownActive = false
+        event()
+        assert(not eventBar._active and not eventBar.shown, "custom bar must expire without an icon pool for event " .. i)
+    end
+end
+inCombat = false
+local resolvesBeforeGCD = eventResolves
+refresh:HandleCooldownChanged(nil, 42, nil, "refresh", nil, 133)
+refresh:HandleCooldownChanged(nil, 42, nil, "refresh", nil, opaqueRecovery)
+assert(eventResolves == resolvesBeforeGCD, "global and opaque recovery skips must not re-resolve bars")
+print("OK: pooled bar iteration and cooldown event refresh")
