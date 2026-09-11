@@ -393,3 +393,20 @@ updateVisibility(placeholder, managedEntry, { iconDisplayMode = "always" }, fals
 assert(placeholder.shown == false, "packed native runs must never show the base placeholder")
 
 print("OK: cdm_custom_aura_native_slots_test")
+
+local ordinaryIcon = {}
+Runs.SetNativeProcGlow(ordinaryIcon, false)
+collectgarbage("collect")
+collectgarbage("stop")
+local memoryBefore = collectgarbage("count")
+for _ = 1, 1000 do
+    Runs.SetNativeProcGlow(ordinaryIcon, true)
+    Runs.SetNativeProcGlow(ordinaryIcon, false)
+end
+local allocatedKB = collectgarbage("count") - memoryBefore
+collectgarbage("restart")
+assert(allocatedKB < 4, "ordinary proc glow updates must not allocate empty effect tables")
+assert(ordinaryIcon._quiNativeProcGlowActive == false and ordinaryIcon._quiNativeProcGlows == nil)
+Runs.SetNativeProcGlow(ordinaryIcon, true)
+assert(ordinaryIcon._quiNativeProcGlowActive == true, "proc state must survive until native effects are prepared")
+print("OK: ordinary proc glow updates avoid native effect allocations")
