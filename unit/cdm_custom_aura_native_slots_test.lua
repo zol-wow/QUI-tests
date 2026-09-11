@@ -69,12 +69,21 @@ local function Frame(parent)
     function frame:EnableMouse(enabled) self.mouse = enabled end
     function frame:SetMouseClickEnabled(enabled) self.click = enabled end
     function frame:SetMouseMotionEnabled(enabled) self.motion = enabled end
-    frame.IsShown, frame.IsVisible, frame.SetScript, frame.HookScript = forbidden, forbidden, forbidden, forbidden
+    frame.IsShown, frame.IsVisible = forbidden, forbidden
+    function frame:SetScript(handler) error("Cannot assign script handler for '" .. handler .. "' (blocked by secret aspects)") end
+    frame.HookScript = frame.SetScript
     return frame
 end
 function CreateFrame(kind, _, parent, template)
     local frame = Frame(parent)
     frame.template = template
+    if template == "AnimateWhileShownTemplate" then
+        local file = assert(io.open("tests/framexml/Interface/AddOns/Blizzard_SharedXML/AnimationTemplates.xml"))
+        local xml = file:read("*a")
+        file:close()
+        local body = assert(xml:match('<Frame name="AnimateWhileShownTemplate".-</Frame>'))
+        for handler in body:gmatch('<(On%w+) ') do frame:SetScript(handler, function() end) end
+    end
     if kind == "AuraContainer" then
         containers[#containers + 1] = frame
         frame.slots, frame.groups = {}, {}
@@ -183,13 +192,9 @@ assert(button.profile.pandemicGlow and #button._quiCDMNativeGlow == 24)
 local nativeGlow = button._quiCDMNativeGlow[1]
 assert(nativeGlow.texture.height == 3 and nativeGlow.texture.vertexColor[4] == 0.5)
 assert(nativeGlow.group.looping == "REPEAT" and nativeGlow.group.playing)
-assert(button._quiCDMNativeEffectHost.template == "AnimateWhileShownTemplate")
+assert(button._quiCDMNativeEffectHost.template == nil)
+assert(button._quiCDMNativeEffectHost.parent == button)
 assert(nativeGlow.group.animations[1].target == nativeGlow.texture)
-assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_SharedXML/AnimationTemplates.lua"))()
-_G.AnimateWhileShownMixin.StopAnims(button._quiCDMNativeEffectHost)
-assert(not nativeGlow.group.playing)
-_G.AnimateWhileShownMixin.PlayAnims(button._quiCDMNativeEffectHost)
-assert(nativeGlow.group.playing, "trusted Blizzard OnShow restarts native glow after aura loss/reapplication")
 assert(nativeGlow.group.animations[1].kind == "Path" and nativeGlow.group.animations[1].duration == 4)
 local procGlow = button._quiCDMNativeProcGlow[1]
 assert(procGlow.texture.alpha == 0 and procGlow.group.playing)
