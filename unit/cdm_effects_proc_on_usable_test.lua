@@ -289,4 +289,15 @@ assert(buttonGlowStops == 0, "stopping another keyed glow must leave Button Glow
 Glows.StopGlowWithKey(buttonIcon, "preview")
 assert(buttonGlowStops == 1, "stopping the Button Glow owner must stop Button Glow")
 
+local nativeProc
+ns.CDMCustomAuraRuns = { SetNativeProcGlow = function(target, active)
+    if target == mirrorIcon then nativeProc = active end
+end }
+mirrorIcon._customAuraOverlayPrepared = true
+mirrorIcon.IsShown = function() error("native overlay updates must not depend on the hidden base proxy") end
+eventFrame.OnEvent(eventFrame, "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW", 427453)
+assert(nativeProc == true, "clean proc state must reach native aura effects even when the base is hidden")
+eventFrame.OnEvent(eventFrame, "SPELL_ACTIVATION_OVERLAY_GLOW_HIDE", 427453)
+assert(nativeProc == false, "native proc effects must clear with the clean overlay event")
+
 print("OK: cdm_effects_proc_on_usable_test")

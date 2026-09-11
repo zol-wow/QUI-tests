@@ -230,8 +230,9 @@ assert(mirrorFrame.shown == true,
     "pairing a bar must arm the ticker regardless of active state -- arming only when active leaves it dark")
 
 local layoutContainer, layoutSettings = {}, {}
-assert(setUpvalue(mirrorFrame.onUpdate, "_lastContainer", layoutContainer))
-assert(setUpvalue(mirrorFrame.onUpdate, "_lastSettings", layoutSettings))
+assert(setUpvalue(mirrorFrame.onUpdate, "poolsByKey", {
+    trackedBar = { bars = pool, container = layoutContainer, settings = layoutSettings },
+}))
 local layoutCalls = 0
 bars.LayoutBars = function(_, container, settings)
     assert(container == layoutContainer and settings == layoutSettings)

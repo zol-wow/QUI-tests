@@ -321,15 +321,42 @@ assert(getMode(iconCase2) ~= "inactive",
 --   Item in a custom bar with displayMode="auraOnly"; buff is inactive.
 --   Coercion gate must fire → mode="inactive".
 --------------------------------------------------------------------
-scannedAuras = { [2001] = { active = false, duration = 0, expiration = 0 } }
-local iconCase3 = makeItemIcon({
+local customAuraOnly = {
     id = 2001, type = "item", kind = "cooldown",
     displayMode = "auraOnly", viewerType = "customBar:test",
-})
+}
+local originalContainerDB = ns.CDMShared.GetContainerDB
+ns.CDMShared.GetContainerDB = function(key)
+    local db = originalContainerDB(key)
+    if key == "customBar:test" then db.entries = { customAuraOnly } end
+    return db
+end
+ns.CDMSources.GetItemAuraSpellIDs = function(id)
+    assert(id == 2001)
+    return { 1307927 }
+end
+assert(loadfile("QUI_CDM/cdm/cdm_managed_aura_mirrors.lua"))("QUI", ns)
+assert(loadfile("QUI_CDM/cdm/cdm_custom_aura_runs.lua"))("QUI", ns)
+local resolvedEntries = icons.ResolveCustomContainerEntries("customBar:test")
+assert(resolvedEntries[1] and resolvedEntries[1]._useManagedAura,
+    "custom aura-only items must be routed to native aura frames at construction")
+local nativeConfig = ns.CDMCustomAuraRuns.ResolveAuraConfig(resolvedEntries[1])
+assert(nativeConfig.unit == "player" and nativeConfig.filter == "HELPFUL",
+    "constructed aura-only cooldown items must use the native player helpful route")
+assert(resolvedEntries[1]._selfAura == nil,
+    "cooldown construction must not manufacture a target-aura classification")
+local iconCase3 = makeItemIcon(resolvedEntries[1])
 runUpdateForIcon(iconCase3, "customBar:test")
-assert(getMode(iconCase3) == "inactive",
-    "Case 3: displayMode=auraOnly + aura-inactive in custom bar must yield 'inactive' (got "
-    .. tostring(getMode(iconCase3)) .. ")")
+assert(getMode(iconCase3) == nil,
+    "native aura-only items must not run the ordinary item cooldown resolver")
+customAuraOnly = {
+    id = 1235391, type = "spell", kind = "aura", _isTotemInstance = true, _totemSlot = 2,
+}
+local totemEntries = icons.ResolveCustomContainerEntries("customBar:test")
+assert(totemEntries[1]._isTotemInstance and totemEntries[1]._totemSlot == 2
+    and not totemEntries[1]._useManagedAura,
+    "custom totems must retain their slot and use the totem runtime")
+ns.CDMShared.GetContainerDB = originalContainerDB
 
 --------------------------------------------------------------------
 -- Case 4 (Task 12 gate — displayMode=auraOnly stray-set on built-in

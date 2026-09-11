@@ -123,11 +123,9 @@ local bar = makeBar({
 })
 CDMBars:UpdateOwnedBarAura(bar)
 
-local state = barStates[bar]
-assert(state ~= nil, "bar state must be set")
-assert(state.mode == "item-aura",
-    "displayMode=auraOnly + aura ACTIVE must yield item-aura (got "
-    .. tostring(state.mode) .. ")")
-assert(bar._active == true, "bar must be active during aura phase")
+assert(barStates[bar] == nil,
+    "native item aura rendering must not publish addon-observed aura presence")
+assert(bar._active ~= true,
+    "native item aura presence must not be inferred by the addon")
 
-print("PASS: auraOnly + aura active = item-aura (ordering lock)")
+print("PASS: item aura-only rendering is delegated to the native container")

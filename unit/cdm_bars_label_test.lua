@@ -310,11 +310,8 @@ bar._spellEntry.cooldownID = 91002
 
 bars:UpdateOwnedBarAura(bar)
 
-assert(capturedParams, "custom bar update should call ResolveCooldownState")
-assert(capturedParams.runtimeSpellID == 195182,
-    "custom bar resolver params should carry the bar spellID")
-assert(capturedParams.containerKey == "customBar",
-    "custom bar resolver params should carry the custom-bar container key")
+assert(capturedParams == nil,
+    "custom aura bars must leave live aura state to their native container")
 
 capturedParams = nil
 bar._spellEntry.viewerType = "trackedBar"
@@ -343,62 +340,6 @@ bar._spellEntry.kind = "cooldown"
 bars:UpdateOwnedBarAura(bar)
 
 assert(capturedParams, "tracked item cooldown bars should call ResolveCooldownState")
-
-local barAuraDuration = { token = "bar-aura-duration" }
-local barAuraData = { icon = 98765 }
-local barStateEntry
-local barStateSpellID
-local appliedAuraTexture
-ns.CDMResolvers = {
-    BuildCooldownStateContext = BuildTestCooldownStateContext,
-    ResolveCooldownState = function(context)
-        barStateEntry = context.entry
-        barStateSpellID = context.runtimeSpellID
-        return {
-            active = true,
-            isActive = true,
-            mode = "aura",
-            durObj = barAuraDuration,
-            auraUnit = "target",
-            auraData = barAuraData,
-            spellID = context.runtimeSpellID,
-            hasExpirationTime = true,
-        }
-    end,
-}
-bar._spellEntry = {
-    id = 343294,
-    spellID = 343294,
-    name = "Soul Reaper",
-    kind = "aura",
-    type = "spell",
-    viewerType = "customBar",
-}
-bar._spellID = 343294
-bar.IconTexture = {
-    SetTexture = function(_, texture)
-        appliedAuraTexture = texture
-    end,
-}
-
-bars:UpdateOwnedBarAura(bar)
-
-assert(barStateEntry == bar._spellEntry,
-    "bar state resolution should receive the bar entry")
-assert(barStateSpellID == 343294,
-    "bar state resolution should receive the bar spellID")
-assert(bar._active == true, "active bar aura payload should render as active")
-assert(bar._auraDataUnit == "target", "active bar aura payload should pass aura unit to render")
-assert(appliedAuraTexture == 98765,
-    "active bar aura payload should pass auraData through to runtime texture rendering")
-
-bars:UpdateOwnedBarAura(bar)
--- The bar must NOT feed a cached state back into the resolve. The resolver's
--- cached-state fast path deliberately skips re-querying live data, so a
--- snapshot cached while an aura was inactive would freeze a cross-category
--- buff bar at mode=inactive even after the buff goes live (the "won't activate
--- until a rebuild / breaks on /reload" bug). Resolving fresh each poll, like
--- the icon path, reads the live aura.
 
 local spellCooldownDurObj = { token = "spell-cooldown-duration" }
 local spellCooldownTimerDuration
@@ -598,74 +539,6 @@ assert(itemCooldownNumericWrites == 0,
 assert(itemCooldownBar._totalDuration == 90 and itemCooldownBar._expirationTime == 190,
     "clean item cooldown should retain numeric timing for bar state")
 
-local combatAuraDataDurObj = { token = "combat-auraData-duration" }
-local combatAuraDataTimerDuration
-local combatAuraData = {
-    duration = NewSecretValue("duration"),
-    icon = 87654,
-}
-ns.CDMResolvers = {
-    BuildCooldownStateContext = BuildTestCooldownStateContext,
-    ResolveCooldownState = function(context)
-        return {
-            active = true,
-            isActive = true,
-            mode = "aura",
-            durObj = combatAuraDataDurObj,
-            auraUnit = "player",
-            auraData = combatAuraData,
-            spellID = context and context.runtimeSpellID,
-            hasExpirationTime = true,
-        }
-    end,
-}
-
-local combatAuraDataBar = {
-    _spellID = 80808,
-    _spellEntry = {
-        id = 80808,
-        spellID = 80808,
-        name = "Combat Aura",
-        kind = "aura",
-        type = "spell",
-        viewerType = "customBar",
-    },
-    StatusBar = {
-        SetMinMaxValues = function() end,
-        SetValue = function() end,
-        SetTimerDuration = function(_, durObj)
-            combatAuraDataTimerDuration = durObj
-        end,
-    },
-    DurationText = {
-        SetText = function() end,
-        SetAlpha = function() end,
-    },
-    PermanentFill = {
-        SetAlpha = function() end,
-    },
-    IconTexture = {
-        SetTexture = function() end,
-    },
-    NameText = {
-        SetText = function() end,
-        SetFormattedText = function() end,
-    },
-}
-
-inCombatLockdown = true
-ok = pcall(function()
-    bars:UpdateOwnedBarAura(combatAuraDataBar)
-end)
-inCombatLockdown = false
-
-assert(ok == true,
-    "combat bar mirror should not compare secret fields from child-sourced auraData")
-assert(combatAuraDataBar._active == true,
-    "combat bar mirror should render active with child-sourced auraData")
-assert(combatAuraDataTimerDuration == combatAuraDataDurObj,
-    "combat bar mirror should still bind the child DurationObject")
-
 local immediateRemaining = NewSecretValue("remaining-duration")
 local immediateDurObj = {
     GetRemainingDuration = function()
@@ -684,7 +557,7 @@ ns.CDMResolvers = {
         return {
             active = true,
             isActive = true,
-            mode = "aura",
+            mode = "cooldown",
             durObj = immediateDurObj,
             auraUnit = "player",
             spellID = context and context.runtimeSpellID,
@@ -699,7 +572,7 @@ local immediateTextBar = {
         id = 48707,
         spellID = 48707,
         name = "Immediate Text Aura",
-        kind = "aura",
+        kind = "cooldown",
         type = "spell",
         viewerType = "customBar",
     },
@@ -741,9 +614,9 @@ end)
 inCombatLockdown = false
 
 assert(ok == true,
-    "combat bar mirror should write initial duration text without reading secrets in Lua")
+    "combat cooldown bar should write initial duration text without reading secrets in Lua")
 assert(immediateTimerDuration == immediateDurObj,
-    "immediate duration text bar should still bind the child DurationObject")
+    "immediate duration text bar should still bind the cooldown DurationObject")
 assert(immediateTimerInterpolation == 0,
     "bar DurationObject fill should use Immediate interpolation")
 assert(immediateTimerDirection == 1,
@@ -754,82 +627,5 @@ assert(immediateDurationFormat == "%.1f",
     "active timed bar should write the first duration text immediately")
 assert(rawequal(immediateDurationValue, immediateRemaining),
     "initial duration text should forward the secret remaining duration to the C-side formatter")
-
-local refreshedAuraDurObj = {
-    token = "refreshed-aura-duration",
-    GetRemainingDuration = function()
-        return NewSecretValue("refreshed-remaining")
-    end,
-}
-local refreshedAuraTimerCalls = 0
-ns.CDMResolvers = {
-    BuildCooldownStateContext = BuildTestCooldownStateContext,
-    ResolveCooldownState = function(context)
-        return {
-            active = true,
-            isActive = true,
-            mode = "aura",
-            durObj = refreshedAuraDurObj,
-            auraUnit = "player",
-            auraInstanceID = 9901,
-            spellID = context and context.runtimeSpellID,
-            hasExpirationTime = true,
-        }
-    end,
-}
-
-local refreshedAuraBar = {
-    _spellID = 195181,
-    _spellEntry = {
-        id = 195181,
-        spellID = 195181,
-        name = "Bone Shield",
-        kind = "aura",
-        type = "spell",
-        viewerType = "customBar",
-    },
-    _active = true,
-    _auraUnit = "player",
-    _auraInstanceID = 9901,
-    _durObj = refreshedAuraDurObj,
-    _cSideFill = true,
-    StatusBar = {
-        SetMinMaxValues = function() end,
-        SetValue = function() end,
-        SetTimerDuration = function(_, durObj)
-            refreshedAuraTimerCalls = refreshedAuraTimerCalls + 1
-            assert(durObj == refreshedAuraDurObj,
-                "refreshed aura bar should rebind the live DurationObject")
-        end,
-    },
-    DurationText = {
-        SetText = function() end,
-        SetAlpha = function() end,
-        SetFormattedText = function() end,
-    },
-    PermanentFill = {
-        SetAlpha = function() end,
-    },
-    IconTexture = {
-        SetTexture = function() end,
-    },
-    NameText = {
-        SetText = function() end,
-        SetFormattedText = function() end,
-    },
-}
-
-assert(type(bars.MarkBarAuraRefresh) == "function",
-    "CDMBars should expose a per-bar aura refresh marker")
-assert(bars.MarkBarAuraRefresh(refreshedAuraBar, "player", {
-    updatedAuraInstanceIDs = { 9901 },
-}) == true, "matching updated aura instance should mark the bar for a timer rebind")
-
-bars:UpdateOwnedBarAura(refreshedAuraBar)
-
-assert(refreshedAuraTimerCalls == 1,
-    "a refreshed active aura bar should rebind SetTimerDuration even when the DurationObject identity is unchanged")
-assert(refreshedAuraBar._forceTimerDurationRebind == nil,
-    "aura refresh rebind flag should clear after the bar is rebound")
 
 print("OK: cdm_bars_label_test")

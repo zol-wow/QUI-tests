@@ -147,7 +147,6 @@ local textureClears = 0
 local durationKeyClears = 0
 local stableClears = 0
 local spellCacheInvalidations = {}
-local barAuraRefreshMarks = {}
 local customOverlayRefreshes = 0
 local consumableCategoryInvalidations = 0
 local trustedCooldownUpdates = {}
@@ -229,10 +228,6 @@ local controller = module.Create({
         if itemID == 5512 then return "Healthstone", 196277 end
         return nil
     end,
-    queryCooldownAuraBySpellID = function(spellID)
-        if spellID == 707 then return 808 end
-        return nil
-    end,
     clearDurationBinding = function(icon)
         clearedBindings[icon.name] = count(clearedBindings, icon.name) + 1
         icon._lastDurObjKey = nil
@@ -274,12 +269,6 @@ local controller = module.Create({
     end,
     setBarsDirty = function(dirty)
         barsDirty = dirty == true
-    end,
-    markBarsForAuraRefresh = function(unit, updateInfo)
-        barAuraRefreshMarks[#barAuraRefreshMarks + 1] = {
-            unit = unit,
-            updateInfo = updateInfo,
-        }
     end,
     runDirtyBarUpdate = function()
         dirtyBarRuns = dirtyBarRuns + 1
@@ -481,71 +470,30 @@ spellIcon._lastDurObj = nil
 
 reset(auraApplied)
 reset(clearedBindings)
-wipe(barAuraRefreshMarks)
 stackRequested = false
-local schedulesBeforeAuraDelta = #schedules
--- Aura deltas match the icon's stamped aura instance/unit (previously sourced
--- from the removed Blizzard mirror state lookup).
-mirrorAuraIcon._auraInstanceID = 9001
-mirrorAuraIcon._auraUnit = "target"
+local schedulesBeforeAura = #schedules
+local opaquePayload = setmetatable({}, { __index = function()
+    error("UNIT_AURA payloads must not be inspected by CDM")
+end })
 mirrorAuraIcon._lastDurObjKey = "aura:9001"
 mirrorAuraIcon._lastDurObj = { token = "stale-target-aura-duration" }
 mirrorAuraIcon._lastResolvedMode = "aura"
-mirrorAuraIcon._lastResolvedSourceID = 9001
-controller:Handle("UNIT_AURA", "target", {
-    updatedAuraInstanceIDs = { 9001 },
-})
-assert(auraApplied.mirrorAura == 1, "aura delta should match stamped aura instance IDs")
-assert(clearedBindings.mirrorAura == 1, "target aura deltas should invalidate stale aura DurationObject bindings before re-resolve")
-assert(mirrorAuraIcon._lastDurObjKey == nil, "target aura delta invalidation should clear the previous duration key")
-assert(#barAuraRefreshMarks == 1
-    and barAuraRefreshMarks[1].unit == "target"
-    and barAuraRefreshMarks[1].updateInfo.updatedAuraInstanceIDs[1] == 9001,
-    "aura deltas should mark matching bars for DurationObject rebind before the dirty bar update")
-assert(stackRequested == true, "aura deltas should request a follow-up stack text refresh")
-assert(#schedules == schedulesBeforeAuraDelta,
-    "aura deltas should stay on the targeted aura path instead of scheduling a broad cooldown walk")
-
+mirrorAuraIcon._auraActive = true
+controller:Handle("UNIT_AURA", "target", opaquePayload)
+assert(auraApplied.mirrorAura == 1, "target invalidation must refresh existing aura-owned bindings")
+assert(clearedBindings.mirrorAura == 1 and mirrorAuraIcon._lastDurObjKey == nil,
+    "target invalidation must clear previous aura duration bindings")
+assert(stackRequested and #schedules == schedulesBeforeAura,
+    "aura invalidation must stay on its scope and request stack presentation refresh")
 reset(auraApplied)
-controller:Handle("UNIT_AURA", "player", {
-    addedAuras = {
-        { auraInstanceID = 9002, spellId = 808 },
-    },
-})
-assert(auraApplied.item == 1, "aura delta should match item entries through item-use aura mapping")
-assert(customOverlayRefreshes == 0,
-    "UNIT_AURA should rely on native container incremental handling without a manual overlay rebuild")
-
-reset(auraApplied)
-controller:Handle("UNIT_AURA", "player", {
-    addedAuras = {
-        { auraInstanceID = 9003, spellId = secretSpellID },
-    },
-})
-assert(auraApplied.item == 1, "secret player added aura identity should still wake item aura entries")
-
-reset(auraApplied)
-controller:Handle("UNIT_AURA", "player", {
-    removedAuraInstanceIDs = { 9005 },
-})
-assert(auraApplied.customCooldown == nil,
-    "unrelated removed auras must not refresh custom cooldown bindings")
-
-reset(auraApplied)
-consumableIcon._auraActive = true
-controller:Handle("UNIT_AURA", "player", {
-    removedAuraInstanceIDs = { 9006 },
-})
-assert(auraApplied.consumable == 1,
-    "removed player auras should refresh category consumables without an aura instance ID")
-
-reset(auraApplied)
-controller:Handle("UNIT_AURA", "target", {
-    addedAuras = {
-        { auraInstanceID = 9004, spellId = secretSpellID },
-    },
-})
-assert(auraApplied.item == 1, "secret target added aura identity should still wake item aura entries")
+controller:Handle("UNIT_AURA", "player", opaquePayload)
+assert(auraApplied.item == 1 and auraApplied.customCooldown == 1,
+    "player invalidation must refresh item and custom cooldown state without inspecting deltas")
+assert(customOverlayRefreshes == 0, "native containers must handle incremental aura updates themselves")
+local schedulesBeforeTotem = #schedules
+controller:Handle("PLAYER_TOTEM_UPDATE", 1)
+assert(#schedules == schedulesBeforeTotem + 1 and schedules[#schedules].reason == "totem",
+    "totem changes must retain their scheduled cooldown refresh")
 
 reset(auraApplied)
 reset(applied)

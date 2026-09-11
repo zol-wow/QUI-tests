@@ -34,7 +34,7 @@ assertContains(castBody, "ResolverIsSecretValue(endMS)",
 
 -- GetSpellChannelInfo probes all three secretizable returns before use
 local chanStart = castEnd
-local chanEnd = assert(source:find("function CDMResolvers.GetSpellBuffInfo", chanStart, true))
+local chanEnd = assert(source:find("function CDMResolvers.ResolveSpellActiveState", chanStart, true))
 local chanBody = source:sub(chanStart, chanEnd)
 assertContains(chanBody, "ResolverIsSecretValue(channelSpellID)",
     "GetSpellChannelInfo must probe channelSpellID before ==")
