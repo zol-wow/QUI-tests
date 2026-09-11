@@ -54,8 +54,14 @@ CreateFrame = function(kind, _, _, template)
             return button
         end
         frame.AddAuraGroup = frame.AddAuraSlot
-        frame.SetAuraGroupFilterString = function() end
-        frame.SetAuraGroupCandidateFilters = function() end
+        frame.SetAuraGroupFilterString = function(self, key, filter)
+            assert(not combat, "native aura filters must not change in combat")
+            self.groups[key].filter = filter
+        end
+        frame.SetAuraGroupCandidateFilters = function(self, key, filters)
+            assert(not combat, "native aura candidates must not change in combat")
+            self.groups[key].options.candidateFilters = filters
+        end
         frame.SetAuraGroupMaxFrameCount = function(self, key, count) self.groups[key].options.maxFrameCount = count end
         frame.SetAuraSlotFilterString = function() end
         frame.SetAuraSlotCandidateFilters = function(self, _, filter) self.lastFilter = filter end
@@ -248,3 +254,53 @@ for _, slot in ipairs(slots) do
     end
 end
 print("OK: native Buff Icons retain combat reanchoring without secure click templates")
+settings.iconDisplayMode = "active"
+local auraA = { id = 910001, type = "spell", kind = "aura" }
+local nativeBEntry = { id = 910002, type = "spell", kind = "aura", source = "blizzardCDM" }
+local auraC = { id = 910003, type = "spell", kind = "aura" }
+local nativeB = Frame()
+nativeB.active = true
+runtime._bridge = {
+    InstallAnchorGuard = function() end,
+    OverlayRect = function(_, frame, relative) frame:SetPoint("CENTER", relative, "CENTER", 0, 0) end,
+}
+curated = { auraA, nativeBEntry, auraC }
+matched = { { entry = nativeBEntry, frame = nativeB } }
+frameless = { auraA, auraC }
+local function layoutCombatEntries()
+    assert(env.beginAuraMirrorPass(owner))
+    local result = runtime:AssembleEntries("buff", {}, settings)
+    local positions = {}
+    for i, wrapper in ipairs(result) do
+        positions[i] = { icon = wrapper, x = (i - 2) * 34, y = 0, w = 32, h = 32,
+            rowConfig = { rowNum = 1, size = 32, padding = 2 } }
+    end
+    runtime:PositionEntries(owner, { placements = positions }, "buff")
+    env.endAuraMirrorPass(owner)
+    return result
+end
+local beforeCombat = layoutCombatEntries()
+local preparedA, preparedC = beforeCombat[1].auraMirror, beforeCombat[3].auraMirror
+assert(preparedA.host ~= preparedC.host, "native middle icon must separate prepared runs")
+combat = true
+nativeB.active = false
+local collapsed = layoutCombatEntries()
+assert(#collapsed == 2 and collapsed[1].auraMirror == preparedA and collapsed[2].auraMirror == preparedC,
+    "combat disappearance must preserve both prepared native aura records")
+assert(preparedA.host.alpha == 1 and preparedC.host.alpha == 1,
+    "combat disappearance must keep both prepared aura runs visible")
+assert(preparedC.host.groups[preparedC.key].options.candidateFilters.includeSpellIDs[auraC.id],
+    "combat reuse must retain the entry's prepared candidate filter")
+combat = false
+local regrouped = layoutCombatEntries()
+assert(regrouped[1].auraMirror.host == regrouped[2].auraMirror.host,
+    "out-of-combat layout may regroup adjacent native auras")
+local sharedHost = regrouped[1].auraMirror.host
+combat = true
+nativeB.active = true
+local expanded = layoutCombatEntries()
+assert(expanded[1].auraMirror.host == sharedHost and expanded[3].auraMirror.host == sharedHost)
+assert(sharedHost.point[2] == owner,
+    "a prepared native host must be positioned once when a middle native icon reappears")
+combat = false
+print("OK: combat native aura records retain identity across native icon visibility changes")
