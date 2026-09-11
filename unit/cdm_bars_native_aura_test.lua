@@ -247,12 +247,38 @@ local function nativeLayout(container, active)
     flow:SetAnchorPoint(container.anchor)
     flow:SetGrowthDirection(AnchorUtil.FlowDirection.Right, AnchorUtil.FlowDirection.Up)
     function flow:GetElementSize(_, _, group) return group.elementWidth, group.elementHeight end
-    local group = container.groups.aura
+    local group = container.groups.aura or container.groups.bar1
     local layout = {}
     for key, value in pairs(group.options.layout) do layout[key] = value end
     layout.elements = active and { group.button } or {}
     flow:Apply(container, { layout })
 end
+for _, orientation in ipairs({ "horizontal", "vertical" }) do
+    local boundsOwner = CreateFrame("Frame")
+    local key = "bounds_" .. orientation
+    local boundsSettings = { enabled = true, barWidth = 215, barHeight = 25, spacing = 2,
+        borderSize = 0, orientation = orientation }
+    local boundsCooldown = { id = 42, spellID = 42, kind = "cooldown", type = "spell", viewerType = key }
+    activeCooldownIDs[42] = true
+    bars:Refresh(boundsOwner, boundsSettings, nil, key, nil,
+        { aura(1307927, key), aura(1237205, key), boundsCooldown })
+    local boundsBars = bars:GetActiveBars(key)
+    local firstRun = boundsBars[1]._nativeAuraRun.container
+    local secondRun = boundsBars[2]._nativeAuraRun.container
+    nativeLayout(firstRun, true)
+    nativeLayout(secondRun, true)
+    local axis = orientation == "vertical" and "width" or "height"
+    local occupied = firstRun[axis] + secondRun[axis] + boundsBars[3][axis] - 2
+    assert(boundsOwner[axis] >= occupied,
+        "owner bounds must contain active native runs and cooldown bars in " .. orientation .. " layout")
+    local capacity = boundsOwner[axis]
+    nativeLayout(firstRun, false)
+    bars:LayoutBars(boundsOwner, boundsSettings)
+    assert(boundsOwner[axis] == capacity, "native holes must retain configured outer bounds")
+    bars:DeleteContainer(key)
+end
+activeCooldownIDs[42] = nil
+
 local function bottom(frame)
     if frame == custom then return 0 end
     local point = assert(frame.point)
