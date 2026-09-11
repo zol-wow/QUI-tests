@@ -118,3 +118,20 @@ assert(state.isActive == false and state.durObj == nil,
     "a non-DurationObject return must not activate a totem")
 
 print("OK: cdm_spelldata_totem_state_test")
+
+local reusedResult, reusedCount = state, state.count
+durationObject = { token = "renewed-totem" }
+local activeState = resolve()
+assert(activeState == reusedResult and activeState.count == reusedCount,
+    "totem resolver must reuse its result and count tables")
+assert(activeState.isActive and activeState.totemName == "Test Totem")
+local emptyState = ns.CDMAuraRuntime.ResolveState({})
+assert(emptyState == reusedResult and emptyState.count == reusedCount)
+assert(emptyState.isActive == false and emptyState.auraUnit == "player" and emptyState.count.shown == false)
+assert(emptyState.totemSlot == nil and emptyState.totemName == nil and emptyState.totemIcon == nil
+    and emptyState.durObj == nil and not emptyState.isTotemInstance,
+    "empty lookups must clear all previous totem state")
+local ordinaryState = ns.CDMAuraRuntime.ResolveState({ spellID = 999, entryKind = "cooldown" })
+assert(ordinaryState == reusedResult and ordinaryState.count == reusedCount and not ordinaryState.isActive,
+    "ordinary cooldown misses must not allocate a fresh totem result")
+print("OK: totem result reuse and reset")
