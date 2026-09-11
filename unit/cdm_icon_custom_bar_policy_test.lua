@@ -279,17 +279,8 @@ local active, startTime, duration, activeType = policy:ResolveActiveState({
 assert(active == true and startTime == 10 and duration == 20 and activeType == "item-spell",
     "macro item active-state resolution should preserve spell active-state tuple")
 
-sources.QueryScannedItemAuraInfo = function(itemID, itemSpellID)
-    if itemID == 302 and itemSpellID == 778 then
-        return {
-            active = true,
-            expiration = 150,
-            duration = 30,
-            useSpellID = 778,
-            buffSpellID = 779,
-        }
-    end
-    return nil
+sources.QueryScannedItemAuraInfo = function()
+    error("custom cooldown policy must not query item aura activity")
 end
 activeSpells[778] = nil
 active, startTime, duration, activeType = policy:ResolveActiveState({
@@ -297,8 +288,8 @@ active, startTime, duration, activeType = policy:ResolveActiveState({
     id = 302,
     viewerType = "custom",
 }, icon, 123)
-assert(active == true and startTime == 120 and duration == 30 and activeType == "buff",
-    "item active-state resolution should prefer scanned related aura timing")
+assert(active == false,
+    "item aura presence belongs to the native overlay, not the cooldown active-state policy")
 sources.QueryScannedItemAuraInfo = nil
 
 local cooldownIcon, swipeWrites = makeIcon({ type = "spell", id = 101, spellID = 101, viewerType = "custom" })

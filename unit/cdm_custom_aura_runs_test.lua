@@ -146,39 +146,28 @@ end
 assert(ns.CDMCustomAuraRuns.ShouldUseSettings(settings, "custom") == true,
     "active-only dynamic bars must use secure aura runs")
 local unsafeCases = {
-    { "clickable icons", { clickableIcons = true } },
-    { "active glow", { activeGlowEnabled = true } },
     { "default visibility", { showOnlyWhenActive = false } },
     { "on-cooldown visibility", { showOnlyOnCooldown = true } },
     { "off-cooldown visibility", { showOnlyWhenOffCooldown = true } },
     { "combat visibility", { showOnlyInCombat = true } },
     { "usability filtering", { hideNonUsable = true } },
-    { "hidden spell overrides", { spellOverrides = { [222] = { hidden = true } } } },
-    { "per-spell appearance", { spellOverrides = { [222] = { hideDurationText = true } } } },
-    { "per-spell glow", { spellOverrides = { [222] = { glowEnabled = false } } } },
 }
 for i = 1, #unsafeCases do
     local case = unsafeCases[i]
     assert(ns.CDMCustomAuraRuns.ShouldUseSettings(CopySettings(case[2]), "custom") == false,
-        case[1] .. " must retain the ordinary proxy renderer")
+        case[1] .. " must use native slots instead of packing")
 end
-ns.Addon.db.profile.customGlow.customEnabled = true
-assert(ns.CDMCustomAuraRuns.ShouldUseSettings(settings, "custom") == false,
-    "custom glows must retain the ordinary proxy renderer")
-ns.Addon.db.profile.customGlow.customEnabled = false
-ns.Addon.db.profile.customGlow.customPandemicDebuffEnabled = true
-assert(ns.CDMCustomAuraRuns.ShouldUseSettings(settings, "custom") == false,
-    "debuff pandemic effects must retain the ordinary proxy renderer")
-ns.Addon.db.profile.customGlow.customPandemicDebuffEnabled = false
-ns.Addon.db.profile.customGlow.customPandemicBuffEnabled = true
-assert(ns.CDMCustomAuraRuns.ShouldUseSettings(settings, "custom") == false,
-    "buff pandemic effects must retain the ordinary proxy renderer")
-ns.Addon.db.profile.customGlow.customPandemicBuffEnabled = false
-local customGlow = ns.Addon.db.profile.customGlow
-ns.Addon.db.profile.customGlow = nil
-assert(ns.CDMCustomAuraRuns.ShouldUseSettings(settings, "custom") == false,
-    "missing glow settings must retain the ordinary proxy renderer")
-ns.Addon.db.profile.customGlow = customGlow
+for _, changes in ipairs({
+    { clickableIcons = true },
+    { activeGlowEnabled = true },
+    { spellOverrides = { [222] = { hideDurationText = true } } },
+    { spellOverrides = { [222] = { hidden = true } } },
+    { row2 = { iconCount = 2 } },
+    { layoutDirection = "VERTICAL" },
+}) do
+    assert(ns.CDMCustomAuraRuns.ShouldUseSettings(CopySettings(changes), "custom") == true,
+        "native dynamic layout must support cosmetic settings and additional rows")
+end
 
 local owner = Frame("owner")
 local cooldownA = Frame("cooldown-a")
@@ -222,17 +211,13 @@ fallbackProxy._spellEntry = auraProxy._spellEntry
 fallbackProxy:SetPoint("CENTER", fallbackOwner, "CENTER", 0, 0)
 local fallbackCreated, fallbackConfigured = #created, #configured
 for _, unsafe in ipairs({
-    CopySettings({ clickableIcons = true }),
-    CopySettings({ activeGlowEnabled = true }),
     CopySettings({ showOnlyWhenActive = false }),
-    CopySettings({ spellOverrides = { [222] = { hidden = true } } }),
-    CopySettings({ spellOverrides = { [222] = { hideDurationText = true } } }),
 }) do
     assert(ns.CDMCustomAuraRuns.Apply(fallbackOwner, unsafe, {
             metrics = { iconWidth = 30 },
             placements = { { icon = fallbackProxy, rowConfig = row, x = 0, y = 0 } },
         }, nil, nil, "custom") == false,
-        "unsupported managed settings must leave aura proxies on the ordinary renderer")
+        "missing mirror dependency must leave the base proxy intact")
 end
 assert(#created == fallbackCreated and #configured == fallbackConfigured
     and fallbackProxy.shown == true and #fallbackProxy.points == 1
@@ -286,14 +271,19 @@ assert(ns.CDMCustomAuraRuns.ResolveRoute({
         id = 444, kind = "aura", source = "blizzardCDM",
     }) == "HARMFUL",
     "catalogued auras must resolve only their proven secure route")
-assert(ns.CDMCustomAuraRuns.ResolveRoute({ id = 222, kind = "aura" }) == nil
-    and ns.CDMCustomAuraRuns.ResolveRoute({
-        id = 555, kind = "aura", source = "blizzardCDM",
-    }) == nil
-    and ns.CDMCustomAuraRuns.ResolveRoute({
-        id = 666, kind = "aura", source = "blizzardCDM",
-    }) == nil,
-    "manual, uncatalogued, or ambiguous auras must remain on the legacy resolver")
+assert(ns.CDMCustomAuraRuns.ResolveRoute({ id = 222, kind = "aura" }) == "SELF_HELPFUL"
+    and ns.CDMCustomAuraRuns.ResolveRoute({ id = 555, kind = "aura" }) == "player:HELPFUL"
+    and ns.CDMCustomAuraRuns.ResolveRoute({ id = 666, kind = "aura" }) == "HELPFUL",
+    "manual auras must use catalog metadata when present and otherwise player buffs")
+local arbitraryConfig = ns.CDMCustomAuraRuns.ResolveAuraConfig({ id = 1307927, kind = "aura" })
+assert(arbitraryConfig.unit == "player" and arbitraryConfig.filter == "HELPFUL"
+    and arbitraryConfig.includeSpellIDs[1307927],
+    "arbitrary player buffs must retain their exact ID without a PLAYER source restriction")
+local explicitConfig = ns.CDMCustomAuraRuns.ResolveAuraConfig({
+    id = 1237205, kind = "aura", auraUnit = "pet", auraFilter = "HELPFUL|PLAYER",
+})
+assert(explicitConfig.unit == "pet" and explicitConfig.filter == "HELPFUL|PLAYER",
+    "explicit aura unit and filter must override inferred metadata")
 
 local controller = created[1]
 local first = cooldownA.points[1]
@@ -552,8 +542,8 @@ assert(ns.CDMCustomAuraRuns.HasCooldownAuraOverlayEntries(CopySettings({
         iconDisplayMode = "always",
         showOnlyWhenActive = false,
         entries = { { id = 1233448, kind = "cooldown", type = "item" } },
-    }), "custom") == false,
-    "item cooldown entries must not claim native spell aura overlays")
+    }), "custom") == true,
+    "item cooldown entries must retain native aura phases")
 assert(ns.CDMCustomAuraRuns.Apply(overlayOwner, overlaySettings, {
         metrics = { iconWidth = 30 },
         placements = {
@@ -643,6 +633,7 @@ local layoutSource = containersSource:sub(layoutStart, layoutStop - 1)
 layoutSource = layoutSource:gsub("^local function LayoutContainer", "return function", 1)
 local globals = _G
 local layoutEnv = setmetatable({
+    IsBarShape = function() return false end,
     ns = ns,
     containers = { custom = owner },
     viewerState = {},
@@ -788,6 +779,19 @@ ns.CDMLayout.AnchorLinearChain = function()
 end
 
 inCombat = true
+mixedSettings.clickableIcons = true
+assert(ns.CDMCustomAuraRuns.CanRelayoutInCombat(mixedOwner, mixedSettings, mixedIcons) == false,
+    "clickable aura runs must defer addon-owned combat layout")
+mixedSettings.clickableIcons = false
+ns.CDMIconFactory.PoolHasProtectedIcon = function(_, key) return key == "custom" end
+assert(ns.CDMCustomAuraRuns.CanRelayoutInCombat(mixedOwner, mixedSettings, mixedIcons) == false,
+    "retained secure proxy children must block combat layout after clicks are disabled")
+ns.CDMIconFactory.PoolHasProtectedIcon = nil
+local retainedCastButton = { _quiNativeCast = true }
+mixedRecords[1].container._quiCDMNativeButtons = { [retainedCastButton] = "a1:cast" }
+assert(ns.CDMCustomAuraRuns.CanRelayoutInCombat(mixedOwner, mixedSettings, mixedIcons) == false,
+    "retained secure native buttons must block combat layout after clicks are disabled")
+mixedRecords[1].container._quiCDMNativeButtons = nil
 deferEnv.specTrackingPendingRefresh = true
 layoutEnv.specTrackingPendingRefresh = true
 showMixedCooldown = true

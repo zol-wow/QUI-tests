@@ -119,7 +119,6 @@ local function makeCallbacks(iconPool)
         getMirrorStateByCooldownID = function() return nil end,
         getItemIDForEntry = function() return nil end,
         queryItemSpell = function() return nil end,
-        queryCooldownAuraBySpellID = function() return nil end,
         clearDurationBinding = noop,
         updateIconRangesForUsabilityEvent = function()
             rangeRefreshes = rangeRefreshes + 1
@@ -129,7 +128,6 @@ local function makeCallbacks(iconPool)
         recordRecentPlayerSpellCast = noop,
         getHighlighter = function() return { OnPlayerCastSucceeded = noop } end,
         setBarsDirty = noop,
-        markBarsForAuraRefresh = noop,
         runDirtyBarUpdate = noop,
         getCombatQueueDelay = function() return 0.3 end,
         isPlayerInCombat = function() return inCombat end,

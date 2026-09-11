@@ -151,28 +151,8 @@ local auraIcon = {
     },
 }
 text, source = policy:ResolveIconStackText(auraIcon)
-assert(rawequal(text, secretStackText), "aura stack text should forward secret values unchanged")
-assert(source == "Applications", "aura stack text should report Applications")
-
--- Live aura applications with a non-secret count.
-local liveAura = {
-    _spellEntry = {
-        kind = "aura",
-        type = "spell",
-        auraInstanceID = 9003,
-        auraUnit = "target",
-    },
-}
-text, source = policy:ResolveIconStackText(liveAura)
-assert(text == "2", "aura stack should resolve the live Applications count")
-assert(source == "Applications", "live aura fallback should keep the Applications source")
-
-local apps, appSource = policy:GetAuraApplicationsFromData({
-    applications = 1,
-    auraInstanceID = 77,
-}, "player", "aura-data")
-assert(apps == nil, "single application data should not use a display-count getter")
-assert(appSource == nil, "removed display-count fallback should have no source")
+assert(text == nil and source == nil,
+    "native aura buttons own application counts; cooldown policy must not resolve aura data")
 assert(#auraDisplayQueries == 0, "stack policy must not call the aura display-count API")
 
 local renderedIcon, writes = makeIcon({ kind = "aura", viewerType = "buff" })

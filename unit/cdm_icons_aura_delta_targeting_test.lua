@@ -95,12 +95,6 @@ end
 local matchingIcon = makeIcon("matching", 88001)
 local unrelatedIcon = makeIcon("unrelated", 88002)
 local nonMirrorIcon = makeIcon("nonMirror", 88003)
--- Live aura-delta targeting matches the icon's stamped aura instance/unit
--- (previously sourced from the removed Blizzard mirror state lookup).
-matchingIcon._auraInstanceID = 101
-matchingIcon._auraUnit = "target"
-unrelatedIcon._auraInstanceID = 202
-unrelatedIcon._auraUnit = "target"
 local buffAuraIcon = makeIcon("buffAura", 48707)
 buffAuraIcon._spellEntry = {
     id = 48707,
@@ -223,12 +217,6 @@ local ns = {
                 return "Potion Use", 1236994
             end
             return nil, nil
-        end,
-        QueryCooldownAuraBySpellID = function(spellID)
-            if spellID == 1236994 then
-                return 555001
-            end
-            return nil
         end,
     },
     CDMSpellData = {
@@ -400,30 +388,23 @@ ns.CDMIconFactory._iconPools.custom = { customAuraIcon, customCooldownIcon }
 
 local icons = assert(ns.CDMIcons, "CDMIcons should be exported")
 runtimeBatches = 0
-icons.HandleRuntimeRefresh("UNIT_AURA", "target", {
-    updatedAuraInstanceIDs = { 999 },
-})
-assert(runtimeBatches == 0, "unmatched aura deltas should not open a runtime query batch")
-
-icons.HandleRuntimeRefresh("UNIT_AURA", "target", {
-    updatedAuraInstanceIDs = { 101 },
-})
-
-assert(resolveCounts.matching == 1, "matching aura-instance icon should be re-resolved")
-assert(resolveCounts.unrelated == nil, "unrelated mirror aura instance should not be re-resolved")
-assert(resolveCounts.nonMirror == nil, "non-mirror icons should not be reached by a target aura-instance delta")
-
-icons.HandleRuntimeRefresh("UNIT_AURA", "player", {
-    isFullUpdate = false,
-    addedAuras = {
-        { spellId = 48707, auraInstanceID = 621 },
-    },
-})
-
-assert(resolveCounts.buffAura == 1, "added player aura should re-resolve matching buff aura icon by spell ID")
-assert(buffAuraIcon._shown == true, "active buff aura icon should be shown by the aura-delta visibility path")
-assert(layoutRequests > 0, "buff aura visibility flips should request buff icon layout")
-assert(buffContainerShows > 0, "buff aura visibility flips should wake the owning buff container")
+local opaquePayload = setmetatable({}, { __index = function()
+    error("CDM must not inspect UNIT_AURA payloads")
+end })
+icons.HandleRuntimeRefresh("UNIT_AURA", "target", opaquePayload)
+assert(runtimeBatches == 1, "target invalidation must run one scoped runtime batch")
+assert(resolveCounts.matching == nil and resolveCounts.unrelated == nil and resolveCounts.nonMirror == nil,
+    "target invalidation must not infer ownership from old aura-instance identities")
+assert(resolveCounts.buffAura == 1 and resolveCounts.customAura == 1,
+    "target invalidation must refresh aura presentation without examining the payload")
+for key in pairs(resolveCounts) do resolveCounts[key] = nil end
+buffAuraIcon._shown = false
+buffAuraIcon._auraActive = false
+icons.HandleRuntimeRefresh("UNIT_AURA", "player", opaquePayload)
+assert(resolveCounts.buffAura == 1 and resolveCounts.itemAura == 1 and resolveCounts.customCooldown == 1,
+    "player invalidation must refresh aura, item, and custom cooldown presentation")
+assert(buffAuraIcon._shown == true and layoutRequests > 0 and buffContainerShows > 0,
+    "scoped presentation updates must preserve buff layout and visibility updates")
 
 local customRefreshesBefore = resolveCounts.customAura or 0
 customAuraIcon._shown = false
@@ -445,155 +426,6 @@ assert(resolveCounts.customAura == customRefreshesBefore + 2,
     "combat aura updates should re-resolve matching custom-container aura entries")
 assert(customAuraIcon._shown == true and customAuraIcon._alpha == 1,
     "active display mode should visibly render an active aura-kind custom-container entry in combat")
-
-buffAuraIcon._shown = false
-buffAuraIcon._auraActive = false
-layoutRequests = 0
-resolveCounts.buffAura = 0
-buffContainerShows = 0
-
-local nameAccessTrapAura = setmetatable({
-    spellId = 145629,
-    auraInstanceID = 623,
-}, {
-    __index = function(_, key)
-        if key == "name" then
-            error("auraData.name must not be read while targeting aura deltas", 2)
-        end
-    end,
-})
-
-local ok, err = pcall(function()
-    icons.HandleRuntimeRefresh("UNIT_AURA", "player", {
-        isFullUpdate = false,
-        addedAuras = {
-            nameAccessTrapAura,
-        },
-    })
-end)
-
-assert(ok, "player aura delta targeting should not read auraData.name: " .. tostring(err))
-assert(resolveCounts.buffAura == 1,
-    "added player aura should wake buff aura icons for resolver recheck when spell ID differs")
-assert(buffAuraIcon._shown == true,
-    "player aura wake-up should re-show a hidden active-only buff aura icon")
-assert(layoutRequests > 0,
-    "player aura wake-up should request buff icon layout after visibility flips")
-assert(buffContainerShows > 0,
-    "player aura wake-up should wake the owning buff container")
-
-buffAuraIcon._shown = false
-buffAuraIcon._auraActive = false
-buffAuraIcon._auraUnit = nil
-buffAuraIcon._auraInstanceID = nil
-layoutRequests = 0
-resolveCounts.buffAura = 0
-buffContainerShows = 0
-buffAuraResolutionUnit = "target"
-buffAuraResolutionInstanceID = 9052
-
-icons.HandleRuntimeRefresh("UNIT_AURA", "target", {
-    isFullUpdate = false,
-    addedAuras = {
-        { auraInstanceID = 9052 },
-    },
-})
-
-assert(resolveCounts.buffAura == 1,
-    "target added aura payloads without a readable spell ID should wake buff aura icons")
-assert(buffAuraIcon._shown == true,
-    "target aura wake-up should re-show hidden active-only buff aura icons")
-assert(buffAuraIcon._auraUnit == "target",
-    "target aura wake-up should preserve the resolver's target unit")
-assert(buffAuraIcon._auraInstanceID == 9052,
-    "target aura wake-up should preserve the resolver's target aura instance")
-assert(layoutRequests > 0,
-    "target aura wake-up should request buff icon layout after visibility flips")
-assert(buffContainerShows > 0,
-    "target aura wake-up should wake the owning buff container")
-assert(resolveCounts.itemAura == 1,
-    "target added aura payloads without a readable spell ID should wake item aura icons")
-
-buffAuraResolutionUnit = "player"
-buffAuraResolutionInstanceID = 621
-resolveCounts.itemAura = 0
-itemAuraIcon._auraActive = false
-itemAuraIcon._auraUnit = nil
-itemAuraIcon._auraInstanceID = nil
-itemAuraIcon._lastAuraDurObj = nil
-itemAuraAppliedDuration = nil
-itemAuraReverse = nil
-itemAuraApplyCount = 0
-
-icons.HandleRuntimeRefresh("UNIT_AURA", "player", {
-    isFullUpdate = false,
-    addedAuras = {
-        { spellId = 555001, auraInstanceID = 622 },
-    },
-})
-
-assert(resolveCounts.itemAura == 0,
-    "player aura deltas must not resolve items through the removed aura mapping getter")
-assert(itemAuraIcon._auraActive ~= true,
-    "removed item aura getter must not stamp active aura metadata")
-assert(itemAuraAppliedDuration == nil,
-    "removed item aura getter must not bind a DurationObject")
-assert(itemAuraApplyCount == 0,
-    "removed item aura getter must not apply an aura duration")
-
-inCombat = true
-icons.HandleRuntimeRefresh("UNIT_AURA", "player", {
-    isFullUpdate = false,
-    updatedAuraInstanceIDs = { 622 },
-})
-inCombat = false
-
-assert(itemAuraApplyCount == 0,
-    "combat aura refresh must not rebind a removed aura DurationObject")
-
-itemAuraActive = true
-itemAuraPublishesInstanceID = false
-itemAuraIcon._auraActive = true
-itemAuraIcon._auraUnit = "player"
-itemAuraIcon._auraInstanceID = nil
-itemAuraIcon._lastAuraDurObj = itemAuraDur
-itemAuraAppliedDuration = nil
-itemAuraReverse = nil
-resolveCounts.itemAura = 0
-
-itemAuraActive = false
-icons.HandleRuntimeRefresh("UNIT_AURA", "player", {
-    isFullUpdate = false,
-    removedAuraInstanceIDs = { 622 },
-})
-
-assert(resolveCounts.itemAura == 1,
-    "removed player aura should still re-resolve the owning item icon")
-assert(itemAuraAppliedDuration == itemCooldownDur,
-    "removed item aura should reveal the item cooldown DurationObject")
-assert(itemAuraReverse == false,
-    "removed item aura should leave item-cooldown mode")
-
-resolveCounts.customCooldown = 0
-
-icons.HandleRuntimeRefresh("UNIT_AURA", "pet", {
-    isFullUpdate = false,
-    addedAuras = {
-        { spellId = 1235391, auraInstanceID = 902 },
-    },
-})
-
-assert(resolveCounts.customCooldown == 1,
-    "added linked pet aura should re-resolve the originating cooldown icon")
-resolveCounts.customCooldown = 0
-
-icons.HandleRuntimeRefresh("UNIT_AURA", "pet", {
-    isFullUpdate = false,
-    removedAuraInstanceIDs = { 901 },
-})
-
-assert(resolveCounts.customCooldown == 0,
-    "removed unrelated pet auras must not re-resolve custom cooldown icons")
 
 customCooldownAppliedDuration = nil
 customCooldownReverse = nil

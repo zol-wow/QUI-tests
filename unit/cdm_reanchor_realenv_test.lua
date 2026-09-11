@@ -182,56 +182,8 @@ do
         "no readable signal at all -> fail open")
 end
 
--- Aura truth remains available for non-Blizzard/custom owned fallbacks, but
--- Blizzard-CDM BuffIcon entries are native-only. frameIsActive itself stays a
--- pure native-usability predicate (IsActive first, IsShown fallback): a stale
--- hidden native frame must not be claimed just because an aura query sees the
--- aura.
 do
-    local oldSources = ns.CDMSources
-    local presentIDs = {}
-    local oldSpellData = ns.CDMSpellData
-    ns.CDMSpellData = {
-        GetCapturedAuraForLookup = function(ids)
-            for _, id in ipairs(ids) do
-                if presentIDs[id] then return { auraInstanceID = 1, unit = "player" } end
-            end
-        end,
-    }
-    local auraEnv = RE.BuildEnv({ CDMSpellData = ns.CDMSpellData })
-    ns.CDMSources = oldSources
-    ns.CDMSpellData = oldSpellData
-
-    assert(type(auraEnv.entryAuraIsPresent) == "function",
-        "entryAuraIsPresent exposed on the env for custom owned fallbacks")
-
-    local entry = { spellID = 101 }
-    presentIDs[101] = true
-    assert(auraEnv.entryAuraIsPresent(entry) == true,
-        "captured player aura should use its base spell ID")
-    presentIDs[101] = nil
-    assert(auraEnv.entryAuraIsPresent(entry) == false, "absent aura -> false")
-
-    -- override/linked variants are checked too (aura may live under a variant id)
-    presentIDs[202] = true
-    assert(auraEnv.entryAuraIsPresent({ spellID = 101, overrideSpellID = 202 }) == true,
-        "captured override aura should use the captured lookup")
-    presentIDs[202] = nil
-    presentIDs[303] = true
-    assert(auraEnv.entryAuraIsPresent({ spellID = 101, linkedSpellIDs = { 303 } }) == true,
-        "captured linked aura should use the captured lookup")
-    presentIDs[303] = nil
-
-    -- frameIsActive is PURE native usability: a stale hidden frame with a live
-    -- aura is still NOT usable.
-    local staleHidden = {
-        IsActive = function() return false end,
-        IsShown = function() return false end,
-    }
-    presentIDs[101] = true
-    assert(auraEnv.frameIsActive(staleHidden, "buff", entry) == false,
-        "live aura must NOT make a stale hidden native frame claimable")
-    presentIDs[101] = nil
+    assert(env.entryAuraIsPresent == nil, "real environment must not expose addon aura-presence queries")
 end
 
 do

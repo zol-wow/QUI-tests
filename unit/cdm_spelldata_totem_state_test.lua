@@ -91,4 +91,30 @@ assert(state.totemName == "Test Totem" and state.totemIcon == 12345,
     "an active totem should preserve clean metadata")
 assert(durationQueries == 1, "an active totem should query duration exactly once")
 
+function GetNumTotemSlots() return 1 end
+ns.CDMIndex = {
+    Version = function() return 1 end,
+    Get = function(spellID) return spellID == 123 and { cooldownID = 10 } or nil end,
+}
+ns.CDMCatalog = {
+    GetCooldownInfo = function(cooldownID)
+        return cooldownID == 10 and { linkedSpellID = 777 } or nil
+    end,
+}
+state = ns.CDMAuraRuntime.ResolveState({ spellID = 123, entryKind = "cooldown" })
+assert(state.isActive == true and state.totemSlot == 1 and state.durObj == durationObject,
+    "cooldown entries must resolve active totems through catalog-linked spell IDs")
+state = ns.CDMAuraRuntime.ResolveState({ spellID = 123, entryKind = "aura" })
+assert(state.isActive == false and state.totemSlot == nil,
+    "ordinary aura entries must not infer a totem without an explicit slot")
+haveTotem = false
+state = ns.CDMAuraRuntime.ResolveState({ spellID = 123, entryKind = "cooldown" })
+assert(state.isActive == false and state.durObj == nil,
+    "expired totems must not retain a previous duration")
+haveTotem = true
+durationObject = 0
+state = resolve()
+assert(state.isActive == false and state.durObj == nil,
+    "a non-DurationObject return must not activate a totem")
+
 print("OK: cdm_spelldata_totem_state_test")

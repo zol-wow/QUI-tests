@@ -1093,7 +1093,14 @@ assert(staleMirrorNoDurationIcon._resolvedCooldownMode == "inactive",
 assert(staleMirrorDesaturated == false,
     "stale mirrored cooldown should release previous cooldown desaturation once")
 
-local releasedGlowIcon = {}
+local releasedGlowIcon = { _quiManagedAuraProxy = true, _customAuraOverlayPrepared = true,
+    _quiNativeProcGlows = {}, _quiNativeProcGlowActive = true }
+local nativeProcCleared
+ns.CDMCustomAuraRuns = { SetNativeProcGlow = function(target, active)
+    assert(target == releasedGlowIcon and target._quiNativeProcGlows,
+        "native proc art must be hidden before its references are released")
+    nativeProcCleared = active == false
+end }
 local releasedGlowStops = 0
 ns._OwnedGlows = {
     StopGlow = function(stoppedIcon)
@@ -1105,5 +1112,9 @@ ns._OwnedGlows = {
 ns.CDMIcons.OnFactoryIconReleased(releasedGlowIcon)
 
 assert(releasedGlowStops == 1, "factory release should clear owned proc-glow state")
+assert(nativeProcCleared and releasedGlowIcon._quiNativeProcGlows == nil
+    and releasedGlowIcon._quiNativeProcGlowActive == nil, "factory release must clear native proc effects")
+assert(releasedGlowIcon._quiManagedAuraProxy == nil and releasedGlowIcon._customAuraOverlayPrepared == nil,
+    "factory release must clear native aura ownership before icon reuse")
 
 print("OK: cdm_icons_gcd_style_test")

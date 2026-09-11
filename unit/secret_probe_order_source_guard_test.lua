@@ -150,24 +150,13 @@ do
     -- type() ever sees the value.
     assertOrderInFunction(code, path, "local function IsUsableSpellIDKey(spellID)",
         "IsUsableTableKey(spellID)", "type(spellID)")
-    assertOrderInFunction(code, path, "local function GetCleanAuraSpellID(auraData)",
-        "issecretvalue(sid)", "not sid")
-    assertOrderInFunction(code, path, "local function GetCleanAuraApplications(auraData)",
-        "issecretvalue(apps)", "return apps")
-    assertOrderInFunction(code, path, "local function CaptureAuraFromPayload(",
-        "issecretvalue(instID)", "not instID")
-    assert(not code:find("NameMatches", 1, true),
-        path .. ": deleted index-scan name matcher must not return")
-    assertOrderInFunction(code, path, "local function SafeCountNumber(value)",
-        "IsSecretCountValue(value)", "value == nil")
-    assertOrderInFunction(code, path, "local function SetAuraCount(",
-        "IsSecretCountValue(value)", "value == nil")
-    assertOrderInFunction(code, path, "local function SetResolvedAuraSpellID(",
-        "issecretvalue(pts)", "pts ~= nil", 1600)
-    -- Resolver count call site: apps can be a secret string out of
-    -- GetAuraApplications — the shown flag must probe before `apps ~= nil`.
-    assert(code:find("IsSecretCountValue(apps) or apps ~= nil", 1, true),
-        path .. ": count shown flag must probe apps before the nil compare")
+    for _, removed in ipairs({
+        "GetCleanAuraSpellID", "GetCleanAuraApplications", "CaptureAuraFromPayload",
+        "NameMatches", "SafeCountNumber", "SetAuraCount", "SetResolvedAuraSpellID",
+        "GetCapturedAuraForLookup", "GetCapturedAuraDataByInstanceID",
+    }) do
+        assert(not code:find(removed, 1, true), path .. ": removed aura capture must not return: " .. removed)
+    end
 end
 
 ---------------------------------------------------------------------------
@@ -439,18 +428,10 @@ end
 do
     local path = "QUI_CDM/cdm/cdm_spelldata.lua"
     local code = stripLuaNonCode(readFile(path))
-    -- Clean-helper contract: every caller truth-tests the return, so the
-    -- helper itself must reject secret instance IDs (raw forwarding is
-    -- GetRawAuraInstanceID's job).
-    assertOrderInFunction(code, path, "local function GetCleanAuraInstanceID(auraData)",
-        "issecretvalue(instID)", "return instID")
-    -- Captured-filter polarity flags: AnyDeltaElementSecret's gate probes
-    -- identity fields only, not isHelpful/isHarmful — probe before `== true`
-    -- (same readable-struct/secret-scalar shape as `applications`).
-    assertOrderInFunction(code, path, "local function ResolveCapturedAuraFilter(",
-        "issecretvalue(isHelpful)", "isHelpful == true", 1400)
-    assertOrderInFunction(code, path, "local function ResolveCapturedAuraFilter(",
-        "issecretvalue(isHarmful)", "isHarmful == true", 1400)
+    assert(not code:find("GetCleanAuraInstanceID", 1, true),
+        path .. ": removed aura instance reader must not return")
+    assert(not code:find("ResolveCapturedAuraFilter", 1, true),
+        path .. ": removed aura payload filter must not return")
 end
 
 do

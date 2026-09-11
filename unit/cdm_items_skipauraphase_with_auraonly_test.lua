@@ -122,13 +122,9 @@ local bar = {
 }
 CDMBars:UpdateOwnedBarAura(bar)
 
-local state = barStates[bar]
-assert(state ~= nil, "bar state must be set")
-assert(state.mode == "inactive",
-    "skipAuraPhase=true + displayMode=auraOnly + aura-inactive must yield "
-    .. "inactive (got " .. tostring(state.mode) .. "). The coercion in "
-    .. "UpdateItemBarCooldown must short-circuit before the resolver "
-    .. "fallback that consults skipAuraPhase.")
-assert(bar._active ~= true, "bar must not be active")
+assert(barStates[bar] == nil,
+    "native item aura rendering must not publish addon-observed aura presence")
+assert(bar._active ~= true,
+    "native item aura presence must not be inferred by the addon")
 
-print("PASS: skipAuraPhase + auraOnly + aura-inactive = inactive (coercion ordering lock)")
+print("PASS: item aura-only rendering is delegated to the native container")

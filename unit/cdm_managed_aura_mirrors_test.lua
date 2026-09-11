@@ -179,4 +179,29 @@ assert(settledKeys == recordCount, "retire/reclaim cycles leak no placement keys
 local blocked = M.New({ createFrame = createFrame, canCreate = function() return false end })
 assert(blocked:BeginPass({}) == false, "first-time container creation fails closed when forbidden")
 
+local restricted = false
+local guarded = M.New({
+    createFrame = createFrame,
+    canCreate = function() return not restricted end,
+    canMutate = function() return not restricted end,
+    aurasAreSecret = function() return restricted end,
+})
+local guardedOwner = {}
+assert(guarded:BeginPass(guardedOwner))
+local guardedEntry = { id = 1307927, kind = "aura" }
+local prepared = guarded:Acquire(guardedOwner, "prepared", guardedEntry, {})
+assert(prepared)
+local guardedContainer = guarded._pools[guardedOwner].auraContainer
+local function restrictedMutation() error("native slots cannot be reconfigured through a rejected pass") end
+guardedContainer.SetAuraSlotFilterString = restrictedMutation
+guardedContainer.SetAuraSlotCandidateFilters = restrictedMutation
+guardedContainer.AddAuraSlot = restrictedMutation
+restricted = true
+assert(not guarded:BeginPass(guardedOwner))
+assert(guarded:Acquire(guardedOwner, "prepared", guardedEntry, {}) == prepared)
+assert(guarded:Acquire(guardedOwner, "new", guardedEntry, {}) == nil)
+assert(guarded:Acquire(guardedOwner, "prepared", { id = 1237205, kind = "aura" }, {}) == nil)
+assert(not guarded:EndPass(guardedOwner))
+assert(not prepared.free and not prepared.parked)
+
 print("OK: cdm_managed_aura_mirrors_test")
