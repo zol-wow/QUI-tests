@@ -238,4 +238,32 @@ containers[1].settings.enabled = false
 Alerts.ReconcileNativeSounds()
 for i = before + 1, #added do assert(removed[i] == 1) end
 
+for _, disableBeforeReplacement in ipairs({ true, false }) do
+    local replacementEntry = entry(disableBeforeReplacement and 126 or 127, "kit:3")
+    containers = { { key = "buff", settings = { ownedSpells = { replacementEntry } } } }
+    Alerts.ReconcileNativeSounds()
+    local owned = nativeAlerts(replacementEntry.id)[1]
+    assert(owned)
+    if disableBeforeReplacement then
+        Alerts.ReconcileNativeSounds(true)
+    else
+        table.remove(manager:GetAlerts(replacementEntry.id, 1), 1)
+    end
+    local replacement = { 0, 4, 3 }
+    table.insert(manager:GetAlerts(replacementEntry.id, 1), replacement)
+    Alerts.ReconcileNativeSounds()
+    Alerts.ReconcileNativeSounds(true)
+    assert(nativeAlerts(replacementEntry.id)[1] == replacement,
+        "A user replacement must not inherit removed or missing QUI alert ownership")
+    assert(ns.Addon.db.char.cdmNativeSoundAlerts[table.concat({ manager.activeID,
+        replacementEntry.id, 4, 3 }, ":")] == nil,
+        "A user replacement must clear the old ownership tombstone")
+    containers = {}
+    assert(loadfile("QUI_CDM/cdm/cdm_alerts.lua"))("QUI", ns)
+    Alerts = ns.CDMAlerts
+    Alerts.ReconcileNativeSounds()
+    assert(nativeAlerts(replacementEntry.id)[1] == replacement,
+        "A user replacement must remain unowned after reload")
+end
+
 print("OK: cdm_native_sound_registration_test")

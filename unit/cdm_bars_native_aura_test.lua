@@ -6,7 +6,11 @@ C_Secrets = { ShouldAurasBeSecret = function() return aurasSecret end }
 local methods = {}
 local function object(kind, parent)
     return setmetatable({ kind = kind, parent = parent, scripts = {} }, {
-        __index = function(_, key)
+        __index = function(self, key)
+            if self.kind == "AuraContainer" and rawget(self, "template") ~= "CustomAuraContainerTemplate"
+                and (key == "AddAuraGroup" or key == "SetAuraGroupLayout" or key:match("^SetFlowLayout")) then
+                return nil
+            end
             if methods[key] then return methods[key] end
             if key:match("^Set") or key:match("^Clear") or key:match("^Enable") then return noop end
         end,

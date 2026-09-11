@@ -401,8 +401,8 @@ for key in pairs(resolveCounts) do resolveCounts[key] = nil end
 buffAuraIcon._shown = false
 buffAuraIcon._auraActive = false
 icons.HandleRuntimeRefresh("UNIT_AURA", "player", opaquePayload)
-assert(resolveCounts.buffAura == 1 and resolveCounts.itemAura == 1 and resolveCounts.customCooldown == 1,
-    "player invalidation must refresh aura, item, and custom cooldown presentation")
+assert(resolveCounts.buffAura == 1 and resolveCounts.itemAura == nil and resolveCounts.customCooldown == nil,
+    "player aura invalidation must preserve aura presentation without refreshing unrelated cooldowns")
 assert(buffAuraIcon._shown == true and layoutRequests > 0 and buffContainerShows > 0,
     "scoped presentation updates must preserve buff layout and visibility updates")
 
@@ -435,14 +435,14 @@ resolveCounts.linkedCooldown = 0
 
 icons.HandleRuntimeRefresh("UNIT_AURA", "pet", nil)
 
-assert(resolveCounts.customCooldown == 1,
-    "unknown/full pet aura refreshes should re-resolve custom cooldown icons")
-assert(customCooldownAppliedDuration == customCooldownDur,
-    "unknown/full pet aura refreshes should bind the custom cooldown DurationObject")
-assert(customCooldownReverse == false,
-    "unknown/full pet aura refreshes should keep the custom icon on cooldown mode")
-assert(resolveCounts.linkedCooldown == 1,
-    "unknown/full pet aura refreshes should re-resolve linked built-in cooldown icons")
+assert(resolveCounts.customCooldown == 0 and customCooldownApplyCount == 0,
+    "pet aura updates must not re-resolve unrelated custom cooldown icons")
+assert(resolveCounts.linkedCooldown == 0,
+    "pet aura updates must leave linked cooldowns to their cooldown events")
+subscriptions["CDM:COOLDOWN_CHANGED"]("CDM:COOLDOWN_CHANGED", 1233448, nil, "refresh")
+assert(customCooldownApplyCount == 1 and customCooldownAppliedDuration == customCooldownDur
+    and customCooldownReverse == false,
+    "custom cooldowns must still bind their duration on cooldown events")
 
 itemAuraActive = true
 itemAuraPublishesInstanceID = true
