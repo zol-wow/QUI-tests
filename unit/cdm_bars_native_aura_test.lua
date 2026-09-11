@@ -392,3 +392,25 @@ refresh:HandleCooldownChanged(nil, 42, nil, "refresh", nil, 133)
 refresh:HandleCooldownChanged(nil, 42, nil, "refresh", nil, opaqueRecovery)
 assert(eventResolves == resolvesBeforeGCD, "global and opaque recovery skips must not re-resolve bars")
 print("OK: pooled bar iteration and cooldown event refresh")
+
+local combatContainer = CreateFrame("Frame")
+bars:Refresh(combatContainer, combatSettings, nil, "custom3", nil, { aura(1237205, "custom3") })
+local combatPlaceholder = bars:GetActiveBars("custom3")[1]
+assert(not combatPlaceholder.shown)
+local combatNative = combatPlaceholder._nativeAuraRun.container
+local preparedGroup = combatNative.groups.bar1
+local preparedCount = #auraContainers
+for _ = 1, 2 do
+    inCombat = true
+    refresh:HandleFrameEvent("PLAYER_REGEN_DISABLED")
+    assert(combatPlaceholder.shown and combatPlaceholder.alpha == 0.3,
+        "combat entry must reveal prepared inactive bar placeholders without a full container refresh")
+    assert(combatNative.point[2] == combatPlaceholder,
+        "native aura must remain anchored over its prepared combat placeholder")
+    assert(#auraContainers == preparedCount and combatNative.groups.bar1 == preparedGroup,
+        "combat visibility refresh must reuse prepared native groups")
+    inCombat = false
+    refresh:HandleFrameEvent("PLAYER_REGEN_ENABLED")
+    assert(not combatPlaceholder.shown, "combat exit must hide inactive combat-only placeholders")
+end
+print("OK: native bar combat transition visibility")
