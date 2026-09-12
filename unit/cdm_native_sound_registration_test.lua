@@ -59,13 +59,17 @@ C_CooldownViewer = {
 CooldownViewerSoundData = { { { soundEnum = 3, soundKitID = 33, text = "Bell" } } }
 assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_CooldownViewer/CooldownViewerAlert.lua"))()
 assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_CooldownViewer/CooldownViewerSettingsLayoutManager.lua"))()
-local manager = setmetatable({ layouts = { [1] = { layoutID = 1 }, [2] = { layoutID = 2 } }, activeID = 1 },
+local manager = setmetatable({ layouts = { [1] = { layoutID = 1, cooldownInfo = {} },
+    [2] = { layoutID = 2, cooldownInfo = {} } }, activeLayoutID = 1 },
     { __index = _G.CooldownViewerLayoutManagerMixin })
-function manager:IsLoaded() return true end
-function manager:GetActiveLayout() return self.layouts[self.activeID] end
-function manager:IsUsingDefaultLayout() return false end
-function manager:SaveLayouts() error("Must not persist unrelated native settings changes") end
-CooldownViewerSettings = { GetLayoutManager = function() return manager end }
+for _, method in ipairs({ "IsLoaded", "GetActiveLayout", "GetAlerts", "GetAlertsForLayout",
+    "AddAlert", "RemoveAlert", "SetHasPendingChanges", "SaveLayouts" }) do
+    manager[method] = function() error("Native settings must remain read-only: " .. method) end
+end
+CooldownViewerSettings = {
+    dataProvider = { displayData = {}, layoutManager = manager },
+    GetLayoutManager = function() error("Native settings getter must not initialize cached state") end,
+}
 
 local ns = {
     L = setmetatable({}, { __index = function(_, key) return key end }),
@@ -94,7 +98,8 @@ local function entry(id, sound, mode)
         quiAlerts = { auraApplied = { enabled = true, mode = mode or "sound", sound = sound } } }
 end
 local function nativeAlerts(id, layoutID)
-    return manager:GetAlertsForLayout(manager.layouts[layoutID or manager.activeID], id, Enum.CDMLayoutMode.AccessOnly) or {}
+    local info = manager.layouts[layoutID or manager.activeLayoutID].cooldownInfo[id]
+    return info and info.alerts or {}
 end
 
 local arbitrary = entry(1307927, "Bell")
@@ -138,78 +143,75 @@ for i = 1, 4 do assert(removed[i] == 1) end
 local kit, tts = entry(123, "kit:3"), entry(124, nil, "tts")
 tts.quiAlerts.auraApplied.text = "Custom words"
 local userAlert = { 1, 0, 9 }
-table.insert(manager:GetAlerts(123, 1), userAlert)
+local kitNative, ttsNative = { 0, 4, 3 }, { 0, 4, 0 }
+manager.layouts[1].cooldownInfo[123] = { alerts = { userAlert } }
 containers = { { key = "buff", settings = { ownedSpells = { kit, tts } } } }
 Alerts.ReconcileNativeSounds()
-assert(#nativeAlerts(123) == 2 and nativeAlerts(123)[1] == userAlert)
-assert(nativeAlerts(123)[2][2] == 4 and nativeAlerts(123)[2][3] == 3)
-assert(nativeAlerts(124)[1][3] == 0)
-assert(next(ns.Addon.db.char.cdmNativeSoundAlerts), "Owned native alert metadata must survive reload")
-assert(profile.ncdm.nativeSoundAlerts == nil, "Native ownership must not enter exportable profile settings")
-assert(Alerts.GetNativeSoundStatus("buff", tts, "auraApplied"):find("spell name", 1, true))
-local kitNative = nativeAlerts(123)[2]
-Alerts.ReconcileNativeSounds()
-assert(#nativeAlerts(123) == 2 and nativeAlerts(123)[2] == kitNative)
-manager:RemoveAlert(123, kitNative)
-flush()
-assert(#nativeAlerts(123) == 2, "External native settings changes must reconcile configured QUI sounds")
-
-assert(loadfile("QUI_CDM/cdm/cdm_alerts.lua"))("QUI", ns)
-Alerts = ns.CDMAlerts
-containers = {}
-Alerts.ReconcileNativeSounds()
-assert(#nativeAlerts(123) == 1 and nativeAlerts(123)[1] == userAlert and #nativeAlerts(124) == 0,
-    "After reload, disabling QUI sounds must remove only saved QUI-owned native records")
-assert(next(ns.Addon.db.char.cdmNativeSoundAlerts),
-    "Removal must retain ownership until a future load confirms the native saved record is absent")
-table.insert(manager:GetAlerts(124, 1), { 0, 4, 0 })
-assert(loadfile("QUI_CDM/cdm/cdm_alerts.lua"))("QUI", ns)
-Alerts = ns.CDMAlerts
-Alerts.ReconcileNativeSounds()
-assert(#nativeAlerts(124) == 0, "An older native save resurrected on reload must still be cleaned through ownership")
-assert(loadfile("QUI_CDM/cdm/cdm_alerts.lua"))("QUI", ns)
-Alerts = ns.CDMAlerts
-Alerts.ReconcileNativeSounds()
-assert(next(ns.Addon.db.char.cdmNativeSoundAlerts) == nil,
-    "A fresh load with no native record should prune ownership tombstones")
-
-local preexisting = { 0, 4, 3 }
-table.insert(manager:GetAlerts(123, 1), preexisting)
-containers = { { key = "buff", settings = { ownedSpells = { kit } } } }
-Alerts.ReconcileNativeSounds()
-assert(next(ns.Addon.db.char.cdmNativeSoundAlerts) == nil, "A matching user alert must remain unowned")
-Alerts.ReconcileNativeSounds(true)
-assert(#nativeAlerts(123) == 2 and nativeAlerts(123)[2] == preexisting)
-
-containers = { { key = "buff", settings = { ownedSpells = { tts } } } }
-Alerts.RequestNativeSoundRefresh()
-flush()
-assert(#nativeAlerts(124) == 1, "Re-enabling must restore native sounds")
-manager.activeID = 2
+assert(#nativeAlerts(123) == 1 and nativeAlerts(123)[1] == userAlert and #nativeAlerts(124) == 0)
+assert(not Alerts.IsNativeSoundRegistered(kit, "auraApplied"))
+assert(Alerts.GetNativeSoundStatus("buff", kit, "auraApplied"):find("Blizzard", 1, true))
+assert(ns.Addon.db.char == nil and profile.ncdm.nativeSoundAlerts == nil,
+    "Sound reconciliation must not create native alert ownership")
+manager.layouts[1].cooldownInfo[123].alerts[2] = kitNative
+manager.layouts[1].cooldownInfo[124] = { alerts = { ttsNative } }
 EventRegistry:TriggerEvent("CooldownViewerSettings.OnDataChanged")
 flush()
-assert(#nativeAlerts(124, 1) == 0 and #nativeAlerts(124, 2) == 1,
-    "Layout switching must move only QUI-owned alerts to the active native layout")
-ns.Addon.db.profile = { ncdm = {} }
+assert(Alerts.IsNativeSoundRegistered(kit, "auraApplied") and Alerts.IsNativeSoundRegistered(tts, "auraApplied"))
+assert(Alerts.GetNativeSoundStatus("buff", tts, "auraApplied"):find("spell name", 1, true))
+Alerts.ReconcileNativeSounds()
+assert(#nativeAlerts(123) == 2 and nativeAlerts(123)[2] == kitNative)
+manager.layouts[1].cooldownInfo[123].alerts[2] = nil
+EventRegistry:TriggerEvent("CooldownViewerSettings.OnDataChanged")
+flush()
+assert(#nativeAlerts(123) == 1 and not Alerts.IsNativeSoundRegistered(kit, "auraApplied"),
+    "Removing an alert in Blizzard settings must not cause QUI to recreate it")
+manager.layouts[1].cooldownInfo[123].alerts[2] = kitNative
+
+local savedOwnership = { old = { layoutID = 1, cooldownID = 123, event = 4, payload = 3 } }
+ns.Addon.db.char = { cdmNativeSoundAlerts = savedOwnership }
+assert(loadfile("QUI_CDM/cdm/cdm_alerts.lua"))("QUI", ns)
+Alerts = ns.CDMAlerts
 containers = {}
 Alerts.ReconcileNativeSounds()
-assert(#nativeAlerts(124, 2) == 0 and next(ns.Addon.db.char.cdmNativeSoundAlerts),
-    "Profile switching must clear previous registrations through character-scoped ownership")
-ns.Addon.db.profile.ncdm.nativeSoundAlerts = {
-    imported = { layoutID = 1, cooldownID = 123, event = 4, payload = 3 },
-}
+assert(#nativeAlerts(123) == 2 and nativeAlerts(123)[2] == kitNative and nativeAlerts(124)[1] == ttsNative,
+    "Reloading or disabling sounds must leave previously configured native alerts untouched")
+assert(ns.Addon.db.char.cdmNativeSoundAlerts == savedOwnership and savedOwnership.old,
+    "Legacy ownership metadata must not authorize native alert cleanup")
+
+containers = { { key = "buff", settings = { ownedSpells = { kit, tts } } } }
 Alerts.ReconcileNativeSounds()
-assert(nativeAlerts(123, 1)[2] == preexisting, "Imported profile data must never claim ownership of native alerts")
+assert(Alerts.IsNativeSoundRegistered(tts, "auraApplied"))
+Alerts.ReconcileNativeSounds(true)
+assert(not Alerts.IsNativeSoundRegistered(tts, "auraApplied") and nativeAlerts(124)[1] == ttsNative)
+Alerts.ReconcileNativeSounds(false)
+assert(Alerts.IsNativeSoundRegistered(tts, "auraApplied"))
+manager.activeLayoutID = 2
+EventRegistry:TriggerEvent("CooldownViewerSettings.OnDataChanged")
+flush()
+assert(nativeAlerts(124, 1)[1] == ttsNative and #nativeAlerts(124, 2) == 0
+    and not Alerts.IsNativeSoundRegistered(tts, "auraApplied"),
+    "Layout switching must observe the active layout without moving native alerts")
+manager.layouts[2].cooldownInfo[124] = { alerts = { ttsNative } }
+Alerts.ReconcileNativeSounds()
+assert(Alerts.IsNativeSoundRegistered(tts, "auraApplied"))
+ns.Addon.db.profile = { ncdm = { nativeSoundAlerts = {
+    imported = { layoutID = 1, cooldownID = 123, event = 4, payload = 3 },
+} } }
+containers = {}
+Alerts.ReconcileNativeSounds()
+assert(nativeAlerts(123, 1)[2] == kitNative and nativeAlerts(124, 2)[1] == ttsNative,
+    "Profile switching and imported ownership must never change native alerts")
 containers = { { key = "buff", settings = { ownedSpells = { tts } } } }
 Alerts.ReconcileNativeSounds()
 runtimeEnabled = false
 frames[#frames].OnEvent(frames[#frames], "PLAYER_ENTERING_WORLD")
 flush()
-assert(#nativeAlerts(124, 2) == 0, "Lifecycle events must honor the CDM master toggle")
+assert(not Alerts.IsNativeSoundRegistered(tts, "auraApplied") and nativeAlerts(124, 2)[1] == ttsNative,
+    "The master toggle must disable QUI tracking without removing Blizzard alerts")
 runtimeEnabled = true
 
 local full = entry(125, "kit:3")
-for i = 1, 3 do table.insert(manager:GetAlerts(125, 1), { 1, i, i }) end
+manager.layouts[2].cooldownInfo[125] = { alerts = { { 1, 1, 1 }, { 1, 2, 2 }, { 1, 3, 3 } } }
 local unsupported = entry(99999, nil, "tts")
 local wrongEvent = entry(99, "kit:3")
 containers = { { key = "custom1", settings = { containerType = "customBar", specSpecific = true,
@@ -217,7 +219,7 @@ containers = { { key = "custom1", settings = { containerType = "customBar", spec
 specEntries.custom1 = { full, unsupported, wrongEvent }
 Alerts.ReconcileNativeSounds()
 assert(#nativeAlerts(125) == 3 and not Alerts.IsNativeSoundRegistered(full, "auraApplied"))
-assert(Alerts.GetNativeSoundStatus("custom1", full, "auraApplied"):find("three", 1, true))
+assert(Alerts.GetNativeSoundStatus("custom1", full, "auraApplied"):find("Blizzard", 1, true))
 assert(Alerts.GetNativeSoundStatus("custom1", unsupported, "auraApplied"):find("Blizzard cooldown entry", 1, true))
 assert(Alerts.GetNativeSoundStatus("custom1", wrongEvent, "auraApplied"):find("does not support", 1, true))
 assert(unsupported.quiAlerts.auraApplied.enabled, "Unsupported native choices must remain configured")
@@ -238,34 +240,6 @@ containers[1].settings.enabled = false
 Alerts.ReconcileNativeSounds()
 for i = before + 1, #added do assert(removed[i] == 1) end
 
-for _, disableBeforeReplacement in ipairs({ true, false }) do
-    local replacementEntry = entry(disableBeforeReplacement and 126 or 127, "kit:3")
-    containers = { { key = "buff", settings = { ownedSpells = { replacementEntry } } } }
-    Alerts.ReconcileNativeSounds()
-    local owned = nativeAlerts(replacementEntry.id)[1]
-    assert(owned)
-    if disableBeforeReplacement then
-        Alerts.ReconcileNativeSounds(true)
-    else
-        table.remove(manager:GetAlerts(replacementEntry.id, 1), 1)
-    end
-    local replacement = { 0, 4, 3 }
-    table.insert(manager:GetAlerts(replacementEntry.id, 1), replacement)
-    Alerts.ReconcileNativeSounds()
-    Alerts.ReconcileNativeSounds(true)
-    assert(nativeAlerts(replacementEntry.id)[1] == replacement,
-        "A user replacement must not inherit removed or missing QUI alert ownership")
-    assert(ns.Addon.db.char.cdmNativeSoundAlerts[table.concat({ manager.activeID,
-        replacementEntry.id, 4, 3 }, ":")] == nil,
-        "A user replacement must clear the old ownership tombstone")
-    containers = {}
-    assert(loadfile("QUI_CDM/cdm/cdm_alerts.lua"))("QUI", ns)
-    Alerts = ns.CDMAlerts
-    Alerts.ReconcileNativeSounds()
-    assert(nativeAlerts(replacementEntry.id)[1] == replacement,
-        "A user replacement must remain unowned after reload")
-end
-
 assert(loadfile("QUI_CDM/cdm/cdm_custom_aura_runs.lua"))("QUI", ns)
 for _, selfAura in ipairs({ true, false }) do
     local filtered = entry(selfAura and 128 or 129, "Bell")
@@ -285,9 +259,13 @@ for _, selfAura in ipairs({ true, false }) do
     Alerts.Preview(config, filtered, "auraApplied")
     assert(#playback == previewCount + 1, "Unsupported native file alerts must remain previewable")
     config.sound = "kit:3"
+    manager.layouts[2].cooldownInfo[filtered.id] = { alerts = { { 0, 4, 3 } } }
     Alerts.ReconcileNativeSounds()
     assert(Alerts.IsNativeSoundRegistered(filtered, "auraApplied") and #nativeAlerts(filtered.id) == 1,
         "Player-cast auras must retain supported Blizzard viewer sound alerts")
 end
 
+kit.quiAlerts.auraApplied.enabled = false
+assert(Alerts.GetNativeSoundStatus("buff", kit, "auraApplied"):find("disable", 1, true),
+    "Disabled QUI choices must explain where to disable the native sound")
 print("OK: cdm_native_sound_registration_test")
