@@ -147,3 +147,47 @@ for _, key in ipairs({ "essential", "utility" }) do
 end
 
 print("OK: cdm_reanchor_runtime_directanchor_position_test")
+
+do
+    local function noop() end
+    local owner = {}
+    local function quietFrame()
+        return { ClearAllPoints = noop, Hide = noop, SetSize = noop,
+            SetPoint = function(self, _, relative) self.relative = relative end }
+    end
+    local allocationRuntime = R.New({ positionOwned = noop, positionAuraMirror = function() return true end })
+    local plainPlan = { placements = { { icon = { frame = quietFrame() }, x = 0, y = 0, w = 32, h = 32 } } }
+    local function allocatedKB(layout)
+        for _ = 1, 5 do allocationRuntime:PositionEntries(owner, layout, "buff") end
+        collectgarbage("collect")
+        collectgarbage("stop")
+        local before = collectgarbage("count")
+        for _ = 1, 200 do allocationRuntime:PositionEntries(owner, layout, "buff") end
+        local allocated = collectgarbage("count") - before
+        collectgarbage("restart")
+        return allocated
+    end
+    assert(allocatedKB(plainPlan) < 4, "layouts without dynamic mirrors must skip native-flow allocation")
+    local firstHost, secondHost = quietFrame(), quietFrame()
+    local function dynamicPlacement(host, row, y)
+        return { icon = { frame = quietFrame(), auraMirror = {
+            dynamic = true, host = host, run = { vertical = false, forward = true },
+        } }, x = 0, y = y, w = 32, h = 32, rowConfig = row and { rowNum = row, padding = 2 } }
+    end
+    local dynamicPlan = { placements = {
+        dynamicPlacement(firstHost, 1, 0), dynamicPlacement(secondHost, 2, -40),
+    } }
+    assert(allocatedKB(dynamicPlan) < 4, "prepared dynamic layouts must reuse row and segment storage")
+    local scratch = allocationRuntime._nativeFlowScratch
+    local firstSegment = scratch.rows[1][1]
+    dynamicPlan.placements[2] = nil
+    dynamicPlan.placements[1].rowConfig = nil
+    assert(allocatedKB(dynamicPlan) < 4, "single native flow without row settings must not allocate a fallback table")
+    assert(allocationRuntime._nativeFlowScratch == scratch and scratch.rows[1][1] == firstSegment,
+        "shrinking layouts must retain reusable scratch storage")
+    assert(firstSegment.frame == nil and firstSegment.wrapper == nil and firstSegment.placement == nil,
+        "scratch storage must release frame and layout references after each pass")
+    assert(scratch.rows[2][1].frame == nil and next(scratch.positionedFrames) == nil,
+        "removed rows must not retain old frames")
+end
+print("OK: native flow skips absent mirrors and reuses prepared scratch storage")

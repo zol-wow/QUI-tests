@@ -131,7 +131,8 @@ Conv.PreTargetEditBox(key)
 eb.attrs.chatType = "WHISPER"
 eb.attrs.tellTarget = "ManualTarget-Realm" -- user re-targeted manually
 Conv.ClearPreTarget()
-assert(eb.attrs.chatType == "SAY", "clear still applies when whisper mode is ours (no draft)")
+assert(eb.attrs.chatType == "WHISPER" and eb.attrs.tellTarget == "ManualTarget-Realm",
+    "changing tabs must preserve a recipient selected through native whisper controls")
 
 -- Fix 2a: closing an UNRELATED conversation must not reset the editbox.
 -- Pre-target key, open a second conversation, close the second.
@@ -170,7 +171,21 @@ assert(activated and activated.key == "W:popout-realm", "popout activates the ta
 Conv.OnBlizzardPopout("PARTY", "X") -- non-whisper ignored
 assert(not Conv.IsOpen("W:x"), "non-whisper popout ignored")
 Conv.OnBlizzardPopout("WHISPER", secretSentinel)
-assert(true, "secret popout target ignored without error")
+local shared = Conv.Get("WHISPERS")
+assert(shared and shared.shared and shared.target == nil,
+    "restricted popout opens a QUI tab without assigning an unknown recipient")
+eb.attrs.chatType, eb.attrs.tellTarget = "BN_WHISPER", "NativeRecipient"
+Conv.PreTargetEditBox("WHISPERS")
+assert(eb.attrs.chatType == "BN_WHISPER" and eb.attrs.tellTarget == "NativeRecipient",
+    "shared whisper tab leaves Blizzard's selected recipient intact")
+Conv.OnBlizzardPopout("BN_WHISPER", secretSentinel)
+assert(Conv.Get("WHISPERS") == shared, "restricted normal and Battle.net whispers reuse the shared tab")
+local namedKey = Conv.Open("WHISPER", "Named-Realm", 1, false)
+Conv.PreTargetEditBox(namedKey)
+Conv.PreTargetEditBox("WHISPERS")
+assert(eb.attrs.chatType == "SAY" and Conv.GetPreTargetedKey() == nil,
+    "switching to shared whispers clears an empty QUI-owned named recipient")
+Conv.Close("WHISPERS")
 whisperSettings.translatePopout = false
 Conv.OnBlizzardPopout("WHISPER", "Gated-Realm")
 assert(not Conv.IsOpen("W:gated-realm"), "translatePopout=false gates")
@@ -208,5 +223,22 @@ ns.QUI.Chat.MessageStore.Append({ e = "CHAT_MSG_BN_WHISPER_INFORM", k = "BN_WHIS
     w = "BN:bnfriend", wn = "BnFriend", m = "x", t = 0 })
 assert(Conv.IsOpen("BN:bnfriend"), "outgoing BN auto-creates")
 assert(Conv.Get("BN:bnfriend").chatType == "BN_WHISPER", "BN chat type recorded")
+
+ns.QUI.Chat.MessageStore.Append({ e = "CHAT_MSG_WHISPER", k = "WHISPER",
+    w = "WHISPERS", wn = secretSentinel, m = "restricted", s = true })
+assert(Conv.Get("WHISPERS") and Conv.Get("WHISPERS").shared,
+    "incoming restricted sender auto-opens a QUI shared whisper tab")
+
+ns.QUI.Chat._internals.WHISPER_TYPE_KEYS = {
+    WHISPER = true, WHISPER_INFORM = true, BN_WHISPER = true, BN_WHISPER_INFORM = true,
+}
+assert(loadfile("QUI_Chat/chat/tab_manager.lua"))("QUI", ns)
+local sharedFilter = ns.QUI.Chat.TabManager.BuildConversationFilter("WHISPERS")
+for chatType in pairs(ns.QUI.Chat._internals.WHISPER_TYPE_KEYS) do
+    assert(sharedFilter({ k = chatType, w = "WHISPERS", m = secretSentinel }),
+        "shared tab displays both directions of normal and Battle.net whispers")
+end
+assert(not sharedFilter({ k = "GUILD", w = nil, m = secretSentinel }),
+    "shared whisper tab does not admit unrelated chat")
 
 print("chat_conversation_manager_test: all passed")

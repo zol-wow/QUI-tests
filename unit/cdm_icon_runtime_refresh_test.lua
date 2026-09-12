@@ -147,7 +147,6 @@ local textureClears = 0
 local durationKeyClears = 0
 local stableClears = 0
 local spellCacheInvalidations = {}
-local barAuraRefreshMarks = {}
 local customOverlayRefreshes = 0
 local consumableCategoryInvalidations = 0
 local trustedCooldownUpdates = {}
@@ -229,10 +228,6 @@ local controller = module.Create({
         if itemID == 5512 then return "Healthstone", 196277 end
         return nil
     end,
-    queryCooldownAuraBySpellID = function(spellID)
-        if spellID == 707 then return 808 end
-        return nil
-    end,
     clearDurationBinding = function(icon)
         clearedBindings[icon.name] = count(clearedBindings, icon.name) + 1
         icon._lastDurObjKey = nil
@@ -274,12 +269,6 @@ local controller = module.Create({
     end,
     setBarsDirty = function(dirty)
         barsDirty = dirty == true
-    end,
-    markBarsForAuraRefresh = function(unit, updateInfo)
-        barAuraRefreshMarks[#barAuraRefreshMarks + 1] = {
-            unit = unit,
-            updateInfo = updateInfo,
-        }
     end,
     runDirtyBarUpdate = function()
         dirtyBarRuns = dirtyBarRuns + 1
@@ -481,71 +470,30 @@ spellIcon._lastDurObj = nil
 
 reset(auraApplied)
 reset(clearedBindings)
-wipe(barAuraRefreshMarks)
 stackRequested = false
-local schedulesBeforeAuraDelta = #schedules
--- Aura deltas match the icon's stamped aura instance/unit (previously sourced
--- from the removed Blizzard mirror state lookup).
-mirrorAuraIcon._auraInstanceID = 9001
-mirrorAuraIcon._auraUnit = "target"
+local schedulesBeforeAura = #schedules
+local opaquePayload = setmetatable({}, { __index = function()
+    error("UNIT_AURA payloads must not be inspected by CDM")
+end })
 mirrorAuraIcon._lastDurObjKey = "aura:9001"
 mirrorAuraIcon._lastDurObj = { token = "stale-target-aura-duration" }
 mirrorAuraIcon._lastResolvedMode = "aura"
-mirrorAuraIcon._lastResolvedSourceID = 9001
-controller:Handle("UNIT_AURA", "target", {
-    updatedAuraInstanceIDs = { 9001 },
-})
-assert(auraApplied.mirrorAura == 1, "aura delta should match stamped aura instance IDs")
-assert(clearedBindings.mirrorAura == 1, "target aura deltas should invalidate stale aura DurationObject bindings before re-resolve")
-assert(mirrorAuraIcon._lastDurObjKey == nil, "target aura delta invalidation should clear the previous duration key")
-assert(#barAuraRefreshMarks == 1
-    and barAuraRefreshMarks[1].unit == "target"
-    and barAuraRefreshMarks[1].updateInfo.updatedAuraInstanceIDs[1] == 9001,
-    "aura deltas should mark matching bars for DurationObject rebind before the dirty bar update")
-assert(stackRequested == true, "aura deltas should request a follow-up stack text refresh")
-assert(#schedules == schedulesBeforeAuraDelta,
-    "aura deltas should stay on the targeted aura path instead of scheduling a broad cooldown walk")
-
+mirrorAuraIcon._auraActive = true
+controller:Handle("UNIT_AURA", "target", opaquePayload)
+assert(auraApplied.mirrorAura == 1, "target invalidation must refresh existing aura-owned bindings")
+assert(clearedBindings.mirrorAura == 1 and mirrorAuraIcon._lastDurObjKey == nil,
+    "target invalidation must clear previous aura duration bindings")
+assert(stackRequested and #schedules == schedulesBeforeAura,
+    "aura invalidation must stay on its scope and request stack presentation refresh")
 reset(auraApplied)
-controller:Handle("UNIT_AURA", "player", {
-    addedAuras = {
-        { auraInstanceID = 9002, spellId = 808 },
-    },
-})
-assert(auraApplied.item == 1, "aura delta should match item entries through item-use aura mapping")
-assert(customOverlayRefreshes == 0,
-    "UNIT_AURA should rely on native container incremental handling without a manual overlay rebuild")
-
-reset(auraApplied)
-controller:Handle("UNIT_AURA", "player", {
-    addedAuras = {
-        { auraInstanceID = 9003, spellId = secretSpellID },
-    },
-})
-assert(auraApplied.item == 1, "secret player added aura identity should still wake item aura entries")
-
-reset(auraApplied)
-controller:Handle("UNIT_AURA", "player", {
-    removedAuraInstanceIDs = { 9005 },
-})
-assert(auraApplied.customCooldown == nil,
-    "unrelated removed auras must not refresh custom cooldown bindings")
-
-reset(auraApplied)
-consumableIcon._auraActive = true
-controller:Handle("UNIT_AURA", "player", {
-    removedAuraInstanceIDs = { 9006 },
-})
-assert(auraApplied.consumable == 1,
-    "removed player auras should refresh category consumables without an aura instance ID")
-
-reset(auraApplied)
-controller:Handle("UNIT_AURA", "target", {
-    addedAuras = {
-        { auraInstanceID = 9004, spellId = secretSpellID },
-    },
-})
-assert(auraApplied.item == 1, "secret target added aura identity should still wake item aura entries")
+controller:Handle("UNIT_AURA", "player", opaquePayload)
+assert(auraApplied.item == nil and auraApplied.customCooldown == nil,
+    "aura invalidation must leave item and custom cooldowns to their cooldown events")
+assert(customOverlayRefreshes == 0, "native containers must handle incremental aura updates themselves")
+local schedulesBeforeTotem = #schedules
+controller:Handle("PLAYER_TOTEM_UPDATE", 1)
+assert(#schedules == schedulesBeforeTotem + 1 and schedules[#schedules].reason == "totem",
+    "totem changes must retain their scheduled cooldown refresh")
 
 reset(auraApplied)
 reset(applied)
@@ -560,20 +508,20 @@ controller:Handle("UNIT_AURA", "player", {
     isFullUpdate = true,
 })
 assert(auraApplied.aura == 1, "full player aura refresh should update aura entries through the scoped path")
-assert(auraApplied.item == 1, "full player aura refresh should update item-backed aura/cooldown entries")
-assert(auraApplied.consumable == 1,
-    "full player aura refresh should update category consumables")
-assert(visibilityUpdated.consumable == 1 and blingSynced.consumable == 1,
-    "full player aura refresh should update category consumable presentation")
+assert(auraApplied.item == nil, "aura refresh must not resolve unrelated item cooldowns")
+assert(auraApplied.consumable == nil,
+    "aura refresh must not resolve unrelated consumable cooldowns")
+assert(visibilityUpdated.consumable == nil and blingSynced.consumable == nil,
+    "aura refresh must not rewrite unrelated consumable presentation")
 assert(auraApplied.spell == nil, "full player aura refresh should not touch unrelated spell-only cooldown icons")
-assert(visibilityUpdated.item == 1, "full player aura refresh should update item-backed visibility")
-assert(blingSynced.item == 1, "full player aura refresh should sync item-backed bling")
+assert(visibilityUpdated.item == nil, "aura refresh must not rewrite unrelated item visibility")
+assert(blingSynced.item == nil, "aura refresh must not rewrite unrelated item effects")
 assert(#schedules == schedulesBeforeFullAura,
     "full player aura refresh should not schedule a broad full cooldown walk")
 assert(stackRequested == true, "full player aura refresh should still request stack text refresh")
-assert(barsDirty == true, "full player aura refresh should mark bars dirty")
-assert(dirtyBarRuns == dirtyRunsBeforeFullAura + 1,
-    "full player aura refresh should run the dirty bar update without a full icon walk")
+assert(barsDirty == false, "native aura and paired mirror bars own their aura updates")
+assert(dirtyBarRuns == dirtyRunsBeforeFullAura,
+    "aura refresh must not run an unrelated cooldown bar update")
 
 reset(auraApplied)
 reset(applied)
@@ -910,3 +858,34 @@ buffPool[#buffPool] = nil
 selfAuraNames.selfAura = nil
 
 print("OK: cdm_icon_runtime_refresh_test")
+
+local nativeRefreshes, nativeBatches, nativeBarUpdates = 0, 0, 0
+local nativePools = { buff = {
+    { _spellEntry = { kind = "aura", _useManagedAura = true } },
+    { _spellEntry = { kind = "cooldown", _isCustomEntry = true }, _customAuraOverlayPrepared = true },
+} }
+local nativeController = ns.CDMIconRuntimeRefresh.Create({
+    getIconPools = function() return nativePools end,
+    isAuraEntry = function(entry) return entry.kind == "aura" end,
+    beginBatch = function() nativeBatches = nativeBatches + 1 end,
+    applyResolvedCooldown = function() nativeRefreshes = nativeRefreshes + 1 end,
+    runDirtyBarUpdate = function() nativeBarUpdates = nativeBarUpdates + 1 end,
+})
+nativeController:Handle("UNIT_AURA", "player", opaquePayload)
+assert(nativeRefreshes == 0 and nativeBatches == 0 and nativeBarUpdates == 0,
+    "native aura-only updates must not resolve icons, start batches, or refresh bars")
+nativePools.buff[3] = { _spellEntry = { kind = "aura" } }
+nativeController:Handle("UNIT_AURA", "player", opaquePayload)
+assert(nativeRefreshes == 1 and nativeBatches == 1 and nativeBarUpdates == 0,
+    "Lua-owned aura presentation must still refresh without waking native consumers")
+local firstAuraOptions
+nativeController.ApplyAuraScope = function(_, options)
+    if firstAuraOptions then
+        assert(options == firstAuraOptions, "UNIT_AURA must reuse its controller-owned options")
+    else
+        firstAuraOptions = options
+    end
+end
+nativeController:Handle("UNIT_AURA", "target", opaquePayload)
+nativeController:Handle("UNIT_AURA", "player", opaquePayload)
+print("OK: native aura events avoid redundant Lua refresh work")

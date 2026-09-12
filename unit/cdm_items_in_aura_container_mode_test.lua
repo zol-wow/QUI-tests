@@ -125,9 +125,7 @@ local function getMode(bar) return barStates[bar] and barStates[bar].mode end
 scannedAuras = { [1001] = { active = false, duration = 0, expiration = 0 } }
 local barA = makeBar({ id = 1001, type = "item", kind = "aura" })
 CDMBars:UpdateOwnedBarAura(barA)
-assert(getMode(barA) == "inactive",
-    "kind=aura + aura-inactive must yield inactive (got " .. tostring(getMode(barA)) .. ")")
-assert(barA._active ~= true, "bar must not be active when aura inactive")
+assert(getMode(barA) == nil, "native item aura display must not publish addon aura state")
 
 ------------------------------------------------------------
 -- Case B: kind=aura + aura ACTIVE → mode=item-aura
@@ -135,9 +133,7 @@ assert(barA._active ~= true, "bar must not be active when aura inactive")
 scannedAuras = { [1002] = { active = true, duration = 20, expiration = _now + 12 } }
 local barB = makeBar({ id = 1002, type = "item", kind = "aura" })
 CDMBars:UpdateOwnedBarAura(barB)
-assert(getMode(barB) == "item-aura",
-    "kind=aura + aura-active must yield item-aura (got " .. tostring(getMode(barB)) .. ")")
-assert(barB._active == true, "bar must be active during aura phase")
+assert(getMode(barB) == nil, "native item aura display must not read scanned active state")
 
 ------------------------------------------------------------
 -- Case C: displayMode=auraOnly in custom + aura INACTIVE → inactive
@@ -149,9 +145,7 @@ local barC = makeBar({
     displayMode = "auraOnly", viewerType = "customBar:test",
 })
 CDMBars:UpdateOwnedBarAura(barC)
-assert(getMode(barC) == "inactive",
-    "displayMode=auraOnly + aura-inactive must yield inactive (got "
-    .. tostring(getMode(barC)) .. ")")
+assert(getMode(barC) == nil, "native aura-only display must not fall back to item cooldown")
 
 ------------------------------------------------------------
 -- Case D: regression — kind=cooldown + no override + aura inactive

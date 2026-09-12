@@ -162,7 +162,7 @@ check("pairing must re-scan viewer children on mismatch",
 ---------------------------------------------------------------------------
 local reuseStart = assert(string.find(src, "if not needsRebuild then", 1, true),
     "reuse path should exist")
-local reuseEnd = assert(string.find(src, "self:ClearPool()", reuseStart, true),
+local reuseEnd = assert(string.find(src, "self:ClearPool(state.key)", reuseStart, true),
     "reuse path should precede the rebuild")
 local reuseBlock = string.sub(src, reuseStart, reuseEnd)
 check("reuse path must refresh _blzChild from the scanned entry",

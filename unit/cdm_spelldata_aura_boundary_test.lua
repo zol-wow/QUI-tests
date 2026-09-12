@@ -1,180 +1,85 @@
--- tests/unit/cdm_spelldata_aura_boundary_test.lua
--- Run: lua tests/unit/cdm_spelldata_aura_boundary_test.lua
-
-local function noop() end
-local inCombat = false
-local now = 1
-
-function InCombatLockdown() return inCombat end
-function GetTime() return now end
-function wipe(tbl)
-    for key in pairs(tbl) do
-        tbl[key] = nil
-    end
+local function forbidden()
+    error("CDM SpellData must not access aura queries")
 end
-
+local forbiddenAPI = setmetatable({}, { __index = forbidden })
+C_UnitAuras = forbiddenAPI
+AuraUtil = forbiddenAPI
+local inCombat = false
+function InCombatLockdown() return inCombat end
+function wipe(tbl)
+    for key in pairs(tbl) do tbl[key] = nil end
+end
+C_Timer = { After = function() end }
 local frames = {}
 function CreateFrame()
-    local frame = {
-        events = {},
-        unitEvents = {},
-        script = nil,
-    }
-    function frame:RegisterEvent(event)
-        self.events[event] = true
-    end
-    function frame:RegisterUnitEvent(event, ...)
-        self.unitEvents[event] = { ... }
-    end
-    function frame:UnregisterEvent(event)
-        self.events[event] = nil
-    end
-    function frame:UnregisterAllEvents()
-        self.events = {}
-        self.unitEvents = {}
-    end
-    function frame:SetScript(script, handler)
-        if script == "OnEvent" then
-            self.script = handler
-        end
-    end
+    local frame = { events = {}, unitEvents = {} }
+    function frame:RegisterEvent(event) self.events[event] = true end
+    function frame:RegisterUnitEvent(event, ...) self.unitEvents[event] = { ... } end
+    function frame:UnregisterAllEvents() self.events = {}; self.unitEvents = {} end
+    function frame:SetScript(_, handler) self.script = handler end
     frames[#frames + 1] = frame
     return frame
 end
-
-C_Timer = { After = function(_, callback) callback() end }
-AuraUtil = {
-    ForEachAura = function()
-        error("boundary events should not force an auraInstanceID rescan")
-    end,
-}
-
-local auraRefreshes = 0
+local refreshed, glowUnits = {}, {}
 local ns = {
-    Helpers = {
-        IsSecretValue = function() return false end,
-        SafeValue = function(value) return value end,
-    },
-    CDMShared = {
-        IsRuntimeEnabled = function() return true end,
-    },
-    CDMSources = {
-        QueryUnitAuraBySpellID = function(unit, spellID)
-            if unit == "player" and spellID == 8001 then
-                return {
-                    auraInstanceID = 9001,
-                    spellId = spellID,
-                    duration = 10,
-                    expirationTime = 11,
-                    isHelpful = true,
-                    sourceUnit = "player",
-                }
-            end
-        end,
-    },
-    CDMIndex = {
-        Version = function() return 1 end,
-        Get = function(spellID)
-            if spellID == 7001 then
-                return { cooldownID = 9002 }
-            end
-        end,
-    },
+    Helpers = {},
+    CDMShared = { IsRuntimeEnabled = function() return true end },
+    CDMSources = { QueryItemSpell = function(itemID) return "Item Spell", itemID + 1 end },
+    AuraGlue = forbiddenAPI,
     CDMCatalog = {
-        GetCooldownInfo = function(cooldownID)
-            if cooldownID == 9002 then
-                return { linkedSpellID = 8001 }
-            end
+        RebuildBlizzardCatalogMaps = function(_, _, _, abilityMap, auraIDs)
+            abilityMap[7001] = 8001
+            auraIDs[7001] = { 8001 }
         end,
     },
     CDMIcons = {
-        HandleRuntimeRefresh = function()
-            auraRefreshes = auraRefreshes + 1
+        HandleRuntimeRefresh = function(event, unit, payload)
+            assert(event == "UNIT_AURA" and payload == nil)
+            refreshed[#refreshed + 1] = unit
+        end,
+    },
+    _OwnedGlows = {
+        HandleUnitAuraChanged = function(unit, payload)
+            assert(payload == nil)
+            glowUnits[#glowUnits + 1] = unit
         end,
     },
 }
-
 dofile("tests/helpers/load_cdm_spelldata_runtime.lua")(ns)
 assert(loadfile("QUI_CDM/cdm/cdm_spelldata.lua"))("QUI", ns)
-
-local auraFrame
-for _, frame in ipairs(frames) do
-    if frame.unitEvents.UNIT_AURA then
-        auraFrame = frame
-        break
+assert(#frames == 0, "loading catalog data must not create an aura capture frame")
+ns.CDMSpellData:Initialize()
+assert(#frames == 1, "initialization needs only the catalog runtime frame")
+local frame = frames[1]
+assert(frame.unitEvents.UNIT_AURA and not frame.unitEvents.UNIT_SPELLCAST_SUCCEEDED)
+local payload = setmetatable({}, { __index = function() error("aura payload must stay unread") end })
+for _, combat in ipairs({ false, true }) do
+    inCombat = combat
+    frame.script(frame, "UNIT_AURA", "player", payload)
+    frame.script(frame, "PLAYER_TARGET_CHANGED")
+    frame.script(frame, "PLAYER_REGEN_ENABLED")
+    for _, kind in ipairs({ "aura", "cooldown" }) do
+        local result = ns.CDMAuraRuntime.ResolveState({ spellID = 7001, entryKind = kind })
+        assert(result.isActive == false and result.durObj == nil,
+            "ordinary auras belong to native containers")
     end
 end
-
-assert(auraFrame, "aura capture frame should register UNIT_AURA")
-assert(auraFrame.events.PLAYER_ENTERING_WORLD ~= true, "zone/login bootstrap should not force an auraInstanceID rescan")
-assert(auraFrame.events.PLAYER_REGEN_ENABLED ~= true, "combat exit should not force an auraInstanceID rescan")
-assert(auraFrame.events.ENCOUNTER_START ~= true, "encounter start should not force an auraInstanceID rescan")
-assert(auraFrame.events.CHALLENGE_MODE_START ~= true, "challenge start should not force an auraInstanceID rescan")
-assert(auraFrame.events.PVP_MATCH_ACTIVE ~= true, "active PvP match should not force an auraInstanceID rescan")
-assert(auraFrame.events.PLAYER_REGEN_DISABLED ~= true, "combat start should not be treated as an aura-instance rerandomization boundary")
-
-local boundaryEvents = {
-    "PLAYER_REGEN_DISABLED",
-    "PLAYER_REGEN_ENABLED",
-    "ENCOUNTER_START",
-    "CHALLENGE_MODE_START",
-    "PVP_MATCH_ACTIVE",
-    "PLAYER_ENTERING_WORLD",
-}
-
-for _, event in ipairs(boundaryEvents) do
-    local ok, err = pcall(function()
-        auraFrame.script(auraFrame, event)
-    end)
-    assert(ok, event .. " should not rescan captured auraInstanceIDs: " .. tostring(err))
+assert(#refreshed == 4 and #glowUnits == 4)
+assert(refreshed[1] == "player" and refreshed[2] == "target")
+assert(ns.CDMSpellData:GetAuraIDsForSpell(7001)[1] == 8001)
+assert(ns.CDMAuraRuntime.ResolveAbilityAuraSpellID(7001) == 8001)
+assert(ns.CDMSpellData:HasResolvableAuraForItem(7000) == 8001)
+_G.QUI = { SpellScanner = { GetScannedItemInfo = function(itemID)
+    return itemID == 9000 and { buffSpellID = 9002 } or nil
+end } }
+assert(ns.CDMSpellData:HasResolvableAuraForItem(9000) == 9002)
+assert(ns.CDMSpellData:HasResolvableAuraForItem(10000) == nil)
+for _, name in ipairs({ "GetCapturedAuraForLookup", "GetCapturedAuraDataByInstanceID", "GetActiveAuras" }) do
+    assert(ns.CDMSpellData[name] == nil, name .. " must be retired")
 end
-
-assert(auraRefreshes == 0, "PLAYER_REGEN_DISABLED should not notify aura consumers by itself")
-
-auraFrame.script(auraFrame, "UNIT_SPELLCAST_SUCCEEDED", "player", "cast-guid", 7001)
-auraFrame.script(auraFrame, "UNIT_AURA", "player", {
-    addedAuras = {
-        {
-            auraInstanceID = 9001,
-            spellId = 8001,
-            name = "Applied Aura Name",
-            isHelpful = true,
-        },
-    },
-})
-
-local captured = ns.CDMSpellData.GetCapturedAuraForLookup({ 7001 }, nil, { "player" }, false)
-assert(captured and captured.auraInstanceID == 9001,
-    "clean added aura payloads should also be keyed by recent cast spellID")
-
-local resolvedAura = ns.CDMAuraRuntime.ResolveState({
-    spellID = 7001,
-    entrySpellID = 7001,
-    entryID = 7001,
-    entryKind = "cooldown",
-    entryType = "spell",
-    viewerType = "custom",
-})
-assert(resolvedAura.isActive == true and resolvedAura.resolvedAuraSpellID == 8001,
-    "cooldown aura resolution should probe linked spell IDs for custom entries")
-
-local directEntryAura = ns.CDMAuraRuntime.ResolveState({
-    spellID = 7002,
-    entrySpellID = 7002,
-    entryID = 7002,
-    entryLinkedSpellID = 8001,
-    entryKind = "cooldown",
-    entryType = "spell",
-    viewerType = "custom",
-})
-assert(directEntryAura.isActive == true and directEntryAura.resolvedAuraSpellID == 8001,
-    "custom entry linkedSpellID should resolve without a catalog mapping")
-
-inCombat = true
-local ok, err = pcall(function()
-    ns.CDMSpellData:Initialize()
-end)
-inCombat = false
-assert(ok, "CDMSpellData initialization should not bootstrap auraInstanceID cache: " .. tostring(err))
-
+for _, name in ipairs({ "GetApplications", "SetApplicationsGetter", "GetCapturedAuraForLookup", "SetCapturedAuraGetter" }) do
+    assert(ns.CDMAuraRuntime[name] == nil, name .. " must be retired")
+end
+ns.CDMSpellData:DisableRuntime()
+assert(frame.script == nil and next(frame.events) == nil and next(frame.unitEvents) == nil)
 print("OK: cdm_spelldata_aura_boundary_test")

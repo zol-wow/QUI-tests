@@ -14,6 +14,7 @@ CreateFrame = function()
     local frame = { events = {} }
     function frame:RegisterEvent(event) self.events[event] = true end
     function frame:UnregisterAllEvents() self.events = {} end
+    function frame:UnregisterEvent(event) self.events[event] = nil end
     function frame:SetScript(name, fn) self[name] = fn end
     soundKitFrame = frame
     return frame
@@ -45,6 +46,7 @@ C_Sound = {
 CooldownViewerSoundData = nil
 
 local ns = {
+    L = setmetatable({}, { __index = function(_, key) return key end }),
     SafeCall = function(_, fn, ...)
         return pcall(fn, ...)
     end,
@@ -68,7 +70,8 @@ inCombat = false
 soundKitFrame.OnEvent(soundKitFrame, "PLAYER_REGEN_ENABLED")
 local kitOptions = ns.CDMAlerts.GetSoundKitOptions()
 assert(kitOptions[1].value == "kit:3", "Blizzard's sound catalog should be copied into QUI options")
-assert(next(soundKitFrame.events) == nil, "successful sound-kit preload should stop retry events")
+assert(soundKitFrame.events.ADDON_LOADED == nil and soundKitFrame.events.PLAYER_REGEN_ENABLED,
+    "successful sound-kit preload should stop catalog retries and keep native-sound lifecycle events")
 ns.CDMAlerts.Preview({ mode = "sound", sound = "kit:3" })
 assert(soundKits[1].soundKitID == 99, "Blizzard catalog sounds should play through their SoundKit ID")
 local icon = {
