@@ -7,6 +7,7 @@ function issecretvalue() return false end
 C_Secrets = { ShouldAurasBeSecret = function() return secretAuras end }
 local containers, buttons = {}, {}
 local animationCreates, pointCreates = 0, 0
+local alphaWrites = 0
 local function Frame(parent)
     local frame = { parent = parent, shown = true, points = {}, attributes = {} }
     function frame:ClearAllPoints() self.points = {} end
@@ -17,7 +18,7 @@ local function Frame(parent)
     function frame:SetHeight(h) self.height = h end
     function frame:SetColorTexture(...) self.color = { ... } end
     function frame:SetVertexColor(...) self.vertexColor = { ... } end
-    function frame:SetAlpha(alpha) self.alpha = alpha end
+    function frame:SetAlpha(alpha) self.alpha = alpha; alphaWrites = alphaWrites + 1 end
     function frame:SetTexture(texture) self.texture = texture end
     function frame:SetAtlas(atlas) self.atlas = atlas end
     function frame:SetTexCoord(...) self.texCoord = { ... } end
@@ -458,18 +459,31 @@ end
 assert(batchCount == 10 and activeGroups == 480 and procGroups == 280)
 assert(playingProcGroups == 0, "native ten-button batches must not animate inactive proc layers")
 inCombat, secretAuras = true, true
+local alphaWritesBefore = alphaWrites
 Runs.SetNativeProcGlow(batchIcon, true)
+assert(alphaWrites - alphaWritesBefore == procGroups,
+    "activating a native proc must reveal every configured effect once")
 for nativeButton in pairs(batchButtons) do
     for _, effect in ipairs(nativeButton._quiCDMNativeProcGlow) do
         assert(effect.group.playing and effect.texture.alpha == 1)
     end
 end
+alphaWritesBefore = alphaWrites
+for _ = 1, 100 do Runs.SetNativeProcGlow(batchIcon, true) end
+assert(alphaWrites == alphaWritesBefore,
+    "unchanged active proc events must not rewrite native texture alpha: " .. (alphaWrites - alphaWritesBefore))
 Runs.SetNativeProcGlow(batchIcon, false)
+assert(alphaWrites - alphaWritesBefore == procGroups,
+    "deactivating a native proc must hide every configured effect once")
 for nativeButton in pairs(batchButtons) do
     for _, effect in ipairs(nativeButton._quiCDMNativeProcGlow) do
         assert(not effect.group.playing and effect.texture.alpha == 0)
     end
 end
+alphaWritesBefore = alphaWrites
+for _ = 1, 100 do Runs.SetNativeProcGlow(batchIcon, false) end
+assert(alphaWrites == alphaWritesBefore,
+    "unchanged inactive proc events must not rewrite native texture alpha: " .. (alphaWrites - alphaWritesBefore))
 inCombat, secretAuras = false, false
 print("OK: ten native buttons retain 480 active-aura paths and stop 280 inactive proc paths")
 
@@ -513,3 +527,53 @@ assert(sampleEffect.group.playing and sampleEffect.texture.vertexColor[1] == 0.7
 assert(animationCreates == animationsBefore and pointCreates == pointsBefore,
     "reenabling the same effect kind must reuse its native objects")
 print("OK: native glow layout and geometry refreshes reuse animation objects")
+
+local registeredButton = Frame()
+local registeredOwner = { _quiNativeProcGlowActive = true }
+local registeredProfile = { cdmProcGlow = { glowType = "Pixel Glow" }, iconSize = 39 }
+Runs.ConfigureNativeEffects(registeredButton, registeredProfile, registeredOwner)
+local registeredEffects = registeredButton._quiCDMNativeProcGlow
+for _, effect in ipairs(registeredEffects) do
+    assert(effect.group.playing and effect.texture.alpha == 1,
+        "new effects must inherit an already active proc owner")
+end
+registeredProfile.cdmProcGlow = nil
+Runs.ConfigureNativeEffects(registeredButton, registeredProfile, registeredOwner)
+for _, effect in ipairs(registeredEffects) do
+    assert(not effect.group.playing and effect.texture.alpha == 0,
+        "disabled proc styling must hide effects even while the owner is active")
+end
+registeredProfile.cdmProcGlow = { glowType = "Proc Glow" }
+Runs.ConfigureNativeEffects(registeredButton, registeredProfile, registeredOwner)
+for i, effect in ipairs(registeredEffects) do
+    assert(effect.group.playing == (i == 1) and effect.texture.alpha == (i == 1 and 1 or 0),
+        "reenabling a smaller proc style must keep all surplus effects hidden")
+end
+Runs.ConfigureNativeEffects(registeredButton, registeredProfile, {})
+for _, effect in ipairs(registeredEffects) do
+    assert(not effect.group.playing and effect.texture.alpha == 0,
+        "cached effects registered to an inactive owner must stop and hide immediately")
+end
+print("OK: unchanged combat proc events skip native alpha writes and preserve transitions")
+
+for _, builtinSettings in ipairs({ {}, { containerType = "aura" },
+    { containerType = "aura", activeGlowEnabled = true } }) do
+    local builtinProfile = Runs.BuildProfile({ size = 39 }, builtinSettings, batchIcon._spellEntry)
+    local before = animationCreates
+    for _ = 1, 10 do Runs.StyleNativeEffects(Frame(), builtinProfile) end
+    assert(animationCreates == before,
+        "ordinary buff groups must not allocate custom-bar active animations: " .. (animationCreates - before))
+    assert(builtinProfile.cdmProcGlow, "excluding custom-bar active glow must preserve proc glow")
+end
+local customSettings = { containerType = "customBar" }
+local customProfile = Runs.BuildProfile({ size = 39 }, customSettings, batchIcon._spellEntry)
+assert(customProfile.cdmActiveGlow, "custom bars retain default-enabled active glow")
+customSettings.activeGlowEnabled = false
+assert(not Runs.BuildProfile({ size = 39 }, customSettings, batchIcon._spellEntry).cdmActiveGlow)
+customSettings.activeGlowEnabled = nil
+local glowOverride = { glowEnabled = false, glowColor = { 0.1, 0.2, 0.3, 0.4 } }
+customSettings.spellOverrides = { [batchIcon._spellEntry.id] = glowOverride }
+assert(not Runs.BuildProfile({ size = 39 }, customSettings, batchIcon._spellEntry).cdmActiveGlow)
+glowOverride.glowEnabled = true
+assert(Runs.BuildProfile({ size = 39 }, customSettings, batchIcon._spellEntry).cdmActiveGlow.color == glowOverride.glowColor)
+print("OK: native active glow stays scoped to custom bars and preserves proc and override settings")

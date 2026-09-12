@@ -41,7 +41,10 @@ local function createFrame(kind, _, parent)
             return button
         end
         c.SetAuraSlotFilterString = function(self, key, filter) self.lastFilter = { key, filter } end
-        c.SetAuraSlotCandidateFilters = function(self, key, filters) self.filters[key] = filters end
+        c.SetAuraSlotCandidateFilters = function(self, key, filters)
+            self.filters[key] = filters
+            self.candidateWrites = (self.candidateWrites or 0) + 1
+        end
         createdAuraContainers[#createdAuraContainers + 1] = c
         return c
     end
@@ -203,5 +206,50 @@ assert(guarded:Acquire(guardedOwner, "new", guardedEntry, {}) == nil)
 assert(guarded:Acquire(guardedOwner, "prepared", { id = 1237205, kind = "aura" }, {}) == nil)
 assert(not guarded:EndPass(guardedOwner))
 assert(not prepared.free and not prepared.parked)
+
+local stable = M.New({ createFrame = createFrame })
+local stableOwner = {}
+local stableEntry = { id = 100, linkedSpellIDs = { 101, 102 } }
+stable:BeginPass(stableOwner)
+local stableRecord = stable:Acquire(stableOwner, "stable", stableEntry, {})
+stable:EndPass(stableOwner)
+local stableContainer = stable._pools[stableOwner].auraContainer
+local function acquireStable(candidate, key)
+    stable:BeginPass(stableOwner)
+    local acquired = stable:Acquire(stableOwner, key or "stable", candidate, {})
+    stable:EndPass(stableOwner)
+    return acquired
+end
+for _ = 1, 100 do acquireStable(stableEntry) end
+assert((stableContainer.candidateWrites or 0) == 0,
+    "unchanged layout passes must not reset native slot candidates and force full aura rebuilds")
+acquireStable({ id = 100 })
+assert(stableContainer.candidateWrites == 2,
+    "shrinking candidates must park only the two removed slots")
+for _ = 1, 100 do acquireStable({ id = 100 }) end
+assert(stableContainer.candidateWrites == 2,
+    "already parked surplus slots must not force rebuilds on later layouts")
+acquireStable(stableEntry)
+assert(stableContainer.candidateWrites == 4,
+    "restoring candidates must reactivate both parked slots even with their previous spell IDs")
+for i, id in ipairs({ 100, 101, 102 }) do
+    assert(stableContainer.filters[stableRecord.slots[i].key].includeSpellIDs[id],
+        "restored slots must match the current aura candidates")
+end
+acquireStable({ id = 100, linkedSpellIDs = { 101, 103 } })
+assert(stableContainer.candidateWrites == 5
+    and stableContainer.filters[stableRecord.slots[3].key].includeSpellIDs[103],
+    "an in-place candidate edit must update only the changed native slot")
+stable:BeginPass(stableOwner)
+stable:EndPass(stableOwner)
+assert(stableContainer.candidateWrites == 8, "retiring a record must park all three active slots")
+assert(acquireStable(stableEntry, "recycled") == stableRecord,
+    "retired records must remain reusable under another placement key")
+assert(stableContainer.candidateWrites == 11,
+    "recycled records must restore every parked candidate, including unchanged spell IDs")
+for i, id in ipairs({ 100, 101, 102 }) do
+    assert(stableContainer.filters[stableRecord.slots[i].key].includeSpellIDs[id],
+        "recycled native slots must display the new placement's candidates")
+end
 
 print("OK: cdm_managed_aura_mirrors_test")

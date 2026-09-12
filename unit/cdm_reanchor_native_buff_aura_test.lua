@@ -2,6 +2,7 @@ local ns = {}
 local containers, slots = {}, {}
 local apiAccesses = 0
 local animationsCreated, pointsCreated, animationPlays = 0, 0, 0
+local candidateWrites = 0
 local combat = false
 AnchorUtil = { FlowLayoutAxis = { Horizontal = 0, Vertical = 1 },
     FlowDirection = { Right = 1, Left = -1, Up = 1, Down = -1 } }
@@ -18,6 +19,7 @@ local function Frame(layoutRestricted)
         Show = function(self) self.shown = true end,
         Hide = function(self) self.shown = false end,
         SetSize = function(self, width, height) self.width, self.height = width, height end,
+        GetSize = function(self) return self.width, self.height end,
         ClearAllPoints = function(self) self.point = nil end,
         SetPoint = function(self, point, relative, ...)
             assert(not relative.layoutRestricted or self.layoutRestricted,
@@ -71,7 +73,9 @@ CreateFrame = function(kind, _, parent, template)
         frame.groups = {}
         frame.SetFlowLayoutAxis = function(self, value) self.axis = value end
         frame.SetFlowLayoutAnchorPoint = function(self, value) self.anchor = value end
-        frame.SetFlowLayoutGrowthDirection = function() end
+        frame.SetFlowLayoutGrowthDirection = function(self, horizontal, vertical)
+            self.flowHorizontal, self.flowVertical = horizontal, vertical
+        end
         frame.SetFlowLayoutMaximumLineSize = function() end
         frame.SetAuraGroupLayout = function(self, key, layout) self.groups[key].options.layout = layout end
         frame.GetWidth = function() error("native width is secret") end
@@ -93,6 +97,7 @@ CreateFrame = function(kind, _, parent, template)
         end
         frame.SetAuraGroupCandidateFilters = function(self, key, filters)
             assert(not combat, "native aura candidates must not change in combat")
+            candidateWrites = candidateWrites + 1
             self.groups[key].options.candidateFilters = filters
         end
         frame.SetAuraGroupMaxFrameCount = function(self, key, count) self.groups[key].options.maxFrameCount = count end
@@ -107,7 +112,8 @@ ns._OwnedGlows = { ResolveGlowForEntry = function()
     return { glowType = "Pixel Glow", lines = 2, thickness = 3 }
 end }
 ns.Helpers = {}
-ns.AuraSkin = { WireButton = function() end }
+assert(loadfile("core/aura_skin.lua"))("QUI", ns)
+ns.AuraSkin.WireButton = function() end
 ns.CDMSpellData = { GetCapturedAuraForLookup = function() error("captured aura state is removed") end }
 for _, name in ipairs({ "cdm_managed_aura_mirrors", "cdm_custom_aura_runs", "cdm_reanchor_realenv", "cdm_reanchor", "cdm_reanchor_runtime", "cdm_placement_planner" }) do
     assert(loadfile("QUI_CDM/cdm/" .. name .. ".lua"))("QUI", ns)
@@ -194,14 +200,21 @@ function CreateFromMixins(mixin)
 end
 function GetValueOrCallFunction(owner, key) return owner[key] end
 assert((loadstring or load)(flowSource:sub((assert(flowSource:find("AnchorUtil.FlowLayoutAxis =", 1, true))))))()
+local nativeFlowFile = assert(io.open("tests/framexml/Interface/AddOns/Blizzard_AuraContainer/Blizzard_CustomAuraContainer.lua"))
+local nativeFlowSource = nativeFlowFile:read("*a")
+nativeFlowFile:close()
+secretwrap = function(...) return ... end
+assert((loadstring or load)(nativeFlowSource:sub((assert(nativeFlowSource:find(
+    "CustomAuraContainerFlowLayoutMixin =", 1, true))))))()
 local function layoutNative(host, active)
-    local flow = AnchorUtil.CreateFlowLayout()
+    local flow = CreateFromMixins(_G.CustomAuraContainerFlowLayoutMixin)
+    flow:Init()
     flow:SetLayoutAxis(host.axis)
     flow:SetAnchorPoint(host.anchor)
-    function flow:GetElementSize(_, _, group) return group.elementWidth, group.elementHeight end
+    flow:SetGrowthDirection(host.flowHorizontal, host.flowVertical)
     local groups = {}
     for _, slot in ipairs(slots) do
-        if slot.container == host then
+        if slot.container == host and slot.options.maxFrameCount > 0 then
             local group = {}
             for key, value in pairs(slot.options.layout) do group[key] = value end
             local include = slot.options.candidateFilters.includeSpellIDs
@@ -357,15 +370,16 @@ assert(preparedC.host.groups[preparedC.key].options.candidateFilters.includeSpel
     "combat reuse must retain the entry's prepared candidate filter")
 combat = false
 local regrouped = layoutCombatEntries()
-assert(regrouped[1].auraMirror.host == regrouped[2].auraMirror.host,
-    "out-of-combat layout may regroup adjacent native auras")
-local sharedHost = regrouped[1].auraMirror.host
+assert(regrouped[1].auraMirror.host ~= regrouped[2].auraMirror.host,
+    "a filtered Blizzard entry must preserve the native run boundary")
+local leadingHost = regrouped[1].auraMirror.host
 combat = true
 nativeB.active = true
 local expanded = layoutCombatEntries()
-assert(expanded[1].auraMirror.host == sharedHost and expanded[3].auraMirror.host == sharedHost)
-assert(sharedHost.point[2] == owner,
-    "a prepared native host must be positioned once when a middle native icon reappears")
+assert(expanded[1].auraMirror.host == leadingHost
+    and expanded[3].auraMirror.host ~= leadingHost)
+assert(leadingHost.point[2] == owner,
+    "the leading native host must keep its container anchor when a middle native icon reappears")
 combat = false
 print("OK: combat native aura records retain identity across native icon visibility changes")
 
@@ -390,3 +404,262 @@ for _, case in ipairs({
         "Blizzard layout repairs must reassert the safe container anchor")
 end
 print("OK: mixed buff rows preserve safe anchors in all growth directions")
+
+layoutCombatEntries()
+local candidateWritesBefore = candidateWrites
+for _ = 1, 100 do layoutCombatEntries() end
+assert(candidateWrites == candidateWritesBefore,
+    "unchanged native buff layout must not request full aura rebuilds: " .. (candidateWrites - candidateWritesBefore))
+auraA.linkedSpellIDs = { 910004 }
+local updated = layoutCombatEntries()
+local record = updated[1].auraMirror
+assert(record.host.groups[record.key].options.candidateFilters.includeSpellIDs[910004],
+    "in-place linked-spell changes must update native matching")
+auraA.linkedSpellIDs = nil
+layoutCombatEntries()
+assert(not record.host.groups[record.key].options.candidateFilters.includeSpellIDs[910004],
+    "removed linked spells must stop matching")
+print("OK: unchanged native buff layouts skip full aura rebuild requests")
+
+assert(loadfile("QUI_CDM/cdm/cdm_layout.lua"))("QUI", ns)
+local function anchorFactors(anchor)
+    return anchor:find("LEFT") and -.5 or anchor:find("RIGHT") and .5 or 0,
+        anchor:find("BOTTOM") and -.5 or anchor:find("TOP") and .5 or 0
+end
+local function worldCenter(frame)
+    if frame == owner then return 0, 0 end
+    local point = assert(frame.point)
+    local x, y = worldCenter(point[2])
+    local ax, ay = anchorFactors(point[1])
+    local bx, by = anchorFactors(point[3])
+    return x + bx * (point[2].width or 0) + (point[4] or 0) - ax * (frame.width or 0),
+        y + by * (point[2].height or 0) + (point[5] or 0) - ay * (frame.height or 0)
+end
+local function verifyPlannedNativeGeometry(label)
+    assert(env.beginAuraMirrorPass(owner))
+    local result = runtime:AssembleEntries("buff", {}, settings)
+    local plan = ns.CDMLayout.BuildIconLayout(settings, result)
+        or ns.CDMLayout.BuildBuffGridLayout(settings, result)
+    runtime:PositionEntries(owner, plan, "buff")
+    env.endAuraMirrorPass(owner)
+    local active = {}
+    for _, entry in ipairs(curated) do active[entry.id] = true end
+    for _, host in ipairs(containers) do
+        if host.enabled then layoutNative(host, active) end
+    end
+    for _, placement in ipairs(plan.placements) do
+        local wrapper = placement.icon
+        if wrapper.auraMirror then
+            local button = wrapper.auraMirror.frames[1]
+            local x, y = worldCenter(button)
+            assert(math.abs(x - placement.x) < .001 and math.abs(y - placement.y) < .001,
+                string.format("%s: planned (%g,%g), native (%g,%g)", label, placement.x, placement.y, x, y))
+            local rc = placement.rowConfig
+            assert(button.width == rc.size and button.height == rc.size / rc.aspectRatioCrop,
+                label .. ": native size must match planned size")
+        end
+    end
+    return result, plan
+end
+settings.iconDisplayMode = "active"
+curated = { auraA, auraC }
+matched, frameless = {}, curated
+settings.row1 = { iconCount = 2, iconSize = 32, padding = 2 }
+for _, case in ipairs({ { "HORIZONTAL", "UP" }, { "VERTICAL", "CENTERED_HORIZONTAL" } }) do
+    settings.layoutDirection, settings.growthDirection = case[1], case[2]
+    verifyPlannedNativeGeometry(case[1] .. ":" .. case[2])
+end
+settings.layoutDirection, settings.growthDirection = "HORIZONTAL", "CENTERED_HORIZONTAL"
+curated = { auraA, auraC, { id = 910005, type = "spell", kind = "aura" } }
+frameless = curated
+for _, alignment in ipairs({ "RIGHT", "LEFT", "CENTER" }) do
+    settings.row2 = { iconCount = 1, iconSize = 24, padding = 4, growDirection = alignment, xOffset = 7, yOffset = 3 }
+    verifyPlannedNativeGeometry("row alignment " .. alignment)
+end
+settings.row1, settings.row2, settings.layoutDirection = nil, nil, nil
+curated = { auraA, auraC }
+frameless = curated
+for _, direction in ipairs({ "RIGHT", "LEFT", "UP", "DOWN" }) do
+    settings.growthDirection = direction
+    verifyPlannedNativeGeometry("grid " .. direction)
+end
+settings.aspectRatioCrop = .5
+local _, aspectPlan = verifyPlannedNativeGeometry("portrait buff grid")
+assert(aspectPlan.rows[1].size == 16 and aspectPlan.metrics.iconWidth == 16
+    and aspectPlan.metrics.totalHeight == 66, "portrait buff grid must retain planned container bounds")
+settings.aspectRatioCrop = nil
+settings.growthDirection = "CENTERED_HORIZONTAL"
+curated = { auraA, nativeBEntry, auraC }
+matched, frameless = { { entry = nativeBEntry, frame = nativeB } }, { auraA, auraC }
+nativeB:SetSize(32, 32)
+nativeB.active = false
+verifyPlannedNativeGeometry("Blizzard entry absent")
+combat, nativeB.active = true, true
+verifyPlannedNativeGeometry("Blizzard entry reappears in combat")
+combat = false
+print("OK: native aura world coordinates match planned rows, directions, aspect and combat transitions")
+
+local function configureMixed(count)
+    curated, matched, frameless = {}, {}, {}
+    local blizzard = {}
+    for i = 1, count do
+        local entry = { id = 950000 + i, type = "spell", kind = "aura" }
+        curated[i] = entry
+        if i % 2 == 1 then
+            entry.source = "blizzardCDM"
+            local frame = Frame()
+            frame.active = true
+            frame:SetSize(32, 32)
+            matched[#matched + 1] = { entry = entry, frame = frame }
+            blizzard[#blizzard + 1] = frame
+        else
+            frameless[#frameless + 1] = entry
+        end
+    end
+    return blizzard
+end
+local function sparseLayout(active)
+    assert(env.beginAuraMirrorPass(owner))
+    local result = runtime:AssembleEntries("buff", {}, settings)
+    local original = {}
+    for i, wrapper in ipairs(result) do original[i] = wrapper end
+    local plan = ns.CDMLayout.BuildIconLayout(settings, result)
+        or ns.CDMLayout.BuildBuffGridLayout(settings, result)
+    for i, wrapper in ipairs(result) do
+        assert(wrapper == original[i], "tail partition must not mutate the assembled source list")
+    end
+    runtime:PositionEntries(owner, plan, "buff")
+    env.endAuraMirrorPass(owner)
+    for _, host in ipairs(containers) do
+        if host.enabled then layoutNative(host, active) end
+    end
+    local byID = {}
+    for _, wrapper in ipairs(result) do byID[wrapper.src.id] = wrapper end
+    return byID, plan
+end
+local function assertCenter(frame, x, y, label)
+    local actualX, actualY = worldCenter(frame)
+    assert(math.abs(actualX - x) < .001 and math.abs(actualY - y) < .001,
+        string.format("%s: expected (%g,%g), got (%g,%g)", label, x, y, actualX, actualY))
+end
+settings = { iconDisplayMode = "active", iconSize = 32, padding = 2 }
+local blizzard = configureMixed(5)
+for _, direction in ipairs({ "RIGHT", "LEFT", "UP", "DOWN" }) do
+    settings.growthDirection = direction
+    local vertical = direction == "UP" or direction == "DOWN"
+    local sign = (direction == "LEFT" or direction == "DOWN") and -1 or 1
+    local function along(frame, offset, label)
+        assertCenter(frame, vertical and 0 or offset * sign, vertical and offset * sign or 0,
+            direction .. ": " .. label)
+    end
+    local wrappers, plan = sparseLayout({})
+    assert(plan.metrics.iconWidth == (vertical and 32 or 100)
+        and plan.metrics.totalHeight == (vertical and 100 or 32),
+        direction .. ": mixed bounds must use the dense Blizzard row")
+    for i, frame in ipairs(blizzard) do
+        along(frame, (i - 2) * 34, "inactive custom buffs must not reserve Blizzard slots")
+        assert(frame.point[2] == owner, "Blizzard frames must retain safe container anchors")
+    end
+    local first = wrappers[950002].auraMirror
+    local second = wrappers[950004].auraMirror
+    assert(first.host ~= second.host, "moving custom buffs to the tail must preserve prepared run identity")
+    assert(wrappers[950002].auraMirrorOptions.order == 2
+        and wrappers[950004].auraMirrorOptions.order == 4, "tail order must retain curated source indices")
+    wrappers = sparseLayout({ [950002] = true, [950004] = true })
+    along(wrappers[950002].auraMirror.frames[1], 68, "first active custom buff follows Blizzard tail")
+    along(wrappers[950004].auraMirror.frames[1], 102, "second active custom buff follows native tail")
+    wrappers = sparseLayout({ [950004] = true })
+    along(wrappers[950004].auraMirror.frames[1], 68, "inactive custom tail leaves no gap")
+    for i, frame in ipairs(blizzard) do along(frame, (i - 2) * 34, "custom presence preserves Blizzard positions") end
+end
+print("OK: sparse mixed buffs retain 2px gaps and dense safe Blizzard bounds in all grid directions")
+
+settings.growthDirection = "RIGHT"
+local preparedMixed = sparseLayout({ [950002] = true, [950004] = true })
+local firstPrepared = preparedMixed[950002].auraMirror
+local secondPrepared = preparedMixed[950004].auraMirror
+combat = true
+for _, frame in ipairs(blizzard) do frame.active = false end
+local onlyCustom, onlyCustomPlan = sparseLayout({ [950004] = true })
+assert(onlyCustom[950002].auraMirror == firstPrepared and onlyCustom[950004].auraMirror == secondPrepared,
+    "combat disappearance must reuse both prepared custom records")
+assert(onlyCustomPlan.metrics.iconWidth == 66, "custom-only rows retain their configured capacity bounds")
+assertCenter(onlyCustom[950004].auraMirror.frames[1], -17, 0,
+    "empty leading custom group must collapse after all Blizzard buffs disappear")
+for _, frame in ipairs(blizzard) do frame.active = true end
+local restoredMixed = sparseLayout({ [950004] = true })
+assert(restoredMixed[950002].auraMirror == firstPrepared and restoredMixed[950004].auraMirror == secondPrepared,
+    "combat reappearance must reuse both prepared custom records")
+for i, frame in ipairs(blizzard) do assertCenter(frame, (i - 2) * 34, 0, "combat reappearance dense Blizzard row") end
+assertCenter(restoredMixed[950004].auraMirror.frames[1], 68, 0, "combat reappearance sparse custom tail")
+combat = false
+print("OK: sparse mixed tails survive all Blizzard buffs disappearing and reappearing in combat")
+
+blizzard = configureMixed(6)
+blizzard[3]:SetSize(24, 24)
+settings.layoutDirection = "HORIZONTAL"
+settings.row1 = { iconCount = 3, iconSize = 32, padding = 2 }
+settings.row2 = { iconCount = 3, iconSize = 24, padding = 4, xOffset = 7, yOffset = 3 }
+local rowWrappers, rowPlan = sparseLayout({ [950006] = true })
+assertCenter(blizzard[1], -17, 13, "first row first Blizzard buff")
+assertCenter(blizzard[2], 17, 13, "first row second Blizzard buff")
+assertCenter(blizzard[3], 7, -14, "second row Blizzard buff keeps row offsets")
+assertCenter(rowWrappers[950006].auraMirror.frames[1], 35, -14, "second row sparse tail keeps 4px padding")
+assert(rowPlan.metrics.iconWidth == 66 and rowPlan.metrics.totalHeight == 58,
+    "mixed row bounds must retain row heights while excluding custom tail capacity")
+local expectedRows = { [950001] = 1, [950002] = 1, [950003] = 1, [950004] = 2, [950005] = 2, [950006] = 2 }
+for _, placement in ipairs(rowPlan.placements) do
+    local expected = expectedRows[placement.icon.src.id]
+    assert(placement.rowConfig.rowNum == expected, "tail partition must preserve original row assignment")
+    if placement.icon.auraMirror then
+        local button = placement.icon.auraMirror.frames[1]
+        assert(button.width == (expected == 1 and 32 or 24), "custom tail must retain row icon size")
+    end
+end
+assert(apiAccesses == 0, "sparse packing must leave native aura presence and geometry opaque")
+print("OK: mixed tail partition preserves row assignment, style, offsets, and native ownership")
+
+settings = { iconDisplayMode = "active", iconSize = 32, padding = 2, growthDirection = "RIGHT" }
+blizzard = configureMixed(5)
+local layoutEnv = ns.CDMReanchorRealEnv.BuildEnv({
+    CDMContainers = { GetContainer = function() return owner end },
+    getSettings = function() return settings end,
+})
+runtime._deps.getContainer = layoutEnv.getContainer
+runtime._deps.getSettings = layoutEnv.getSettings
+runtime._deps.buildLayout = layoutEnv.buildLayout
+runtime._deps.buildBuffLayout = layoutEnv.buildBuffLayout
+runtime._deps.beginAuraMirrorPass = env.beginAuraMirrorPass
+runtime._deps.endAuraMirrorPass = env.endAuraMirrorPass
+local refreshMetrics
+runtime._deps.applySize = function(_, metrics) refreshMetrics = metrics end
+runtime._wiring.GetViewerForKey = function() return owner end
+runtime._wiring.BuildFrameMap = function() return {}, {} end
+assert(runtime:RefreshContainer("buff") == 5)
+assert(refreshMetrics.iconWidth == 100, "realenv grid fallback must apply dense Blizzard metrics during refresh")
+for i, frame in ipairs(blizzard) do assertCenter(frame, (i - 2) * 34, 0, "refresh uses compact grid plan") end
+settings.row1 = { iconCount = 5, iconSize = 32, padding = 2 }
+assert(runtime:RefreshContainer("buff") == 5)
+assert(refreshMetrics.iconWidth == 100, "realenv row planner must apply dense Blizzard metrics during refresh")
+for i, frame in ipairs(blizzard) do assertCenter(frame, (i - 2) * 34, 0, "refresh uses compact row plan") end
+print("OK: real RefreshContainer dispatch uses compact row and grid plans")
+
+for _, mode in ipairs({ "always", "combat", "preview" }) do
+    settings.iconDisplayMode = mode == "preview" and "active" or mode
+    combat = mode == "combat"
+    runtime._deps.isEditMode = function() return mode == "preview" end
+    local reserved = runtime:AssembleEntries("buff", {}, settings)
+    for _, build in ipairs({ ns.CDMLayout.BuildIconLayout, ns.CDMLayout.BuildBuffGridLayout }) do
+        local plan = build(settings, reserved)
+        assert(plan.metrics.iconWidth == 168, mode .. ": reserved icons retain configured bounds")
+        for i, placement in ipairs(plan.placements) do
+            assert(placement.icon.src == curated[i], mode .. ": reserved icons retain configured mixed order")
+            assert(not placement.icon.auraMirrorOptions or not placement.icon.auraMirrorOptions.dynamic,
+                mode .. ": reserved icons must not opt into dynamic tails")
+        end
+    end
+end
+combat = false
+runtime._deps.isEditMode = nil
+assert(apiAccesses == 0, "refresh and reserved layouts must not query native aura state")
+print("OK: always, combat-reserved, and preview layouts preserve configured mixed slots")

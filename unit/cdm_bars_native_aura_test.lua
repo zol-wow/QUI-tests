@@ -1,6 +1,7 @@
 local function noop() end
 local inCombat = false
 local auraContainers = {}
+local candidateWrites = 0
 local aurasSecret = false
 C_Secrets = { ShouldAurasBeSecret = function() return aurasSecret end }
 local methods = {}
@@ -72,6 +73,7 @@ function methods:AddAuraSlot(key, filter, options)
 end
 function methods:SetAuraGroupMaxFrameCount(key, count) self.groups[key].options.maxFrameCount = count end
 function methods:SetAuraGroupCandidateFilters(key, filters)
+    candidateWrites = candidateWrites + 1
     self.groups[key].options.candidateFilters = filters
 end
 methods.SetAuraSlotCandidateFilters = methods.SetAuraGroupCandidateFilters
@@ -140,6 +142,7 @@ local ns = {
         end,
     },
 }
+assert(loadfile("core/aura_skin.lua"))("QUI", ns)
 assert(loadfile("QUI_CDM/cdm/cdm_managed_aura_mirrors.lua"))("QUI", ns)
 assert(loadfile("QUI_CDM/cdm/cdm_custom_aura_runs.lua"))("QUI", ns)
 assert(loadfile("QUI_CDM/cdm/cdm_bar_renderer.lua"))("QUI", ns)
@@ -416,3 +419,26 @@ for _ = 1, 2 do
     assert(not combatPlaceholder.shown, "combat exit must hide inactive combat-only placeholders")
 end
 print("OK: native bar combat transition visibility")
+
+inCombat = false
+local stableContainer = CreateFrame("Frame")
+local stableEntries = { aura(1237205, "custom4"), automaticItem }
+local function refreshStableBars()
+    bars:Refresh(stableContainer, settings, nil, "custom4", nil, stableEntries)
+end
+refreshStableBars()
+refreshStableBars()
+local candidateWritesBefore = candidateWrites
+for _ = 1, 100 do refreshStableBars() end
+assert(candidateWrites == candidateWritesBefore,
+    "unchanged aura bars and item overlays must not request full aura rebuilds: " .. (candidateWrites - candidateWritesBefore))
+stableEntries[1].linkedSpellIDs = { 910004 }
+refreshStableBars()
+local nativeRun = bars:GetActiveBars("custom4")[1]._nativeAuraRun
+assert(nativeRun.container.groups.bar1.options.candidateFilters.includeSpellIDs[910004],
+    "bar candidate changes must update matching")
+stableEntries[1].linkedSpellIDs = nil
+refreshStableBars()
+assert(not nativeRun.container.groups.bar1.options.candidateFilters.includeSpellIDs[910004],
+    "bar candidate removals must update matching")
+print("OK: unchanged native bars and overlays skip full aura rebuild requests")
