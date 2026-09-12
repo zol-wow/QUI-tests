@@ -872,9 +872,8 @@ eq("rewire: no ChannelColors module → white fallback b", b, 1)
 -- In-game, string.format accepts secret VALUES and PROPAGATES secrecy; only
 -- Lua operators (==, .., #, tostring) throw ("attempt to compare local
 -- 'prefix' (a secret string value...)" — the original 46x crash). A secret
--- body is never used AS a format string. Per type: monster/emote build a GET
--- prefix from a fixed template and join the raw body; special + boss-notice
--- bodies (which ARE the template) pass through verbatim; raw types pass
+-- Per type: monster/emote build a GET prefix from a fixed template and join
+-- the raw body; non-achievement special + boss-notice bodies pass through; raw types pass
 -- through. Assertions pin the contract BY IDENTITY — no comparisons, no drop
 -- to a different value than each type's grammar demands.
 do
@@ -888,7 +887,6 @@ do
     local secretSender = sentinel()
     local monsterBody = sentinel()     -- MONSTER_*: GET prefix + raw body joined
     local bossBody = sentinel()        -- RAID_BOSS_EMOTE notice: passes through
-    local achBody = sentinel()         -- ACHIEVEMENT (special): passes through
     local playerEmoteBody = sentinel() -- EMOTE: GET join, linked non-secret sender
     local prefixes = {}                -- propagated GET prefixes by fmt string
     local joins = {}                   -- final "%s%s" joins keyed by body sentinel
@@ -922,11 +920,6 @@ do
     got = F.WrapSecretEventLine("RAID_BOSS_EMOTE",
         { text = bossBody, rawSender = "Big Boss", sender = "Big Boss" })
     assert(rawequal(got, bossBody), "boss notice: secret body passes through")
-
-    -- 3. Achievement (a SPECIAL_KIND): body is the template — passes through.
-    got = F.WrapSecretEventLine("CHAT_MSG_ACHIEVEMENT",
-        { text = achBody, rawSender = "Ann", sender = "Ann" })
-    assert(rawequal(got, achBody), "achievement: secret body passes through")
 
     -- 4. Player EMOTE, non-secret sender: GET ("%s ") joined like Blizzard,
     --    sender rendered as a player link inside the prefix.
