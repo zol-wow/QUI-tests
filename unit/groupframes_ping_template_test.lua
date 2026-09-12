@@ -73,8 +73,7 @@ check("SendUnitPing requires untainted arguments",
 local gf = readAll("QUI_GroupFrames/groupframes/groupframes.lua")
 local expectSites = {
     { "party header",      'partyHeader:SetAttribute("template", "SecureUnitButtonTemplate,BackdropTemplate,PingableUnitFrameTemplate")' },
-    { "raid header",       'raidHeader:SetAttribute("template", "SecureUnitButtonTemplate,BackdropTemplate,PingableUnitFrameTemplate")' },
-    { "raid group header", 'groupHeader:SetAttribute("template", "SecureUnitButtonTemplate,BackdropTemplate,PingableUnitFrameTemplate")' },
+    { "shared raid header constructor", 'header:SetAttribute("template", "SecureUnitButtonTemplate,BackdropTemplate,PingableUnitFrameTemplate")' },
     { "self header",       'selfHeader:SetAttribute("template", "SecureUnitButtonTemplate,BackdropTemplate,PingableUnitFrameTemplate")' },
     { "spotlight header",  'header:SetAttribute("template", "SecureUnitButtonTemplate,BackdropTemplate,PingableUnitFrameTemplate")' },
 }
@@ -94,8 +93,8 @@ while true do
     pingReceiverCount = pingReceiverCount + 1
     searchAt = hit + #pingTemplateLiteral
 end
-check("exactly five GroupFrames header template sites are ping receivers",
-    pingReceiverCount == 5, "found " .. pingReceiverCount)
+check("all four GroupFrames header template sites are ping receivers",
+    pingReceiverCount == 4, "found " .. pingReceiverCount)
 
 -------------------------------------------------------------------------------
 -- QUI's mirror is side state only. Exercise the real accessor bodies and prove
