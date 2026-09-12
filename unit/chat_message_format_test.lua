@@ -504,7 +504,74 @@ eq("bn kstring target", F.BuildEventLine("CHAT_MSG_BN_WHISPER_INFORM",
         { text = "yo", sender = "|Kj27|k", bnID = 77, lineID = 4242 }),
     "[W:To] |HBNplayer:|Kj27|k:77:4242:BN_WHISPER:|Kj27|k|h[|Kj27|k]|h: yo")
 
--- Absent text -> nil (capture guards non-empty strings; nothing to render)
+do
+    local values = {}
+    local function restricted(value)
+        local token = setmetatable({}, { __tostring = explode, __concat = explode, __index = explode })
+        secrets[token], values[token] = true, value
+        return token
+    end
+    local realFormat = string.format
+    string.format = function(fmt, ...)
+        local args, hidden = {}, false
+        for i = 1, select("#", ...) do
+            local value = select(i, ...)
+            if secrets[value] then
+                args[i], hidden = assert(values[value]), true
+            else
+                args[i] = value
+            end
+        end
+        local result = realFormat(fmt, unpack(args, 1, select("#", ...)))
+        if hidden then return restricted(result) end
+        return result
+    end
+    local saved = {}
+    for _, key in ipairs({ "LinkTypes", "LinkUtil", "BNIsFriend", "IsModifiedClick" }) do
+        saved[key] = _G[key]
+    end
+    _G.LinkTypes = setmetatable({}, { __index = function(_, key) return key end })
+    local handlers = {}
+    _G.LinkUtil = { RegisterLinkHandler = function(key, fn) handlers[key] = fn end }
+    _G.BNIsFriend = function() return true end
+    _G.IsModifiedClick = function() return false end
+    local oldSplit = _G.string.split
+    _G.string.split = function(delimiter, text)
+        local parts = {}
+        for part in (text .. delimiter):gmatch("(.-)" .. delimiter) do parts[#parts + 1] = part end
+        return unpack(parts)
+    end
+    assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Shared/ItemRefHandlersShared.lua"))()
+    local oldSend = _G.ChatFrameUtil.SendBNetTell
+    local recipient = "PreviousCharacter-Realm"
+    _G.ChatFrameUtil.SendBNetTell = function(name) recipient = name end
+    for _, event in ipairs({ "CHAT_MSG_BN_WHISPER", "CHAT_MSG_BN_WHISPER_INFORM" }) do
+        for _, scenario in ipairs({ {true, true, true}, {true, true, false},
+            {true, false, false}, {false, true, false}, {false, true, true} }) do
+            for id, name in ipairs({ "|Kj27|k", "|Kj28|k" }) do
+                local sender = scenario[1] and restricted(name) or name
+                local account = scenario[2] and restricted(id + 70) or id + 70
+                local body = scenario[3] and restricted("hello") or "hello"
+                local line = F.BuildEventLineFromArgs(event, body, sender,
+                    nil, nil, nil, nil, nil, nil, nil, nil, 4242, nil, account)
+                local rendered = values[line] or line
+                local options = rendered and rendered:match("|HBNplayer:(.-)|h")
+                assert(options, "restricted BNet identity must use native BNplayer routing without a character GUID")
+                assert(options:find(name .. ":" .. (id + 70) .. ":4242:", 1, true) == 1,
+                    "BNet link must preserve the current sender and account ID")
+                handlers[_G.LinkTypes.BNPlayer]("BNplayer:" .. options, name,
+                    { type = _G.LinkTypes.BNPlayer, options = options }, { button = "LeftButton" })
+                assert(recipient == name, "native BNet handler must select the current clicked sender")
+            end
+        end
+    end
+    _G.ChatFrameUtil.SendBNetTell = oldSend
+    string.format, _G.string.split = realFormat, oldSplit
+    for _, key in ipairs({ "LinkTypes", "LinkUtil", "BNIsFriend", "IsModifiedClick" }) do
+        _G[key] = saved[key]
+    end
+end
+
 eq("nil text", F.BuildEventLine("CHAT_MSG_SAY", { sender = "Ann" }), nil)
 
 -- Raw event entrypoint: formatter owns raw CHAT_MSG args and returns both the
@@ -805,9 +872,8 @@ eq("rewire: no ChannelColors module → white fallback b", b, 1)
 -- In-game, string.format accepts secret VALUES and PROPAGATES secrecy; only
 -- Lua operators (==, .., #, tostring) throw ("attempt to compare local
 -- 'prefix' (a secret string value...)" — the original 46x crash). A secret
--- body is never used AS a format string. Per type: monster/emote build a GET
--- prefix from a fixed template and join the raw body; special + boss-notice
--- bodies (which ARE the template) pass through verbatim; raw types pass
+-- Per type: monster/emote build a GET prefix from a fixed template and join
+-- the raw body; non-achievement special + boss-notice bodies pass through; raw types pass
 -- through. Assertions pin the contract BY IDENTITY — no comparisons, no drop
 -- to a different value than each type's grammar demands.
 do
@@ -821,7 +887,6 @@ do
     local secretSender = sentinel()
     local monsterBody = sentinel()     -- MONSTER_*: GET prefix + raw body joined
     local bossBody = sentinel()        -- RAID_BOSS_EMOTE notice: passes through
-    local achBody = sentinel()         -- ACHIEVEMENT (special): passes through
     local playerEmoteBody = sentinel() -- EMOTE: GET join, linked non-secret sender
     local prefixes = {}                -- propagated GET prefixes by fmt string
     local joins = {}                   -- final "%s%s" joins keyed by body sentinel
@@ -855,11 +920,6 @@ do
     got = F.WrapSecretEventLine("RAID_BOSS_EMOTE",
         { text = bossBody, rawSender = "Big Boss", sender = "Big Boss" })
     assert(rawequal(got, bossBody), "boss notice: secret body passes through")
-
-    -- 3. Achievement (a SPECIAL_KIND): body is the template — passes through.
-    got = F.WrapSecretEventLine("CHAT_MSG_ACHIEVEMENT",
-        { text = achBody, rawSender = "Ann", sender = "Ann" })
-    assert(rawequal(got, achBody), "achievement: secret body passes through")
 
     -- 4. Player EMOTE, non-secret sender: GET ("%s ") joined like Blizzard,
     --    sender rendered as a player link inside the prefix.

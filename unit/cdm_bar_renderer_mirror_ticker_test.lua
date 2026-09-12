@@ -68,6 +68,7 @@ local mirrorFrame = assert(createdFrames[2], "paired mirror ticker frame was not
 assert(type(mirrorFrame.onUpdate) == "function", "mirror ticker has no OnUpdate script")
 
 local pool = bars:GetActiveBars()
+local barState = { key = "trackedBar", bars = pool }
 local function resetPool()
     for i = #pool, 1, -1 do pool[i] = nil end
 end
@@ -95,6 +96,8 @@ local function newQUIBar(cooldownID, blzChild)
     local written = {}
     local bar = {
         _isOwnedBar = true,
+        _barState = barState,
+        _barIndex = 1,
         _spellID = 315508,
         _spellEntry = { id = 315508, spellID = 315508, viewerType = "trackedBar" },
         _blzCooldownID = cooldownID,
@@ -230,8 +233,10 @@ assert(mirrorFrame.shown == true,
     "pairing a bar must arm the ticker regardless of active state -- arming only when active leaves it dark")
 
 local layoutContainer, layoutSettings = {}, {}
-assert(setUpvalue(mirrorFrame.onUpdate, "_lastContainer", layoutContainer))
-assert(setUpvalue(mirrorFrame.onUpdate, "_lastSettings", layoutSettings))
+barState.container, barState.settings = layoutContainer, layoutSettings
+assert(setUpvalue(mirrorFrame.onUpdate, "poolsByKey", {
+    trackedBar = barState,
+}))
 local layoutCalls = 0
 bars.LayoutBars = function(_, container, settings)
     assert(container == layoutContainer and settings == layoutSettings)

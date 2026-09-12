@@ -131,6 +131,7 @@ assert(loadfile("QUI_Chat/chat/message_capture.lua"))("QUI", ns)
 ns.QUI.Chat.TabManager = {
     GetWindowsConfig = function() return settings.customDisplay.windows end,
 }
+assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_ChatFrameBase/Shared/ChatFrame.lua"))()
 assert(loadfile("QUI_Chat/chat/display_layer.lua"))("QUI", ns)
 assert(loadfile("QUI_Chat/chat/tab_manager.lua"))("QUI", ns)
 assert(loadfile("QUI_Chat/chat/display_fallback.lua"))("QUI", ns)

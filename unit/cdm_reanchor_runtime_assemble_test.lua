@@ -231,7 +231,7 @@ do
     assert(diag.seq == 1, "diag: per-container pass sequence")
     assert(diag.displayMode == "active" and diag.filterInactive == true,
         "diag: display mode + active filter recorded")
-    assert(diag.auraProbe == true, "diag: aura probe availability recorded")
+    assert(diag.auraProbe == nil, "diag: addon aura probing has been removed")
     assert(diag.curated == 1 and diag.matched == 1 and diag.frameless == 0,
         "diag: curated/matched/frameless classification counts")
     assert(diag.staleNative == 1, "diag: stale-native (matched-but-inactive) count")
