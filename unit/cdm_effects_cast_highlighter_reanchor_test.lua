@@ -232,6 +232,7 @@ local ns = {
 local loadChunk = dofile("tests/helpers/load_cdm_consolidated_chunk.lua")
 loadChunk("QUI_CDM/cdm/cdm_frame_writes.lua", "cdm_effects.lua")("QUI", ns)
 
+sharedOverlay._quiGlowSize = { width = 48, height = 36 }
 local highlighter = assert(ns._OwnedHighlighter, "effects module should publish the highlighter")
 assert(type(highlighter.PrepareActionButton) == "function"
     and type(highlighter.PrepareReanchoredFrame) == "function"
@@ -249,6 +250,8 @@ assert(nativeTarget ~= nativeFrame, "highlight must not target the Blizzard fram
 assert(nativeTarget ~= sharedOverlay, "highlight must not share the proc glow overlay")
 assert(nativeTarget.parent == sharedOverlay, "highlight target should be owned by the reanchor overlay")
 assert(nativeTarget.allPoints == sharedOverlay, "highlight target should cover the reanchor overlay")
+assert(nativeTarget._quiGlowSize == sharedOverlay._quiGlowSize,
+    "cast highlight must retain the live layout dimensions for secret-safe glow arithmetic")
 
 assert(type(highlighter.OnReanchoredFrameRelease) == "function", "highlighter should expose reanchor release cleanup")
 highlighter.OnReanchoredFrameRelease(nativeFrame)
