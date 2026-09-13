@@ -927,6 +927,19 @@ assert(glowRefreshOrder[1] == "layout" and glowRefreshOrder[3] == "glow",
 refreshGlows()
 assert(glowRefreshes == 2 and glowLayouts == 1 and glowPreviews == 2,
     "ordinary glow styling changes must retain their lightweight refresh path")
+local boundGlowSource = assert(settingsSource:match(
+    "(local function RefreshGlowEligibility%(%)%s.-\n    end)"))
+local bindGlow = assert(loadstring("return function(RefreshGlows, containerKey)\n"
+    .. boundGlowSource .. "\nreturn RefreshGlowEligibility\nend"))()
+local refreshBoundGlow = bindGlow(refreshGlows, "custom")
+for _, value in ipairs({ "Pixel Glow", 3, { 1, 0, 0, 1 } }) do
+    refreshBoundGlow(value)
+end
+assert(glowRefreshes == 5 and glowLayouts == 4 and glowPreviews == 5,
+    "glow control values must restyle their bound container, not become container keys")
+assert(settingsSource:find("glowColorKey, effectsCtx.glowDB, RefreshGlowEligibility", 1, true)
+    and settingsSource:find("glowLinesKey, effectsCtx.glowDB, RefreshGlowEligibility", 1, true),
+    "native pandemic color and line controls must relayout their container")
 assert(settingsSource:find(
     "local function RefreshGlowEligibility%(%).-RefreshGlows%(containerKey%).-end"),
     "effect controls must route aura-run eligibility changes through container relayout")
