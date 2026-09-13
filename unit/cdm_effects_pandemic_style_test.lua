@@ -96,8 +96,6 @@ icon._lastAuraDurObj = {
 }
 local proc = {}
 icon._PixelGlow_QUICustomGlow = proc
-glows.activeGlowIcons[icon] = true
-
 glows.UpdatePandemicGlow(icon)
 local call = calls[#calls]
 assert(call and call.profile.cdmActiveGlow.glowType == "Pixel Glow",
@@ -112,13 +110,31 @@ assert(rawequal(icon.PandemicGlow.alpha, remainingAlpha), "secret curve alpha mu
 assert(rawequal(icon.PandemicGlow._quiCDMNativeEffectHost.alpha, zeroAlpha), "secret zero-duration gate must reach child unchanged")
 assert(#curve.points == 3 and curve.points[3][1] == 0.3, "pandemic threshold stays 30 percent")
 
+local styleCalls = #calls
+for _ = 1, 100 do glows.UpdatePandemicGlow(icon) end
+assert(#calls == styleCalls, "unchanged aura updates must reuse pandemic styling before allocating profiles")
+local originalEntry = icon._spellEntry
+icon._spellEntry = { spellID = 101, viewerType = "essential" }
+glows.UpdatePandemicGlow(icon)
+assert(#calls == styleCalls + 1, "a replacement entry must invalidate pandemic styling")
+icon._spellEntry.spellID = 102
+glows.UpdatePandemicGlow(icon)
+assert(#calls == styleCalls + 2, "an entry identity edited in place must invalidate pandemic styling")
+icon.GetSize = function() return 52, 40 end
+glows.UpdatePandemicGlow(icon)
+assert(calls[#calls].profile.iconWidth == 52 and calls[#calls].profile.iconHeight == 40,
+    "resized icons must invalidate pandemic dimensions")
+icon._spellEntry = originalEntry
+
 settings.essentialGlowType = "Autocast Shine"
 spellOverride = { glowColor = { 1, 0, 0, 1 }, glowEnabled = false }
+glows.RefreshAllGlows()
 glows.UpdatePandemicGlow(icon)
 glow = calls[#calls].profile.cdmActiveGlow
 assert(glow.glowType == "Autocast Shine" and glow.color == spellOverride.glowColor,
     "live edits and spell color apply independently of proc suppression")
 
+glows.activeGlowIcons[icon] = true
 settings.essentialPandemicDebuffEnabled = false
 glows.UpdatePandemicGlow(icon)
 assert(icon.PandemicGlow.alpha == 0, "disabled pandemic must be hidden")
@@ -172,6 +188,35 @@ assert(overlayProfile.cdmActiveGlow.lines == 18, "settings refresh propagates up
 assert(icon.PandemicGlow.alphaWrites == ownedWrites and overlay.PandemicGlow.alphaWrites == overlayWrites,
     "restyling must preserve native visibility and secret curve alpha")
 assert(rawequal(icon.PandemicGlow.alpha, remainingAlpha), "refresh preserves secret curve alpha unchanged")
+
+assert(loadfile("QUI_CDM/cdm/cdm_reanchor_hooks.lua"))("QUI", ns)
+local nativeFrame = { entry = icon._spellEntry }
+local bridge = ns.CDMReanchorPandemic.New({
+    getEntryForFrame = function(frame) return frame.entry end,
+    ensureOverlay = function() return overlay end,
+    isPandemicEnabled = glows.IsPandemicEnabledForEntry,
+    startPandemic = glows.ApplyPandemicToOverlay,
+    stopPandemic = glows.ClearPandemicFromOverlay,
+})
+bridge:_OnShowPandemic(nativeFrame)
+settings.essentialPandemicDebuffEnabled = false
+settings.essentialPandemicBuffEnabled = false
+glows.RefreshAllGlows()
+assert(overlay.PandemicGlow.alpha == 0 and not overlay.PandemicGlow._quiPandemicEffects[1].playing,
+    "settings disable must hide and stop an active native pandemic window")
+settings.essentialPandemicDebuffEnabled = true
+glows.RefreshAllGlows()
+bridge:_OnShowPandemic(nativeFrame)
+assert(overlay.PandemicGlow.alpha == 1 and overlay.PandemicGlow._quiPandemicEffects[1].playing,
+    "re-enabling within the same latched native window must restore pandemic glow")
+settings.essentialPandemicDebuffEnabled = false
+glows.RefreshAllGlows()
+bridge:_OnHidePandemic(nativeFrame)
+settings.essentialPandemicDebuffEnabled = true
+glows.RefreshAllGlows()
+assert(overlay.PandemicGlow.alpha == 0 and not overlay.PandemicGlow._quiPandemicEffects[1].playing,
+    "a native window hidden while disabled must not reappear when enabled")
+bridge:_OnShowPandemic(nativeFrame)
 
 glows.DisableRuntime()
 assert(icon.PandemicGlow.alpha == 0 and overlay.PandemicGlow.alpha == 0, "runtime disable hides pandemic-only hosts")
