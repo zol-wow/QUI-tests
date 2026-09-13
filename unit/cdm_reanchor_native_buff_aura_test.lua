@@ -4,6 +4,7 @@ local apiAccesses = 0
 local animationsCreated, pointsCreated, animationPlays = 0, 0, 0
 local candidateWrites = 0
 local combat = false
+local resizeToBounds
 AnchorUtil = { FlowLayoutAxis = { Horizontal = 0, Vertical = 1 },
     FlowDirection = { Right = 1, Left = -1, Up = 1, Down = -1 } }
 C_UnitAuras = setmetatable({}, { __index = function(_, key)
@@ -16,15 +17,20 @@ local function Frame(layoutRestricted)
     return {
         layoutRestricted = layoutRestricted,
         shown = false,
+        children = {}, points = {}, scripts = {},
+        RegisterEvent = function() end,
+        SetScript = function(self, event, script) self.scripts[event] = script end,
+        ResizeToBoundsRect = function(self) resizeToBounds(self) end,
         Show = function(self) self.shown = true end,
         Hide = function(self) self.shown = false end,
         SetSize = function(self, width, height) self.width, self.height = width, height end,
         GetSize = function(self) return self.width, self.height end,
-        ClearAllPoints = function(self) self.point = nil end,
+        ClearAllPoints = function(self) self.point = nil; self.points = {} end,
         SetPoint = function(self, point, relative, ...)
             assert(not relative.layoutRestricted or self.layoutRestricted,
                 "Anchoring disallowed: dependent would inherit UntrustedLayoutScriptExecution")
             self.point = { point, relative, ... }
+            self.points[point] = self.point
         end,
         SetAllPoints = function() end,
         SetFrameLevel = function() end,
@@ -66,8 +72,10 @@ end
 CreateFrame = function(kind, _, parent, template)
     local frame = Frame(kind == "AuraContainer" or template == "DisableUntrustedLayoutScriptsTemplate"
         or parent and parent.layoutRestricted)
+    if parent and parent.children then parent.children[#parent.children + 1] = frame end
     if kind == "AuraContainer" then
         frame.SetUnit = function(self, unit) self.unit = unit end
+        frame.GetUnit = function(self) return self.unit end
         frame.SetEnabled = function(self, enabled) self.enabled = enabled end
         if template ~= "CustomAuraContainerTemplate" then return frame end
         frame.groups = {}
@@ -134,6 +142,7 @@ local runtime = ns.CDMReanchorRuntime.New({
     mintOwned = function() return Frame(true) end,
     releaseOwned = function() end,
     acquireAuraMirror = env.acquireAuraMirror,
+    shouldRetainAuraMirror = env.shouldRetainAuraMirror,
     positionAuraMirror = env.positionAuraMirror,
     positionOwned = function() error("native mirror must position the owned placeholder") end,
 })
@@ -428,6 +437,23 @@ local function anchorFactors(anchor)
 end
 local function worldCenter(frame)
     if frame == owner then return 0, 0 end
+    local left, right = frame.points.LEFT, frame.points.RIGHT
+    local bottom, top = frame.points.BOTTOM, frame.points.TOP
+    local function edge(point, vertical)
+        local x, y = worldCenter(point[2])
+        local ax, ay = anchorFactors(point[3])
+        return vertical and (y + ay * (point[2].height or 0) + (point[5] or 0))
+            or (x + ax * (point[2].width or 0) + (point[4] or 0))
+    end
+    if left and right then
+        local l, r = edge(left, false), edge(right, false)
+        frame.width = r - l
+        return (l + r) / 2, edge(left, true)
+    elseif bottom and top then
+        local b, t = edge(bottom, true), edge(top, true)
+        frame.height = t - b
+        return edge(bottom, false), (b + t) / 2
+    end
     local point = assert(frame.point)
     local x, y = worldCenter(point[2])
     local ax, ay = anchorFactors(point[1])
@@ -435,7 +461,24 @@ local function worldCenter(frame)
     return x + bx * (point[2].width or 0) + (point[4] or 0) - ax * (frame.width or 0),
         y + by * (point[2].height or 0) + (point[5] or 0) - ay * (frame.height or 0)
 end
-local function verifyPlannedNativeGeometry(label)
+resizeToBounds = function(frame)
+    local minX, maxX, minY, maxY
+    for _, child in ipairs(frame.children) do
+        if child.point then
+            local x, y = worldCenter(child)
+            local w, h = child.width or 0, child.height or 0
+            minX, maxX = math.min(minX or math.huge, x - w / 2), math.max(maxX or -math.huge, x + w / 2)
+            minY, maxY = math.min(minY or math.huge, y - h / 2), math.max(maxY or -math.huge, y + h / 2)
+        end
+    end
+    frame:SetSize(math.max(0.001, (maxX or 0) - (minX or 0)), math.max(0.001, (maxY or 0) - (minY or 0)))
+end
+local function settleCenteredRows()
+    for _, frame in pairs(owner._quiCenteredAuraRows or {}) do
+        if frame.scripts.OnUpdate then frame.scripts.OnUpdate(frame, 0.05) end
+    end
+end
+local function verifyPlannedNativeGeometry(label, shiftX)
     assert(env.beginAuraMirrorPass(owner))
     local result = runtime:AssembleEntries("buff", {}, settings)
     local plan = ns.CDMLayout.BuildIconLayout(settings, result)
@@ -447,12 +490,13 @@ local function verifyPlannedNativeGeometry(label)
     for _, host in ipairs(containers) do
         if host.enabled then layoutNative(host, active) end
     end
+    settleCenteredRows()
     for _, placement in ipairs(plan.placements) do
         local wrapper = placement.icon
         if wrapper.auraMirror then
             local button = wrapper.auraMirror.frames[1]
             local x, y = worldCenter(button)
-            assert(math.abs(x - placement.x) < .001 and math.abs(y - placement.y) < .001,
+            assert(math.abs(x - placement.x - (shiftX or 0)) < .001 and math.abs(y - placement.y) < .001,
                 string.format("%s: planned (%g,%g), native (%g,%g)", label, placement.x, placement.y, x, y))
             local rc = placement.rowConfig
             assert(button.width == rc.size and button.height == rc.size / rc.aspectRatioCrop,
@@ -495,7 +539,7 @@ nativeB:SetSize(32, 32)
 nativeB.active = false
 verifyPlannedNativeGeometry("Blizzard entry absent")
 combat, nativeB.active = true, true
-verifyPlannedNativeGeometry("Blizzard entry reappears in combat")
+verifyPlannedNativeGeometry("Blizzard entry reappears in combat", -34)
 combat = false
 print("OK: native aura world coordinates match planned rows, directions, aspect and combat transitions")
 
@@ -533,6 +577,7 @@ local function sparseLayout(active)
     for _, host in ipairs(containers) do
         if host.enabled then layoutNative(host, active) end
     end
+    settleCenteredRows()
     local byID = {}
     for _, wrapper in ipairs(result) do byID[wrapper.src.id] = wrapper end
     return byID, plan
@@ -543,6 +588,44 @@ local function assertCenter(frame, x, y, label)
         string.format("%s: expected (%g,%g), got (%g,%g)", label, x, y, actualX, actualY))
 end
 settings = { iconDisplayMode = "active", iconSize = 32, padding = 2 }
+do
+    settings.growthDirection = "CENTERED_HORIZONTAL"
+    local native = configureMixed(2)[1]
+    local pair = sparseLayout({ [950002] = true })
+    assertCenter(native, -17, 0, "centered pair must put native icon left of center")
+    assertCenter(pair[950002].auraMirror.frames[1], 17, 0, "centered pair must put mirror right of center")
+    local row = owner._quiCenteredAuraRows[1]
+    combat = true
+    for _, active in ipairs({ {}, { [950002] = true }, {} }) do
+        for _, host in ipairs(containers) do
+            if host.enabled then layoutNative(host, active) end
+        end
+        row.scripts.OnEvent(row, "UNIT_AURA", "player")
+        settleCenteredRows()
+        assertCenter(native, active[950002] and -17 or 0, 0,
+            "native aura updates alone must recenter after mirrors appear or disappear in combat")
+        assert(row.scripts.OnUpdate == nil, "settled rows must stop polling")
+    end
+    row.scripts.OnEvent(row, "UNIT_AURA", "nameplate1")
+    assert(row.scripts.OnUpdate == nil, "unrelated unit auras must not resize this row")
+    local secretUnit, savedIsSecret = {}, issecretvalue
+    issecretvalue = function(value) return value == secretUnit end
+    setmetatable(row.units, { __index = function(_, key)
+        assert(key ~= secretUnit, "secret event units must never index the row unit map")
+    end })
+    row.scripts.OnEvent(row, "UNIT_AURA", secretUnit)
+    assert(row.scripts.OnUpdate, "unknown secret event units must still allow native resizing")
+    settleCenteredRows()
+    setmetatable(row.units, nil)
+    issecretvalue = savedIsSecret
+    native:SetPoint("CENTER", Frame(), "CENTER", 100, 0)
+    assertCenter(native, 0, 0, "native anchor guard must retain the centered row")
+    runtime:PositionEntries(owner, nil, "buff")
+    assert(not row.active and not row.shown and row.scripts.OnUpdate == nil,
+        "empty layouts must retire centered row updates")
+    combat = false
+end
+print("OK: centered visible buff pairs grow and shrink around the center in combat")
 local blizzard = configureMixed(5)
 for _, direction in ipairs({ "RIGHT", "LEFT", "UP", "DOWN" }) do
     settings.growthDirection = direction
@@ -558,7 +641,7 @@ for _, direction in ipairs({ "RIGHT", "LEFT", "UP", "DOWN" }) do
         direction .. ": mixed bounds must use the dense Blizzard row")
     for i, frame in ipairs(blizzard) do
         along(frame, (i - 2) * 34, "inactive custom buffs must not reserve Blizzard slots")
-        assert(frame.point[2] == owner, "Blizzard frames must retain safe container anchors")
+        assert(not frame.point[2].layoutRestricted, "Blizzard frames must retain safe ordinary row anchors")
     end
     local first = wrappers[950002].auraMirror
     local second = wrappers[950004].auraMirror
@@ -566,11 +649,11 @@ for _, direction in ipairs({ "RIGHT", "LEFT", "UP", "DOWN" }) do
     assert(wrappers[950002].auraMirrorOptions.order == 2
         and wrappers[950004].auraMirrorOptions.order == 4, "tail order must retain curated source indices")
     wrappers = sparseLayout({ [950002] = true, [950004] = true })
-    along(wrappers[950002].auraMirror.frames[1], 68, "first active custom buff follows Blizzard tail")
-    along(wrappers[950004].auraMirror.frames[1], 102, "second active custom buff follows native tail")
+    along(wrappers[950002].auraMirror.frames[1], 34, "first active custom buff follows Blizzard tail")
+    along(wrappers[950004].auraMirror.frames[1], 68, "second active custom buff follows native tail")
     wrappers = sparseLayout({ [950004] = true })
-    along(wrappers[950004].auraMirror.frames[1], 68, "inactive custom tail leaves no gap")
-    for i, frame in ipairs(blizzard) do along(frame, (i - 2) * 34, "custom presence preserves Blizzard positions") end
+    along(wrappers[950004].auraMirror.frames[1], 51, "inactive custom tail leaves no gap")
+    for i, frame in ipairs(blizzard) do along(frame, (i - 2) * 34 - 17, "visible mixed row stays centered") end
 end
 print("OK: sparse mixed buffs retain 2px gaps and dense safe Blizzard bounds in all grid directions")
 
@@ -584,14 +667,14 @@ local onlyCustom, onlyCustomPlan = sparseLayout({ [950004] = true })
 assert(onlyCustom[950002].auraMirror == firstPrepared and onlyCustom[950004].auraMirror == secondPrepared,
     "combat disappearance must reuse both prepared custom records")
 assert(onlyCustomPlan.metrics.iconWidth == 66, "custom-only rows retain their configured capacity bounds")
-assertCenter(onlyCustom[950004].auraMirror.frames[1], -17, 0,
+assertCenter(onlyCustom[950004].auraMirror.frames[1], 0, 0,
     "empty leading custom group must collapse after all Blizzard buffs disappear")
 for _, frame in ipairs(blizzard) do frame.active = true end
 local restoredMixed = sparseLayout({ [950004] = true })
 assert(restoredMixed[950002].auraMirror == firstPrepared and restoredMixed[950004].auraMirror == secondPrepared,
     "combat reappearance must reuse both prepared custom records")
-for i, frame in ipairs(blizzard) do assertCenter(frame, (i - 2) * 34, 0, "combat reappearance dense Blizzard row") end
-assertCenter(restoredMixed[950004].auraMirror.frames[1], 68, 0, "combat reappearance sparse custom tail")
+for i, frame in ipairs(blizzard) do assertCenter(frame, (i - 2) * 34 - 17, 0, "combat reappearance centered Blizzard row") end
+assertCenter(restoredMixed[950004].auraMirror.frames[1], 51, 0, "combat reappearance sparse custom tail")
 combat = false
 print("OK: sparse mixed tails survive all Blizzard buffs disappearing and reappearing in combat")
 
@@ -603,8 +686,8 @@ settings.row2 = { iconCount = 3, iconSize = 24, padding = 4, xOffset = 7, yOffse
 local rowWrappers, rowPlan = sparseLayout({ [950006] = true })
 assertCenter(blizzard[1], -17, 13, "first row first Blizzard buff")
 assertCenter(blizzard[2], 17, 13, "first row second Blizzard buff")
-assertCenter(blizzard[3], 7, -14, "second row Blizzard buff keeps row offsets")
-assertCenter(rowWrappers[950006].auraMirror.frames[1], 35, -14, "second row sparse tail keeps 4px padding")
+assertCenter(blizzard[3], -7, -14, "second row Blizzard buff keeps row offsets")
+assertCenter(rowWrappers[950006].auraMirror.frames[1], 21, -14, "second row sparse tail keeps 4px padding")
 assert(rowPlan.metrics.iconWidth == 66 and rowPlan.metrics.totalHeight == 58,
     "mixed row bounds must retain row heights while excluding custom tail capacity")
 local expectedRows = { [950001] = 1, [950002] = 1, [950003] = 1, [950004] = 2, [950005] = 2, [950006] = 2 }
@@ -663,3 +746,75 @@ combat = false
 runtime._deps.isEditMode = nil
 assert(apiAccesses == 0, "refresh and reserved layouts must not query native aura state")
 print("OK: always, combat-reserved, and preview layouts preserve configured mixed slots")
+
+do
+    settings = { iconDisplayMode = "active", iconSize = 32, padding = 2, growthDirection = "RIGHT" }
+    ns.Helpers.FrameIsProtected = function() return false end
+    ns.Helpers.FrameIsAnchoringRestricted = function() return false end
+    assert(loadfile("QUI_CDM/cdm/cdm_reanchor_wiring.lua"))("QUI", ns)
+    local native = Frame()
+    native.cooldownID, native.active = 7001, true
+    native:Show()
+    local mark = { id = 257284, type = "spell", kind = "aura", auraUnit = "target", auraFilter = "HARMFUL|PLAYER" }
+    local sibling = { id = 910099, type = "spell", kind = "aura", auraUnit = "target", auraFilter = "HARMFUL|PLAYER" }
+    curated = { mark, sibling }
+    local available, secretAuras = false, false
+    C_Secrets = { ShouldAurasBeSecret = function() return secretAuras end }
+    runtime._wiring = ns.CDMReanchorWiring.New({ getViewerForKey = function() return owner end })
+    runtime._wiring.BuildFrameMapForViewers = function()
+        return available and { _canonicalFrames = { native }, _canonicalByFrame = { [native] = mark.id } } or {},
+            available and { native } or {}
+    end
+    local function rendererCount(id)
+        local count = id == mark.id and native.shown and native.alpha ~= 0 and available and 1 or 0
+        for _, host in ipairs(containers) do
+            if host.shown and host.enabled and host.alpha == 1 then
+                for _, group in pairs(host.groups or {}) do
+                    if group.options.maxFrameCount > 0 and group.options.candidateFilters.includeSpellIDs[id] then
+                        count = count + 1
+                    end
+                end
+            end
+        end
+        return count
+    end
+    for _, batch in ipairs({ false, true }) do
+        local function refresh()
+            if batch then runtime:RefreshContainers({ "buff" }) else runtime:RefreshContainer("buff") end
+        end
+        for _, restriction in ipairs({ "combat", "secret" }) do
+            combat, secretAuras, available = false, false, false
+            refresh()
+            combat, secretAuras = restriction == "combat", restriction == "secret"
+            available = true
+            native:SetAlpha(1)
+            refresh()
+            assert(rendererCount(mark.id) == 1,
+                "native activation must not duplicate a prepared Hunter's Mark mirror during " .. restriction)
+            assert(rendererCount(sibling.id) == 1, "retiring an owner must preserve its shared-run sibling")
+            assert(not runtime:IsFrameClaimedByAnyContainer(native), "retained mirror must exclude batch native ownership")
+            if batch then
+                assert(not next(runtime:GetPlacementsForFrame(native) or {}),
+                    "retained mirror must not leave native planner consumers")
+            end
+            available = false
+            refresh()
+            assert(rendererCount(mark.id) == 1 and rendererCount(sibling.id) == 1,
+                "native disappearance must preserve both prepared mirrors")
+            available = true
+            refresh()
+            combat, secretAuras = false, false
+            refresh()
+            assert(native.alpha == 1 and runtime:IsFrameClaimedByAnyContainer(native),
+                "native ownership must resume after restrictions lift")
+            assert(rendererCount(mark.id) == 1 and rendererCount(sibling.id) == 1,
+                "unrestricted cleanup must retire the old mirror without losing its sibling")
+            combat = true
+            refresh()
+            assert(native.alpha == 1 and runtime:IsFrameClaimedByAnyContainer(native),
+                "an entry without a prepared mirror must keep its native owner in combat")
+        end
+    end
+    combat, C_Secrets = false, nil
+end
+print("OK: single and batch buff refreshes preserve one owner through combat and secret aura transitions")
