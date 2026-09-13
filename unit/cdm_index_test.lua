@@ -126,4 +126,76 @@ local thirdOrdered = index.GetOrderedSpellMap()
 assert(thirdOrdered ~= firstOrdered, "ordered spell map should rebuild after index invalidation")
 assert(orderedCalls > callsAfterFirst, "ordered map rebuild should re-walk provider after invalidation")
 
+local aliasSlot, directSlot = 170469, 170470
+local sourceID, auraID, linkedOnlyID = 433901, 433925, 433926
+local orderedIDs = { aliasSlot, directSlot }
+local slotInfo = {
+    [aliasSlot] = {
+        category = 2,
+        spellID = sourceID,
+        overrideSpellID = sourceID,
+        overrideTooltipSpellID = auraID,
+        linkedSpellIDs = { auraID, linkedOnlyID },
+    },
+    [directSlot] = { category = 2, spellID = auraID },
+}
+_G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+    return slotInfo[id]
+end
+_G.CooldownViewerSettings.GetDataProvider = function()
+    return {
+        displayData = { orderedCooldownIDs = orderedIDs, cooldownInfoByID = slotInfo },
+    }
+end
+
+for _, order in ipairs({ { aliasSlot, directSlot }, { directSlot, aliasSlot } }) do
+    orderedIDs = order
+    index.Notify("manual")
+    assert(index.GetOrderedForContainer("buff", auraID).cooldownID == directSlot,
+        "an aura's own native slot must win over another slot's tooltip or linked alias in either order")
+    assert(index.GetOrderedForContainer("buff", sourceID).cooldownID == aliasSlot,
+        "the source ability must retain its own native slot")
+    assert(index.GetOrderedForContainer("buff", linkedOnlyID).cooldownID == aliasSlot,
+        "a linked variant without its own slot must retain alias fallback")
+    assert(index.GetOrdered(auraID).cooldownID == order[1],
+        "generic ordered lookups must retain their existing first-alias contract")
+end
+
+orderedIDs = { aliasSlot }
+index.Notify("manual")
+assert(index.GetOrderedForContainer("buff", sourceID).cooldownID
+        == index.GetOrderedForContainer("buff", auraID).cooldownID,
+    "Essence source and tooltip must resolve to one slot when Blizzard exposes only one")
+
+local strikeSlot, essenceSlot = 157116, 170469
+slotInfo = {
+    [strikeSlot] = {
+        category = 2, cooldownID = strikeSlot, spellID = sourceID,
+        overrideSpellID = sourceID, linkedSpellIDs = { 433899 },
+        charges = false, hasAura = false, selfAura = true, buffSlot = 1,
+        flags = 2, isKnown = true, isInvisible = false,
+    },
+    [essenceSlot] = {
+        category = 2, cooldownID = essenceSlot, spellID = sourceID,
+        overrideSpellID = sourceID, overrideTooltipSpellID = auraID,
+        linkedSpellIDs = { auraID },
+        charges = false, hasAura = false, selfAura = true, buffSlot = 1,
+        flags = 2, isKnown = true, isInvisible = false,
+    },
+}
+for _, order in ipairs({ { essenceSlot, strikeSlot }, { strikeSlot, essenceSlot } }) do
+    orderedIDs = order
+    index.Notify("manual")
+    assert(index.GetOrderedForContainer("buff", sourceID).cooldownID == strikeSlot,
+        "live Vampiric Strike identity must prefer its own displayed slot in either order")
+    assert(index.GetOrderedForContainer("buff", auraID).cooldownID == essenceSlot,
+        "live Essence identity must retain its tooltip slot in either order")
+    assert(index.GetOrderedForContainer("buff", sourceID).cooldownInfo == slotInfo[strikeSlot],
+        "ordered records must retain their own cached slot metadata")
+    assert(index.GetOrderedForContainer("buff", 433899).cooldownID == strikeSlot,
+        "live Strike linked identity must retain its own slot")
+    assert(index.GetOrdered(sourceID).cooldownID == order[1],
+        "live shared source must preserve generic first-alias lookup")
+end
+
 print("OK: cdm_index_test")
