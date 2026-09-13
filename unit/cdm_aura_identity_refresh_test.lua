@@ -17,7 +17,8 @@ function Flags_CreateMaskFromTable(values)
     for _, value in pairs(values) do result = result + value end
     return result
 end
-function InCombatLockdown() return false end
+local inCombat = false
+function InCombatLockdown() return inCombat end
 function issecretvalue() return false end
 
 local native = "tests/framexml/Interface/AddOns/Blizzard_AuraContainer/"
@@ -29,9 +30,9 @@ local containers = {}
 local function Frame()
     return {
         SetSize = noop, ClearAllPoints = noop, SetPoint = noop, SetAllPoints = noop,
-        Show = noop, Hide = noop, SetFrameLevel = noop, EnableMouse = noop,
+        Show = noop, Hide = noop, SetFrameLevel = noop, EnableMouse = noop, SetAlpha = noop,
         SetMouseClickEnabled = noop, SetMouseMotionEnabled = noop,
-        GetFrameLevel = function() return 1 end,
+        GetFrameLevel = function() return 1 end, SetScript = noop,
     }
 end
 function CreateFrame(kind)
@@ -83,6 +84,10 @@ function CreateFrame(kind)
     function frame:Flush()
         if self.dirty then self:ParseAllAuras(); self.dirty = false end
     end
+    frame.AddAuraGroup = frame.AddAuraSlot
+    frame.SetAuraGroupFilterString = frame.SetAuraSlotFilterString
+    frame.SetAuraGroupCandidateFilters = frame.SetAuraSlotCandidateFilters
+    frame.SetAuraGroupMaxFrameCount = noop
     containers[#containers + 1] = frame
     return frame
 end
@@ -135,3 +140,52 @@ for _, case in ipairs({{"target", "PLAYER_TARGET_CHANGED"}, {"focus", "PLAYER_FO
 end
 assert(failures == 0, tostring(failures) .. " identity refresh failures")
 print("OK cdm_aura_identity_refresh_test")
+
+for _, name in ipairs({"cdm_reanchor", "cdm_reanchor_wiring", "cdm_reanchor_runtime",
+    "cdm_reanchor_realenv", "cdm_reanchor_boot"}) do
+    assert(loadfile("QUI_CDM/cdm/" .. name .. ".lua"))("QUI", ns)
+end
+local owner = Frame()
+local env = ns.CDMReanchorRealEnv.BuildEnv({
+    CDMContainers = {GetContainer = function() return owner end},
+    getSettings = function() return {iconDisplayMode = "active"} end,
+})
+ns._cdmBoot = ns.CDMReanchorBoot.BuildRuntime(env)
+local firstBuiltin = #containers + 1
+assert(env.beginAuraMirrorPass(owner))
+for _, unit in ipairs({"target", "focus", "player"}) do
+    local entry = {id = 257284, type = "spell", kind = "aura", auraUnit = unit, auraFilter = "HARMFUL|PLAYER"}
+    assert(env.acquireAuraMirror(entry, "buff", unit .. ":dynamic", {
+        dynamic = true, order = 1, source = Frame(), rowConfig = {rowNum = 1},
+    }))
+    assert(env.acquireAuraMirror(entry, "buff", unit .. ":static"))
+end
+env.endAuraMirrorPass(owner)
+for i = firstBuiltin, #containers do containers[i]:Flush() end
+local file = assert(io.open("QUI_CDM/cdm/cdm_icon_renderer.lua"))
+local source = file:read("*a")
+file:close()
+local callback = assert(source:match("refreshCustomAuraTargets = (function%(identityChanged, unit%).-\n        end),"))
+local refresh = assert(loadstring("local ns = ...; return " .. callback))(ns)
+controller = ns.CDMIconRuntimeRefresh.Create({refreshCustomAuraTargets = refresh})
+inCombat = true
+for _, case in ipairs({{"target", "PLAYER_TARGET_CHANGED"}, {"focus", "PLAYER_FOCUS_CHANGED"}}) do
+    local unit, event = unpack(case)
+    current[unit] = nil
+    controller:Handle(event)
+    for i = firstBuiltin, #containers do
+        local container = containers[i]
+        if container:GetUnit() == unit then
+            container:Flush()
+            local _, slot = next(container.slots)
+            if slot.auraInstanceID ~= nil then
+                failures = failures + 1
+                print("FAIL builtin " .. event .. ": retained old aura " .. tostring(slot.auraInstanceID))
+            end
+        else
+            assert(not container.dirty, "built-in identity refresh must leave unrelated units untouched")
+        end
+    end
+end
+assert(failures == 0, tostring(failures) .. " built-in identity refresh failures")
+print("OK built-in static and dynamic aura mirrors clear previous unit auras in combat")
