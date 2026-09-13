@@ -110,7 +110,9 @@ CreateFrame = function(kind, _, parent, template)
         end
         frame.SetAuraGroupMaxFrameCount = function(self, key, count) self.groups[key].options.maxFrameCount = count end
         frame.SetAuraSlotFilterString = function() end
-        frame.SetAuraSlotCandidateFilters = function(self, _, filter) self.lastFilter = filter end
+        frame.SetAuraSlotCandidateFilters = function(self, key, filter)
+            self.groups[key].options.candidateFilters = filter
+        end
         containers[#containers + 1] = frame
     end
     return frame
@@ -174,6 +176,53 @@ assert(slots[4].container.unit == "pet")
 for _, entry in ipairs(entries) do
     assert(not entry.frame.shown, "active-only must suppress the placeholder without querying native visibility")
     assert(entry.auraMirror.host.shown, "hiding the placeholder must leave native aura host enabled")
+end
+do
+    local rendererFile = assert(io.open("QUI_CDM/cdm/cdm_icon_renderer.lua", "r"))
+    local rendererSource = rendererFile:read("*a")
+    rendererFile:close()
+    local visibilityBody = assert(rendererSource:match(
+        "local function UpdateCooldownContainerVisibility%b()(.-)\nend"))
+    local visibilityChunk = assert(loadstring(
+        "return function(icon, entry, containerDB, editMode, inCombat)" .. visibilityBody .. "\nend"))
+    setfenv(visibilityChunk, setmetatable({
+        ns = ns,
+        GetIconSpellOverride = function() return nil end,
+        SyncCooldownBling = function() end,
+        IsAuraEntry = function(entry) return entry.kind == "aura" end,
+        IsCustomBarContainer = function() return false end,
+        ApplyIconVisibility = function(icon, shown)
+            if shown then icon:Show() else icon:Hide() end
+        end,
+    }, { __index = _G }))
+    local updateVisibility = visibilityChunk()
+    local ordinaryAura = Frame()
+    ordinaryAura.IsShown = function(self) return self.shown end
+    ordinaryAura._auraActive = true
+    updateVisibility(ordinaryAura, curated[1], settings, false, false)
+    assert(ordinaryAura.shown, "unmirrored active aura icons must remain visible")
+    local base = entries[1].frame
+    base.IsShown = function(self) return self.shown end
+    assert(entries[1].src._useManagedAura == nil,
+        "curated built-in aura entries do not carry custom managed-aura routing")
+    for _, active in ipairs({ true, false, true }) do
+        base._auraActive = active
+        updateVisibility(base, entries[1].src, settings, false, false)
+        assert(not base.shown,
+            "renderer refresh must not reveal a base icon already replaced by a dynamic native aura")
+        assert(entries[1].auraMirror.host.shown,
+            "suppressing the base must leave the native aura renderer enabled")
+    end
+    base._auraActive = nil
+    ordinaryAura._quiManagedAuraProxy = true
+    local visibleRuntime = ns.CDMReanchorRuntime.New({ positionOwned = function() end })
+    assert(visibleRuntime:PositionEntries(owner, { placements = {
+        { icon = { frame = ordinaryAura, hideAuraBase = false }, x = 0, y = 0, w = 32, h = 32 },
+    } }, "buff") == 1)
+    assert(ordinaryAura._quiManagedAuraProxy == nil,
+        "repositioning an always-mode or edit placeholder must clear its old proxy marker")
+    updateVisibility(ordinaryAura, curated[1], { iconDisplayMode = "always" }, false, false)
+    assert(ordinaryAura.shown, "restored placeholders must survive subsequent renderer refreshes")
 end
 env.endAuraMirrorPass(owner)
 assert(entries[1].auraMirror.dynamic and entries[1].auraMirror.host == entries[2].auraMirror.host)
@@ -818,3 +867,74 @@ do
     combat, C_Secrets = false, nil
 end
 print("OK: single and batch buff refreshes preserve one owner through combat and secret aura transitions")
+
+do
+    settings = { iconDisplayMode = "always", iconSize = 32, padding = 2, growthDirection = "RIGHT" }
+    for _, batch in ipairs({ false, true }) do
+        for _, restriction in ipairs({ "secret", "combat-secret", "combat" }) do
+            combat = false
+            owner = Frame()
+            local available, secretAuras = false, false
+            C_Secrets = { ShouldAurasBeSecret = function() return secretAuras end }
+            local native = Frame()
+            native.cooldownID, native.active = 88001, true
+            native:Show()
+            local mark = { id = 998811, type = "spell", kind = "aura" }
+            curated = { mark }
+            runtime._wiring.BuildFrameMapForViewers = function()
+                return available and { _canonicalFrames = { native }, _canonicalByFrame = { [native] = mark.id } } or {},
+                    available and { native } or {}
+            end
+            local staticEnv = ns.CDMReanchorRealEnv.BuildEnv({
+                CDMContainers = { GetContainer = function() return owner end },
+                getSettings = function() return settings end,
+            })
+            local record
+            runtime._deps.acquireAuraMirror = function(...)
+                record = staticEnv.acquireAuraMirror(...)
+                return record
+            end
+            runtime._deps.shouldRetainAuraMirror = staticEnv.shouldRetainAuraMirror
+            runtime._deps.positionAuraMirror = staticEnv.positionAuraMirror
+            runtime._deps.beginAuraMirrorPass = staticEnv.beginAuraMirrorPass
+            runtime._deps.endAuraMirrorPass = staticEnv.endAuraMirrorPass
+            local function refresh()
+                if batch then runtime:RefreshContainers({ "buff" }) else runtime:RefreshContainer("buff") end
+            end
+            refresh()
+            assert(record and record._quiManager and record.host.shown and not record.parked,
+                "always-mode frameless buff must prepare a static aura mirror")
+            local prepared = record
+            local function rendererCount()
+                local count = available and native.shown and native.alpha ~= 0 and 1 or 0
+                local pool = prepared._quiManager._pools[owner]
+                if pool.auraContainer.enabled and pool.auraContainer.shown and prepared.host.shown then
+                    for _, slot in ipairs(prepared.slots) do
+                        local filters = pool.auraContainer.groups[slot.key].options.candidateFilters
+                        if filters.includeSpellIDs and filters.includeSpellIDs[mark.id] then count = count + 1 end
+                    end
+                end
+                return count
+            end
+            combat, secretAuras = restriction ~= "secret", restriction ~= "combat"
+            available = true
+            native:SetAlpha(1)
+            refresh()
+            assert(rendererCount() == 1,
+                "always-mode native activation must not duplicate a static mirror during " .. restriction)
+            available = false
+            refresh()
+            assert(rendererCount() == 1, "native disappearance must preserve an always-mode aura renderer")
+            available = true
+            refresh()
+            combat, secretAuras = false, false
+            refresh()
+            assert(native.alpha == 1 and runtime:IsFrameClaimedByAnyContainer(native),
+                "always-mode native ownership must resume after restrictions lift")
+            assert(rendererCount() == 1 and prepared.parked and not prepared.host.shown,
+                "unrestricted cleanup must park and hide the replaced static mirror")
+        end
+    end
+    combat, C_Secrets = false, nil
+end
+print("OK: always-mode single and batch buff refreshes preserve one static or native aura owner")
