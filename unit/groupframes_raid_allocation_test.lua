@@ -7,6 +7,8 @@ end
 
 local source = read(os.getenv("QUI_GROUPFRAMES_SOURCE") or "QUI_GroupFrames/groupframes/groupframes.lua")
 local nativeSource = read("tests/framexml/Interface/AddOns/Blizzard_RestrictedAddOnEnvironment/SecureGroupHeaders.lua")
+local restrictedSource = read("tests/framexml/Interface/AddOns/Blizzard_RestrictedAddOnEnvironment/RestrictedFrames.lua")
+local restrictedGetter = assert(restrictedSource:match("(function HANDLE:GetAttribute%(name%).-)\nfunction HANDLE:GetFrameRef"))
 local failures = 0
 local function check(name, condition, detail)
     if condition then
@@ -69,8 +71,20 @@ local function harness(groupBy)
     env.UnregisterStateDriver = function() end
     env.GetFrameHandle = function(frame) return frame end
     env.GetManagedEnvironment = function() return env end
+    local getAttribute = chunk([[local HANDLE = {}
+local LOCAL_CHECK_Frame = { GetAttribute = function(frame, key) return frame:GetAttribute(key) end }
+local function GetHandleFrame(handle) return handle.frame end
+local function IsFrameHandle() return false end
+]] .. restrictedGetter .. "\nreturn HANDLE.GetAttribute", "@RestrictedFrames.GetAttribute")()
+    local function handle(frame)
+        return setmetatable({ frame = frame }, { __index = function(_, key)
+            if key == "GetAttribute" then return getAttribute end
+            if key == "GetParent" then return function() return handle(frame:GetParent()) end end
+            return function(_, ...) return frame[key](frame, ...) end
+        end })
+    end
     env.CallRestrictedClosure = function(_, _, _, _, code, frame)
-        chunk("local self = ...\n" .. code, "secure header initialization")(frame)
+        chunk("local self = ...\n" .. code, "secure header initialization")(handle(frame))
     end
     local Frame = {}
     Frame.__index = Frame
@@ -205,6 +219,8 @@ for _, mode in ipairs({ "GROUP", "NONE" }) do
     check(mode .. " initializes only 40 raid and six party/self buttons", h:count() == 46, h:count())
     local selectedHeader = mode == "GROUP" and h.gf.raidGroupHeaders[1] or h.gf.headers.raid
     check(mode .. " selected header children retain the pingable template", selectedHeader:GetAttribute("template"):find("PingableUnitFrameTemplate", 1, true) ~= nil)
+    local first = selectedHeader:GetAttribute("child1")
+    check(mode .. " preallocated raid children inherit raid dimensions before layout", first:GetWidth() == 100 and first:GetHeight() == 40)
     h:raid(10)
     h:refresh()
     h.api.scale(true)
@@ -267,6 +283,46 @@ for _, mode in ipairs({ "ROLE", "CLASS", "NONE" }) do
     check(mode .. " one custom section can display all 40 members", shown == 40, shown)
     local last = h.gf.raidGroupHeaders[1]:GetAttribute("child40")
     check(mode .. " custom section retains its fortieth actionable unit", last and last:IsVisible() and last:GetAttribute("unit") ~= nil)
+end
+
+for _, mode in ipairs({ "ROLE", "CLASS", "NONE" }) do
+    local h = harness(mode)
+    h.db.raidSelfFirst = true
+    h.db.raid.dimensions.smallRaidWidth = 120
+    h.db.raid.dimensions.smallRaidHeight = 64
+    h:raid(4)
+    h.api.create()
+    h:refresh()
+    local header = h.gf.raidGroupHeaders[1]
+    local first = header:GetAttribute("child1")
+    local styles = h.styles
+    h:raid(6)
+    h:refresh()
+    local last = header:GetAttribute("child6")
+    check(mode .. " same-tier newcomers inherit configured raid dimensions", last and last:GetWidth() == 120 and last:GetHeight() == 64,
+        last and (last:GetWidth() .. "x" .. last:GetHeight()))
+    check(mode .. " new and existing raid members match without full restyling",
+        last and last:GetWidth() == first:GetWidth() and last:GetHeight() == first:GetHeight() and h.styles == styles)
+    h.db.raid.dimensions.smallRaidWidth = 132
+    h.db.raid.dimensions.smallRaidHeight = 58
+    h.api.scale(true)
+    styles = h.styles
+    h:raid(7)
+    h:refresh()
+    last = header:GetAttribute("child7")
+    check(mode .. " newcomers inherit edited dimensions without full restyling",
+        last and last:GetWidth() == 132 and last:GetHeight() == 58 and h.styles == styles)
+
+    header:SetAttribute("maxColumns", 2)
+    header:SetAttribute("unitsPerColumn", 5)
+    header:SetAttribute("nameList", "Member1,Member2,Member3,Member4,Member5,Member6,Member7,Member8")
+    h.combat = true
+    h:raid(8)
+    h.env.SecureGroupHeader_Update(header)
+    h:refresh()
+    last = header:GetAttribute("child8")
+    check(mode .. " native combat child creation inherits dimensions without full restyling",
+        last and last:GetWidth() == 132 and last:GetHeight() == 58 and h.styles == styles)
 end
 
 for _, mode in ipairs({ "GROUP", "NONE" }) do
