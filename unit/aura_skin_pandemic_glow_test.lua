@@ -147,6 +147,10 @@ local _, b4 = ConfigureOne({ pandemicGlow = { color = "nope" } })
 check("malformed pandemicGlow.color disables instead of erroring",
     b4 and b4._quiPandemic._alpha == 0)
 
+local _, b5 = ConfigureOne({ pandemicGlow = { glowType = "Pixel Glow", color = { 1, 0.85, 0.2, 1 } } })
+check("custom pandemic styling suppresses the default icon highlight",
+    b5 and b5._quiPandemic._alpha == 0)
+
 if fails > 0 then
     print("FAIL: aura_skin_pandemic_glow_test (" .. fails .. " failing)")
     os.exit(1)

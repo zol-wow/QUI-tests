@@ -21,7 +21,10 @@ _G.ChatTypeInfo = setmetatable({}, {
     end,
     __newindex = function() error("WRITE to ChatTypeInfo is forbidden") end,
 })
-_G.Ambiguate = function(name) return (name:gsub("%-.*$", "")) end
+_G.Ambiguate = function(name)
+    if type(name) ~= "string" then return name end
+    return (name:gsub("%-.*$", ""))
+end
 
 _G.RAID_CLASS_COLORS = {
     MAGE = { colorStr = "ff3fc7eb" },
