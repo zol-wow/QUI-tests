@@ -24,7 +24,7 @@ local e1 = ItemInfo.GetExtended(2589, "|Hitem:2589|h[Linen Cloth]|h")
 assert(e1 and e1.name == "Linen Cloth" and e1.ilvl == 5 and e1.expacID == 0, "extended fields wrong")
 -- maxStack: GetItemInfo position 8 = itemStackCount (verified: ItemDocumentation.lua, GetItemInfo returns[8])
 assert(e1.maxStack == 1000, "maxStack must equal stub position 8 (1000)")
-assert(ItemInfo.GetExtended(2589) == e1, "extended cache identity failed")
+assert(ItemInfo.GetExtended(2589, "|Hitem:2589|h[Linen Cloth]|h") == e1, "extended cache identity failed")
 assert(fullCalls == 1, "GetItemInfo should be called once")
 
 -- Test 2: uncached item → nil, NOT cached
@@ -33,20 +33,42 @@ assert(ItemInfo.GetExtended(nil) == nil, "nil itemID must be nil")
 
 -- Test 3: ilvl falls back to baseIlvl when detailed info is unavailable
 _G.C_Item.GetItemInfo = function(itemID)
-    if itemID == 777 then
-        return "Plain Item", "|Hitem:777|h[Plain Item]|h", 1, 42, 0, "Misc", "Junk",
+    if itemID == 776 or itemID == 777 then
+        return "Plain Item", "|Hitem:" .. itemID .. "|h[Plain Item]|h", 1, 42, 0, "Misc", "Junk",
                1, "", 1, 0, 15, 0, 0, 9, nil, false
     end
     return nil
 end
 _G.C_Item.GetDetailedItemLevelInfo = function() return nil end
-local e3 = ItemInfo.GetExtended(777)
+local e3 = ItemInfo.GetExtended(776)
 assert(e3 and e3.ilvl == 42, "must fall back to baseIlvl")
 
--- Test 4: same itemID with a different link returns the cached record
--- (documented first-seen-wins limitation)
-local e4 = ItemInfo.GetExtended(777, "|Hitem:777::upgraded|h[Plain Item]|h")
-assert(e4 == e3, "itemID-keyed cache must return first-seen record")
+local originalLink = "|Hitem:777::::::::80:256::16:1:10001|h[Plain Item]|h"
+local upgradedLink = "|Hitem:777::::::::80:256::16:1:10002|h[Plain Item]|h"
+_G.C_Item.GetDetailedItemLevelInfo = function(link)
+    if link == originalLink then return 480 end
+    if link == upgradedLink then return 483 end
+    return 42
+end
+_G.C_Item.GetItemInfoInstant = function() return 777, "Armor", "Plate", "INVTYPE_HEAD", 1, 4, 4 end
+_G.C_Item.IsEquippableItem = function() return true end
+assert(loadfile("QUI_Bags/bags/views/details.lua"))("QUI", ns)
+assert(loadfile("QUI_Bags/bags/views/corner_widgets.lua"))("QUI", ns)
+local entry = { itemID = 777, link = originalLink }
+local function displayedLevel()
+    return ns.Bags.CornerWidgets.Select("item_level", nil, {
+        entry = entry, details = ns.Bags.Details.Build(entry),
+    }).text
+end
+assert(displayedLevel() == "480", "bag label must use the item's link, not cached base item data")
+entry.link = upgradedLink
+assert(displayedLevel() == "483", "bag label must refresh when upgrading the same item ID")
+entry.link = originalLink
+assert(displayedLevel() == "480", "an unupgraded copy must retain its own item level")
+assert(ItemInfo.GetExtended(777).ilvl == 42, "link variants must not replace the item-ID-only fallback")
+assert(ItemInfo.GetExtended(776) == e3, "upgrades must not replace unrelated cached metadata")
+local e4 = ItemInfo.GetExtended(777, upgradedLink)
+assert(ItemInfo.GetExtended(777, upgradedLink) == e4, "unchanged item links must reuse cached metadata")
 
 -- Test 5: an item that was pending becomes available on a later call
 local available = false

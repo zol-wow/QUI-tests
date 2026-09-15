@@ -44,6 +44,8 @@ local function Frame(parent)
             self.animations[#self.animations + 1] = anim
             function anim:SetTarget(target) self.target = target end
             function anim:SetDuration(duration) self.duration = duration end
+            function anim:SetFromAlpha(alpha) self.fromAlpha = alpha end
+            function anim:SetToAlpha(alpha) self.toAlpha = alpha end
             function anim:SetCurveType(curve) self.curve = curve end
             function anim:SetFlipBookRows(rows) self.rows = rows end
             function anim:SetFlipBookColumns(columns) self.columns = columns end
@@ -65,14 +67,23 @@ local function Frame(parent)
     function frame:SetFrameLevel(level) self.level = level end
     function frame:GetFrameLevel() return self.level or 1 end
     function frame:Show()
+        assert(not self.pandemicRegistered, "addon must not show a pandemic-owned region")
         assert(not inCombat or stateDriverRunning or not self.protected, "addon cannot show protected frames in combat")
         self.shown = true
     end
     function frame:Hide()
+        assert(not self.pandemicRegistered, "addon must not hide a pandemic-owned region")
         assert(not inCombat or stateDriverRunning or not self.protected, "addon cannot hide protected frames in combat")
         self.shown = false
     end
     function frame:CreateTexture() return Frame(self) end
+    function frame:AddPandemicRegion(region)
+        assert(not region.pandemicRegistered, "pandemic regions must be registered once")
+        region.pandemicRegistered = true
+        self.pandemicRegions = self.pandemicRegions or {}
+        self.pandemicRegions[#self.pandemicRegions + 1] = region
+        region.shown = false
+    end
     function frame:EnableMouse(enabled) self.mouse = enabled end
     function frame:SetMouseClickEnabled(enabled) self.click = enabled end
     function frame:SetMouseMotionEnabled(enabled) self.motion = enabled end
@@ -577,3 +588,65 @@ assert(not Runs.BuildProfile({ size = 39 }, customSettings, batchIcon._spellEntr
 glowOverride.glowEnabled = true
 assert(Runs.BuildProfile({ size = 39 }, customSettings, batchIcon._spellEntry).cdmActiveGlow.color == glowOverride.glowColor)
 print("OK: native active glow stays scoped to custom bars and preserves proc and override settings")
+
+local pandemicSettings = { glowType = "Pixel Glow", color = { 0.1, 0.2, 0.3, 0.4 },
+    lines = 4, thickness = 3, frequency = -0.5, xOffset = 2, yOffset = 3 }
+ns._OwnedGlows.ResolvePandemicGlowForEntry = function(entry)
+    assert(entry == batchIcon._spellEntry)
+    return pandemicSettings
+end
+local pandemicProfile = Runs.BuildProfile({ size = 30 }, {}, batchIcon._spellEntry)
+assert(pandemicProfile.pandemicGlow == pandemicSettings,
+    "native pandemic profiles must forward custom style settings independently of proc glow")
+local pandemicButton = Frame()
+Runs.ConfigureNativeEffects(pandemicButton, pandemicProfile)
+local pandemicEffects = assert(pandemicButton._quiCDMNativePandemicGlow,
+    "native pandemic must render the selected effect instead of a fixed icon highlight")
+assert(#pandemicEffects > 1 and #pandemicButton.pandemicRegions == #pandemicEffects)
+local pandemicEffect = pandemicEffects[1]
+assert(pandemicEffect.texture.height == 3 and pandemicEffect.texture.vertexColor[4] == 0.4)
+assert(pandemicEffect.texture.points[1][4] == -2 and pandemicEffect.texture.points[1][5] == 3,
+    "native pandemic pixel geometry must include configured offsets")
+assert(pandemicEffect.animation.kind == "Path" and pandemicEffect.animation.duration == 2)
+local pandemicPlays, pandemicCreates = pandemicEffect.group.playCalls, animationCreates
+Runs.ConfigureNativeEffects(pandemicButton, pandemicProfile)
+assert(pandemicEffect.group.playCalls == pandemicPlays and animationCreates == pandemicCreates,
+    "unchanged pandemic styles must preserve animations and registration")
+for _, region in ipairs(pandemicButton.pandemicRegions) do region.shown = true end
+pandemicProfile.pandemicGlow = nil
+Runs.ConfigureNativeEffects(pandemicButton, pandemicProfile)
+for _, effect in ipairs(pandemicEffects) do
+    assert(not effect.group.playing and effect.texture.alpha == 0 and effect.texture.shown,
+        "disabling pandemic must stop effects without changing engine-owned visibility")
+end
+pandemicProfile.pandemicGlow = pandemicSettings
+for _, style in ipairs({ "Proc Glow", "Button Glow", "Autocast Shine", "Flash", "Hammer", "Pixel Glow" }) do
+    pandemicSettings.glowType = style
+    Runs.ConfigureNativeEffects(pandemicButton, pandemicProfile)
+    assert(pandemicEffect.group.playing and pandemicEffect.texture.alpha == 1)
+    if style == "Flash" or style == "Hammer" then
+        local asset = style == "Flash" and "iconskin\\Flash" or "quazii_hammer"
+        assert(pandemicEffect.texture.texture == "Interface\\AddOns\\QUI\\assets\\" .. asset)
+        assert(pandemicEffect.texture.width == 30 and pandemicEffect.texture.height == 30,
+            "Flash and Hammer must ignore offsets like the preview")
+        assert(pandemicEffect.animation.kind == "Alpha" and pandemicEffect.animation.fromAlpha == 0.3
+            and pandemicEffect.animation.toAlpha == 1 and pandemicEffect.group.looping == "BOUNCE")
+    elseif style == "Button Glow" then
+        assert(pandemicEffect.texture.width == 42 and pandemicEffect.texture.height == 42,
+            "Button Glow must ignore offsets like the preview")
+    elseif style == "Proc Glow" then
+        assert(pandemicEffect.texture.width == 46 and pandemicEffect.texture.height == 48,
+            "Proc Glow must add offsets after its native 20 percent expansion on each edge")
+    end
+    if style == "Proc Glow" or style == "Button Glow" or style == "Flash" or style == "Hammer" then
+        for i = 2, #pandemicEffects do
+            assert(pandemicEffects[i].texture.alpha == 0 and not pandemicEffects[i].group.playing)
+        end
+    end
+    assert(#pandemicButton.pandemicRegions == #pandemicEffects)
+end
+pandemicProfile.pandemicGlow = { color = { 1, 0.85, 0.2, 1 } }
+Runs.ConfigureNativeEffects(pandemicButton, pandemicProfile)
+assert(not pandemicEffect.group.playing and pandemicEffect.texture.alpha == 0,
+    "the default highlight must disable previously selected custom pandemic effects")
+print("OK: native pandemic styles preserve engine visibility, cached effects, and configured geometry")
