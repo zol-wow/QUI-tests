@@ -164,5 +164,22 @@ if fullPayload and selPayload then
             or nil)
 end
 
+local resurrectionModes = { dungeon = "outOfCombat", raid = "always", pvp = "off", world = "always" }
+h.db.profile.general.autoAcceptResurrection = DeepCopy(resurrectionModes)
+local qolStr, qolErr = h.QUICore:ExportProfileSelectionToString({ "qol" })
+check("QoL export returns a profile string", type(qolStr) == "string", qolErr)
+if qolStr then
+    h.db:SetProfile("Resurrection import destination")
+    h.db.profile.general.autoAcceptResurrection.pvp = "always"
+    h.db.profile.general.skinReadyCheck = false
+    local imported, importErr = h.QUICore:ImportProfileSelectionFromString(qolStr, { "qol" })
+    check("QoL import succeeds", imported, importErr)
+    for location, mode in pairs(resurrectionModes) do
+        check("QoL import preserves resurrection mode for " .. location,
+              h.db.profile.general.autoAcceptResurrection[location] == mode)
+    end
+    check("QoL import preserves unrelated skin settings", h.db.profile.general.skinReadyCheck == false)
+end
+
 print(("\n%d failure(s)"):format(failures))
 os.exit(failures == 0 and 0 or 1)

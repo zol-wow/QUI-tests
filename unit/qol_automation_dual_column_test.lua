@@ -17,8 +17,10 @@ function gui:CreateLabel() return NewFrame() end
 function gui:CreateFormCheckbox(_, _, key, db, callback)
     return { key = key, db = db, callback = callback }
 end
-function gui:CreateFormDropdown(parent, label, _, key, db, callback)
-    return self:CreateFormCheckbox(parent, label, key, db, callback)
+function gui:CreateFormDropdown(parent, label, options, key, db, callback)
+    local widget = self:CreateFormCheckbox(parent, label, key, db, callback)
+    widget.options = options
+    return widget
 end
 function gui:CreateFormSlider(parent, label, _, _, _, key, db, callback)
     return self:CreateFormCheckbox(parent, label, key, db, callback)
@@ -72,6 +74,7 @@ local expected = {
         autoConfirmTokenPurchase autoConfirmHighCost ejLootSpecIcons gemSocketPicker
         mailContactsPanel mailRememberRecipient]],
     focusMarker = "enabled marker useMouseover writeMacro",
+    autoAcceptResurrection = "dungeon raid pvp world",
     healerMana = "enabled instanceOnly",
     tradeMailLog = "enabled logTrades logSentMail logReceivedMail",
 }
@@ -97,6 +100,12 @@ for index, cells in ipairs(rows) do
                 "unexpected or duplicate binding: " .. tostring(widget.key))
             remaining[widget.db][widget.key] = nil
             actualCount = actualCount + 1
+            if widget.db == general.autoAcceptResurrection then
+                assert(widget.options and #widget.options == 3, "resurrection needs three modes")
+                for modeIndex, mode in ipairs({ "off", "outOfCombat", "always" }) do
+                    assert(widget.options[modeIndex].value == mode, "incorrect resurrection mode")
+                end
+            end
             if widget.callback then widget.callback() end
         else
             assert(column == 2 and index == #rows, "blank cell must be last")
