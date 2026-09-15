@@ -49,6 +49,7 @@ local function buildInstance(overrides)
     local rec = {
         ensured = {},        -- frame -> overlay
         starts = {},         -- overlays painted
+        entries = {},
         stops = {},          -- overlays cleared
         hooks = {},          -- { owner, method, fn }
         securecalls = 0,
@@ -62,7 +63,10 @@ local function buildInstance(overrides)
         getEntryForFrame = overrides.getEntryForFrame,
         ensureOverlay = function(frame) return makeOverlay(frame) end,
         isPandemicEnabled = overrides.isPandemicEnabled or function() return true end,
-        startPandemic = function(overlay) rec.starts[#rec.starts + 1] = overlay end,
+        startPandemic = function(overlay, entry)
+            rec.starts[#rec.starts + 1] = overlay
+            rec.entries[#rec.starts] = entry
+        end,
         stopPandemic = function(overlay) rec.stops[#rec.stops + 1] = overlay end,
         hooksecurefunc = function(owner, method, fn)
             rec.hooks[#rec.hooks + 1] = { owner = owner, method = method, fn = fn }
@@ -123,6 +127,7 @@ do
     local overlay = rec.ensured[frame]
     assert(overlay and overlay.__overlay, "an own overlay was ensured for the frame")
     assert(rec.starts[1] == overlay, "paint applied to the own overlay")
+    assert(rec.entries[1] == frame._entry, "pandemic styling receives the claimed spell entry")
     assert(rec.starts[1] ~= frame, "paint NOT applied to the live frame")
 
     -- Show re-fires every OnUpdate tick during pandemic: latched, no re-paint.
@@ -226,6 +231,21 @@ do
     inst:_OnHidePandemic(nil)
     inst:OnClaim(nil, {})
     assert(#rec.starts == 0 and #rec.stops == 0, "nil frame: no-ops")
+end
+
+do
+    local inst, rec = buildInstance({ getEntryForFrame = function(f) return f._entry end })
+    local frame = makeLiveFrame()
+    frame._entry = { spellID = 7, viewerType = "essential" }
+    inst:_OnShowPandemic(frame)
+    frame._entry = { spellID = 7, viewerType = "utility" }
+    inst:OnClaim(frame, frame._entry)
+    assert(#rec.stops == 1, "moving the same spell between viewers must clear its previous pandemic style")
+    inst:_OnShowPandemic(frame)
+    assert(#rec.starts == 2 and rec.entries[2] == frame._entry,
+        "the next pandemic tick must paint the new viewer's style")
+    inst:_OnShowPandemic(frame)
+    assert(#rec.starts == 2, "the new viewer's pandemic paint must remain latched")
 end
 
 print("OK: cdm_reanchor_pandemic_test")

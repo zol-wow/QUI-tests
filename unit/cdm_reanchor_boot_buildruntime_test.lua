@@ -162,7 +162,10 @@ local capturedAuraDeps
 ns.CDMReanchorAuraPhase = { New = function(deps) capturedAuraDeps = deps; return { Hook = function() end } end }
 local swipeStub = { showRechargeEdge = false, showCooldownSwipe = true }
 ns._OwnedSwipe = { GetSettings = function() return swipeStub end }
+env.shouldRetainAuraMirror = function() return false end
 local facade = B.BuildRuntime(env)
+assert(capturedRuntimeDeps.shouldRetainAuraMirror == env.shouldRetainAuraMirror,
+    "boot must forward prepared aura ownership to the runtime")
 assert(type(facade) == "table" and facade.bridge and facade.wiring and facade.runtime, "facade has bridge/wiring/runtime")
 assert(type(facade.RefreshBuiltin) == "function", "facade:RefreshBuiltin exists")
 assert(type(facade.RefreshBuiltins) == "function", "facade:RefreshBuiltins exposes atomic placement refresh")
