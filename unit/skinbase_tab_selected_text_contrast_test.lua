@@ -246,4 +246,71 @@ sysOwner.TabSystem:SetTabVisuallySelected(2)
 assert(TextColor(sB)[4] == 1 and near(TextColor(sA)[4], 0.55),
     "SetTabVisuallySelected must repaint tab text (hook must be installed)")
 
+local forever = setmetatable({
+    GetCurrentEnvironment = function() return {} end,
+    CreateFromMixins = function(mixin) return mixin or {} end,
+    EnumUtil = { MakeEnum = function() return {} end },
+    CollectionsJournalMixin = {},
+    PlaySound = function() end,
+    SOUNDKIT = { IG_CHARACTER_INFO_TAB = 1 },
+}, { __index = _G })
+local function LoadForever(path)
+    local chunk = assert(loadfile("tests/clients/forever/framexml/Interface/AddOns/" .. path))
+    setfenv(chunk, forever)()
+end
+LoadForever("Blizzard_SharedXML/Mainline/SharedUIPanelTemplates.lua")
+LoadForever("Blizzard_Collections/Camelot/Blizzard_CollectionsOverrides.lua")
+
+local collections = NewFrame()
+collections.TabContainer = NewFrame(collections)
+local sideA, sideB = NewTab(collections.TabContainer), NewTab(collections.TabContainer)
+collections.TabContainer.Tabs = { sideA, sideB }
+for id, tab in ipairs(collections.TabContainer.Tabs) do
+    tab.SelectedTexture = tab:CreateTexture()
+    tab.Icon, tab.Mask = tab:CreateTexture(), tab:CreateTexture()
+    tab.Icon:SetTexture("collection-icon-" .. id)
+    tab.Mask:SetTexture("collection-mask")
+    tab.Icon:Show()
+    tab.Mask:Show()
+    tab.SetChecked = forever.SidePanelTabButtonMixin.SetChecked
+    tab.UpdateIconInterior = forever.SidePanelTabButtonMixin.UpdateIconInterior
+    tab.GetFinalIconAnchorOffsets = function() return 0, 0 end
+    tab.customMouseUpHandler = function(self, button, upInside)
+        if button == "LeftButton" and upInside then
+            forever.CollectionsJournal_SetTab_Internal(collections.TabContainer, self:GetID())
+        end
+    end
+    tab.scripts.OnMouseUp = forever.SidePanelTabButtonMixin.OnMouseUp
+    tab.hookCounts = {}
+    function tab:GetID() return id end
+    function tab:HasScript(script) return script ~= "OnClick" end
+    function tab:HookScript(script, callback)
+        assert(self:HasScript(script), "Forever Frame tabs reject OnClick handlers")
+        self.hookCounts[script] = (self.hookCounts[script] or 0) + 1
+        assert(self.hookCounts[script] == 1, "skinning twice must not duplicate script hooks")
+        local original = self.scripts[script]
+        self.scripts[script] = function(...)
+            if original then original(...) end
+            callback(...)
+        end
+    end
+end
+forever.CollectionsJournal_SetTab_Internal(collections.TabContainer, 1)
+SkinBase.SkinTabGroup(collections.TabContainer.Tabs, collections)
+SkinBase.SkinTabGroup(collections.TabContainer.Tabs, collections)
+assert(TextColor(sideA)[4] == 1 and near(TextColor(sideB)[4], 0.55),
+    "initial Forever selection must survive skinning and texture clamping")
+for id, tab in ipairs(collections.TabContainer.Tabs) do
+    assert(tab.Icon.file == "collection-icon-" .. id and tab.Icon:IsShown() and tab.Icon.alpha == 1,
+        "Forever icon-only tabs must retain their visible identifying icon")
+    assert(tab.Mask.file == "collection-mask" and tab.Mask:IsShown(),
+        "Forever tab icons must retain their mask")
+end
+forever.CollectionsJournal_SetTab_Internal(collections.TabContainer, 2)
+assert(TextColor(sideB)[4] == 1 and near(TextColor(sideA)[4], 0.55),
+    "programmatic Forever selection must clear the previous tab highlight")
+sideA.scripts.OnMouseUp(sideA, "LeftButton", true)
+assert(TextColor(sideA)[4] == 1 and near(TextColor(sideB)[4], 0.55),
+    "mouse-up refresh must preserve native Forever tab switching")
+
 print("OK: skinbase_tab_selected_text_contrast_test")
