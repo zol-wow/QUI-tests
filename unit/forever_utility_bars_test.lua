@@ -5,6 +5,7 @@ local corpus = "tests/clients/forever/framexml/Interface/AddOns/"
 local function run(showKeyring)
     local world = setmetatable({}, { __index = _G })
     world._G = world
+    world.QUI_RefreshActionBarFade = noop
     world.setfenv = setfenv
     local combat, timers = false, {}
     local visibilityDrivers = {}

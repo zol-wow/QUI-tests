@@ -5,6 +5,7 @@ local function noop() end
 local function forbidden() error("native presentation must not execute snippets or replace secure actions") end
 local world = setmetatable({}, { __index = _G })
 world._G = world
+world.QUI_RefreshActionBarFade = noop
 world.setfenv = setfenv
 local methods = {}
 local function frame(name, parent, id)
@@ -376,11 +377,18 @@ settings.ownedLayout.iconCount = 12
 owned:RefreshNativeBars()
 settings.enabled = false
 owned:RefreshNativeBars()
+assert(not bar.ActionBarPageNumber:IsShown(), "disabled main bar must hide native paging controls")
+combat = true
+bar.ActionBarPageNumber:Show()
+world.SecureStateDriverManager.scripts.OnUpdate(world.SecureStateDriverManager, 1)
+assert(not bar.ActionBarPageNumber:IsShown(), "native visibility driver must keep paging controls hidden in combat")
+combat = false
 assert(registeredSettings.PROXY_SHOW_ACTIONBAR_2:GetValue() == false, "registered false values must remain valid settings")
 world.ActionBarMixin.UpdateShownButtons(bar)
 for _, button in ipairs(bar.actionButtons) do assert(not button:IsShown(), "disabled QUI bar hides its native buttons") end
 settings.enabled = true
 owned:RefreshNativeBars()
+assert(bar.ActionBarPageNumber:IsShown() and not bar.ActionBarPageNumber:GetAttribute("statehidden"), "reenabling main bar restores native paging controls")
 for _, button in ipairs(bar.actionButtons) do assert(not button:GetAttribute("statehidden"), "reenabling bar restores native controls") end
 assert(bar.numButtonsShowable == 12, "native layout settings must not be overwritten")
 bar.numButtonsShowable = 6
@@ -391,8 +399,10 @@ for i = 7, 12 do assert(bar.actionButtons[i]:GetAttribute("statehidden"), "butto
 for _, nativeBar in pairs(bars) do assert(nativeBar:GetParent() == world.UIParent, "native bar parents must remain unchanged") end
 holder:Hide()
 assert(not holder:IsShown() and bar:IsShown(), "QUI holder hiding must not replace native bar visibility ownership")
+assert(not bar.ActionBarPageNumber:IsShown(), "holder hiding must also hide native paging controls")
 for _, button in ipairs(bar.actionButtons) do assert(button:GetAttribute("statehidden"), "holder hide must hide native controls through visibility drivers") end
 holder:Show()
+assert(bar.ActionBarPageNumber:IsShown(), "holder showing must restore native paging controls")
 assert(holder:IsShown() and env.IsNativeBarEnabled("bar1"), "holder show must clear explicit QUI hide")
 for i = 1, 6 do assert(not bar.actionButtons[i]:GetAttribute("statehidden"), "holder show restores visible native controls") end
 for _ = 1, 2 do
