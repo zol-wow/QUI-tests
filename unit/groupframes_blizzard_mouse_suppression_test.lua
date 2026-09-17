@@ -106,7 +106,7 @@ local function newFrame(name)
     return frame
 end
 
-local function loadModule()
+local function loadModule(unavailable)
     local db = {
         enabled = true,
     }
@@ -190,6 +190,7 @@ end
 local safeCallMethodIfPresentStub = function(_policy, obj, name, ...) if obj == nil then return nil end local okP, m = pcall(function() return obj[name] end) if not okP then return false end if m == nil then return nil end return pcall(m, obj, ...) end
 
     local ns = {
+        Client = { restrictedExecutionUnavailable = unavailable },
         SafeCall = safeCallStub,
         SafeCallMethod = safeCallMethodStub,
     SafeCallMethodIfPresent = safeCallMethodIfPresentStub,
@@ -286,3 +287,19 @@ assertMouseRestored(_G.CompactRaidGroup1Member1, "CompactRaidGroup1Member1")
 assert(_G.CompactRaidGroup1Member1:GetParent() == raidGroupMemberParent, "CompactRaidGroup1Member1 should restore its original parent")
 
 print("OK: groupframes_blizzard_mouse_suppression_test")
+
+local unavailable, _, fallbackFrames = loadModule(true)
+unavailable:HideBlizzardFrames()
+for _, event in ipairs({"ADDON_LOADED", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "PLAYER_REGEN_ENABLED"}) do
+    for _, frame in ipairs(fallbackFrames) do
+        if frame.registeredEvents[event] and frame.scripts.OnEvent then
+            frame.scripts.OnEvent(frame, event, "QUI")
+        end
+    end
+end
+for _, frame in ipairs({PartyFrame, CompactPartyFrame, CompactRaidFrameContainer, _G.CompactPartyFrameMember1, _G.CompactRaidFrame1}) do
+    assertMouseRestored(frame, frame.name)
+    assert(frame.eventsRegistered, frame.name .. " retains native unit events")
+    assert(frame.parentChanges == 1, frame.name .. " stays with native parent")
+end
+print("OK: unavailable restricted execution retains native group frames")

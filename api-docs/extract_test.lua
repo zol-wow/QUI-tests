@@ -167,4 +167,49 @@ do
         "cross-system merge keeps the largest documented return arity")
 end
 
+do
+    local dir = os.tmpname()
+    os.remove(dir)
+    assert(os.execute("mkdir '" .. dir .. "'") == 0)
+    local path = dir .. "/Test.lua"
+    local function write(source)
+        local file = assert(io.open(path, "wb"))
+        file:write(source)
+        file:close()
+    end
+    write([[local value = Constants.Test.Maximum + 1
+APIDocumentation:AddDocumentationTable({Namespace = "C_Computed", Functions = {
+    {Name = "Read", SecretReturnsForAspect = {Enum.SecretAspect.Alpha},
+     Arguments = {{Name = "value", Default = value}}}
+}})]])
+    local computed = Extract.fromCorpus(dir)
+    assert_eq(computed["C_Computed.Read"].secretReturnsForAspect[1], "Alpha",
+        "computed constants preserve aspect names")
+    local output = dir .. "/index.txt"
+    local log = dir .. "/log.txt"
+    local command = "lua tools/test_taint.lua --update-index --corpus '" .. dir
+        .. "' --index '" .. output .. "' > '" .. log .. "' 2>&1"
+    assert(os.execute(command) == 0, "custom corpus CLI generation")
+    local generated = assert(loadfile(output))()
+    assert_eq(generated["C_Computed.Read"].secretReturnsForAspect[1], "Alpha",
+        "CLI selects requested corpus and index")
+    assert(os.execute("lua tools/test_taint.lua --update-index --corpus '" .. dir
+        .. "' > '" .. log .. "' 2>&1") ~= 0, "custom corpus requires explicit output")
+    for _, source in ipairs({ "local =", "error('broken documentation')" }) do
+        write(source)
+        local success, err = pcall(Extract.fromCorpus, dir)
+        assert(not success and tostring(err):find(path, 1, true),
+            "invalid documentation must fail with its path")
+        assert(os.execute(command) ~= 0, "CLI rejects invalid documentation")
+        assert_eq(assert(loadfile(output))()["C_Computed.Read"].secretReturnsForAspect[1],
+            "Alpha", "failed extraction preserves selected output")
+    end
+    os.remove(output)
+    os.remove(log)
+    os.remove(path)
+    assert(not pcall(Extract.fromCorpus, dir), "empty corpus must fail")
+    assert(os.execute("rmdir '" .. dir .. "'") == 0)
+    assert(not pcall(Extract.fromCorpus, dir), "missing corpus must fail")
+end
+
 print("extract test passed")

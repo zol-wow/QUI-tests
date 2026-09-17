@@ -148,7 +148,8 @@ local ns = {
 
 _G.QUI = { db = { char = {}, profile = {} } }
 
-local function loadModule(clickCast)
+local function loadModule(clickCast, unavailable)
+    ns.Client = { restrictedExecutionUnavailable = unavailable }
     inCombat = false
     createdFrames = {}
     _G.QUI_ClickCastHeader = nil
@@ -348,3 +349,19 @@ do
 end
 
 print("OK: groupframes_clickcast_default_preservation_test")
+
+local gfcc, child = loadModule({enabled = true, _migratedFromProfile = true,
+    rootSpellMigrationDone = true, bindings = {{button = "LeftButton", actionType = "spell", spellID = 774}}}, true)
+child:SetAttribute("type1", "target")
+child:SetAttribute("type2", "togglemenu")
+gfcc:Initialize()
+gfcc:RefreshBindings()
+gfcc:RegisterFrame(child)
+gfcc:RegisterAllFrames()
+gfcc:RegisterUnitFrames()
+assert(not gfcc:IsEnabled(), "click casting stays inactive without restricted execution")
+assert(not _G.QUI_ClickCastHeader, "no secure binding header is created")
+assert(child:GetAttribute("type1") == "target", "native targeting is preserved")
+assert(child:GetAttribute("type2") == "togglemenu", "native menu is preserved")
+assert(next(child.secureWraps) == nil, "native clicks are not wrapped")
+print("OK: unavailable restricted execution retains native clicks")

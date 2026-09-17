@@ -35,6 +35,11 @@ function M.InstallBaseStubs()
     _G.GetMoney = _G.GetMoney or function() return 0 end
     _G.Enum = _G.Enum or {}
     _G.Enum.BankType = _G.Enum.BankType or { Character = 0, Guild = 1, Account = 2 }
+    _G.Enum.BagIndex = _G.Enum.BagIndex or { ReagentBag = 5 }
+    if not _G.Enum.BagIndex.CharacterBankTab_1 then
+        for i = 1, 6 do _G.Enum.BagIndex["CharacterBankTab_" .. i] = 5 + i end
+        for i = 1, 5 do _G.Enum.BagIndex["AccountBankTab_" .. i] = 11 + i end
+    end
     _G.C_Container = _G.C_Container or {}
     _G.C_Bank = _G.C_Bank or {}
     _G.C_Item = _G.C_Item or {}

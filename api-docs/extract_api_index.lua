@@ -21,16 +21,17 @@ local M = {}
 -- Auto-vivify with stable string placeholders — none of the extracted flags
 -- carry these values, they just have to be indexable without erroring.
 local function makeAutoTable(prefix)
+    local zero = function() return 0 end
     return setmetatable({}, {
         __index = function(t, k)
-            local v = setmetatable({}, {
-                __index = function(_, k2)
-                    return prefix .. "." .. tostring(k) .. "." .. tostring(k2)
-                end,
-            })
+            local v = makeAutoTable(prefix .. "." .. tostring(k))
             rawset(t, k, v)
             return v
         end,
+        __tostring = function() return prefix end,
+        __add = zero, __sub = zero, __mul = zero, __div = zero,
+        __mod = zero, __pow = zero, __unm = zero, __len = zero,
+        __concat = function(a, b) return tostring(a) .. tostring(b) end,
     })
 end
 
@@ -347,7 +348,7 @@ local function discoverFiles(corpusDir)
     if isWindows then
         cmd = string.format('dir /b "%s\\*.lua" 2>nul', corpusDir:gsub("/", "\\"))
     else
-        cmd = string.format('find "%s" -maxdepth 1 -type f -name "*.lua" 2>/dev/null', corpusDir)
+        cmd = "find '" .. corpusDir:gsub("'", "'\"'\"'") .. "' -maxdepth 1 -type f -name '*.lua' 2>/dev/null"
     end
     local p = io.popen(cmd, "r")
     if p then
@@ -406,33 +407,27 @@ end
 function M.fromCorpus(corpusDir)
     local APIDocumentation, captured = makeSandbox()
     local files = discoverFiles(corpusDir)
+    assert(#files > 0, "No Lua documentation files in " .. corpusDir)
 
     for _, path in ipairs(files) do
-        local f = io.open(path, "rb")
-        if f then
-            local source = f:read("*a")
-            f:close()
-            local env = setmetatable({
-                APIDocumentation = APIDocumentation,
-                Enum = makeAutoTable("Enum"),
-                Constants = makeAutoTable("Constants"),
-            }, { __index = _G })
-            local chunk
-            if setfenv then
-                -- Lua 5.1
-                chunk = (loadstring or load)(source, path)
-                if chunk then
-                    setfenv(chunk, env)
-                    pcall(chunk)
-                end
-            else
-                -- Lua 5.2+
-                chunk = load(source, path, "t", env)
-                if chunk then
-                    pcall(chunk)
-                end
-            end
+        local f = assert(io.open(path, "rb"))
+        local source = f:read("*a")
+        f:close()
+        local env = setmetatable({
+            APIDocumentation = APIDocumentation,
+            Enum = makeAutoTable("Enum"),
+            Constants = makeAutoTable("Constants"),
+        }, { __index = _G })
+        local chunk, err
+        if setfenv then
+            chunk, err = (loadstring or load)(source, "@" .. path)
+            if chunk then setfenv(chunk, env) end
+        else
+            chunk, err = load(source, "@" .. path, "t", env)
         end
+        assert(chunk, path .. ": " .. tostring(err))
+        local ok, result = pcall(chunk)
+        assert(ok, path .. ": " .. tostring(result))
     end
 
     local index = {}

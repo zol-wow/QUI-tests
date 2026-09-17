@@ -2840,6 +2840,7 @@ return {
               collections = true,
               help = false,
               housing = true,
+              legacy = true,
               lfg = true,
               professions = true,
               questlog = true,

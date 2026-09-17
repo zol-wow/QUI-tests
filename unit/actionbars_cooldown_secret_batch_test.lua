@@ -1,5 +1,7 @@
 -- luacheck: globals UIParent SlashCmdList BINDING_HEADER_QUI_ACTIONBARS WOW_PROJECT_MAINLINE WOW_PROJECT_ID RANGE_INDICATOR GetBuildInfo CreateFrame InCombatLockdown GetTime HasAction hooksecurefunc RegisterStateDriver UnregisterStateDriver LibStub GetActionInfo GetActionTexture GetActionText GetActionCount IsCurrentAction IsAutoRepeatAction IsEquippedAction GetCVar SetActionUIButton C_Timer C_ActionBar C_Spell C_LossOfControl issecretvalue wipe GetPetActionInfo GetPetActionSlotUsable IsPetAttackAction GetPetActionCooldown GetShapeshiftFormInfo GetShapeshiftFormCooldown CooldownFrame_Set IsUsableAction
 
+local client = ...
+
 local SecretSentinel = dofile("tests/helpers/secret_sentinel.lua")
 SecretSentinel.InstallSecretStub()
 
@@ -120,6 +122,7 @@ WOW_PROJECT_ID = WOW_PROJECT_MAINLINE
 RANGE_INDICATOR = ""
 
 function GetBuildInfo()
+    if client == "forever" then return "1.60.1", "69893", "Sep 17 2026", 16001 end
     return "12.1.0", "69299", "Aug 1 2026", 120100
 end
 

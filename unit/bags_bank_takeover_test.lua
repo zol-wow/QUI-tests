@@ -188,4 +188,29 @@ assert(closeBankCalls == callsBeforeLatchedRevert,
     "Revert must not re-send a close already in flight (closing latch)")
 assert(BankTakeover.IsLive() == false, "Revert must clear live even with a close in flight")
 
+local nativeHides, nativeCloses = bankFrame._hideCount, closeBankCalls
+local nativeWindows, nativeOpens, nativeBagCloses = #windowLog, #openLog, #closeLog
+C_Bank.ShouldUsePlayerBagsInBank = function() return true end
+BankTakeover.Suppress()
+BankTakeover.OnBankOpened()
+assert(not BankTakeover.IsLive(), "bag-slot bank must retain Blizzard ownership")
+BankTakeover.UserClosedWindow()
+BankTakeover.OnBankClosed()
+BankTakeover.Revert()
+assert(bankFrame._hideCount == nativeHides and closeBankCalls == nativeCloses,
+    "native bag-slot bank must not be hidden or closed")
+assert(#windowLog == nativeWindows and #openLog == nativeOpens and #closeLog == nativeBagCloses,
+    "native bank must keep its own window and bag open/close lifecycle")
+assert(bankFrame:GetScript("OnShow") == origOnShow and bankFrame:GetScript("OnHide") == origOnHide
+    and bankFrame:GetParent() == "UIParent", "native bank scripts and parent must remain intact")
+
+ns.Helpers = { CreateDBGetter = function()
+    return function() return { behavior = { autoDepositReagents = true } } end
+end }
+assert(loadfile("QUI_Bags/bags/ops/shared.lua"))("QUI", ns)
+assert(loadfile("QUI_Bags/bags/ops/transfers.lua"))("QUI", ns)
+C_Timer = { After = function(_, callback) callback() end }
+ns.Bags.Transfers.DepositReagents = function() error("native bank must not auto-deposit via QUI") end
+ns.Bags.Transfers.AutoDepositReagentsOnOpen()
+
 print("OK: bags_bank_takeover_test")

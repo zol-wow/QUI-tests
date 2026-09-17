@@ -68,6 +68,8 @@ function CreateFrame(frameType, _, parent)
 end
 function InCombatLockdown() return false end
 function IsSpellKnown() return true end
+Enum = { SpellBookSpellBank = { Player = 0 } }
+C_SpellBook = { IsSpellInSpellBook = function() return true end }
 GameTooltip = widget()
 C_ChallengeMode = {
     GetMapTable = function() return { 1 } end,
