@@ -68,7 +68,9 @@ local function harness(forever, provider)
     env.C_AddOns = { IsAddOnLoaded = function(addon) return addon == 'Blizzard_GroupFinder_VanillaStyle' end }
     env.LFGVanilla_ToggleFrame = function() state.vanillaGroupFinder = true end
     if not forever then env.PVEFrame_ToggleFrame = function(panel, selection) state.groupFinder = { panel, selection } end end
-    loadNativeFunction('tests/clients/forever/framexml/Interface/AddOns/Blizzard_Game/Shared/Game.lua', 'ToggleGroupFinderFrame', env)
+    if forever then
+        loadNativeFunction('tests/clients/forever/framexml/Interface/AddOns/Blizzard_Game/Shared/Game.lua', 'ToggleGroupFinderFrame', env)
+    end
     env.LFDParentFrame = {}
     env.GameTooltip = { lines = {} }
     for _, method in ipairs({ 'SetOwner', 'ClearLines', 'Show', 'Hide' }) do env.GameTooltip[method] = function() end end

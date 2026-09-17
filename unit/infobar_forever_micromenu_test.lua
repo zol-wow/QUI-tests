@@ -13,8 +13,12 @@ for _, isForever in ipairs({ false, true }) do
     world.Enum = { GameRule = setmetatable({}, { __index = function(_, key) return key end }) }
     world.C_GameRules = { IsGameRuleActive = function(rule) return disabledRules[rule] end }
     world.GameRulesUtil = { EJIsDisabled = function() return ejDisabled end }
-    world.ToggleGroupFinderFrame = function() calls.lfg = true end
-    world.PVEFrame_ToggleFrame = function() error("must use native group-finder dispatcher") end
+    if isForever then
+        world.ToggleGroupFinderFrame = function() calls.lfg = true end
+        world.PVEFrame_ToggleFrame = function() error("must use native group-finder dispatcher") end
+    else
+        world.PVEFrame_ToggleFrame = function(...) assert(select("#", ...) == 0); calls.lfg = true end
+    end
     world.ToggleAchievementFrame = function() calls.achievements = true end
     world.LegacyMicroButton = { IsEnabled = function() return legacyEnabled end }
     world.LoadAddOnWithErrorHandling = function(name)
