@@ -54,6 +54,7 @@ for _, globalEnabled in ipairs({ true, false }) do
         fadeInDuration = 0.2, fadeOutDuration = 0.3,
     }
     local owned = {
+        InitializeTooltipSuppression = noop,
         useNativeButtons = true, containers = { bar1 = container },
         nativeButtons = { bar1 = { button } }, fadeState = {}, editOverlays = {},
     }
@@ -77,7 +78,7 @@ for _, globalEnabled in ipairs({ true, false }) do
         ShouldSuspendMouseoverFade = function() return false end,
         IsSpellFlyoutActiveForBar = function() return false end,
         InvalidateEffectiveSettingsCache = noop,
-        BuildBar = noop, SetupBarMouseover = noop,
+        BuildBar = noop, SetupBarMouseover = noop, ApplyAllFlyoutDirections = noop,
         SetChunkEnv = function(level, scope) setfenv(level + 1, scope) end,
     }, { __index = _G })
     env._G = env

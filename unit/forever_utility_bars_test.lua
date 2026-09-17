@@ -147,6 +147,8 @@ local function run(showKeyring)
         load("QUI_ActionBars/actionbars/actionbars" .. (name == "" and "" or "_" .. name) .. ".lua", ns)
     end
     local env, owned = ns.ActionBarsEnv, ns.ActionBarsOwned
+    owned.InitializeTooltipSuppression = noop
+    env.ApplyAllFlyoutDirections = noop
     env.SetupOwnedBarMouseover = noop
     env.HideManagedBlizzardBarFrame = function(f) f:Hide() end
     owned:InitializeNativeBars()

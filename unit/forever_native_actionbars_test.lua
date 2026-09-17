@@ -92,7 +92,8 @@ end
 function methods:RegisterEvent(event) self.events[event] = true end
 function methods:SetAttribute(name, value)
     if self.isActionButton then
-        assert(name == "statehidden", "QUI must preserve native secure action attributes")
+        assert(name == "statehidden" or name == "flyoutDirection", "QUI must preserve native secure action attributes")
+        if name == "flyoutDirection" then assert(not combat, "flyout direction changes must wait for combat") end
         protectedWrites = protectedWrites + 1
     end
     self.attributes[name] = value
@@ -188,7 +189,7 @@ world.ActionBarActionEventsFrame = { frames = { [bar.actionButtons[1]] = true } 
 world.OverrideActionBar = frame("OverrideActionBar", world.UIParent)
 world.OverrideActionBar:Hide()
 world.OverrideActionBarButton1 = frame("OverrideActionBarButton1", world.OverrideActionBar, 1)
-local settings = { enabled = true, iconSize = 36, buttonSpacing = 2, ownedLayout = { columns = 2, iconCount = 4 } }
+local settings = { enabled = true, iconSize = 36, buttonSpacing = 2, ownedLayout = { columns = 2, iconCount = 4, flyoutDirection = "LEFT" } }
 local core = { db = { profile = {} } }
 local ns = {
     Client = { restrictedExecutionUnavailable = true },
@@ -208,6 +209,17 @@ for _, name in ipairs({ "env", "", "builder", "layout", "native" }) do
     load("QUI_ActionBars/actionbars/actionbars" .. (name == "" and "" or "_" .. name) .. ".lua", ns)
 end
 local env, owned = ns.ActionBarsEnv, ns.ActionBarsOwned
+owned.InitializeTooltipSuppression = noop
+local usabilityFile = assert(io.open("QUI_ActionBars/actionbars/actionbars_usability.lua", "r"))
+local usabilitySource = usabilityFile:read("*a"); usabilityFile:close()
+local directionChunk = assert(loadstring(assert(usabilitySource:match("(VALID_FLYOUT_DIRS = .-)\nActionBarsOwned.SuppressButtonProcVisuals"))))
+setfenv(directionChunk, env); directionChunk()
+local flyoutFile = assert(io.open("QUI_ActionBars/actionbars/actionbars_flyout.lua", "r"))
+local flyoutSource = flyoutFile:read("*a"); flyoutFile:close()
+local pageVisibilityChunk = assert(loadstring(assert(flyoutSource:match("(ApplyPageArrowVisibility = function%b().-\nend)"))))
+setfenv(pageVisibilityChunk, env); pageVisibilityChunk()
+env.GetDB = function() return { bars = { bar1 = settings } } end
+ns.SafeCallMethodIfPresent = function(_, value, method) if value[method] then value[method](value) end end
 local bars = { bar1 = bar }
 for number = 2, 8 do
     local key = "bar" .. number
@@ -265,6 +277,7 @@ local function flush()
 end
 owned:InitializeNativeBars()
 flush()
+assert(bar.actionButtons[1]:GetAttribute("flyoutDirection") == "LEFT", "native initialization must restore saved flyout direction")
 assert(settingWrites == 0 and owned.containers.bar8 and owned.containers.bar8 ~= bars.bar8, "missing settings must not abort presentation holder initialization")
 for number = 2, 8 do
     local setting = { value = false }
@@ -289,6 +302,26 @@ owned.nativeEventFrame.scripts.OnEvent(owned.nativeEventFrame, "SETTINGS_LOADED"
 flush()
 assert(settingWrites == 7, "matching registered toggles must not be written again")
 local holder = owned.containers.bar1
+settings.hidePageArrow = true
+env.ApplyPageArrowVisibility(true)
+assert(not bar.ActionBarPageNumber:IsShown(), "native paging controls must honor the hide-arrow preference")
+settings.hidePageArrow = false
+env.ApplyPageArrowVisibility(false)
+assert(bar.ActionBarPageNumber:IsShown(), "changing hide-arrow preference restores paging controls")
+combat = true
+settings.hidePageArrow = true
+env.ApplyPageArrowVisibility(true)
+settings.ownedLayout.flyoutDirection = "RIGHT"
+env.ApplyFlyoutDirection("bar1")
+assert(bar.ActionBarPageNumber:IsShown() and bar.actionButtons[1]:GetAttribute("flyoutDirection") == "LEFT",
+    "paging and flyout setting changes must defer in combat")
+combat = false
+owned.nativeEventFrame.scripts.OnEvent(owned.nativeEventFrame, "PLAYER_REGEN_ENABLED")
+flush()
+assert(not bar.ActionBarPageNumber:IsShown() and bar.actionButtons[1]:GetAttribute("flyoutDirection") == "RIGHT"
+    and not owned.pendingFlyoutDirection, "regen must apply and clear pending paging/flyout settings")
+settings.hidePageArrow = false
+env.ApplyPageArrowVisibility(false)
 assert(holder ~= bar and holder:GetParent() == world.UIParent and owned.nativeButtons.bar1[1] == bar.actionButtons[1], "presentation holder must preserve original native controls")
 assert(select(2, bar:GetPoint(1)) == holder, "native bar follows independent presentation holder")
 assert(holder.width == 74 and holder.height == 74, "QUI two-column layout must size presentation holder")
