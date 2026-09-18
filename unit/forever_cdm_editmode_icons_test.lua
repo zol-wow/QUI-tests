@@ -3,7 +3,7 @@ local function read(path)
     local file = assert(io.open(path, "r")); local source = file:read("*a"); file:close(); return source
 end
 local function noop() end
-local function run(extraCount, delayed, isForever, build)
+local function run(extraCount, delayed, isForever, build, shouldPatch)
     local world = setmetatable({}, { __index = _G }); world._G = world
     local function evaluate(source, name)
         local chunk = assert(loadstring(source, name)); setfenv(chunk, world); return chunk()
@@ -99,9 +99,8 @@ local function run(extraCount, delayed, isForever, build)
         createViewers()
         if onLoaded then onLoaded() end
     end
-    local expectedGuard = isForever and tostring(build) == "69893"
-    if not expectedGuard then
-        assert(registrations == 0 and acquireHooks == 0, "Retail and unverified builds must remain untouched")
+    if not shouldPatch then
+        assert(registrations == 0 and acquireHooks == 0, "Retail must remain untouched")
         for _, viewer in ipairs(viewers) do assert(viewer.active.GetFallbackSpellTexture == fallback) end
         return
     end
@@ -145,9 +144,17 @@ local function run(extraCount, delayed, isForever, build)
     for _, viewer in ipairs(viewers) do check(viewer.active) end
 end
 
-run(10, false, true, "69893")
-run(0, true, true, "69893")
-run(1, true, true, "69893")
-run(10, false, false, "69893")
-run(10, true, true, "69900")
+run(10, false, true, "69893", true)
+run(0, true, true, "69893", true)
+run(1, true, true, "69893", true)
+run(10, false, true, "69913", true)
+run(0, true, true, "69913", true)
+run(1, true, true, 69913, true)
+run(10, false, false, "69893", false)
+run(10, false, false, "69913", false)
+run(10, true, true, "69900", true)
+run(10, true, true, "69914", true)
+run(0, true, true, "70000", true)
+run(1, false, true, 70000, true)
+run(10, true, false, "70000", false)
 print("OK forever_cdm_editmode_icons_test")

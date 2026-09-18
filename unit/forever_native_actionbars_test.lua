@@ -50,12 +50,12 @@ function methods:SetSize(width, height)
     self.width, self.height = width, height
 end
 function methods:ClearAllPoints()
-    assert(not combat, "QUI anchors must wait for combat to end")
+    assert(not combat or self.isNativeDivider, "QUI anchors must wait for combat to end")
     self.anchorClears = (self.anchorClears or 0) + 1
     self.points = {}
 end
 function methods:SetPoint(...)
-    assert(not combat, "QUI anchors must wait for combat to end")
+    assert(not combat or self.isNativeDivider, "QUI anchors must wait for combat to end")
     local point, target = ...
     local function dependsOnSelf(value, visited)
         if value == self then return true end
@@ -171,6 +171,23 @@ bar.ActionBarPageNumber.DownButton = frame(nil, bar.ActionBarPageNumber)
 bar.ActionBarPageNumber.UpButton:SetPoint("CENTER", bar.ActionBarPageNumber, "CENTER", 0, 10)
 bar.ActionBarPageNumber.DownButton:SetPoint("CENTER", bar.ActionBarPageNumber, "CENTER", 0, -10)
 load(corpus .. "Blizzard_ActionBar/Shared/MainActionBar.lua")
+world.CreateFramePool = function(_, parent)
+    return {
+        active = {},
+        ReleaseAll = function(self) self.active = {} end,
+        Acquire = function(self)
+            local divider = frame(nil, parent)
+            divider.isNativeDivider = true
+            divider:SetAlpha(1)
+            self.active[divider] = true
+            return divider
+        end,
+        EnumerateActive = function(self) return next, self.active, nil end,
+    }
+end
+bar.UpdateDividers = world.MainActionBarMixin.UpdateDividers
+bar.enableDividers, bar.isHorizontal, bar.numRows = true, true, 1
+bar.buttonPadding, bar.minButtonPadding = 0, 2
 for i = 1, 12 do
     local container = frame(nil, bar)
     local button = frame("ActionButton" .. i, container, i)
@@ -185,6 +202,7 @@ for i = 1, 12 do
     original[i] = { parent = container, attributes = world.CopyTable(button.attributes), scripts = world.CopyTable(button.scripts) }
 end
 world.ActionBarButtonEventsFrame = { frames = world.CopyTable(bar.actionButtons) }
+bar:UpdateDividers()
 world.ActionBarActionEventsFrame = { frames = { [bar.actionButtons[1]] = true } }
 world.OverrideActionBar = frame("OverrideActionBar", world.UIParent)
 world.OverrideActionBar:Hide()
@@ -367,6 +385,24 @@ end
 assert(bar.actionButtons[1].scale == 0.8, "QUI icon scale must apply")
 assert(bar.actionButtons[2].points[1][4] == 47.5, "QUI spacing must apply")
 assert(bar.EndCaps.alpha == 0 and bar.BorderArt.alpha == 0, "QUI appearance suppresses native artwork")
+local function assertDividersInvisible(pool)
+    local count = 0
+    for divider in pool:EnumerateActive() do
+        count = count + 1
+        assert(divider.alpha == 0, "main-bar divider artwork must not decorate QUI's native slots")
+    end
+    assert(count > 0, "exercise real Blizzard-created dividers")
+end
+assertDividersInvisible(bar.HorizontalDividersPool)
+bar:UpdateDividers()
+assertDividersInvisible(bar.HorizontalDividersPool)
+bar.isHorizontal = false
+bar:UpdateDividers()
+assertDividersInvisible(bar.VerticalDividersPool)
+bar.isHorizontal = true
+bar:UpdateDividers()
+assertDividersInvisible(bar.HorizontalDividersPool)
+assert(bar.enableDividers and not bar.hideBarArt, "native divider layout flags must stay untouched")
 for i, button in ipairs(bar.actionButtons) do
     assert(styles[button] == settings and textStyles[button] == settings, "native buttons must receive QUI skins and text")
     assert(button:GetID() == i and button:GetParent() == original[i].parent and button.bar == bar and button.container == original[i].parent)
@@ -382,6 +418,7 @@ assert(bar.actionButtons[1]:CalculateAction() == 73, "native bonus paging must r
 world.OverrideActionBar:Show()
 assert(world.GetActionButtonForID(1) == world.OverrideActionBarButton1, "native override binding dispatch must survive")
 world.ActionBarMixin.UpdateShownButtons(bar)
+assertDividersInvisible(bar.HorizontalDividersPool)
 for i = 5, 12 do assert(not bar.actionButtons[i]:IsShown() and bar.actionButtons[i]:GetAttribute("statehidden"), "native combat visibility must respect QUI count") end
 local oldWrites, oldWidth = protectedWrites, holder.width
 settings.ownedLayout.iconCount = 8

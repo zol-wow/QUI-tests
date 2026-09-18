@@ -60,12 +60,14 @@ for _, isForever in ipairs({ false, true }) do
         assert(buttons.Legacy.atlasTriplet == "UI-HUD-MicroMenu-Legacy" and buttons.Legacy.combatGuard)
         legacyEnabled = false
         buttons.Legacy.onClick()
-        assert(not calls.loadedLegacy, "locked Legacy system must remain unavailable")
+        assert(calls.loadedLegacy and calls.legacy == 1,
+            "Legacy follows the native key binding even when Blizzard's microbutton is disabled")
         legacyEnabled = true
         buttons.Legacy.onClick()
-        assert(calls.loadedLegacy and calls.legacy == 1, "Legacy click uses Blizzard's load-on-demand bootstrap")
-        buttons.Legacy.onClick()
         assert(calls.legacy == 2, "loaded Legacy frame remains toggleable")
+        world.LegacyMicroButton = nil
+        buttons.Legacy.onClick()
+        assert(calls.legacy == 3, "Legacy does not depend on the native microbutton existing")
         disabledRules.HousingDashboardDisabled = true
         disabledRules.FinderPanelDisabled = true
         ejDisabled = true

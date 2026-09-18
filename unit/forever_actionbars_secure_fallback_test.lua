@@ -4,15 +4,22 @@ local function fail() error("fallback must not mutate native controls or enter s
 for _, case in ipairs({
     { "1.60.1", "69893", true },
     { "1.60.1", 69893, true },
-    { "1.60.1", "69894", false },
+    { "1.60.1", "69913", true },
+    { "1.60.1", 69913, true },
+    { "1.60.1", "69894", true },
+    { "1.60.1", "69914", true },
+    { "1.60.2", "70000", true },
+    { "1.60.2", 70000, true },
     { "12.1.5", "69893", false },
+    { "12.1.5", "69913", false },
+    { "12.1.5", "70000", false },
 }) do
     local ns = {}
     local scope = setmetatable({ GetBuildInfo = function() return case[1], case[2], "", 16001 end }, { __index = _G })
     local chunk = assert(loadfile("core/client.lua"))
     setfenv(chunk, scope)
     chunk("QUI", ns)
-    assert(ns.Client.restrictedExecutionUnavailable == case[3], "workaround must match only verified affected client/build")
+    assert(ns.Client.restrictedExecutionUnavailable == case[3], "fallback must apply to every Forever build and exclude Retail")
 end
 
 local timers, created, hooks, elements = {}, {}, 0, {}
@@ -22,7 +29,7 @@ world.setfenv = setfenv
 world.UIParent = {}
 world.WOW_PROJECT_ID, world.WOW_PROJECT_MAINLINE = 1, 1
 world.InCombatLockdown = function() return false end
-world.GetBuildInfo = function() return "1.60.1", "69893", "", 16001 end
+world.GetBuildInfo = function() return "1.60.2", "70000", "", 16001 end
 world.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
 world.BeginActionBarTransition = noop
 world.hooksecurefunc = function() hooks = hooks + 1 end

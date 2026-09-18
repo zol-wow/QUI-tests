@@ -54,7 +54,7 @@ check(initSrc:find("EnsureOptionsLoaded", 1, true)
 
 -- Fresh-install sampling order in QUICore:OnInitialize
 local samplePos = mainSrc:find('ns._freshInstall = rawget(_G, "QUIDB") == nil', 1, true)
-local acedbPos = mainSrc:find('):New("QUIDB"', 1, true)
+local acedbPos = mainSrc:find('ns.Compatibility.CreateDatabase(defaults)', 1, true)
 check(samplePos, "core/main.lua must sample the QUIDB fresh-install signal")
 check(acedbPos, "core/main.lua must create the QUIDB AceDB store")
 check(samplePos and acedbPos and samplePos < acedbPos,

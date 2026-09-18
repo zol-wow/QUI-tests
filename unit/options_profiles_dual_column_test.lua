@@ -2,6 +2,9 @@
 -- Run: lua tests/unit/options_profiles_dual_column_test.lua
 
 -- Headless WoW-ish stubs --------------------------------------------------
+local addonEnv = dofile("tools/_addon_env.lua")
+addonEnv.LoadLibs()
+
 local function NewFontString()
     local fs = {}
     function fs:SetPoint() end
@@ -25,6 +28,9 @@ local function NewFrame()
     function f:SetPoint() end
     function f:ClearAllPoints() end
     function f:SetScript(name, fn) self["_" .. name] = fn end
+    function f:RegisterEvent() end
+    function f:RegisterUnitEvent() end
+    function f:UnregisterEvent() end
     function f:SetParent() end
     function f:Hide() end
     function f:Show() end
@@ -43,6 +49,7 @@ _G.GetSpecializationInfo = function(i) return i, "Spec" .. i end
 _G.GetSpecialization = function() return 1 end
 _G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 
+local buttons = {}
 local gui = {
     Colors = {
         text = { 1, 1, 1, 1 },
@@ -57,12 +64,14 @@ function gui:CreateButton(_parent, text, _width, _height, onClick)
     b.text = NewFontString()
     b._buttonText = text
     b._onClick = onClick
+    buttons[text] = b
     return b
 end
 function gui:CreateFormDropdown(_parent, _label, options, dbKey, dbTable, onChange)
     local d = NewFrame()
     d._options = options or {}
     function d:SetValue(value, skipOnChange)
+        self._value = value
         if dbTable and dbKey then dbTable[dbKey] = value end
         if onChange and not skipOnChange then onChange(value) end
     end
@@ -74,8 +83,8 @@ end
 function gui:CreateFormEditBox()
     local e = NewFrame()
     e.editBox = NewFrame()
-    e.editBox.GetText = function() return "" end
-    e.editBox.SetText = function() end
+    e.editBox.GetText = function(self) return self._text or "" end
+    e.editBox.SetText = function(self, text) self._text = text end
     return e
 end
 function gui:CreateFormCheckbox() return NewFrame() end
@@ -405,5 +414,91 @@ cards = {}
 Profiles.BuildSpecProfilesContent(NewFrame())
 assert(#headers == 3 and headers[3] == "Spec Auto-Switch",
     "single-profile Profiles content must omit the feature-copy section")
+
+local legacyName = string.rep("x", 51)
+local realDB = LibStub("AceDB-3.0"):New({ profiles = {
+    Default = {}, [legacyName] = { sentinel = true }, ["   "] = { sentinel = true },
+} }, {}, true)
+core.db = realDB
+cards = {}
+Profiles.BuildSpecProfilesContent(NewFrame())
+local switch = cards[2].rows[1].left._widget
+local input = cards[2].rows[2].right._widget.editBox
+local create = buttons.Create
+local originalPrint = print
+local messages = {}
+_G.print = function(message) messages[#messages + 1] = message end
+for _, invalid in ipairs({ legacyName, "   " }) do
+    input:SetText(invalid)
+    local ok, err = pcall(create._onClick)
+    assert(ok, "invalid new profile name must not throw: " .. tostring(err))
+    assert(realDB:GetCurrentProfile() == "Default" and input:GetText() == invalid,
+        "rejected creation must preserve the active profile and editable input")
+    ok, err = pcall(switch.SetValue, switch, invalid)
+    assert(ok, "legacy profile selection must not throw: " .. tostring(err))
+    assert(realDB:GetCurrentProfile() == "Default" and switch._value == "Default",
+        "rejected selection must restore the actual active profile in the dropdown")
+    assert(realDB.sv.profiles[invalid].sentinel, "rejected selection must preserve legacy settings")
+end
+assert(#messages == 4, "each rejected action must explain its error")
+for _, message in ipairs(messages) do
+    assert(message:find("between 1 and 50", 1, true), "show the rejected name constraint")
+end
+local validName = string.rep("é", 50)
+input:SetText(validName)
+create._onClick()
+assert(realDB:GetCurrentProfile() == validName and input:GetText() == "",
+    "a valid 50-character UTF-8 profile must be created and clear the input")
+switch:SetValue("Default")
+assert(realDB:GetCurrentProfile() == "Default", "valid existing profiles must remain selectable")
+_G.print = originalPrint
+
+local currentSpec = 1
+local previousLibrary = LibStub:NewLibrary("LibDualSpec-1.0", 32)
+local libraryEnv = setmetatable({
+    C_SpecializationInfo = {
+        GetSpecialization = function() return currentSpec end,
+        GetNumSpecializationsForClassID = function() return 2 end,
+    },
+    ClassicExpansionAtLeast = function() return true end,
+    ClassicExpansionAtMost = function() return false end,
+    UnitClassBase = function() return "PRIEST", 5 end,
+    GetSpecializationInfoForClassID = function(_, index) return index, "Spec" .. index end,
+    IsLoggedIn = function() return true end,
+}, { __index = _G })
+local libraryChunk = assert(loadfile("libs/LibDualSpec-1.0/LibDualSpec-1.0.lua"))
+setfenv(libraryChunk, libraryEnv)
+libraryChunk()
+local dualSpec = LibStub("LibDualSpec-1.0")
+assert(dualSpec == previousLibrary and dualSpec.EnhanceDatabase,
+    "the patched library must upgrade a previously registered minor 32")
+local mapping = realDB:RegisterNamespace("LibDualSpec-1.0").char
+mapping.enabled, mapping[1], mapping[2] = true, legacyName, validName
+local ok, err = pcall(dualSpec.EnhanceDatabase, dualSpec, realDB, "QUI")
+assert(ok, "an invalid persisted mapping must not break startup: " .. tostring(err))
+assert(realDB:GetCurrentProfile() == "Default" and mapping[1] == legacyName)
+for _, invalid in ipairs({ legacyName, "   ", "", 42 }) do
+    mapping[1] = invalid
+    currentSpec = 2
+    dualSpec.eventFrame:_OnEvent("PLAYER_SPECIALIZATION_CHANGED")
+    assert(realDB:GetCurrentProfile() == validName, "a valid sibling spec mapping must still activate")
+    currentSpec = 1
+    dualSpec.eventFrame:_OnEvent("PLAYER_SPECIALIZATION_CHANGED")
+    assert(realDB:GetCurrentProfile() == validName and mapping[1] == invalid,
+        "an invalid mapping must be preserved and skipped on a spec switch")
+end
+assert(realDB.sv.profiles[legacyName].sentinel and realDB.sv.profiles["   "].sentinel)
+realDB:SetDualSpecProfile("Default", 1)
+cards = {}
+Profiles.BuildSpecProfilesContent(NewFrame())
+local specDropdown = cards[4].rows[2].left._widget
+_G.print = function(message) messages[#messages + 1] = message end
+specDropdown:SetValue(legacyName)
+assert(mapping[1] == "Default" and specDropdown._value == "Default",
+    "invalid UI spec selection must preserve and display the actual previous mapping")
+specDropdown:SetValue(validName)
+assert(mapping[1] == validName and realDB:GetCurrentProfile() == validName,
+    "valid UI spec selection must still persist and activate")
+_G.print = originalPrint
 
 print("OK options_profiles_dual_column_test")

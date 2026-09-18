@@ -84,6 +84,26 @@ local function harness(forever, provider)
         })
     end }
     env.Datatexts = { EnsureText = function(slot) return slot.text end, Register = function(_, _, def) state.provider = def end }
+    if provider == 'bags' then
+        env.NUM_BAG_SLOTS = 4
+        env.wipe = function(t) for key in pairs(t) do t[key] = nil end end
+        env.C_Container = {
+            GetContainerNumSlots = function(bag) return bag <= 2 and 16 or 0 end,
+            GetContainerNumFreeSlots = function() return 8, 0 end,
+            GetBagName = function(bag) return 'Bag' .. bag end,
+            ContainerIDToInventoryID = function(bag) return bag + 19 end,
+        }
+        env.GetInventoryItemTexture = function() return 133788 end
+        env.GetInventoryItemQuality = function(_, slot) if slot == 20 then return 3 end end
+        env.GetItemQualityColor = nil
+        state.qualities = {}
+        env.C_Item = { GetItemQualityColor = function(quality)
+            table.insert(state.qualities, quality)
+            return quality / 10, 0.4, 0.6
+        end }
+        env.GameTooltip.doubleLines = {}
+        function env.GameTooltip:AddDoubleLine(...) table.insert(self.doubleLines, { ... }) end
+    end
     local start = assert(source:find('Datatexts:Register("' .. provider .. '"', 1, true))
     local finish = assert(source:find('\n})', start, true)) + 3
     local chunk = assert(loadstring(source:sub(start, finish), '@datatexts:' .. provider))
@@ -97,6 +117,14 @@ local function harness(forever, provider)
 end
 
 for _, forever in ipairs({ true, false }) do
+    local bags, bagEnv = harness(forever, 'bags')
+    assert(bagEnv.GetItemQualityColor == nil)
+    bags.slot.scripts.OnEnter(bags.slot)
+    assert(#bags.qualities == 2 and bags.qualities[1] == 3 and bags.qualities[2] == 1)
+    local lines = bagEnv.GameTooltip.doubleLines
+    assert(#lines == 3 and lines[1][3] == 1)
+    assert(lines[2][3] == 0.3 and lines[2][4] == 0.4 and lines[2][5] == 0.6)
+    assert(lines[3][3] == 0.1 and lines[3][2] == '8 / 16')
     local key, env = harness(forever, 'mythickey')
     key:click()
     if forever then
