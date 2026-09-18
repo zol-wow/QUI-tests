@@ -2387,6 +2387,12 @@ return {
           audioOutputDevice = "",
           autoAcceptInvites = "all",
           autoAcceptQuest = true,
+          autoAcceptResurrection = {
+            dungeon = "off",
+            pvp = "off",
+            raid = "off",
+            world = "off"
+          },
           autoAcceptSummons = "off",
           autoCombatLog = false,
           autoCombatLogRaid = false,
