@@ -2192,6 +2192,27 @@ return {
             sizeStable = true,
             widthAdjust = 0
           },
+          swingTimerMainHand = {
+            offsetX = 0,
+            offsetY = -180,
+            parent = "screen",
+            point = "CENTER",
+            relative = "CENTER"
+          },
+          swingTimerOffHand = {
+            offsetX = 0,
+            offsetY = -206,
+            parent = "screen",
+            point = "CENTER",
+            relative = "CENTER"
+          },
+          swingTimerRanged = {
+            offsetX = 0,
+            offsetY = -232,
+            parent = "screen",
+            point = "CENTER",
+            relative = "CENTER"
+          },
           targetCastbar = {
             autoHeight = false,
             autoWidth = true,
@@ -8201,6 +8222,17 @@ return {
           vigorTextFormat = "FRACTION",
           visibility = "FLYING_ONLY",
           width = 250
+        },
+        swingTimers = {
+          ["*"] = {
+            fontSize = 11,
+            height = 20,
+            showTime = true,
+            showTitle = true,
+            texture = "Flat",
+            visibility = 0,
+            width = 250
+          }
         },
         themePreset = "Horde",
         tooltip = {
