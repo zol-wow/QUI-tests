@@ -62,6 +62,7 @@ local renderEnv = setmetatable({
     string = string,
     Breakdown = {},
     ApplyRowBackgroundVisibility = function() end,
+    SetRowBarColor = function(row, ...) row.Bar:SetStatusBarColor(...) end,
     IsSecretValue = isSecret,
     C_Spell = {
         GetSpellTexture = function(spellID)
