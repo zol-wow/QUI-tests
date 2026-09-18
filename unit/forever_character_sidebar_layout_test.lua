@@ -19,6 +19,7 @@ local function frame()
     local value = { points = {}, width = 24, height = 24 }
     function value:GetWidth() return self.width end
     function value:GetHeight() return self.height end
+    function value:SetSize(width, height) self.width, self.height = width, height end
     function value:ClearAllPoints() self.points = {} end
     function value:SetPoint(point, relative, relativePoint, x, y)
         assert(not dependsOn(relative, self, {}), "Cannot anchor to a region dependent on it")
@@ -31,6 +32,7 @@ end
 local hasPet = false
 local pixelSize = 1
 local world = setmetatable({
+    ns = { Client = { isForever = false } },
     QUICore = { GetPixelSize = function() return pixelSize end },
     CharacterFrame = frame(), PaperDollSidebarTabs = frame(),
     PaperDollSidebarTab1 = frame(), PaperDollSidebarTab2 = frame(), PaperDollSidebarTab3 = frame(),
@@ -46,7 +48,7 @@ local native = assert(loadstring(nativeSource:sub(nativeStart, nativeEnd - 1)))
 setfenv(native, world)
 native()
 
-local source = read("modules/skinning/character_pane/character.lua")
+local source = read(arg[1] or "modules/skinning/character_pane/character.lua")
 local first = assert(source:find("local function StyleSidebarTabs()", 1, true))
 local last = assert(source:find("local function GetItemQualityColorRGB", first, true))
 local loader = assert(loadstring("local sidebarTabBaseWidth, sidebarTabBaseHeight\n"
@@ -70,4 +72,31 @@ for _, pet in ipairs({ false, true, false, true }) do
     world.PaperDollFrame_UpdateSidebarTabLayout()
 end
 
-print("OK: native Forever sidebar relayout after QUI styling with and without a pet")
+world.ns.Client.isForever = true
+local host = frame()
+host.width = 233
+world.CharacterFrame.RightPaneHost = host
+world.PaperDollSidebarTabs.height = 85
+for _, pet in ipairs({ false, true, false, true }) do
+    hasPet = pet
+    style()
+    local container = world.PaperDollSidebarTabs.points.TOP
+    assert(container and container[2] == host and container[3] == "TOP" and container[4] == 0 and container[5] == -4,
+        "Forever buttons must center on the native right pane rather than Retail's right-edge offset")
+    assert(world.PaperDollSidebarTabs.width == 233 and world.PaperDollSidebarTabs.height == 85,
+        "native container must retain space for the level display below the buttons")
+    for i = 1, 3 do
+        local tab = world["PaperDollSidebarTab" .. i]
+        assert(tab.width == 42 and tab.height == 42, "native button size must match its atlas chrome")
+    end
+    assert(world.PaperDollSidebarTab3.shown == pet, "pet button visibility remains native")
+    local equipment = world.PaperDollSidebarTab2.points.TOP
+    assert(equipment[2] == world.PaperDollSidebarTabs and equipment[4] == (pet and 0 or 21),
+        "Character and Equipment buttons must recenter when the pet button disappears")
+    local character = world.PaperDollSidebarTab1.points.RIGHT
+    assert(character[2] == world.PaperDollSidebarTab2 and character[3] == "LEFT",
+        "Character button must remain beside Equipment without gaps")
+    world.PaperDollFrame_UpdateSidebarTabLayout()
+    style()
+end
+print("OK: client-specific sidebar layout survives repeated native relayout with and without a pet")
