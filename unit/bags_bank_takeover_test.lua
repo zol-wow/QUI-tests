@@ -188,21 +188,39 @@ assert(closeBankCalls == callsBeforeLatchedRevert,
     "Revert must not re-send a close already in flight (closing latch)")
 assert(BankTakeover.IsLive() == false, "Revert must clear live even with a close in flight")
 
-local nativeHides, nativeCloses = bankFrame._hideCount, closeBankCalls
-local nativeWindows, nativeOpens, nativeBagCloses = #windowLog, #openLog, #closeLog
+local registrations = {}
+Enum.PlayerInteractionType = { Banker = 99 }
+Enum.PlayerInteractionType.CharacterBanker = 100
+Enum.PlayerInteractionType.AccountBanker = 101
+RegisterPlayerInteraction = function(kind, info) registrations[kind] = info end
+BankFrame_Open = function() error("Forever must not run the hidden native opener") end
 C_Bank.ShouldUsePlayerBagsInBank = function() return true end
 BankTakeover.Suppress()
+for _, kind in ipairs({ "Banker", "CharacterBanker", "AccountBanker" }) do
+    local info = assert(registrations[Enum.PlayerInteractionType[kind]])
+    assert(info.frame == "BankFrame" and info.showFunc == BankTakeover.OnBankOpened)
+    assert(info.hideFunc == BankTakeover.OnBankClosed)
+end
+local opensBefore = #openLog
+registrations[Enum.PlayerInteractionType.Banker].showFunc()
 BankTakeover.OnBankOpened()
-assert(not BankTakeover.IsLive(), "bag-slot bank must retain Blizzard ownership")
+assert(BankTakeover.IsLive() and #openLog == opensBefore + 1,
+    "interaction and BANKFRAME_OPENED must open the custom bank only once")
+local closesBefore = closeBankCalls
 BankTakeover.UserClosedWindow()
+BankTakeover.UserClosedWindow()
+assert(closeBankCalls == closesBefore + 1)
+registrations[Enum.PlayerInteractionType.Banker].hideFunc()
 BankTakeover.OnBankClosed()
+assert(not BankTakeover.IsLive())
 BankTakeover.Revert()
-assert(bankFrame._hideCount == nativeHides and closeBankCalls == nativeCloses,
-    "native bag-slot bank must not be hidden or closed")
-assert(#windowLog == nativeWindows and #openLog == nativeOpens and #closeLog == nativeBagCloses,
-    "native bank must keep its own window and bag open/close lifecycle")
+for _, kind in ipairs({ "Banker", "CharacterBanker", "AccountBanker" }) do
+    local info = registrations[Enum.PlayerInteractionType[kind]]
+    assert(info.showFunc == _G.BankFrame_Open and info.hideFunc == nil,
+        "disabling QUI must restore the native interaction handlers")
+end
 assert(bankFrame:GetScript("OnShow") == origOnShow and bankFrame:GetScript("OnHide") == origOnHide
-    and bankFrame:GetParent() == "UIParent", "native bank scripts and parent must remain intact")
+    and bankFrame:GetParent() == "UIParent")
 
 ns.Helpers = { CreateDBGetter = function()
     return function() return { behavior = { autoDepositReagents = true } } end

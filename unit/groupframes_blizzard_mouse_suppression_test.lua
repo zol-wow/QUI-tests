@@ -298,8 +298,7 @@ for _, event in ipairs({"ADDON_LOADED", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_U
     end
 end
 for _, frame in ipairs({PartyFrame, CompactPartyFrame, CompactRaidFrameContainer, _G.CompactPartyFrameMember1, _G.CompactRaidFrame1}) do
-    assertMouseRestored(frame, frame.name)
-    assert(frame.eventsRegistered, frame.name .. " retains native unit events")
-    assert(frame.parentChanges == 1, frame.name .. " stays with native parent")
+    assertMouseSuppressed(frame, frame.name)
+    assert(frame:GetParent() and frame:GetParent().shown == false, frame.name .. " yields to native-header QUI frames")
 end
-print("OK: unavailable restricted execution retains native group frames")
+print("OK: native-header QUI group frames suppress duplicate Blizzard frames")

@@ -35,19 +35,16 @@ for _, name in ipairs({"Initialize", "RefreshSettings", "RecreateSpotlightHeader
 end
 setfenv(assert(loadstring(extract(editSource, "function QUI_GFEM:CreateSpotlightHeader()"))), env)()
 
-env.QUI_GF:Initialize()
-env.QUI_GF:RefreshSettings()
-env.QUI_GF:RecreateSpotlightHeader()
-env.QUI_GFEM:CreateSpotlightHeader()
-assert(not env.QUI_GF:IsEnabled(), "unavailable group frames report disabled")
-assert(not env.QUI_GF.initialized, "unavailable group frames remain uninitialized")
-assert(#calls == 0, "unavailable client never reaches headers, refresh work or native suppression")
-
-env.ns.Client.restrictedExecutionUnavailable = false
-env.QUI_GF:Initialize()
-assert(env.QUI_GF.initialized, "supported client completes group frame initialization")
-assert(env.QUI_GF:IsEnabled(), "supported client respects enabled setting")
-assert(calls[1] == "CreateHeaders", "supported client creates secure headers")
-assert(calls[#calls] == "suppress", "native suppression follows replacement initialization")
-assert(not env._state.inInitSafeWindow, "supported initialization closes safe window")
+for _, unavailable in ipairs({true, false}) do
+    env.ns.Client.restrictedExecutionUnavailable = unavailable
+    calls = {}
+    env.QUI_GF:Initialize()
+    assert(env.QUI_GF.initialized, "both clients complete group frame initialization")
+    assert(env.QUI_GF:IsEnabled(), "both clients respect enabled setting")
+    assert(calls[1] == "CreateHeaders", "both clients create native secure headers")
+    assert(calls[#calls] == "suppress", "native suppression follows replacement initialization")
+    assert(not env._state.inInitSafeWindow, "initialization closes safe window")
+    env.QUI_GF:RecreateSpotlightHeader()
+    assert(calls[#calls] == "CreateSpotlightHeader", "Forever permits native spotlight headers")
+end
 print("OK: forever_groupframes_restricted_execution_test")
