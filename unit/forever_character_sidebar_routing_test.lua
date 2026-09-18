@@ -54,6 +54,13 @@ for _, forever in ipairs({ true, false }) do
         UpdateAllSlotOverlays = function() end, UpdateILvlDisplay = function() end,
     }, { __index = _G })
     world._G = world
+    world.hooksecurefunc = function(target, method, callback)
+        if type(target) == "string" then
+            hooksecurefunc(world, target, method)
+        else
+            hooksecurefunc(target, method, callback)
+        end
+    end
     world.PaperDollFrame.EquipmentManagerPane = equipment
     world.PaperDollFrame.TitleManagerPane = titles
     function character:GetStatsPane() return native end
@@ -65,6 +72,18 @@ for _, forever in ipairs({ true, false }) do
             and "function PaperDollFrame_OnModelLoaded(" or "function PaperDollFrame_SidebarTab_OnEnter(")))
     setfenv(nativeLoader, world)
     nativeLoader()
+    local nativeUpdates = 0
+    if forever then
+        world.CharacterStatsPaneScrollBox = native
+        world.HasPetUI = function() return false end
+        function world.PaperDollFrame:IsVisible() return self:IsShown() end
+        function native:UpdateStats() nativeUpdates = nativeUpdates + 1 end
+        local nativeEvents = assert(loadstring(slice(nativeSource, "function PaperDollFrame_QueuedUpdate(",
+            "function PaperDollFrame_SetLevel(") .. slice(nativeSource, "function PaperDollFrame_UpdateStats()",
+            "function PaperDollFrame_UpdateStatsInternal(")))
+        setfenv(nativeEvents, world)
+        nativeEvents()
+    end
     local hooks = assert(loadstring("local chrome = GetChrome()\n" .. slice(source,
         '    local nativeStatsPane = chrome and chrome.GetNativeStatsPane', "    if GearManagerPopupFrame then")))
     setfenv(hooks, world)
@@ -102,7 +121,27 @@ for _, forever in ipairs({ true, false }) do
         harness.RunTimers()
         harness.RunTimers()
         assert(panel:IsShown(), "programmatic return from pet must refresh custom player stats without a click")
+        local function nativeEvent(event)
+            world.PaperDollFrame_OnEvent(world.PaperDollFrame, event, "player")
+            world.PaperDollFrame:Fire("OnUpdate")
+            harness.RunTimers()
+        end
+        for _, event in ipairs({ "UNIT_RESISTANCES", "UNIT_AURA", "UNIT_DAMAGE", "UNIT_SPELL_HASTE",
+            "UNIT_MAXHEALTH", "COMBAT_RATING_UPDATE" }) do
+            local before, nativeBefore = renders, nativeUpdates
+            nativeEvent(event)
+            assert(nativeUpdates == nativeBefore + 1, "native stats must process " .. event)
+            assert(renders == before + 1, "visible custom stats must refresh after native " .. event)
+        end
+        click(3)
+        local before = renders
+        nativeEvent("UNIT_RESISTANCES")
+        assert(renders == before and not panel:IsShown(), "native refresh must not overlay pet stats")
         enabled = false
+        native:Show()
+        harness.RunTimers()
+        nativeEvent("UNIT_AURA")
+        assert(renders == before, "disabled enhancement must not render after native stats refresh")
         click(2)
         assert(not equipmentPopup:IsShown() and equipment:GetParent() == equipmentPopup,
             "disabled enhancement must not open its popup")

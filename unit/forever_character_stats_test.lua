@@ -31,7 +31,16 @@ local function widget()
     return frame
 end
 local shield = false
-local enum = { Damageclass = { Arcane = 7, Fire = 3, Frost = 5, Nature = 4, Shadow = 6 } }
+local enum = { Damageclass = {} }
+local constants = assert(loadfile("tests/clients/forever/api-docs/blizzard/DamageConstantsDocumentation.lua"))
+setfenv(constants, { APIDocumentation = { AddDocumentationTable = function(_, data)
+    for _, definition in ipairs(data.Tables) do
+        if definition.Name == "Damageclass" then
+            for _, field in ipairs(definition.Fields) do enum.Damageclass[field.Name] = field.EnumValue end
+        end
+    end
+end } })
+constants()
 local env = setmetatable({
     ns = ns,
     Enum = enum,
@@ -57,7 +66,9 @@ env._G = env
 for _, key in ipairs({ "GENERAL", "PRIMARY_ATTRIBUTES", "WEAPONS", "MODIFIERS", "DEFENSE", "RESISTANCE" }) do
     env["STAT_CATEGORY_" .. key] = key
 end
-for i = 1, 7 do env["DAMAGE_SCHOOL" .. i] = "School " .. i end
+for i, name in ipairs({ "Physical", "Holy", "Fire", "Nature", "Frost", "Shadow", "Arcane" }) do
+    env["DAMAGE_SCHOOL" .. i] = name
+end
 local native = "tests/clients/forever/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Camelot/"
 local catalog = assert(loadfile(native .. "PaperDollFrameConstants.lua"))
 setfenv(catalog, env)
@@ -122,8 +133,12 @@ assert(called.HEALTH == 1, "player view must not also render pet categories")
 assert(labels.HASTE.value.text == "7.0%", "native haste must combine ranged ammo haste and choose the highest haste school")
 labels.HASTE:OnEnter()
 assert(labels.HASTE.tooltipValues[2] == 7, "native haste tooltip must receive the native melee/ranged/spell breakdown")
-assert(labels["School 7"].value.text == "70" and labels["School 3"].tooltip2 == "30:3",
-    "resistances must use native effective values and native tooltip formulas")
+for name, value in pairs({ Arcane = 60, Fire = 20, Frost = 40, Nature = 30, Shadow = 50 }) do
+    local row = labels[name]
+    assert(row and row.value.text == tostring(value) and row.tooltip == name
+        and row.tooltip2 == value .. ":" .. enum.Damageclass[name],
+        "resistance label, effective value, and tooltip must match native damage class: " .. name)
+end
 local crit = labels.CRITCHANCE
 crit:OnEnter()
 assert(crit.tooltipCalled, "native tooltip handlers must run even without generic tooltip text")
