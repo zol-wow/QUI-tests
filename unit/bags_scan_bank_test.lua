@@ -125,4 +125,27 @@ ScanBank.MarkDirty(12)
 assert(ScanBank.Drain() == false, "locked warband mark must be dropped")
 accountLocked = nil
 
+Enum.BagIndex.Characterbanktab = -2
+Enum.BagIndex.Accountbanktab = -3
+C_Bank.ShouldUsePlayerBagsInBank = function() return true end
+local canUse = true
+C_Bank.CanUseBank = function() return canUse end
+sizes[7] = 0
+sizes[-2] = 0
+ScanBank.MarkDirty(7)
+assert(not ScanBank.Drain(), "unloaded bag equipment container must retain cached contents")
+sizes[-2] = 9
+contents[-2] = { [2] = { itemID = 123 } }
+ScanBank.MarkDirty(7)
+assert(not ScanBank.Drain(), "an equipped but temporarily unreadable bank bag must retain contents")
+contents[-2][2] = nil
+canUse = false
+ScanBank.MarkDirty(7)
+assert(not ScanBank.Drain(), "offline bank cache must survive missing equipment")
+canUse = true
+ScanBank.MarkDirty(7)
+assert(ScanBank.Drain(), "removing a bag from a loaded usable bank must clear its cached slots")
+assert(Store.GetCurrentCharacter().bankTabs[7].size == 0)
+assert(next(Store.GetCurrentCharacter().bankTabs[7].slots) == nil)
+
 print("OK: bags_scan_bank_test")

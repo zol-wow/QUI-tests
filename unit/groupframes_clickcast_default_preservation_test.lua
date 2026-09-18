@@ -164,7 +164,7 @@ local function loadModule(clickCast, unavailable)
         raidGroupHeaders = {},
     }
 
-    assert(loadfile("QUI_GroupFrames/groupframes/groupframes_clickcast.lua"))("QUI", ns)
+    assert(loadfile(os.getenv("QUI_CLICKCAST_SOURCE") or "QUI_GroupFrames/groupframes/groupframes_clickcast.lua"))("QUI", ns)
     assert(ns.QUI_GroupFrameClickCast, "module must export QUI_GroupFrameClickCast")
     return ns.QUI_GroupFrameClickCast, child
 end
@@ -350,18 +350,71 @@ end
 
 print("OK: groupframes_clickcast_default_preservation_test")
 
+local savedBindings = {
+    {button = "LeftButton", actionType = "spell", spellID = 774, spell = "Rejuvenation"},
+    {button = "RightButton", modifiers = "shift", actionType = "macro", macro = "/say shift"},
+    {button = "ScrollUp", actionType = "spell", spellID = 774, spell = "Rejuvenation"},
+    {key = "F", actionType = "spell", spellID = 774, spell = "Rejuvenation"},
+}
 local gfcc, child = loadModule({enabled = true, _migratedFromProfile = true,
-    rootSpellMigrationDone = true, bindings = {{button = "LeftButton", actionType = "spell", spellID = 774}}}, true)
+    rootSpellMigrationDone = true, bindings = savedBindings}, true)
 child:SetAttribute("type1", "target")
 child:SetAttribute("type2", "togglemenu")
+child:SetAttribute("unit", "party1")
 gfcc:Initialize()
 gfcc:RefreshBindings()
 gfcc:RegisterFrame(child)
 gfcc:RegisterAllFrames()
 gfcc:RegisterUnitFrames()
-assert(not gfcc:IsEnabled(), "click casting stays inactive without restricted execution")
+assert(gfcc:IsEnabled(), "native click casting works without restricted execution")
 assert(not _G.QUI_ClickCastHeader, "no secure binding header is created")
-assert(child:GetAttribute("type1") == "target", "native targeting is preserved")
-assert(child:GetAttribute("type2") == "togglemenu", "native menu is preserved")
-assert(next(child.secureWraps) == nil, "native clicks are not wrapped")
-print("OK: unavailable restricted execution retains native clicks")
+assert(child:GetAttribute("type1") == "click", "bound mouse action is routed")
+assert(child:GetAttribute("type2") == "togglemenu", "unbound native menu is preserved")
+assert(child:GetAttribute("shift-type2") == "click", "modifier mouse action is routed")
+assert(next(child.secureWraps) == nil, "native clicks need no restricted wrappers")
+assert(#_G.QUI.db.char.clickCast.bindings == 4, "unsupported saved bindings are retained")
+assert(child.mouseWheelEnabled ~= true, "unsupported wheel bindings do not consume scrolling")
+local native = setmetatable({}, { __index = _G })
+local shifted, macro = false, nil
+native._G = native
+native.CopyTable = DeepCopy
+native.GetFrameMetatable = function() return { __index = {
+    GetParent = function(frame) return frame.parent end,
+    GetAttribute = function(frame, prefix, name, suffix)
+        if not name then return frame.attributes[prefix] end
+        for _, key in ipairs({prefix .. name .. suffix, "*" .. name .. suffix,
+            prefix .. name .. "*", "*" .. name .. "*", name}) do
+            if frame.attributes[key] ~= nil then return frame.attributes[key] end
+        end
+    end,
+} } end
+native.IsShiftKeyDown = function() return shifted end
+native.IsControlKeyDown = function() return false end
+native.IsAltKeyDown = native.IsControlKeyDown
+native.UnitHasVehicleUI = native.IsControlKeyDown
+native.UnitCanAttack = native.IsControlKeyDown
+native.UnitCanAssist = function() return true end
+native.UnitExists = function() return true end
+native.SpellCanTargetItem = native.IsControlKeyDown
+native.SpellCanTargetItemID = native.IsControlKeyDown
+native.GetCVarBool = native.IsControlKeyDown
+native.SecureHandler_OnClick = function() error("native action must not use restricted scripts") end
+native.Enum = { ForbiddenAspect = { ScriptedInput = 1 } }
+native.C_Macro = { RunMacroText = function(text) macro = text end }
+local nativeChunk = assert(loadfile("tests/clients/forever/framexml/Interface/AddOns/Blizzard_FrameXML/SecureTemplates.lua"))
+setfenv(nativeChunk, native)()
+local proxy = child:GetAttribute("clickbutton1")
+proxy.bar, child.bar = false, false
+proxy.Click = function(self, button) native.SecureActionButton_OnClick(self, button, false) end
+inCombat = true
+native.SecureUnitButton_OnClick(child, "LeftButton", false)
+assert(macro and macro:find("Rejuvenation", 1, true), "native Forever action path casts configured spell in combat")
+shifted = true
+native.SecureUnitButton_OnClick(child, "RightButton", false)
+assert(macro == "/say shift", "native Forever modifier route executes configured macro in combat")
+inCombat = false
+_G.QUI.db.char.clickCast.enabled = false
+gfcc:RefreshBindings()
+assert(child:GetAttribute("type1") == "target", "disabling restores original targeting")
+assert(child:GetAttribute("shift-type2") == nil, "disabling removes modifier routing")
+print("OK: Forever native mouse and modifier actions execute without restricted scripts")

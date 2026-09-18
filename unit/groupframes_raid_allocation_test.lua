@@ -19,7 +19,7 @@ local function check(name, condition, detail)
     end
 end
 
-local function harness(groupBy)
+local function harness(groupBy, forever)
     local env = setmetatable({}, { __index = _G })
     env._G = env
     local function chunk(text, name)
@@ -84,6 +84,7 @@ local function IsFrameHandle() return false end
         end })
     end
     env.CallRestrictedClosure = function(_, _, _, _, code, frame)
+        assert(not forever, "Forever must not invoke its unavailable restricted compiler")
         chunk("local self = ...\n" .. code, "secure header initialization")(handle(frame))
     end
     local Frame = {}
@@ -96,10 +97,12 @@ local function IsFrameHandle() return false end
         if self.attrs[key] == value then return end
         self.attrs[key] = value
         if self.secure then env.SecureGroupHeader_OnAttributeChanged(self, key, value) end
+        if self.scripts.OnAttributeChanged then self.scripts.OnAttributeChanged(self, key, value) end
     end
     function Frame:CallMethod(method, ...) return self[method](self, ...) end
     function Frame:SetScript(key, fn) self.scripts[key] = fn end
     function Frame:GetScript(key) return self.scripts[key] end
+    function Frame:HookScript(key, fn) self.scripts[key] = fn end
     function Frame:IsShown() return self.shown end
     function Frame:IsVisible() return self.shown and (not self.parent or self.parent:IsVisible()) end
     local function reveal(frame)
@@ -149,7 +152,7 @@ local function IsFrameHandle() return false end
     end
     function Frame:CreateFontString() return env.CreateFrame("FontString", nil, self) end
     env.UIParent = env.CreateFrame("Frame", "UIParent")
-    chunk(nativeSource, "@SecureGroupHeaders.lua")()
+    chunk(forever and read("tests/clients/forever/framexml/Interface/AddOns/Blizzard_RestrictedAddOnEnvironment/SecureGroupHeaders.lua") or nativeSource, "@SecureGroupHeaders.lua")()
     local db = {
         enabled = true,
         party = { dimensions = { partyWidth = 200, partyHeight = 40 }, layout = {}, general = {}, power = {} },
@@ -157,6 +160,7 @@ local function IsFrameHandle() return false end
     }
     env.QUI = { db = { profile = { hudLayering = { groupFrames = 7 } } } }
     local ns = {
+        Client = { restrictedExecutionUnavailable = forever },
         Addon = { GetHUDFrameLevel = function(_, level) return level * 10 end },
         QUI_GroupFrameIconLayout = {},
         Helpers = {
@@ -180,8 +184,9 @@ local function IsFrameHandle() return false end
     end
     ns.QUI_GroupFrameChrome.ApplyStatusBarTexture = function() end
     local api = chunk(source .. [[
-return { create = CreateHeaders, visibility = UpdateHeaderVisibility, scale = UpdateFrameScaling,
-    layout = ApplyChildFrameLayout, state = _state, pending = _pending }
+return { create = CreateHeaders, spotlight = CreateSpotlightHeader, visibility = UpdateHeaderVisibility, scale = UpdateFrameScaling,
+    layout = ApplyChildFrameLayout, state = _state, pending = _pending,
+    preallocate = ns.QUI_GroupFrameIconLayout.PreallocateHeaderChildren }
 ]], "@groupframes.lua")("QUI", ns)
     local gf = ns.QUI_GroupFrames
     local function decorate(child)
@@ -338,6 +343,82 @@ for _, mode in ipairs({ "GROUP", "NONE" }) do
     h.combat = false
     h:refresh()
     check(mode .. " deferred alternate layout creates its 40 buttons afterward", h:count() == 86, h:count())
+end
+
+for _, mode in ipairs({ "GROUP", "NONE", "ROLE", "CLASS" }) do
+    local h = harness(mode, true)
+    if mode == "ROLE" or mode == "CLASS" then h.db.raidSelfFirst = true end
+    h.api.create()
+    h:refresh()
+    local selected = mode == "NONE" and h.gf.headers.raid or h.gf.raidGroupHeaders[1]
+    local capacity = mode == "GROUP" and 5 or 40
+    check("Forever " .. mode .. " preallocates native children", selected:GetAttribute("child" .. capacity) ~= nil)
+    local child = selected:GetAttribute("child1")
+    check("Forever " .. mode .. " children are decorated before combat", child._quiDecorated and child:GetWidth() == 100)
+    check("Forever " .. mode .. " native attributes preserve unit actions", child:GetAttribute("*type1") == "target" and child:GetAttribute("*type2") == "togglemenu")
+    check("Forever " .. mode .. " omits restricted initializer", selected:GetAttribute("initialConfigFunction") == nil)
+    h:raid(40)
+    h:refresh()
+    local count = h:count()
+    h.combat = true
+    h:raid(1)
+    for _, header in ipairs(h.gf.raidGroupHeaders) do h.env.SecureGroupHeader_Update(header) end
+    if h.gf.headers.raid then h.env.SecureGroupHeader_Update(h.gf.headers.raid) end
+    h:raid(40)
+    for _, header in ipairs(h.gf.raidGroupHeaders) do h.env.SecureGroupHeader_Update(header) end
+    if h.gf.headers.raid then h.env.SecureGroupHeader_Update(h.gf.headers.raid) end
+    check("Forever " .. mode .. " combat roster changes reuse decorated children", h:count() == count)
+    for _, frame in ipairs(h.gf.allFrames) do
+        if frame:GetAttribute("unit") then assert(frame._quiDecorated) end
+    end
+    h.combat = false
+    h.db.raid.layout.groupBy = "CLASS"
+    h.db.raidSelfFirst = true
+    h:refresh()
+    for _, header in ipairs(h.gf.raidGroupHeaders) do
+        assert(header:GetAttribute("child40"), "Forever changed category needs full combat capacity: " .. header:GetName() .. " shown=" .. tostring(header:IsShown()) .. " root=" .. tostring(header:GetParent():IsShown()))
+    end
+end
+
+do
+    local h = harness("GROUP", true)
+    h.db.raid.spotlight = { enabled = true, filterMode = "ROLE", filterTank = true, frameWidth = 180, frameHeight = 36 }
+    h.api.create()
+    h.api.spotlight()
+    local header = h.gf.spotlightHeader
+    check("Forever spotlight preallocates decorated native children", header:GetAttribute("child40")._quiDecorated)
+    local count = h:count()
+    h.combat = true
+    h:raid(40)
+    for _, member in ipairs(h.roster) do member.role = "TANK" end
+    h.env.SecureGroupHeader_Update(header)
+    check("Forever spotlight combat newcomers reuse decorated children", h:count() == count)
+    check("Forever spotlight binds the final unit in combat", header:GetAttribute("child40"):GetAttribute("unit") == "raid40")
+    check("Forever spotlight preserves configured child dimensions", header:GetAttribute("child40"):GetWidth() == 180)
+end
+
+for _, mode in ipairs({ "GROUP", "NONE", "ROLE", "CLASS" }) do
+    local h = harness(mode, true)
+    if mode == "ROLE" or mode == "CLASS" then h.db.raidSelfFirst = true end
+    h.combat = true
+    h.api.state.inInitSafeWindow = true
+    h:raid(1)
+    h.api.create()
+    h:refresh()
+    local partyChild = h.gf.headers.party:GetAttribute("child1")
+    check("Forever " .. mode .. " combat login sizes party children", partyChild.width == 200 and partyChild.height == 40)
+    local selected = mode == "NONE" and h.gf.headers.raid or h.gf.raidGroupHeaders[1]
+    local capacity = mode == "GROUP" and 5 or 40
+    local last = selected:GetAttribute("child" .. capacity)
+    check("Forever " .. mode .. " combat login preallocates decorated raid children", last and last._quiDecorated and last.width == 100)
+    h.api.state.inInitSafeWindow = false
+    local count = h:count()
+    h.api.preallocate(selected, 41)
+    check("Forever " .. mode .. " later combat cannot preallocate", h:count() == count and selected:GetAttribute("child41") == nil)
+    h:raid(40)
+    for _, header in ipairs(h.gf.raidGroupHeaders) do h.env.SecureGroupHeader_Update(header) end
+    if h.gf.headers.raid then h.env.SecureGroupHeader_Update(h.gf.headers.raid) end
+    check("Forever " .. mode .. " combat login roster growth reuses initialized children", h:count() == count)
 end
 
 if failures > 0 then error(failures .. " allocation/layout regression(s)") end

@@ -54,7 +54,7 @@ for _, class in ipairs({ "HUNTER", "PRIEST", "SHAMAN", "WARLOCK", "PALADIN", "DR
     local power = class == "DRUID" and 3 or 0
     local env = {
         ns = { Client = { isForever = true } },
-        Enum = { PowerType = { Mana = 0 } },
+        Enum = { PowerType = { Mana = 0, Energy = 3, ComboPoints = 4 } },
         UnitPowerType = function(unit) assert(unit == "player"); return power end,
         UnitClass = function() return class, class end,
         GetSpecialization = function() return 1 end,
@@ -63,9 +63,12 @@ for _, class in ipairs({ "HUNTER", "PRIEST", "SHAMAN", "WARLOCK", "PALADIN", "DR
     local primary = loadFunction(resourcePath, "GetPrimaryResource", env)
     local secondary = loadFunction(resourcePath, "GetSecondaryResource", env)
     assert(primary() == power, class .. " must use its actual Forever primary power")
-    assert(secondary() == nil, class .. " must not inherit Retail secondary resources")
+    local expectedSecondary = class == "DRUID" and 4 or nil
+    assert(secondary() == expectedSecondary, class .. " must use Forever secondary resources")
     power = 1
     assert(primary() == 1, "primary resource must follow form/power changes")
+    expectedSecondary = class == "DRUID" and 0 or nil
+    assert(secondary() == expectedSecondary, "bear form must expose mana without Retail spec IDs")
     power = nil
     assert(primary() == 0, "missing player data must retain the mana fallback")
 end
