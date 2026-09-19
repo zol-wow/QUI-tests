@@ -42,7 +42,10 @@ function IsInRaid() return state.raid end
 function IsInGroup() return state.groupSize > 0 end
 function GetNumGroupMembers() return state.groupSize end
 function GetNumSubgroupMembers() return state.groupSize end
-function UnitExists(unit) return state.units[unit] ~= nil end
+function UnitExists(unit)
+    assert(not issecretvalue(unit), "secret offerer must not be used as a unit token")
+    return state.units[unit] ~= nil
+end
 function UnitFullName(unit)
     local entry = state.units[unit]
     if entry then return entry.name, entry.realm end
@@ -72,10 +75,6 @@ end
 function StaticPopup_Visible(which) return state.popup == which end
 function AcceptResurrect()
     state.accepts = state.accepts + 1
-    if state.succeeds then
-        state.dead, state.ghost = false, false
-        GameEvent.HandlePlayerAlive()
-    end
 end
 function RepopMe() state.releases = state.releases + 1 end
 
@@ -108,6 +107,11 @@ local function reset(instance, key, mode)
         accepts = 0, hides = 0, releases = 0,
         units = { player = {}, party1 = { name = "Healer", realm = "Realm" } },
     }
+    if instance == "raid" then
+        state.raid, state.groupSize = true, 2
+        state.units.raid1, state.units.party1 = state.units.party1, nil
+        state.units.raid2 = state.units.player
+    end
 end
 local function offer(inviter)
     inviter = inviter or "Healer-Realm"
@@ -121,6 +125,12 @@ local function check(label, expected)
     count = count + 1
 end
 
+reset("raid", "raid", "outOfCombat")
+emit("RESURRECT_REQUEST", "Healer")
+assert(state.accepts == 1, "post-wipe raid resurrection must be accepted on the event without waiting for a popup")
+assert(state.popup == nil and #timers == 0, "resurrection acceptance must not depend on popup creation or deferred work")
+count = count + 1
+
 for _, location in ipairs({
     { "party", "dungeon" }, { "raid", "raid" }, { "pvp", "pvp" },
     { "arena", "pvp" }, { "none", "world" }, { "scenario", "world" },
@@ -128,26 +138,17 @@ for _, location in ipairs({
     for _, mode in ipairs({ "off", "outOfCombat", "always", "invalid" }) do
         reset(location[1], location[2], mode)
         offer()
-        assert(state.accepts == 0, "acceptance must wait until native popup creation")
         local enabled = mode == "outOfCombat" or mode == "always"
         check(location[1] .. "/" .. mode, enabled and location[1] ~= "scenario" and 1 or 0)
     end
 end
 
 for _, mode in ipairs({ "outOfCombat", "always" }) do
-    for _, guard in ipairs({ "shift", "sickness", "recovery", "alive", "popup" }) do
-        for _, deferred in ipairs({ false, true }) do
-            reset("party", "dungeon", mode)
-            local function block()
-                if guard == "alive" then state.dead = false
-                elseif guard == "popup" then state.popup = nil
-                else state[guard] = true end
-            end
-            if not deferred and guard ~= "popup" then block() end
-            offer()
-            if deferred or guard == "popup" then block() end
-            check(mode .. "/" .. guard .. "/" .. tostring(deferred), 0)
-        end
+    for _, guard in ipairs({ "shift", "sickness", "recovery", "alive" }) do
+        reset("party", "dungeon", mode)
+        if guard == "alive" then state.dead = false else state[guard] = true end
+        offer()
+        check(mode .. "/" .. guard, 0)
     end
 end
 
@@ -172,7 +173,6 @@ for _, scenario in ipairs({
     { "lockdown", function() state.lockdown = true end },
     { "player combat", function() state.units.player.combat = true end },
     { "encounter", function() state.encounter = true end },
-    { "offerer combat", function() state.units.party1.combat = true end },
     { "other member combat", function()
         state.groupSize = 2
         state.units.party2 = { name = "Tank", realm = "Realm", combat = true }
@@ -187,64 +187,53 @@ for _, scenario in ipairs({
         reset("party", "dungeon", mode)
         scenario[2]()
         offer()
-        check(scenario[1] .. "/" .. mode, mode == "always" and 1 or 0)
+        check(scenario[1] .. "/" .. mode, 1)
     end
 end
 
 for _, mode in ipairs({ "outOfCombat", "always" }) do
     reset("pvp", "pvp", mode)
     offer(secret)
-    check("secret inviter/" .. mode, mode == "always" and 1 or 0)
+    check("secret inviter/" .. mode, 1)
+    for _, inviter in ipairs({ "Healer", "Healer-Realm", "party1" }) do
+        reset("party", "dungeon", mode)
+        state.units.party1.combat = true
+        offer(inviter)
+        check("combat offerer/" .. inviter .. "/" .. mode, mode == "always" and 1 or 0)
+    end
 end
 
 reset("raid", "raid", "outOfCombat")
-state.raid = true
-state.units.raid1, state.units.party1 = state.units.party1, nil
+state.units.raid2.combat = true
+offer("Healer")
+check("post-wipe raid offer ignores unrelated member combat", 1)
+
+reset("raid", "raid", "outOfCombat")
+state.units.raid1.name = secret
+state.groupSize = 3
+state.units.raid3 = { name = "Healer", realm = "Realm", combat = true }
 offer()
-check("raid roster resolves offerer", 1)
+check("secret unrelated member does not hide a resolved combat resurrector", 0)
+
+reset("party", "dungeon", "outOfCombat")
+state.units["Healer-Realm"] = { combat = true }
+offer()
+check("direct offerer unit resolution precedes roster fallback", 0)
 
 reset("none", "world", "outOfCombat")
 state.groupSize = 0
 state.units.target, state.units.party1 = state.units.party1, nil
+state.units.target.combat = true
 offer()
-check("target resolves nongroup offerer", 1)
+check("target fallback checks nongroup offerer combat", 0)
 
 reset("party", "dungeon", "outOfCombat")
 state.groupSize = 2
-state.units.party2 = { name = "Healer", realm = "AnotherRealm" }
+state.units.party2 = { name = "Healer", realm = "AnotherRealm", combat = true }
 offer("Healer")
-check("ambiguous bare inviter", 0)
-
-reset("party", "dungeon", "outOfCombat")
-offer("Healer")
-check("unique bare inviter", 1)
-
-for _, mutation in ipairs({ "shifted offer", "disabled setting", "new offer", "combat", "location" }) do
-    reset("party", "dungeon", "outOfCombat")
-    offer()
-    if mutation == "shifted offer" then
-        state.shift = true
-        offer()
-        state.shift = false
-    elseif mutation == "disabled setting" then
-        settings.autoAcceptResurrection.dungeon = "off"
-    elseif mutation == "new offer" then offer()
-    elseif mutation == "combat" then state.units.party1.combat = true
-    elseif mutation == "location" then
-        state.instance = "raid"
-        settings.autoAcceptResurrection.raid = "always"
-    end
-    check(mutation .. " before callback", mutation == "new offer" and 1 or 0)
-end
-
-for _, event in ipairs({ "PLAYER_DEAD", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }) do
-    reset("party", "dungeon", "always")
-    offer()
-    emit(event)
-    flush(0)
-    assert(state.accepts == 0, event .. " must invalidate the pending offer")
-    count = count + 1
-end
+check("bare inviter follows first resolved roster match", 1)
+offer("Healer-AnotherRealm")
+check("qualified inviter checks the matching realm", 1)
 
 reset("party", "dungeon", "outOfCombat")
 state.units.party1.combat = true
@@ -263,9 +252,11 @@ check("failed acceptance is not retried", 1)
 
 reset("pvp", "pvp", "always")
 settings.autoRelease = "pvp"
-state.succeeds = true
 emit("PLAYER_DEAD")
 offer()
+assert(state.accepts == 1, "incoming resurrection must be accepted before delayed auto-release")
+state.dead, state.ghost = false, false
+GameEvent.HandlePlayerAlive()
 check("resurrection before delayed auto-release", 1)
 assert(state.popup == nil, "native PLAYER_ALIVE handler must clear successful resurrection popup")
 assert(state.releases == 0, "auto-release must not release a resurrected player")
