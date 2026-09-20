@@ -68,6 +68,14 @@ UIParent = newFrame("UIParent")
 MailFrame = newFrame("MailFrame", UIParent, true)
 CharacterFrame = newFrame("CharacterFrame", UIParent)
 OpenMailFrame = newFrame("OpenMailFrame", MailFrame, true)
+_G.AuctionHouseFrame = newFrame("AuctionHouseFrame", UIParent)
+_G.MerchantFrame = newFrame("MerchantFrame", UIParent)
+_G.MerchantFrame.selectedTab = 1
+local bagWindow = newFrame("QUI_BagWindow", UIParent)
+local bagItem = newFrame("BagItem", bagWindow)
+function bagItem:GetBagID() return 0 end
+function bagItem:GetID() return 3 end
+local auctionButton = newFrame("PostButton", _G.AuctionHouseFrame)
 local mailButton = newFrame("MailButton", MailFrame)
 local characterButton = newFrame("CharacterButton", CharacterFrame)
 local openMailButton = newFrame("OpenMailButton", OpenMailFrame)
@@ -98,7 +106,7 @@ local nativeUpdate = assert(native:match("(function FramePositionDelegate:Update
 local delegate = { left = MailFrame, center = CharacterFrame }
 function delegate:GetUIPanel(key) return self[key] end
 delegate.EvaluateAutoMinimize = noop
-local layout = { TOP_OFFSET = -116, LEFT_OFFSET = 16, CENTER_OFFSET = 340, RIGHT_OFFSET = 660, PANEl_SPACING_X = 10 }
+local layout = { TOP_OFFSET = -116, LEFT_OFFSET = 16, CENTER_OFFSET = 340, RIGHT_OFFSET = 660, PANEl_SPACING_X = 10, DEFAULT_FRAME_WIDTH = 300 }
 local nativeEnvironment = setmetatable({
     FramePositionDelegate = delegate,
     GetUIPanelAttribute = function(_, name) if name == "area" then return "left" end end,
@@ -107,6 +115,7 @@ local nativeEnvironment = setmetatable({
     GetUIPanelWidth = function(frame) return frame:GetWidth() end,
     ClampUIPanelY = function(_, value) return value end,
     CanShowCenterUIPanel = function() return true end,
+    CanShowRightUIPanel = function() return true end,
 }, { __index = _G })
 local nativeChunk = assert(loadstring(nativeUpdate))
 setfenv(nativeChunk, nativeEnvironment)
@@ -117,6 +126,28 @@ function ShowUIPanel(frame)
     frame:Show()
     UpdateUIPanelPositions(frame)
 end
+
+local containerSource = readFile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/ContainerFrame.lua")
+local containerClick = assert(containerSource:match("(function ContainerFrameItemButton_OnClick%(self, button%).-)\nfunction ContainerFrameItemButton_CalculateItemTooltipAnchors"))
+local usedBag, usedSlot
+local containerEnvironment = setmetatable({
+    MerchantFrame_ResetRefundItem = noop,
+    ContainerFrame_GetExtendedPriceString = function() return false end,
+    ItemLocation = { CreateFromBagAndSlot = function() return {} end },
+    BankUtil_IsAccountBankDepositRefundable = function() return false end,
+    BankFrame = { GetActiveBankType = noop },
+    StackSplitFrame = { Hide = noop },
+    C_Container = { UseContainerItem = function(bag, slot)
+        usedBag, usedSlot = bag, slot
+        delegate:UpdateUIPanelPositions()
+    end },
+    GetCursorInfo = noop,
+    SpellCanTargetItem = function() return true end,
+}, { __index = _G })
+local containerChunk = assert(loadstring(containerClick))
+setfenv(containerChunk, containerEnvironment)
+containerChunk()
+_G.ContainerFrameItemButton_OnClick = containerEnvironment.ContainerFrameItemButton_OnClick
 
 local profile = { blizzardMover = { enabled = true, requireModifier = true, scaleEnabled = false, frames = {} } }
 local ns = {
@@ -130,10 +161,10 @@ local ns = {
 assert(loadfile(arg[1] or "modules/qol/blizzard_mover.lua"))("QUI", ns)
 local mover = assert(ns.QUI_BlizzardMover)
 mover.functions.InitDB()
-for _, name in ipairs({ "MailFrame", "CharacterFrame", "OpenMailFrame" }) do
+for _, name in ipairs({ "MailFrame", "CharacterFrame", "OpenMailFrame", "AuctionHouseFrame", "MerchantFrame" }) do
     mover.functions.RegisterFrame({
         id = name, label = name, group = "test", names = { name }, defaultEnabled = true,
-        secureFrame = name ~= "CharacterFrame", disableMove = true,
+        secureFrame = name == "MailFrame" or name == "OpenMailFrame", disableMove = true,
     })
 end
 
@@ -158,7 +189,7 @@ local function click(frame)
 end
 local function reflow(expected, message)
     UpdateUIPanelPositions()
-    assert(lastRaised == CharacterFrame, "native left-to-right layout must raise Character last")
+    assert(lastRaised == expected, message .. " before the next rendered frame")
     flush()
     assert(lastRaised == expected, message)
 end
@@ -166,6 +197,8 @@ end
 ShowUIPanel(CharacterFrame)
 ShowUIPanel(MailFrame)
 tick()
+delegate:UpdateUIPanelPositions()
+assert(lastRaised == CharacterFrame, "native left-to-right layout must raise Character last")
 click(mailButton)
 reflow(MailFrame, "interacting with mail must survive native Character-last layout")
 reflow(MailFrame, "later background layout must preserve mail foreground without another click")
@@ -192,6 +225,7 @@ tick()
 click(mailButton)
 flush()
 UpdateScaleForFitForOpenPanels()
+assert(lastRaised == MailFrame, "scale-fit reflow must preserve foreground before the next rendered frame")
 flush()
 assert(lastRaised == MailFrame, "native scale-fit reflow must preserve foreground")
 
@@ -245,5 +279,47 @@ function IsFrameHandle(value) return value == handle end
 click(mailButton)
 click(handle)
 reflow(CharacterFrame, "opaque frame handles must skip traversal")
+
+delegate.left, delegate.center = nil, nil
+delegate.doublewide, delegate.right = _G.AuctionHouseFrame, CharacterFrame
+ShowUIPanel(_G.AuctionHouseFrame)
+tick()
+click(auctionButton)
+flush()
+for _ = 1, 3 do
+    reflow(_G.AuctionHouseFrame, "auction listing refresh must not render Character above the Auction House")
+end
+click(characterButton)
+reflow(CharacterFrame, "Character must still come forward when clicked beside Auction House")
+
+delegate.doublewide, delegate.right = nil, nil
+delegate.left, delegate.center = _G.MerchantFrame, CharacterFrame
+ShowUIPanel(_G.MerchantFrame)
+tick()
+click(bagItem)
+_G.ContainerFrameItemButton_OnClick(bagItem, "RightButton")
+assert(usedBag == 0 and usedSlot == 3, "native bag right-click must still use the chosen item")
+assert(lastRaised == _G.MerchantFrame, "bag sale must restore vendor foreground before rendering")
+flush()
+reflow(_G.MerchantFrame, "later sale refresh must keep vendor above Character")
+click(characterButton)
+reflow(CharacterFrame, "clicking Character after selling must still select Character")
+click(bagItem)
+_G.ContainerFrameItemButton_OnClick(bagItem, "LeftButton")
+flush()
+assert(lastRaised == CharacterFrame, "left-click item spell targeting must not select the vendor")
+
+profile.blizzardMover.frames.MerchantFrame.enabled = false
+click(bagItem)
+_G.ContainerFrameItemButton_OnClick(bagItem, "RightButton")
+flush()
+assert(lastRaised == CharacterFrame, "disabled vendor mover must not restore sale foreground")
+profile.blizzardMover.frames.MerchantFrame.enabled = true
+inCombat = true
+click(bagItem)
+_G.ContainerFrameItemButton_OnClick(bagItem, "RightButton")
+flush()
+assert(lastRaised == CharacterFrame, "bag sale must not Raise in combat")
+inCombat = false
 
 print("OK: blizzard_mover_panel_stacking_test")

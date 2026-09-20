@@ -81,6 +81,8 @@ function RepopMe() state.releases = state.releases + 1 end
 assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_Game/Mainline/EventImplementation.lua"))()
 assert(loadfile("modules/qol/qol.lua"))("QUI", {
     L = setmetatable({}, { __index = function(_, key) return key end }),
+    WhenLoggedIn = function() end,
+    Registry = { Register = function() end },
     Helpers = {
         CreateDBGetter = function() return function() return settings end end,
         IsSecretValue = issecretvalue,

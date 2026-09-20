@@ -35,6 +35,7 @@ local function newWidget(name)
     function w:Show() self.shown = true end
     function w:Hide() self.shown = false end
     function w:SetSize(cw, ch) self.size = { cw, ch } end
+    function w:GetSize() return unpack(self.size or { 336, 444 }) end
     function w:lastPoint() return self.points[#self.points] end
     return w
 end

@@ -79,6 +79,8 @@ AuctionHouseFrame = {
 
 local ns = {
     L = setmetatable({}, { __index = function(_, key) return key end }),
+    WhenLoggedIn = function() end,
+    Registry = { Register = function() end },
     Helpers = {
         CreateDBGetter = function()
             return function()
