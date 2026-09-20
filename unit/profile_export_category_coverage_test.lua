@@ -166,6 +166,9 @@ end
 
 local resurrectionModes = { dungeon = "outOfCombat", raid = "always", pvp = "off", world = "always" }
 h.db.profile.general.autoAcceptResurrection = DeepCopy(resurrectionModes)
+h.db.profile.general.autoRemoveAppearanceChanges.enabled = true
+h.db.profile.general.autoRemoveAppearanceChanges.cooking = false
+h.db.profile.general.autoRemoveAppearanceChanges.atomic = true
 local qolStr, qolErr = h.QUICore:ExportProfileSelectionToString({ "qol" })
 check("QoL export returns a profile string", type(qolStr) == "string", qolErr)
 if qolStr then
@@ -178,6 +181,10 @@ if qolStr then
         check("QoL import preserves resurrection mode for " .. location,
               h.db.profile.general.autoAcceptResurrection[location] == mode)
     end
+    local appearances = h.db.profile.general.autoRemoveAppearanceChanges
+    check("QoL import preserves appearance master toggle", appearances.enabled == true)
+    check("QoL import preserves excluded appearance effects", appearances.cooking == false)
+    check("QoL import preserves opted-in toy effects", appearances.atomic == true)
     check("QoL import preserves unrelated skin settings", h.db.profile.general.skinReadyCheck == false)
 end
 
