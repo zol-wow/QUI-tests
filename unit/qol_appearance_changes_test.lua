@@ -151,11 +151,13 @@ auras = {}
 add(394003, 300)
 combat = true
 fire("UNIT_AURA", "player")
+assert(#timers == 0, "Combat aura events must not schedule appearance callbacks")
 flush()
 expectRemoved({}, "Combat must defer appearance removal")
 combat = false
 affectingCombat = true
 fire("UNIT_AURA", "player")
+assert(#timers == 0, "Unit combat state must prevent appearance callback scheduling")
 flush()
 expectRemoved({}, "Unit combat state also defers removal")
 affectingCombat = false
@@ -191,12 +193,31 @@ flush()
 restricted = true
 add(163267, 500)
 fire("UNIT_AURA", "player", secret)
+assert(#timers == 0, "Restricted aura events must not schedule appearance callbacks")
 flush()
 expectRemoved({}, "Restricted aura access must defer removal")
 restricted = false
 fire("ADDON_RESTRICTION_STATE_CHANGED", 1, 0)
 flush()
 expectRemoved({ 500 }, "Restriction recovery must retry appearance removal")
+add(163267, 503)
+fire("UNIT_AURA", "player")
+combat = true
+flush()
+expectRemoved({}, "Combat starting after scheduling must still defer removal")
+combat = false
+fire("PLAYER_REGEN_ENABLED")
+flush()
+expectRemoved({ 503 }, "Combat exit must recover a previously queued sweep")
+add(163267, 504)
+fire("UNIT_AURA", "player")
+restricted = true
+flush()
+expectRemoved({}, "Restrictions starting after scheduling must still defer removal")
+restricted = false
+fire("ADDON_RESTRICTION_STATE_CHANGED", 1, 0)
+flush()
+expectRemoved({ 504 }, "Restriction recovery must recover a previously queued sweep")
 add(secret, 501)
 add(163267, secret)
 add(163267, 502)
