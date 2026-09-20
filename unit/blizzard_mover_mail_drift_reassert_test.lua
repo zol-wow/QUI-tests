@@ -46,6 +46,8 @@ local frameMeta = {}
 frameMeta.__index = function(_, key)
     if key == "GetName" then
         return function(self) return self.name end
+    elseif key == "GetParent" then
+        return function(self) return rawget(self, "parent") end
     elseif key == "IsForbidden" then
         return function() return false end
     elseif key == "IsProtected" then
@@ -90,7 +92,7 @@ frameMeta.__index = function(_, key)
             self.scripts[script] = handler
         end
     elseif key == "RegisterEvent" then
-        return noop
+        return function(self, event) self.events[event] = true end
     elseif key == "SetShown" then
         return function(self, shown) self.shown = shown and true or false end
     elseif key == "Show" then
@@ -111,6 +113,7 @@ local function newFrame(name, parent, protected)
         points = {},
         setPointCount = 0,
         scripts = {},
+        events = {},
         hookedScripts = {},
         secureHooks = {},
         children = {},
@@ -144,6 +147,7 @@ end
 local inCombat = false
 local nextFrame
 function RunNextFrame(fn) nextFrame = fn end
+function GetMouseFoci() return { OpenAllMail } end
 function InCombatLockdown() return inCombat end
 function IsShiftKeyDown() return false end
 function IsControlKeyDown() return false end
@@ -259,11 +263,17 @@ lastRaised = WorldMapFrame
 tick(mailWatcher)
 assertAtSaved(MailFrame, "show transition")
 assert(lastRaised == MailFrame, "newly shown mail must finish above previously open panels")
+assert(nextFrame, "newly shown mail must also finish above Blizzard's deferred layout")
+nextFrame()
 tick(mailWatcher, 5) -- burn the transition re-assert burst
 
+local mouseWatcher
+for _, frame in ipairs(watcherFrames) do
+    if frame.events.GLOBAL_MOUSE_DOWN then mouseWatcher = frame end
+end
+assert(mouseWatcher, "mover must track clicks without hooking secure mail roots")
 lastRaised = WorldMapFrame
-assert(OpenAllMail.hookedScripts.OnClick, "Open All must install a stacking repair hook")
-OpenAllMail.hookedScripts.OnClick(OpenAllMail)
+mouseWatcher.scripts.OnEvent(mouseWatcher, "GLOBAL_MOUSE_DOWN")
 assert(lastRaised == WorldMapFrame, "Open All stacking repair must wait for Blizzard's click work")
 assert(nextFrame, "Open All stacking repair must queue a next-frame raise")
 nextFrame()
@@ -272,9 +282,8 @@ assert(lastRaised == MailFrame, "Open All must keep the already shown mail frame
 profile.blizzardMover.enabled = false
 lastRaised = WorldMapFrame
 nextFrame = nil
-OpenAllMail.hookedScripts.OnClick(OpenAllMail)
-assert(nextFrame, "Open All stacking repair must remain safely deferred while disabled")
-nextFrame()
+mouseWatcher.scripts.OnEvent(mouseWatcher, "GLOBAL_MOUSE_DOWN")
+assert(not nextFrame, "Open All stacking repair must not queue while disabled")
 assert(lastRaised == WorldMapFrame, "Open All stacking repair must stay inert while the mover is disabled")
 profile.blizzardMover.enabled = true
 
