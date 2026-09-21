@@ -322,4 +322,45 @@ flush()
 assert(lastRaised == CharacterFrame, "bag sale must not Raise in combat")
 inCombat = false
 
+_G.PlayerSpellsFrame = newFrame("PlayerSpellsFrame", UIParent)
+local playerSpells = mover.functions.RegisterFrame({
+    id = "PlayerSpellsFrame", defaultEnabled = false, disableMove = true,
+})
+mover.functions.RefreshEntry(playerSpells)
+click(characterButton)
+ShowUIPanel(_G.PlayerSpellsFrame)
+_G.PlayerSpellsFrame:Raise()
+flush()
+assert(lastRaised == _G.PlayerSpellsFrame, "disabled talents panel must open without retaining another panel's queued raise")
+reflow(CharacterFrame, "disabled talents panel must not acquire foreground tracking")
+
+profile.blizzardMover.enabled = false
+ShowUIPanel(_G.PlayerSpellsFrame)
+flush()
+profile.blizzardMover.enabled = true
+profile.blizzardMover.frames.PlayerSpellsFrame.enabled = true
+mover.functions.RefreshEntry(playerSpells)
+_G.PlayerSpellsFrame:Hide()
+ShowUIPanel(_G.PlayerSpellsFrame)
+reflow(_G.PlayerSpellsFrame, "enabling talents after an early settings refresh must install foreground tracking")
+
+local deferred = newFrame("DeferredSecurePanel", UIParent, true)
+_G.DeferredSecurePanel = deferred
+inCombat = true
+local deferredPanel = mover.functions.RegisterFrame({
+    id = "DeferredSecurePanel", secureFrame = true, disableMove = true,
+})
+assert(mover.variables.combatQueue[deferred] == deferredPanel, "combat must defer secure panel setup")
+ShowUIPanel(deferred)
+flush()
+assert(lastRaised == CharacterFrame, "deferred panel must open without a mover raise during combat")
+inCombat = false
+mover.functions.TryHookEntry(deferredPanel)
+assert(mover.variables.combatQueue[deferred] == nil, "secure panel setup must recover after combat")
+deferred:Hide()
+tick()
+ShowUIPanel(deferred)
+tick()
+reflow(deferred, "deferred secure panel must acquire foreground tracking after setup completes")
+
 print("OK: blizzard_mover_panel_stacking_test")
