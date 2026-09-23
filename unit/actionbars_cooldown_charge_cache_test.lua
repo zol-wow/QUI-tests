@@ -676,7 +676,8 @@ rangeButton._quiBarKey = "bar1"
 rangeButton._quiButtonIndex = 1
 rangeButton.icon = NewFrame()
 rangeButton.CreateTexture = function() return rangeOverlay end
-rangeButton.IsVisible = function() return true end
+local rangeButtonVisible = false
+rangeButton.IsVisible = function() return rangeButtonVisible end
 rangeButton.cooldown = false
 rangeButton.Cooldown = false
 rangeButton.SpellActivationAlert = false
@@ -691,9 +692,18 @@ actionBarsDB.global.rangeIndicator = true
 actionBarsDB.global.usabilityIndicator = false
 actionBars.UpdateUsabilityPolling()
 
+local rangeCheckFrame = ns.ActionBarsEnv.usabilityState.checkFrame
+assert(rangeCheckFrame:GetScript("OnUpdate") == nil,
+    "native range events must not also run recurring full-bar scans")
 local lastRangeCheck = rangeCheckCalls[#rangeCheckCalls]
 assert(lastRangeCheck and lastRangeCheck.slot == 301 and lastRangeCheck.enabled,
-    "range polling setup should opt active slots into native range events")
+    "hidden configured buttons must subscribe before a secure visibility driver reveals them")
+rangeButtonVisible = true
+rangeStates[301] = false
+actionBars.UpdateUsabilityPolling()
+assert(rangeOverlay:IsShown(),
+    "range-only settings must retain the initial out-of-range tint without waiting for another event")
+rangeStates[301] = true
 local buttonsBySlot = ns.ActionBarsEnv.usabilityState.buttonsBySlot
 local buttonsForSlot = buttonsBySlot[301]
 inCombat = true
@@ -927,6 +937,8 @@ assert(revealGlowActive and ns.ActionBarsEnv.GetFrameState(revealButton).quiProc
 
 unavailableActions[301] = nil
 ns.ActionBarsEnv.GetFrameState(rangeButton).hiddenEmpty = nil
+actionBars.nativeButtons.bar1 = { rangeButton }
+actionBars.RefreshUsabilityButtons()
 actionBarsDB.global.rangeIndicator = false
 actionBarsDB.global.usabilityIndicator = true
 actionBars.UpdateUsabilityPolling()
@@ -983,8 +995,29 @@ if actionBars._usabilityUpdateFrame and actionBars._usabilityUpdateFrame:IsShown
 end
 inCombat = true
 actionBars.ScheduleUsabilityUpdate()
-assert(not actionBars._usabilityUpdateFrame or not actionBars._usabilityUpdateFrame:IsShown(),
-    "combat usability events should not wake a second scan while range polling is active")
+assert(actionBars._usabilityUpdateFrame:IsShown(),
+    "native range events must not suppress scheduled combat usability refreshes")
+currentTime = currentTime + 1
+usabilityOnUpdate(actionBars._usabilityUpdateFrame, 1)
+assert(not actionBars._usabilityUpdateFrame:IsShown(),
+    "scheduled combat usability refreshes must still complete with native range events")
+
+local enableActionRangeCheck = C_ActionBar.EnableActionRangeCheck
+C_ActionBar.EnableActionRangeCheck = nil
+actionBars.UpdateUsabilityPolling()
+local fallbackOnUpdate = rangeCheckFrame:GetScript("OnUpdate")
+assert(type(fallbackOnUpdate) == "function",
+    "clients without native range subscriptions must retain polling")
+usabilityCalls = 0
+fallbackOnUpdate(rangeCheckFrame, 2)
+assert(usabilityCalls > 0, "fallback polling must still update button usability")
+actionBars.ScheduleUsabilityUpdate()
+assert(not actionBars._usabilityUpdateFrame:IsShown(),
+    "fallback combat polling must suppress duplicate scheduled scans")
+C_ActionBar.EnableActionRangeCheck = enableActionRangeCheck
+actionBars.UpdateUsabilityPolling()
+assert(rangeCheckFrame:GetScript("OnUpdate") == nil,
+    "restoring native range subscriptions must remove the fallback poll")
 inCombat = false
 actionBarsDB.global.rangeIndicator = false
 actionBars.UpdateUsabilityPolling()
