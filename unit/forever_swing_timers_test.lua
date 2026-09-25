@@ -145,7 +145,13 @@ local function build(forever, delayed)
     local after = assert(editSource:find("EditModeVehicleSeatIndicatorSystemMixin = {};", first, true))
     local nativeEdit = assert(loadstring(editSource:sub(first, after - 1))); setfenv(nativeEdit, world); nativeEdit()
     world.ManageFramePositions = function() world.BottomManagedFrameContainer:UpdateManagedFrames() end
+    load(nativeRoot .. "Blizzard_SharedXMLBase/FrameUtil.lua")
     load(nativeRoot .. "Blizzard_SwingTimer/Blizzard_SwingTimer.lua")
+    local manager = world.CreateFrame("Frame", "SwingTimerManagerFrame")
+    for key, value in pairs(world.SwingTimerManagerMixin) do manager[key] = value end
+    manager:Hide()
+    manager:SetScript("OnEvent", manager.OnEvent)
+    manager:OnLoad()
     local profile = { swingTimers = {}, general = {} }
     for _, key in ipairs({ "swingTimerMainHand", "swingTimerOffHand", "swingTimerRanged" }) do
         profile.swingTimers[key] = { width = 250, height = 20, texture = "Flat", fontSize = 11,
@@ -209,7 +215,6 @@ local function build(forever, delayed)
         frame.SetSnappedToFrame = noop
         frame:SetScript("OnHide", frame.OnHide)
         frame:SetScript("OnShow", frame.OnShow)
-        frame:SetScript("OnEvent", frame.OnEvent)
         frame:OnLoad()
         world.BottomManagedFrameContainer:AddManagedFrame(frame)
         frame:SetScaleBase(1.4)
@@ -269,15 +274,18 @@ for _, entry in ipairs(api.entries) do
         assert(top and bottom and top[4] == 0.5 and top[5] == -0.5 and bottom[4] == -0.5 and bottom[5] == 0.5,
             "bar and background insets must use physical pixels at non-unit UI scale")
     end
-    assert(frame:GetScript("OnEvent") == world.SwingTimerMixin.OnEvent
+    assert(frame:GetScript("OnEvent") == nil and frame.OnEvent == world.SwingTimerMixin.OnEvent
+        and world.SwingTimerManagerFrame:GetScript("OnEvent") == world.SwingTimerManagerMixin.OnEvent
         and frame:GetScript("OnHide") == world.SwingTimerMixin.OnHide, "native timing scripts must remain installed")
     assert(frame.StatusBar:GetStatusBarTexture().texture ~= frame.barTexture, "native bar must receive QUI texture")
 end
 local main, offhand, ranged = world.SwingTimerMainHandFrame, world.SwingTimerOffHandFrame, world.SwingTimerRangedFrame
+local manager = world.SwingTimerManagerFrame
 local settings = api.GetSettings("swingTimerMainHand")
 settings.visibility = world.Enum.EditModeSwingTimerVisibility.InCombat
 api.Refresh(); test.flush()
-assert(not main:IsShown() and main:IsEventRegistered("PLAYER_SWING"), "combat visibility must register before the first swing")
+assert(not main:IsShown() and main:ShouldHandleSwing() and manager:IsEventRegistered("PLAYER_SWING"),
+    "combat visibility must register before the first swing")
 test.event("PLAYER_SWING", 2, world.Enum.PlayerSwingType.MainHand)
 assert(main.swingEndTime == 102 and main:GetScript("OnUpdate") == world.SwingTimerMixin.OnUpdate, "native swing event must start native timer")
 state.combat = true
@@ -308,8 +316,8 @@ test.event("PLAYER_TARGET_CHANGED")
 assert(main.StatusBar.alpha == 1 and main.StatusBar.TimeLabel.textColor[2] == 1, "unknown range must not be treated as out of range")
 state.offhand, state.ranged = nil, nil
 test.event("WEAPON_SLOT_CHANGED")
-assert(not offhand:IsShown() and not ranged:IsShown() and not offhand:IsEventRegistered("PLAYER_SWING"),
-    "unavailable weapons must retain native hidden/unregistered behavior")
+assert(not offhand:IsShown() and not ranged:IsShown() and not offhand:ShouldHandleSwing() and not ranged:ShouldHandleSwing()
+    and manager:IsEventRegistered("PLAYER_SWING"), "unavailable weapons must stop handling swings while main hand remains registered")
 state.combat = false
 settings.visibility = 0
 api.Refresh(); test.flush()
@@ -341,7 +349,7 @@ api.Refresh(); test.flush()
 assert(main:GetWidth() == 333 and main:GetHeight() == 28 and not main.StatusBar.TypeLabel:IsShown()
     and not main.StatusBar.TimeLabel:IsShown(), "refresh must reread a replacement profile")
 api.SetEnabled(false); test.flush()
-assert(not api.IsEnabled() and not main:IsShown() and not main:IsEventRegistered("PLAYER_SWING"),
+assert(not api.IsEnabled() and not main:IsShown() and not manager:IsEventRegistered("PLAYER_SWING"),
     "enable option must use native visibility and registration")
 for _, mover in pairs(test.movers) do assert(mover.onOpen and mover.onClose); mover.onOpen() end
 test.flush()

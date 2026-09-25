@@ -573,6 +573,15 @@ C_AdventureMap = {}
 ---@param ... any
 ---@return any adventureMapTextureKit
 function C_AdventureMap.GetAdventureMapTextureKit(...) end
+---@param ... any
+---@return number numMapInsets
+function C_AdventureMap.GetNumMapInsets(...) end
+---@param ... any
+---@return number numQuestOffers
+function C_AdventureMap.GetNumQuestOffers(...) end
+---@param ... any
+---@return number numZoneChoices
+function C_AdventureMap.GetNumZoneChoices(...) end
 ---@param questID? number
 ---@param ... any
 ---@return any info
@@ -1890,6 +1899,10 @@ function C_BattleNet.SetAFK(isAFK, ...) end
 ---@param isAppearOffline? boolean
 ---@param ... any
 function C_BattleNet.SetAppearOffline(isAppearOffline, ...) end
+---@param bnetAccountID? number
+---@param block? boolean
+---@param ... any
+function C_BattleNet.SetBlocked(bnetAccountID, block, ...) end
 ---@param text? string
 ---@param ... any
 ---@return boolean success
@@ -6255,6 +6268,33 @@ function C_ExternalEventURL.IsNew(...) end
 ---@param ... any
 function C_ExternalEventURL.LaunchURL(...) end
 
+C_Flyout = {}
+---@param flyoutID? number
+---@param spellID? number
+---@param ... any
+---@return boolean hasSpell
+function C_Flyout.FlyoutHasSpell(flyoutID, spellID, ...) end
+---@param index? number
+---@param ... any
+---@return number flyoutID
+function C_Flyout.GetFlyoutID(index, ...) end
+---@param flyoutID? number
+---@param ... any
+---@return any info
+function C_Flyout.GetFlyoutInfo(flyoutID, ...) end
+---@param flyoutID? number
+---@param slotIndex? number
+---@param ... any
+---@return any slotInfo
+function C_Flyout.GetFlyoutSlotInfo(flyoutID, slotIndex, ...) end
+---@param flyoutID? number
+---@param ... any
+---@return number textureID
+function C_Flyout.GetFlyoutTexture(flyoutID, ...) end
+---@param ... any
+---@return number numFlyouts
+function C_Flyout.GetNumFlyouts(...) end
+
 C_FogOfWar = {}
 ---@param uiMapID? number
 ---@param ... any
@@ -6329,6 +6369,9 @@ function C_FriendList.GetSelectedIgnore(...) end
 ---@param ... any
 ---@return any info
 function C_FriendList.GetWhoInfo(index, ...) end
+---@param ... any
+---@return table filters
+function C_FriendList.GetWhoRaceFilters(...) end
 ---@param guid? string
 ---@param ... any
 ---@return boolean isFriend
@@ -6357,8 +6400,9 @@ function C_FriendList.RemoveFriend(name, ...) end
 function C_FriendList.RemoveFriendByIndex(index, ...) end
 ---@param filter? string
 ---@param origin? number
+---@param filters? any
 ---@param ... any
-function C_FriendList.SendWho(filter, origin, ...) end
+function C_FriendList.SendWho(filter, origin, filters, ...) end
 ---@param name? string
 ---@param notes? string
 ---@param ... any
@@ -6380,8 +6424,9 @@ function C_FriendList.SetWhoToUi(whoToUi, ...) end
 ---@param ... any
 function C_FriendList.ShowFriends(...) end
 ---@param sorting? string
+---@param ascending? boolean
 ---@param ... any
-function C_FriendList.SortWho(sorting, ...) end
+function C_FriendList.SortWho(sorting, ascending, ...) end
 
 C_GamePad = {}
 ---@param platform? any
@@ -6496,6 +6541,9 @@ function C_GameRules.GetCurrentGameModeRecordID(...) end
 ---@param ... any
 ---@return number gameModeRecordID
 function C_GameRules.GetDisplayedGameModeRecordIDAtIndex(displayIndex, ...) end
+---@param ... any
+---@return any preset
+function C_GameRules.GetForeverExperiencePreset(...) end
 ---@param gameModeRecordID? number
 ---@param ... any
 ---@return any info
@@ -6561,10 +6609,9 @@ function C_GameRules.IsStandard(...) end
 ---@param ... any
 ---@return boolean active
 function C_GameRules.IsWoWHack(...) end
+---@param preset? any
 ---@param ... any
-function C_GameRules.SelectClassicExperiencePreset(...) end
----@param ... any
-function C_GameRules.SelectModernExperiencePreset(...) end
+function C_GameRules.SetForeverExperiencePreset(preset, ...) end
 ---@param setToSD? boolean
 ---@param ... any
 function C_GameRules.SetSDHDToggleValue(setToSD, ...) end
@@ -10589,6 +10636,13 @@ function C_NamePlateManager.SetNamePlateHitTestInsets(type, left, right, top, bo
 ---@param ... any
 function C_NamePlateManager.SetNamePlateSimplified(unitToken, isSimplified, ...) end
 
+C_NameUtil = {}
+--- Replaces the character surname separator with a link separator in a full name string.
+---@param fullName? string
+---@param ... any
+---@return string result
+function C_NameUtil.ReplaceSurnameSeparatorWithLinkSeparator(fullName, ...) end
+
 C_Navigation = {}
 ---@param ... any
 ---@return number distance
@@ -13037,9 +13091,6 @@ function C_RestrictedActions.CheckAllowProtectedFunctions(object, silent, ...) e
 ---@param ... any
 ---@return any state
 function C_RestrictedActions.GetAddOnRestrictionState(type, ...) end
----@param ... any
----@return boolean inCombatLockdown
-function C_RestrictedActions.InCombatLockdown(...) end
 --- Returns true if an addon restriction type is in an active state. Will always return false during dispatch of ADDON_RESTRICTION_STATE_CHANGED.
 ---@param type? any
 ---@param ... any
@@ -13414,6 +13465,8 @@ function C_SocialQueue.IsSystemSupported(...) end
 
 C_SocialRestrictions = {}
 ---@param ... any
+function C_SocialRestrictions.AcknowledgeAgeVerificationRestriction(...) end
+---@param ... any
 function C_SocialRestrictions.AcknowledgeRegionalChatDisabled(...) end
 --- Returns true if the player meets all conditions that allow them to receive chat messages.
 ---@param ... any
@@ -13423,6 +13476,14 @@ function C_SocialRestrictions.CanReceiveChat(...) end
 ---@param ... any
 ---@return boolean canSendChat
 function C_SocialRestrictions.CanSendChat(...) end
+--- Returns true if the account is restricted by the Age Verification feature.
+---@param ... any
+---@return boolean restricted
+function C_SocialRestrictions.IsAgeVerificationRestricted(...) end
+--- Returns true if the Age Verification restriction is because the account belongs to a minor, as opposed to an adult who has not yet verified their age.
+---@param ... any
+---@return boolean isMinor
+function C_SocialRestrictions.IsAgeVerificationRestrictedMinor(...) end
 ---@param ... any
 ---@return boolean disabled
 function C_SocialRestrictions.IsChatDisabled(...) end
@@ -14508,6 +14569,10 @@ function C_StorePublic.EventStoreUISetShown(newShown, contextKey, ...) end
 function C_StorePublic.IsEnabled(...) end
 
 C_StringUtil = {}
+---@param locale? any
+---@param ... any
+---@return table breakpoints
+function C_StringUtil.GetDefaultAbbreviationBreakpoints(locale, ...) end
 --- Creates a numeric formatter that converts numbers to abbreviated strings, eg. 123456 -> '123k'.
 ---@param ... any
 ---@return any formatter
@@ -15745,8 +15810,14 @@ function C_TradeSkillUI.SetSourceTypeFilter(sourceTypeFilter, ...) end
 
 C_Trainer = {}
 ---@param ... any
+---@return boolean value
+function C_Trainer.GetCategorizeTrainerUI(...) end
+---@param ... any
 ---@return any trainerType
 function C_Trainer.GetTrainerType(...) end
+---@param value? boolean
+---@param ... any
+function C_Trainer.SetCategorizeTrainerUI(value, ...) end
 
 C_Traits = {}
 --- Returns whether the player can make changes to the specified talent config.
@@ -16992,6 +17063,7 @@ function C_UIWidgetManager.SetProcessingUnitGuid(unit, ...) end
 function C_UIWidgetManager.UnregisterUnitForWidgetUpdates(unitToken, isGuid, ...) end
 
 C_UnitAuras = {}
+--- Registers a sound for an aura event. The sound is stopped after five seconds of playback. The throttleSeconds value must be between 0 and 5 seconds, inclusive.
 ---@param trigger? any
 ---@param sound? any
 ---@param ... any
@@ -17114,6 +17186,13 @@ function C_UnitAuras.GetHiddenGroupBuffs(...) end
 ---@param ... any
 ---@return any aura
 function C_UnitAuras.GetPlayerAuraBySpellID(spellID, ...) end
+--- Returns the client-predicted amount of time that a new spellcast of the same spell would carry over to the new application of that aura. Takes an optional spellID to use as the new duration if that cannot be derived from the aura, if that value isn't supplied the aura's spellID will be used
+---@param auraInstanceUnit? any
+---@param auraInstanceID? number
+---@param spellID? any
+---@param ... any
+---@return number newDuration
+function C_UnitAuras.GetRefreshCarryOverDuration(auraInstanceUnit, auraInstanceID, spellID, ...) end
 --- Returns the client-predicted new duration of this aura if it were cast again right now. Takes an optional spellID to use as the new duration if that cannot be derived from the aura, if that value isn't supplied the aura's spellID will be used
 ---@param auraInstanceUnit? any
 ---@param auraInstanceID? number
@@ -18209,6 +18288,11 @@ function GetAreaSpiritHealerTime(...) end
 ---@param ... any
 ---@return string text
 function GetAreaText(...) end
+---@param index? number
+---@param ... any
+---@return number specializationID
+---@return number gender
+function GetArenaOpponentSpec(index, ...) end
 ---@param ... any
 ---@return number result
 function GetArmorPenetration(...) end
@@ -18351,10 +18435,6 @@ function GetCursorMoney(...) end
 ---@return number posX
 ---@return number posY
 function GetCursorPosition(...) end
----@param locale? any
----@param ... any
----@return table breakpoints
-function GetDefaultAbbreviationBreakpoints(locale, ...) end
 ---@param ... any
 ---@return number scale
 function GetDefaultScale(...) end
@@ -19084,6 +19164,9 @@ function HasSPEffectsAttackPower(...) end
 ---@param ... any
 ---@return boolean inCinematic
 function InCinematic(...) end
+---@param ... any
+---@return boolean inCombatLockdown
+function InCombatLockdown(...) end
 ---@param ... any
 ---@return boolean result
 function InitiateRolePoll(...) end
