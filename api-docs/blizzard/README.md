@@ -13,9 +13,9 @@ The canonical source is [`Gethe/wow-ui-source`](https://github.com/Gethe/wow-ui-
 
 ## Current state
 
-This directory contains the `12.1.5.69848` snapshot of Blizzard's generated API
-documentation tables, vendored on 2026-09-15 from `ptr2` commit
-`f663342f08a6e06060b0d77628abf4e503907e67`. The taint analyzer reads these files through the derived
+This directory contains the `12.1.5.69952` snapshot of Blizzard's generated API
+documentation tables, vendored on 2026-09-25 from `ptr2` commit
+`5c9363cc1b4e80b98963e3fcc87ab460fa911a94`. The taint analyzer reads these files through the derived
 index at `tests/api-docs/api-index.lua`, so the corpus and index must stay in
 sync. After replacing or adding Blizzard documentation files, regenerate the
 derived index:

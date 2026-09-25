@@ -174,7 +174,8 @@ local function processTable(tbl, index, returnArities)
     local isScriptObject = (tbl.Type == "ScriptObject")
     if type(tbl.Functions) == "table" then
         for _, fn in ipairs(tbl.Functions) do
-            local key = moduleName and (moduleName .. "." .. fn.Name) or fn.Name
+            local namespace = fn.Namespace or moduleName
+            local key = namespace and namespace ~= "" and (namespace .. "." .. fn.Name) or fn.Name
             local returnArity
             if fn.Returns == nil then
                 returnArity = 0

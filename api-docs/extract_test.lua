@@ -19,6 +19,14 @@ end
 
 local index = Extract.fromCorpus("tests/api-docs/synthetic-corpus")
 
+assert_true(index.TestGlobalOverride and index.TestGlobalOverride.isSecretReturn,
+    "empty function namespace exports a secret global")
+assert_eq(index.TestGlobalOverride.returnArity, 1, "global override preserves return arity")
+assert_true(index["C_Override.TestNamespaceOverride"], "function namespace overrides its system")
+assert_true(not index["C_Test.TestGlobalOverride"] and not index[".TestGlobalOverride"],
+    "global override has no namespace prefix")
+assert_true(not index["C_Test.TestNamespaceOverride"], "named override replaces system namespace")
+
 -- SecretWhenCooldownsRestricted function must be indexed with the flag set
 assert_true(index["C_Test.GetSecretValue"], "secret-flagged function indexed")
 assert_eq(index["C_Test.GetSecretValue"].secretWhenCooldownsRestricted, true,
