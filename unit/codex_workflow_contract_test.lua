@@ -52,9 +52,9 @@ contains(review, "github.event.pull_request.draft == false", "draft PR review ex
 contains(review, "github.event.pull_request.head.repo.full_name == github.repository", "fork review exclusion missing")
 contains(review, "--sandbox read-only", "reviewer must not edit the checkout")
 contains(review, "Run no repository-wide", "reviewer must not run write-producing gates")
-contains(triage, "ref: alpha", "triage must branch from alpha")
+contains(triage, "ref: ${{ steps.context.outputs.checkout_ref }}", "triage must use resolved branch context")
 contains(triage, "bash tools/test.sh", "triage changes must pass the canonical gate")
-contains(triage, "gh pr create --draft --base alpha", "triage draft PR gate missing")
+contains(triage, 'gh pr create --draft --base "$BASE_REF"', "triage draft PR must use resolved branch")
 contains(triage, "git diff --cached --quiet", "triage must reject staged changes")
 contains(triage, ".github/*|tools/*|tests/*|.luacheckrc", "triage forbidden-path gate missing")
 
