@@ -2634,6 +2634,7 @@ return {
             [4] = 1
           },
           keyTrackerWidth = 170,
+          keystoneRerollReminder = true,
           lootToastFilter = {
             enabled = false,
             keepMounts = true,

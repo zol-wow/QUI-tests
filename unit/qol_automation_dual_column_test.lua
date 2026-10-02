@@ -73,7 +73,7 @@ assert(#headers == 6 and headers[1] == "Automation" and headers[2] == "Auto Remo
 local expected = {
     general = [[sellJunk autoRepair fastAutoLoot autoAcceptInvites autoAcceptSummons
         autoRoleAccept autoAcceptQuest autoTurnInQuest autoSelectGossip questHoldShift
-        autoInsertKey closeBagsOnKeystoneInsert autoCombatLog autoCombatLogRaid
+        autoInsertKey closeBagsOnKeystoneInsert keystoneRerollReminder autoCombatLog autoCombatLogRaid
         mplusTeleportEnabled autoDeleteConfirm worldMapTeleports auctionHouseExpansionFilter
         craftingOrderExpansionFilter autoDeclineDuel autoDeclinePetBattle autoRelease
         blockReleaseInRaid audioOutputDevice autoUnwrapCollections autoConfirmSocketReplace

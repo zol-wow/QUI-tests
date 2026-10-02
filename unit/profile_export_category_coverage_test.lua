@@ -169,12 +169,14 @@ h.db.profile.general.autoAcceptResurrection = DeepCopy(resurrectionModes)
 h.db.profile.general.autoRemoveAppearanceChanges.enabled = true
 h.db.profile.general.autoRemoveAppearanceChanges.cooking = false
 h.db.profile.general.autoRemoveAppearanceChanges.atomic = true
+h.db.profile.general.keystoneRerollReminder = false
 local qolStr, qolErr = h.QUICore:ExportProfileSelectionToString({ "qol" })
 check("QoL export returns a profile string", type(qolStr) == "string", qolErr)
 if qolStr then
     h.db:SetProfile("Resurrection import destination")
     h.db.profile.general.autoAcceptResurrection.pvp = "always"
     h.db.profile.general.skinReadyCheck = false
+    h.db.profile.general.keystoneRerollReminder = true
     local imported, importErr = h.QUICore:ImportProfileSelectionFromString(qolStr, { "qol" })
     check("QoL import succeeds", imported, importErr)
     for location, mode in pairs(resurrectionModes) do
@@ -185,6 +187,7 @@ if qolStr then
     check("QoL import preserves appearance master toggle", appearances.enabled == true)
     check("QoL import preserves excluded appearance effects", appearances.cooking == false)
     check("QoL import preserves opted-in toy effects", appearances.atomic == true)
+    check("QoL import preserves disabled keystone reroll reminder", h.db.profile.general.keystoneRerollReminder == false)
     check("QoL import preserves unrelated skin settings", h.db.profile.general.skinReadyCheck == false)
 end
 
