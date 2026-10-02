@@ -98,13 +98,12 @@ do
     assert(Angler.TraitName(9999) == nil, "unknown power has no name")
 end
 
--- 4) Client reads: skill line first, open Fishing page as the fallback; owning
---    the rod implies the pearl chain; the artifact is "open" only with the root.
+-- 4) Client reads: skill line first, open Legion Fishing page as the fallback; owning
+--    the rod or an active pearl quest implies the pearl; the artifact is "open" only with the root.
 do
     resetClient()
     local Angler = loadData()
     local askedLine
-    _G.Enum = { Profession = { Fishing = 10 } }
     _G.C_TradeSkillUI = {
         GetProfessionInfoBySkillLineID = function(id)
             askedLine = id
@@ -118,14 +117,15 @@ do
     -- An unlearned skill line comes back zeroed: fall through to the open page.
     _G.C_TradeSkillUI.GetProfessionInfoBySkillLineID = function() return { skillLevel = 0, maxSkillLevel = 0 } end
     _G.C_TradeSkillUI.GetChildProfessionInfo = function()
-        return { profession = 10, skillLevel = 77, maxSkillLevel = 100 }
+        return { professionID = Angler.LEGION_FISHING_SKILL_LINE, skillLevel = 77, maxSkillLevel = 100 }
     end
     skill, maxSkill = Angler.GetLegionFishingSkill()
-    assert(skill == 77 and maxSkill == 100, "open Fishing page fallback")
+    assert(skill == 77 and maxSkill == 100, "open Legion Fishing page fallback")
+    -- Another expansion's Fishing page must not stand in for Legion Fishing.
     _G.C_TradeSkillUI.GetChildProfessionInfo = function()
-        return { profession = 3, skillLevel = 77, maxSkillLevel = 100 }
+        return { professionID = 2592, skillLevel = 300, maxSkillLevel = 300 }
     end
-    assert(Angler.GetLegionFishingSkill() == nil, "another profession's page is not Fishing")
+    assert(Angler.GetLegionFishingSkill() == nil, "another expansion's Fishing page is not Legion Fishing")
 
     local itemArgs
     _G.C_Item = { GetItemCount = function(...) itemArgs = { ... } return 1 end }
@@ -143,6 +143,12 @@ do
     _G.C_QuestLog.IsQuestFlaggedCompleted = function(id) return id == 41010 end
     p = Angler.ReadProgress()
     assert(p.pearl and not p.rod, "any pearl quest counts as pearl progress")
+
+    -- Accepted but not yet turned in: the pearl is already in hand.
+    _G.C_QuestLog.IsQuestFlaggedCompleted = function() return false end
+    assert(Angler.ReadProgress().pearl == false, "no pearl quest done or active")
+    _G.C_QuestLog.IsOnQuest = function(id) return id == 40960 end
+    assert(Angler.ReadProgress().pearl == true, "an active pearl quest counts as pearl progress")
 
     _G.C_ArtifactUI = { GetPowers = function() return { 5, 6, 7 } end }
     assert(Angler.IsArtifactOpen() == false, "another artifact is open")
