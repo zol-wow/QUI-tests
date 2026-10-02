@@ -197,7 +197,11 @@ do
     assert(not window:find("_G.QUI_", 1, true), "window exports on ns.*, never _G")
     local main = readAll("QUI_UnderlightAnglerHelper/angler/angler.lua")
     has(main, 'SLASH_QUIANGLER1 = "/quiangler"', "slash command")
-    has(main, 'ns.SkinBase.OnAddOnLoaded("Blizzard_ArtifactUI", CreateLauncher)', "artifact window launcher")
+    has(main, 'ns.SkinBase.OnAddOnLoaded("Blizzard_ArtifactUI", WatchArtifactFrame)', "artifact window watched")
+    has(main, "if not standalone then CreateLauncher(artifactFrame) end", "launcher only without the standalone addon")
+    has(main, 'watcher:RegisterEvent("ARTIFACT_UPDATE")', "launcher follows artifact swaps")
+    has(main, 'artifactFrame:HookScript("OnHide", OnArtifactChanged)', "closing the artifact refreshes launcher and window")
+    has(window, '"ARTIFACT_CLOSE"', "the window repaints when the artifact closes")
     has(main, 'local STANDALONE_ADDON = "UnderlightAnglerUI"', "stands down for the standalone addon")
 
     local modulesPage = readAll("core/settings/content/module_addons_content.lua")
