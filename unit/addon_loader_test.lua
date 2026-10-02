@@ -123,7 +123,7 @@ do
         end
     end
     assert(login == 7, "7 login-class entries, got " .. login)
-    assert(lod == 3, "3 lod folder entries (QUI_DamageMeter/QUI_Bags/QUI_Reminders), got " .. lod)
+    assert(lod == 4, "4 lod folder entries (QUI_DamageMeter/QUI_Bags/QUI_Reminders/QUI_UnderlightAnglerHelper), got " .. lod)
     assert(coreModule == 5, "5 coreModule entries (minimap/infobar/alts/datatexts/skinning), got " .. coreModule)
     assert(#legacyFlagFolders == 5,
         "exactly 5 legacyFlag entries, got " .. #legacyFlagFolders)
@@ -151,8 +151,8 @@ do
             .. table.concat(loadPolicyFolders, ",") .. "\"")
 end
 
--- 2) LOD stagger: the automatic passes load the 3 LOD folders (QUI_DamageMeter/
---    QUI_Bags/QUI_Reminders) when addon-enabled, regardless of profile content.
+-- 2) LOD stagger: the automatic passes load the 4 LOD folders (QUI_DamageMeter/
+--    QUI_Bags/QUI_Reminders/QUI_UnderlightAnglerHelper) when addon-enabled, regardless of profile content.
 --    Profile flags are not load gates; only addon enable state matters.
 do
     -- 2a) Empty profile: the 3 LOD folders load in manifest order.
@@ -163,11 +163,12 @@ do
         loader:LoadEnabledLODModules()
         local loads = {}
         for _, c in ipairs(calls) do if c:match("^load:") then loads[#loads+1] = c end end
-        assert(#loads == 3, "2a: expected 3 loads, got " .. #loads)
+        assert(#loads == 4, "2a: expected 4 loads, got " .. #loads)
         assert(loads[1] == "load:QUI_DamageMeter", "2a 1st: damagemeter")
         assert(loads[2] == "load:QUI_Bags",        "2a 2nd: bags")
         assert(loads[3] == "load:QUI_Reminders",   "2a 3rd: reminders")
-        assert(#ns.QUI_Modules.notified == 3, "2a: one notify per load")
+        assert(loads[4] == "load:QUI_UnderlightAnglerHelper", "2a 4th: underlight angler helper")
+        assert(#ns.QUI_Modules.notified == 4, "2a: one notify per load")
     end
 
     -- 2b) Profile with damageMeter.native.enabled=false: DamageMeter still loads
@@ -181,7 +182,7 @@ do
         loader:LoadEnabledLODModules()
         local loads = {}
         for _, c in ipairs(calls) do if c:match("^load:") then loads[#loads+1] = c end end
-        assert(#loads == 3, "2b: expected 3 loads (flag-false profile), got " .. #loads)
+        assert(#loads == 4, "2b: expected 4 loads (flag-false profile), got " .. #loads)
         assert(loads[1] == "load:QUI_DamageMeter",
             "2b: DamageMeter must load even when profile flag is false")
     end
@@ -296,13 +297,14 @@ do
     _G.InCombatLockdown = function() return false end
     frame:FireEvent("PLAYER_REGEN_ENABLED")
 
-    -- The 3 LOD folders must now be loaded in manifest order.
+    -- The 4 LOD folders must now be loaded in manifest order.
     local loadsAfter = {}
     for _, c in ipairs(calls) do if c:match("^load:") then loadsAfter[#loadsAfter+1] = c end end
-    assert(#loadsAfter == 3, "all lod folders loaded after regen, got " .. #loadsAfter)
+    assert(#loadsAfter == 4, "all lod folders loaded after regen, got " .. #loadsAfter)
     assert(loadsAfter[1] == "load:QUI_DamageMeter", "post-regen 1st: damagemeter")
     assert(loadsAfter[2] == "load:QUI_Bags",        "post-regen 2nd: bags")
     assert(loadsAfter[3] == "load:QUI_Reminders",   "post-regen 3rd: reminders")
+    assert(loadsAfter[4] == "load:QUI_UnderlightAnglerHelper", "post-regen 4th: underlight angler helper")
 
     -- Frame must have unregistered after draining.
     assert(not frame._events["PLAYER_REGEN_ENABLED"], "unregistered after drain")
@@ -369,6 +371,7 @@ do
         state.loaded.QUI_DamageMeter = true
         state.loaded.QUI_Bags        = true
         state.loaded.QUI_Reminders   = true
+        state.loaded.QUI_UnderlightAnglerHelper = true
         local loader = loadLoader(ns)
         loader.GetProfile = function() return {} end
         local anchorCalls = {}
@@ -424,11 +427,12 @@ do
         loader:LoadEnabledLODModulesEager()
         local loads = {}
         for _, c in ipairs(calls) do if c:match("^load:") then loads[#loads+1] = c end end
-        assert(#loads == 3, "7a: expected 3 eager loads, got " .. #loads)
+        assert(#loads == 4, "7a: expected 4 eager loads, got " .. #loads)
         assert(loads[1] == "load:QUI_DamageMeter", "7a 1st: damagemeter")
         assert(loads[2] == "load:QUI_Bags",        "7a 2nd: bags")
         assert(loads[3] == "load:QUI_Reminders",   "7a 3rd: reminders")
-        assert(#ns.QUI_Modules.notified == 3, "7a: one notify per eager load")
+        assert(loads[4] == "load:QUI_UnderlightAnglerHelper", "7a 4th: underlight angler helper")
+        assert(#ns.QUI_Modules.notified == 4, "7a: one notify per eager load")
         assert(#anchorCalls == 2, "7a: anchoring catch-up runs once (register+apply)")
         assert(anchorCalls[1] == "register" and anchorCalls[2] == "apply", "7a: register then apply")
     end
@@ -444,7 +448,7 @@ do
         _G.InCombatLockdown = function() return false end
         local loads = {}
         for _, c in ipairs(calls) do if c:match("^load:") then loads[#loads+1] = c end end
-        assert(#loads == 3, "7b: eager load ignores combat lockdown, got " .. #loads)
+        assert(#loads == 4, "7b: eager load ignores combat lockdown, got " .. #loads)
     end
 
     -- 7c) Both LOD folders load when addon-enabled.
@@ -460,8 +464,8 @@ do
         loader:LoadEnabledLODModulesEager()
         local loads = {}
         for _, c in ipairs(calls) do if c:match("^load:") then loads[#loads+1] = c end end
-        assert(#loads == 3, "7c: expected 3 eager loads, got " .. #loads)
-        assert(#anchorCalls == 2, "7c: anchoring still runs (3 loaded)")
+        assert(#loads == 4, "7c: expected 4 eager loads, got " .. #loads)
+        assert(#anchorCalls == 2, "7c: anchoring still runs (4 loaded)")
     end
 
     -- 7d) DB not ready (GetProfile nil) → inert, no loads.
@@ -492,14 +496,14 @@ do
         for _, c in ipairs(calls) do
             if c:match("^load:") then afterEager = afterEager + 1 end
         end
-        assert(afterEager == 3, "7e: eager loads the 3 LOD folders, got " .. afterEager)
+        assert(afterEager == 4, "7e: eager loads the 4 LOD folders, got " .. afterEager)
         -- Stage 2: staggered post-login — both already loaded, loads nothing new.
         loader:LoadEnabledLODModules()
         local total = 0
         for _, c in ipairs(calls) do
             if c:match("^load:") then total = total + 1 end
         end
-        assert(total == 3, "7e: staggered catch-up loads nothing new, got " .. total)
+        assert(total == 4, "7e: staggered catch-up loads nothing new, got " .. total)
     end
 end
 
@@ -552,7 +556,7 @@ do
         loader:LoadEnabledLODModulesEager()
         local loads = {}
         for _, c in ipairs(calls) do if c:match("^load:") then loads[#loads+1] = c end end
-        assert(#loads == 2, "9a: expected 2 eager loads, got " .. #loads)
+        assert(#loads == 3, "9a: expected 3 eager loads, got " .. #loads)
         assert(loads[1] == "load:QUI_DamageMeter", "9a: damagemeter eager-loads")
         assert(loads[2] == "load:QUI_Reminders", "9a: reminders eager-loads; bags is held back")
     end
@@ -566,7 +570,7 @@ do
         loader:LoadEnabledLODModules()
         local loads = {}
         for _, c in ipairs(calls) do if c:match("^load:") then loads[#loads+1] = c end end
-        assert(#loads == 3, "9b: staggered pass ignores loadPolicy, got " .. #loads)
+        assert(#loads == 4, "9b: staggered pass ignores loadPolicy, got " .. #loads)
         assert(loads[2] == "load:QUI_Bags", "9b: bags loads via the staggered pass")
     end
 
@@ -579,7 +583,7 @@ do
         loader:LoadEnabledLODModulesEager()
         local loads = {}
         for _, c in ipairs(calls) do if c:match("^load:") then loads[#loads+1] = c end end
-        assert(#loads == 3, "9c: absent flag must not gate the eager pass, got " .. #loads)
+        assert(#loads == 4, "9c: absent flag must not gate the eager pass, got " .. #loads)
     end
 
     -- 9d) Pure predicate, exported for tests.
