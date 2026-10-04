@@ -164,17 +164,23 @@ if fullPayload and selPayload then
             or nil)
 end
 
+check("fresh profiles default to a fifteen-second reroll reminder",
+      h.defaults.profile.general.keystoneRerollReminderDuration == 15
+      and h.db.profile.general.keystoneRerollReminderDuration == 15)
+
 local resurrectionModes = { dungeon = "outOfCombat", raid = "always", pvp = "off", world = "always" }
 h.db.profile.general.autoAcceptResurrection = DeepCopy(resurrectionModes)
 h.db.profile.general.autoRemoveAppearanceChanges.enabled = true
 h.db.profile.general.autoRemoveAppearanceChanges.cooking = false
 h.db.profile.general.autoRemoveAppearanceChanges.atomic = true
+h.db.profile.general.keystoneRerollReminder = false
 local qolStr, qolErr = h.QUICore:ExportProfileSelectionToString({ "qol" })
 check("QoL export returns a profile string", type(qolStr) == "string", qolErr)
 if qolStr then
     h.db:SetProfile("Resurrection import destination")
     h.db.profile.general.autoAcceptResurrection.pvp = "always"
     h.db.profile.general.skinReadyCheck = false
+    h.db.profile.general.keystoneRerollReminder = true
     local imported, importErr = h.QUICore:ImportProfileSelectionFromString(qolStr, { "qol" })
     check("QoL import succeeds", imported, importErr)
     for location, mode in pairs(resurrectionModes) do
@@ -185,7 +191,31 @@ if qolStr then
     check("QoL import preserves appearance master toggle", appearances.enabled == true)
     check("QoL import preserves excluded appearance effects", appearances.cooking == false)
     check("QoL import preserves opted-in toy effects", appearances.atomic == true)
+    check("QoL import preserves disabled keystone reroll reminder", h.db.profile.general.keystoneRerollReminder == false)
     check("QoL import preserves unrelated skin settings", h.db.profile.general.skinReadyCheck == false)
+end
+
+-- The real selective wire format must retain each saved duration without
+-- re-enabling the reminder or overwriting settings owned by other categories.
+for _, duration in ipairs({ 15, 30, 60 }) do
+    h.db:SetProfile("Reroll duration source " .. duration)
+    h.db.profile.general.keystoneRerollReminderDuration = duration
+    h.db.profile.general.keystoneRerollReminder = false
+    local exported, exportErr = h.QUICore:ExportProfileSelectionToString({ "qol" })
+    check("QoL duration " .. duration .. " export succeeds", type(exported) == "string", exportErr)
+    if exported then
+        local payload, decodeErr = decode(exported)
+        check("QoL duration " .. duration .. " is persisted on the wire",
+              payload and payload.general and payload.general.keystoneRerollReminderDuration == duration, decodeErr)
+        h.db:SetProfile("Reroll duration destination " .. duration)
+        h.db.profile.general.keystoneRerollReminderDuration = 60
+        h.db.profile.general.skinReadyCheck = false
+        local imported, importErr = h.QUICore:ImportProfileSelectionFromString(exported, { "qol" })
+        check("QoL duration " .. duration .. " import succeeds", imported, importErr)
+        check("QoL duration " .. duration .. " is restored", h.db.profile.general.keystoneRerollReminderDuration == duration)
+        check("QoL duration " .. duration .. " retains the disabled reminder", h.db.profile.general.keystoneRerollReminder == false)
+        check("QoL duration " .. duration .. " preserves unrelated skin settings", h.db.profile.general.skinReadyCheck == false)
+    end
 end
 
 print(("\n%d failure(s)"):format(failures))

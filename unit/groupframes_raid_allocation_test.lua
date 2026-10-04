@@ -25,7 +25,7 @@ local function harness(groupBy)
     local function chunk(text, name)
         return setfenv(assert(loadstring(text, name)), env)
     end
-    local state = { roster = {}, combat = false, widgets = {}, timers = {}, styles = 0 }
+    local state = { roster = {}, namesReady = true, combat = false, widgets = {}, timers = {}, styles = 0 }
     local function wipe(t) for k in pairs(t) do t[k] = nil end; return t end
     env.wipe = wipe
     env.table = setmetatable({ wipe = wipe }, { __index = table })
@@ -48,23 +48,31 @@ local function harness(groupBy)
         return index and state.roster[index] or (unit == "player" and state.roster[1])
     end
     env.UnitExists = function(unit) return unit == "player" or member(unit) ~= nil end
-    env.UnitName = function(unit) local m = member(unit); return m and m.name or "Player", nil end
+    env.UnitName = function(unit)
+        if not state.namesReady then return nil end
+        local m = member(unit)
+        return m and m.name or "Player", nil
+    end
     env.UnitClass = function(unit) local m = member(unit); return "Mage", m and m.class or "MAGE" end
     env.UnitGroupRolesAssigned = function(unit) local m = member(unit); return m and m.role or "DAMAGER" end
     env.UnitIsUnit = function(a, b) return a == b or (member(a) and member(a) == member(b)) end
     env.UnitGUID = function(unit) local m = member(unit); return m and m.name or unit end
     env.UnitIsPlayer = function() return true end
     env.UnitIsConnected = function() return true end
+    env.IsPlayerSpell = function() return false end
     env.GetPartyAssignment = function() return false end
     env.GetRaidRosterInfo = function(i)
         local m = state.roster[i]
-        if m then return m.name, 0, m.group, 80, m.class, m.class, "", true, false, nil, false, m.role end
+        if m then return state.namesReady and m.name or nil, 0, m.group, 80, m.class, m.class, "", true, false, nil, false, m.role end
     end
     env.GetInstanceInfo = function() return "Raid", "raid", 14 end
     env.GetTime = function() return 10 end
     env.issecretvalue = function() return false end
     env.RAID_CLASS_COLORS = { MAGE = { r = 1, g = 1, b = 1 } }
-    env.C_Timer = { After = function(_, fn) state.timers[#state.timers + 1] = fn end }
+    env.C_Timer = {
+        After = function(_, fn) state.timers[#state.timers + 1] = fn end,
+        NewTicker = function() return { Cancel = function() end } end,
+    }
     env.RegisterUnitWatch = function() end
     env.UnregisterUnitWatch = function() end
     env.RegisterStateDriver = function() end
@@ -134,11 +142,15 @@ local function IsFrameHandle() return false end
     function Frame:GetTop() return self:GetHeight() end
     function Frame:GetBottom() return 0 end
     function Frame:GetCenter() return 0, 0 end
-    for _, method in ipairs({ "RegisterEvent", "UnregisterEvent", "UnregisterAllEvents", "EnableMouse", "SetMovable", "SetClampedToScreen", "SetAllPoints", "SetOrientation", "SetScale", "SetText", "SetFont", "SetTextColor", "SetJustifyH", "SetDrawLayer" }) do
+    function Frame:RegisterEvent(event) self.events[event] = true end
+    Frame.RegisterUnitEvent = Frame.RegisterEvent
+    function Frame:UnregisterEvent(event) self.events[event] = nil end
+    function Frame:UnregisterAllEvents() wipe(self.events) end
+    for _, method in ipairs({ "EnableMouse", "SetMovable", "SetClampedToScreen", "SetAllPoints", "SetOrientation", "SetScale", "SetText", "SetFont", "SetTextColor", "SetJustifyH", "SetDrawLayer" }) do
         Frame[method] = function() end
     end
     env.CreateFrame = function(kind, name, parent, template)
-        local frame = setmetatable({ kind = kind, name = name, parent = parent, attrs = {}, scripts = {}, children = {}, points = {}, shown = true }, Frame)
+        local frame = setmetatable({ kind = kind, name = name, parent = parent, attrs = {}, scripts = {}, events = {}, children = {}, points = {}, shown = true }, Frame)
         state.widgets[#state.widgets + 1] = frame
         if name then env[name] = frame end
         if parent then parent.children[#parent.children + 1] = frame end
@@ -194,6 +206,9 @@ return { create = CreateHeaders, visibility = UpdateHeaderVisibility, scale = Up
     end
     gf.HeaderChildCreated = function(_, name) decorate(env[name]) end
     gf.InitializeHeaderChild = function(_, child) decorate(child) end
+    -- Art is stubbed; header membership, visibility, event handling, and the
+    -- deferred unit map rebuild all run through the real module and FrameXML.
+    gf.RefreshAllFrames = function() end
     state.db, state.gf, state.api, state.env = db, gf, api, env
     function state:raid(n)
         self.roster = {}
@@ -209,6 +224,36 @@ return { create = CreateHeaders, visibility = UpdateHeaderVisibility, scale = Up
     function state:refresh()
         api.visibility(true)
         api.scale()
+    end
+    function state:event(event, ...)
+        local listeners = {}
+        for _, frame in ipairs(self.widgets) do
+            if frame.events[event] then listeners[#listeners + 1] = frame end
+        end
+        for _, frame in ipairs(listeners) do
+            if frame.secure then
+                env.SecureGroupHeader_OnEvent(frame, event, ...)
+            elseif frame.scripts.OnEvent then
+                frame.scripts.OnEvent(frame, event, ...)
+            end
+        end
+    end
+    function state:flushTimers()
+        for _ = 1, 10 do
+            if #self.timers == 0 then return end
+            local batch = self.timers
+            self.timers = {}
+            for _, fn in ipairs(batch) do fn() end
+        end
+        error("login timers did not settle")
+    end
+    function state:visibleUnits()
+        local units = {}
+        for _, frame in ipairs(self.gf.allFrames) do
+            local unit = frame:GetAttribute("unit")
+            if unit and frame:IsVisible() then units[unit] = frame end
+        end
+        return units
     end
     return state
 end
@@ -340,5 +385,76 @@ for _, mode in ipairs({ "GROUP", "NONE" }) do
     check(mode .. " deferred alternate layout creates its 40 buttons afterward", h:count() == 86, h:count())
 end
 
-if failures > 0 then error(failures .. " allocation/layout regression(s)") end
+-- Cold login can reach ADDON_LOADED before UnitName("player") is available.
+-- With unchanged settings, world entry must still refresh secure membership,
+-- even when no subsequent GROUP_ROSTER_UPDATE/UNIT_NAME_UPDATE is delivered.
+for _, selfFirst in ipairs({ false, true }) do
+    for _, cold in ipairs({ true, false }) do
+        local h = harness("GROUP")
+        local label = (selfFirst and "self-first" or "solo party") .. (cold and " cold login" or " reload")
+        h.db.party.layout.showSolo = true
+        h.db.partySelfFirst = selfFirst
+        h.namesReady = not cold
+        h:event("ADDON_LOADED", "QUI")
+        h:flushTimers()
+        check(label .. " initializes without errors", h.gf.initialized)
+        if cold then check(label .. " starts without a player unit", next(h:visibleUnits()) == nil) end
+        h.namesReady = true
+        h:event("PLAYER_ENTERING_WORLD", cold, not cold)
+        h:flushTimers()
+        local player = h:visibleUnits().player
+        check(label .. " displays the player after world entry", player ~= nil)
+        check(label .. " maps the player for unit events", h.gf.unitFrameMap.player and h.gf.unitFrameMap.player[1] == player)
+        check(label .. " reveals the party root", h.gf.anchorFrames.party:GetAlpha() == 1)
+
+        -- An ordinary roster/layout pass must retain the attribute-change
+        -- fast path; only world entry should force the membership refresh.
+        local header = selfFirst and h.gf.headers.self or h.gf.headers.party
+        local nativeUpdate = h.env.SecureGroupHeader_Update
+        local updates = 0
+        h.env.SecureGroupHeader_Update = function(frame)
+            updates = updates + 1
+            return nativeUpdate(frame)
+        end
+        h:refresh()
+        check(label .. " retains unchanged-header fast path", updates == 0, updates)
+
+        -- Exercise a second world entry so a one-shot refresh cannot pass.
+        h.namesReady = false
+        nativeUpdate(header)
+        h.namesReady = true
+        h:event("PLAYER_ENTERING_WORLD", false, false)
+        h:flushTimers()
+        check(label .. " refreshes membership on later world entries", h:visibleUnits().player ~= nil)
+    end
+end
+
+do
+    local h = harness("GROUP")
+    h.db.party.layout.showSolo = true
+    h.namesReady = false
+    h:event("ADDON_LOADED", "QUI")
+    h:flushTimers()
+    h.namesReady, h.combat = true, true
+    h:event("PLAYER_ENTERING_WORLD", true, false)
+    h:flushTimers()
+    check("combat world entry defers secure membership changes", next(h:visibleUnits()) == nil)
+    h.combat = false
+    h:event("PLAYER_REGEN_ENABLED")
+    h:flushTimers()
+    check("combat world entry recovers on regen without reload", h:visibleUnits().player ~= nil)
+end
+
+do
+    local h = harness("GROUP")
+    h.namesReady = false
+    h:event("ADDON_LOADED", "QUI")
+    h:flushTimers()
+    h.namesReady = true
+    h:event("PLAYER_ENTERING_WORLD", true, false)
+    h:flushTimers()
+    check("world entry respects disabled solo display", next(h:visibleUnits()) == nil)
+end
+
+if failures > 0 then error(failures .. " allocation/layout/login regression(s)") end
 print("PASS groupframes_raid_allocation_test")
