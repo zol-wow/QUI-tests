@@ -148,4 +148,31 @@ assert(gd["Aerie Peak-Bob"] == nil and gd["Aerie Peak-Amy"] ~= nil)
 assert(AD.PurgeLegacyFor(gd, "Nobody-X") == 0)
 assert(AD.PurgeLegacyFor(nil, "Bob-AeriePeak") == 0)
 
+do
+    for _, realm in ipairs({ "Kelthuzad", "KelThuzad", "Kel'Thuzad", "Kel' Thuzad" }) do
+        local legacy = {
+            [realm .. "-Erassah"] = { money = 16712 * 10000, class = "WARLOCK" },
+            [realm .. "-Other"] = 10000,
+            ["Stormrage-Erassah"] = 20000,
+        }
+        local merged = AD.MergeLegacyGold(AD.BuildRows({
+            ["Erassah-Kel'Thuzad"] = { details = { money = 2819 * 10000, class = "MAGE" } },
+        }), legacy)
+        assert(#merged == 3, "realm aliases must not duplicate tracked gold: " .. realm)
+        assert(merged[1].key == "Erassah-Kel'Thuzad", "keep the storage key for display and current-character marking")
+        assert(merged[1].money == 2819 * 10000 and merged[1].class == "MAGE", "tracked data must win over stale gold")
+        assert(AD.Total(merged) == 2822 * 10000, "total must exclude stale gold and retain distinct characters and realms")
+        assert(legacy[realm .. "-Erassah"] ~= nil, "tooltip merging must not delete saved gold")
+        assert(AD.PurgeLegacyFor(legacy, "Erassah-Kel'Thuzad") == 1, "deletion must remove the same realm alias: " .. realm)
+        assert(legacy[realm .. "-Erassah"] == nil, "deleted characters must not return through legacy gold")
+        assert(legacy[realm .. "-Other"] == 10000 and legacy["Stormrage-Erassah"] == 20000,
+            "deletion must preserve other characters and realms")
+    end
+    local merged = AD.MergeLegacyGold({}, {
+        ["Kelthuzad-Erassah"] = 10000,
+        ["Kel'Thuzad-Erassah"] = 10000,
+    })
+    assert(#merged == 1 and AD.Total(merged) == 10000, "legacy-only realm aliases must count once")
+end
+
 print("OK: datatexts_alts_data_test")

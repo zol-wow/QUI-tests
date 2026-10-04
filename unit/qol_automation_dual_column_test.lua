@@ -11,7 +11,7 @@ end
 
 _G.CreateFrame = NewFrame
 local general = {}
-local rows, headers = {}, {}
+local rows, headers, sections = {}, {}, {}
 local gui = { Colors = { textMuted = {} } }
 function gui:CreateLabel() return NewFrame() end
 function gui:CreateFormCheckbox(_, _, key, db, callback)
@@ -39,9 +39,15 @@ local ns = { QUI_Options = {
     end,
     CreateSettingsCardGroup = function()
         local frame = NewFrame()
+        local sectionRows = {}
+        sections[#sections + 1] = sectionRows
         return {
             frame = frame,
-            AddRow = function(left, right) rows[#rows + 1] = { left, right } end,
+            AddRow = function(left, right)
+                local cells = { left, right }
+                rows[#rows + 1] = cells
+                sectionRows[#sectionRows + 1] = cells
+            end,
             Finalize = function() frame:SetHeight(#rows * 32) end,
         }
     end,
@@ -50,7 +56,7 @@ local refreshed = {}
 for _, name in ipairs({
     "RefreshWorldMapTeleports", "RefreshFocusMarker", "RefreshHealerMana",
     "RefreshDeathAlert", "ApplyPreferredAudioDevice", "RefreshCollectionFanfare",
-    "RefreshEJLootSpecIcons", "RefreshGemPicker", "RefreshMailContacts",
+    "RefreshEJLootSpecIcons", "RefreshGemPicker", "RefreshMailContacts", "RefreshAppearanceChanges",
 }) do
     ns[name] = function() refreshed[name] = (refreshed[name] or 0) + 1 end
 end
@@ -62,17 +68,20 @@ end
 assert(loadfile("core/settings_layout_shared.lua"))("QUI", ns)
 assert(loadfile(arg[1] or "modules/qol/settings/qol_content.lua"))("QUI", ns)
 assert(ns.QUI_QoLOptions.BuildGeneralTab(NewFrame(), nil, "automation") > 0)
-assert(#headers == 1 and headers[1] == "Automation", "must build only Automation")
+assert(#headers == 6 and headers[1] == "Automation" and headers[2] == "Auto Remove Appearance Changes", "Automation must include appearance controls")
 
 local expected = {
     general = [[sellJunk autoRepair fastAutoLoot autoAcceptInvites autoAcceptSummons
         autoRoleAccept autoAcceptQuest autoTurnInQuest autoSelectGossip questHoldShift
-        autoInsertKey closeBagsOnKeystoneInsert autoCombatLog autoCombatLogRaid
+        autoInsertKey closeBagsOnKeystoneInsert keystoneRerollReminder keystoneRerollReminderDuration autoCombatLog autoCombatLogRaid
         mplusTeleportEnabled autoDeleteConfirm worldMapTeleports auctionHouseExpansionFilter
         craftingOrderExpansionFilter autoDeclineDuel autoDeclinePetBattle autoRelease
         blockReleaseInRaid audioOutputDevice autoUnwrapCollections autoConfirmSocketReplace
         autoConfirmTokenPurchase autoConfirmHighCost ejLootSpecIcons gemSocketPicker
         mailContactsPanel mailRememberRecipient]],
+    autoRemoveAppearanceChanges = [[enabled blacksmithing jewelcrafting tailoring engineering enchanting
+        alchemy inscription leatherworking herbalism mining skinning cooking fishing lantern hallowed
+        noblebunny turkey aqir atomic atomgoblin blight witch spraybots pickaxe noggenfogger prism]],
     focusMarker = "enabled marker useMouseover writeMacro",
     autoAcceptResurrection = "dungeon raid pvp world",
     healerMana = "enabled instanceOnly",
@@ -91,7 +100,7 @@ end
 
 local actualCount, blankCount = 0, 0
 for index, cells in ipairs(rows) do
-    assert(cells[1] and cells[2], "Automation row " .. index .. " must have two columns")
+    assert(cells[1], "Automation row " .. index .. " must have a left column")
     for column, cell in ipairs(cells) do
         local widget = cell.widget
         if widget then
@@ -100,6 +109,16 @@ for index, cells in ipairs(rows) do
                 "unexpected or duplicate binding: " .. tostring(widget.key))
             remaining[widget.db][widget.key] = nil
             actualCount = actualCount + 1
+            if widget.key == "keystoneRerollReminderDuration" then
+                assert(column == 2 and cells[1].widget.key == "keystoneRerollReminder",
+                    "duration must be next to the reroll reminder toggle")
+                assert(widget.db == general and widget.options and #widget.options == 3,
+                    "duration must bind the profile with exactly three choices")
+                for durationIndex, duration in ipairs({ 15, 30, 60 }) do
+                    assert(widget.options[durationIndex].value == duration, "incorrect duration choice")
+                    assert(widget.options[durationIndex].text == duration .. " seconds", "incorrect duration label")
+                end
+            end
             if widget.db == general.autoAcceptResurrection then
                 assert(widget.options and #widget.options == 3, "resurrection needs three modes")
                 for modeIndex, mode in ipairs({ "off", "outOfCombat", "always" }) do
@@ -108,14 +127,20 @@ for index, cells in ipairs(rows) do
             end
             if widget.callback then widget.callback() end
         else
-            assert(column == 2 and index == #rows, "blank cell must be last")
+            assert(column == 2, "blank cell must be on the right")
             blankCount = blankCount + 1
         end
     end
 end
 assert(actualCount == expectedCount, "Automation must retain every setting")
-assert(#rows == math.ceil(expectedCount / 2), "Automation rows must be densely paired")
-assert(blankCount == expectedCount % 2, "only an odd setting count needs a blank cell")
+assert(#rows == math.ceil((expectedCount - 27) / 2) + 15, "each category must use densely paired rows")
+for _, sectionRows in ipairs(sections) do
+    for index, cells in ipairs(sectionRows) do
+        assert((cells[2] and cells[2].widget) or index == #sectionRows, "only a section's last row may have a blank cell")
+    end
+end
+assert(blankCount <= 4, "only odd category counts need blank cells")
+assert(refreshed.RefreshAppearanceChanges == 27, "every appearance setting must apply immediately")
 assert(refreshed.combatLogging == 2, "combat logging callbacks must remain connected")
 assert(refreshed.RefreshFocusMarker == 4, "focus marker callbacks must remain connected")
 assert(refreshed.RefreshHealerMana == 2, "healer mana callbacks must remain connected")
@@ -127,3 +152,15 @@ for _, name in ipairs({
     assert(refreshed[name] == 1, name .. " callback must remain connected")
 end
 print("qol_automation_dual_column_test: ok (" .. actualCount .. " settings)")
+
+local function checkDurationUI(value, expected)
+    general.keystoneRerollReminderDuration = value
+    assert(ns.QUI_QoLOptions.BuildGeneralTab(NewFrame(), nil, "automation") > 0)
+    assert(general.keystoneRerollReminderDuration == expected,
+        "Automation must preserve valid saved durations and display 15 seconds for invalid/missing values")
+end
+for _, duration in ipairs({ 15, 30, 60 }) do checkDurationUI(duration, duration) end
+checkDurationUI(nil, 15)
+for _, invalid in ipairs({ 0, -1, 16, 120, "30", true, false, {}, math.huge, 0/0 }) do
+    checkDurationUI(invalid, 15)
+end

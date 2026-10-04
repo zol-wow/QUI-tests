@@ -152,6 +152,7 @@ for _, frame in ipairs(created) do
     if frame.name == "QUI_LustTimer" then host = frame end
 end
 assert(host and host.kind == "Frame", "QUI_LustTimer must remain the named movable host")
+assert(host.strata == "LOW", "Lust Timer must use LOW strata so it stays below other windows")
 assert(container.parent == host and container.template == "CustomAuraContainerTemplate",
     "the host must own one CustomAuraContainerTemplate child")
 assert(container.unit == "player" and container.enabled == true and container.shown == true,
