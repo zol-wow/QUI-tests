@@ -3,11 +3,17 @@ local secret = dofile("tests/helpers/secret_sentinel.lua")
 local restore = secret.InstallSecretStub()
 local opaque = secret.MakeSecretSentinel()
 local function noop() end
+local project = {}
+for _, path in ipairs({ "ProjectConstants.lua", "Camelot/ProjectConstants.lua" }) do
+    local chunk = assert(loadfile("tests/clients/forever/framexml/Interface/AddOns/Blizzard_ProjectConstants/" .. path))
+    setfenv(chunk, project)
+    chunk()
+end
 
 _G.CreateFrame = function()
     return { Hide = noop, Show = noop, SetScript = noop, RegisterEvent = noop, RegisterUnitEvent = noop }
 end
-_G.WOW_PROJECT_ID, _G.WOW_PROJECT_MAINLINE = 1, 1
+_G.WOW_PROJECT_MAINLINE = project.WOW_PROJECT_MAINLINE
 _G.Enum = { SpellBookSpellBank = { Player = 0 } }
 _G.C_SpellBook = {}
 _G.C_Item = {}
@@ -22,7 +28,8 @@ _G.UnitCanAssist = function() return true end
 _G.InCombatLockdown = function() return false end
 
 for _, interface in ipairs({ 16001, 120105 }) do
-    _G.GetBuildInfo = function() return interface == 16001 and "1.60.1" or "12.1.5", "69893", "", interface end
+    _G.WOW_PROJECT_ID = interface == 16001 and project.WOW_PROJECT_CAMELOT or project.WOW_PROJECT_MAINLINE
+    _G.GetBuildInfo = function() return interface == 16001 and "1.60.1" or "12.1.5", interface == 16001 and "70205" or "69893", "", interface end
     local now, hostile, pet, guid = 10, true, false, opaque
     _G.GetTime = function() return now end
     _G.UnitCanAttack = function() return hostile end

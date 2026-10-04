@@ -1,7 +1,7 @@
 local function noop() end
 for _, isForever in ipairs({ false, true }) do
     local registered, buttons, calls = nil, {}, {}
-    local legacyEnabled = true
+    local legacyEnabled, legacyRenown = true, 1
     local disabledRules, ejDisabled = {}, false
     local world = setmetatable({}, { __index = _G })
     world._G = world
@@ -13,6 +13,11 @@ for _, isForever in ipairs({ false, true }) do
     world.Enum = { GameRule = setmetatable({}, { __index = function(_, key) return key end }) }
     world.C_GameRules = { IsGameRuleActive = function(rule) return disabledRules[rule] end }
     world.GameRulesUtil = { EJIsDisabled = function() return ejDisabled end }
+    world.Constants = { LegacyConsts = { LEGACY_REWARD_TRACK_FACTION_ID = 2802 } }
+    world.C_MajorFactions = { GetCurrentRenownLevel = function(factionID)
+        assert(factionID == 2802, "Legacy uses Blizzard's reward-track faction")
+        return legacyRenown
+    end }
     if isForever then
         world.ToggleGroupFinderFrame = function() calls.lfg = true end
         world.PVEFrame_ToggleFrame = function() error("must use native group-finder dispatcher") end
@@ -58,6 +63,11 @@ for _, isForever in ipairs({ false, true }) do
     if isForever then
         assert(buttons.Legacy and not buttons.Achievements, "Forever exposes Legacy in place of the Retail achievement entry")
         assert(buttons.Legacy.atlasTriplet == "UI-HUD-MicroMenu-Legacy" and buttons.Legacy.combatGuard)
+        legacyRenown = 0
+        buttons.Legacy.onClick()
+        assert(not calls.loadedLegacy and not calls.legacy,
+            "native renown gate prevents loading or toggling locked Legacy")
+        legacyRenown = 1
         legacyEnabled = false
         buttons.Legacy.onClick()
         assert(calls.loadedLegacy and calls.legacy == 1,
@@ -68,6 +78,9 @@ for _, isForever in ipairs({ false, true }) do
         world.LegacyMicroButton = nil
         buttons.Legacy.onClick()
         assert(calls.legacy == 3, "Legacy does not depend on the native microbutton existing")
+        legacyRenown = 0
+        buttons.Legacy.onClick()
+        assert(calls.legacy == 3, "native renown gate also prevents toggling an already loaded Legacy frame")
         disabledRules.HousingDashboardDisabled = true
         disabledRules.FinderPanelDisabled = true
         ejDisabled = true

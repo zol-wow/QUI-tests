@@ -1,9 +1,16 @@
+local project = {}
+for _, path in ipairs({ "ProjectConstants.lua", "Camelot/ProjectConstants.lua" }) do
+    local chunk = assert(loadfile("tests/clients/forever/framexml/Interface/AddOns/Blizzard_ProjectConstants/" .. path))
+    setfenv(chunk, project)
+    chunk()
+end
+
 local function loadOpenRaid(version, interfaceVersion, shouldInitialize)
     local initialized = false
     local env = setmetatable({
-        GetBuildInfo = function() return version, "69893", "", interfaceVersion end,
-        WOW_PROJECT_ID = 1,
-        WOW_PROJECT_MAINLINE = 1,
+        GetBuildInfo = function() return version, interfaceVersion == 16001 and "70205" or "69893", "", interfaceVersion end,
+        WOW_PROJECT_ID = interfaceVersion == 16001 and project.WOW_PROJECT_CAMELOT or project.WOW_PROJECT_MAINLINE,
+        WOW_PROJECT_MAINLINE = project.WOW_PROJECT_MAINLINE,
         LibStub = { NewLibrary = function() initialized = true; return nil end },
     }, { __index = _G })
     env._G = env

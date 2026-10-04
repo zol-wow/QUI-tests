@@ -21,7 +21,8 @@ local function check(name, ok, detail)
 end
 local function approx(a, b) return type(a) == "number" and math.abs(a - b) < 1e-4 end
 
-local env = Harness.Build({ loadFrameSkin = true })
+local env = Harness.Build()
+assert(loadfile(arg[1] or "modules/skinning/frames/character.lua"))("QUI", env.ns)
 env.SetGates(true, true)
 env.BuildCharacterFrame()
 local Chrome = env.Chrome
@@ -87,6 +88,25 @@ api.Refresh()
 check("Refresh re-tints the equipment popout", approx(env.BgColor(popup)[1], 0.4))
 check("Refresh re-tints the titles popout too", approx(env.BgColor(titles)[1], 0.4))
 check("accent listener registered for live accent changes", #env.accentListeners >= 1)
+
+local titlePane = env.NewFrame("Frame", nil, _G.PaperDollFrame)
+_G.PaperDollFrame.TitleManagerPane = titlePane
+titlePane.Border = titlePane:CreateTexture(nil, "BORDER")
+titlePane.Border:SetAtlas("common-insideframe")
+env.SetGates(false, true)
+api.SkinTitleManager()
+check("disabled character skin preserves native title border", titlePane.Border:IsShown())
+env.SetGates(true, true)
+titlePane:SetParent(titles)
+titles:Show()
+api.SkinTitleManager()
+check("titles popup hides native inside border", not titlePane.Border:IsShown())
+check("titles popup keeps QUI border", env.BorderColor(titles) ~= nil)
+local legacyTitles = env.NewFrame("Frame", nil, _G.PaperDollFrame)
+legacyTitles.Bg = legacyTitles:CreateTexture(nil, "BACKGROUND")
+_G.PaperDollFrame.TitleManagerPane = legacyTitles
+api.SkinTitleManager()
+check("legacy title pane without Border still skins", not legacyTitles.Bg:IsShown())
 
 ---------------------------------------------------------------------------
 -- 4. Source pins

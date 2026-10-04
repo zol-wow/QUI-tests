@@ -94,7 +94,7 @@ local function load(path, ns)
 end
 load("tests/clients/forever/framexml/Interface/AddOns/Blizzard_FrameXML/SecureTemplates.lua")
 local ns = { L = setmetatable({}, { __index = function(_, key) return key end }),
-    Client = { isForever = true, restrictedExecutionUnavailable = true }, Helpers = {
+    Client = { isForever = true, restrictedExecutionUnavailable = false }, Helpers = {
     GetModuleDB = function() return { quickSalvage = settings } end,
 } }
 load(os.getenv("QUI_SALVAGE_SOURCE") or "modules/qol/quicksalvage.lua", ns)
