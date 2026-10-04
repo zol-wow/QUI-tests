@@ -3,8 +3,11 @@ local function read(path)
     local file = assert(io.open(path, "r")); local source = file:read("*a"); file:close(); return source
 end
 local function noop() end
-local function run(extraCount, delayed, isForever, build, shouldPatch)
+local function run(extraCount, delayed, isForever)
     local world = setmetatable({}, { __index = _G }); world._G = world
+    world.math = setmetatable({ wrap = function(index, first, last)
+        return first + (index - first) % (last - first)
+    end }, { __index = math })
     local function evaluate(source, name)
         local chunk = assert(loadstring(source, name)); setfenv(chunk, world); return chunk()
     end
@@ -45,7 +48,9 @@ local function run(extraCount, delayed, isForever, build, shouldPatch)
     evaluate(nativeFunction(source, "CooldownViewerMixin:OnAcquireItemFrame"), "@CooldownViewer.lua")
     local itemSource = read(root .. "Blizzard_CooldownViewer/CooldownViewerItemData.lua")
     local nativeTexture = "local " .. nativeFunction(itemSource, "GetSpellTextureForSpellID")
-    evaluate(nativeTexture .. "\n" .. nativeFunction(itemSource, "CooldownViewerItemDataMixin:GetSpellTexture"), "@CooldownViewerItemData.lua")
+    local nativeEnums = assert(itemSource:match("^(.-)CooldownViewerItemDataMixin = {}"))
+    evaluate(nativeEnums .. nativeTexture .. "\n" .. nativeFunction(itemSource, "CooldownViewerItemDataMixin:GetSpellTexture")
+        .. "\nTestCategoryDataSource = CooldownDataSource.Category", "@CooldownViewerItemData.lua")
     world.C_Spell = { GetSpellTexture = function() return 345678, 456789, 567890 end }
     world.ItemUtil = { GetEquipSlotTexture = function() return nil end }
     local fallback = world.CooldownViewerItemMixin.GetFallbackSpellTexture
@@ -54,6 +59,7 @@ local function run(extraCount, delayed, isForever, build, shouldPatch)
         local value = {}
         for key, method in pairs(world.CooldownViewerItemMixin) do value[key] = method end
         value.GetSpellTexture = getTexture
+        value.GetCooldownDataSource = function() return world.TestCategoryDataSource end
         value.GetSpellCategoryIcon = function(self) return self.categoryIcon end
         value.UsesDynamicAppearance, value.PreferAuraDataOverSpellData = function() return false end, function() return false end
         value.GetEquipSlot, value.GetCooldownInfo = noop, noop
@@ -63,9 +69,6 @@ local function run(extraCount, delayed, isForever, build, shouldPatch)
         value.SetScale, value.SetTimerShown, value.SetTooltipsShown, value.SetHideWhenInactive, value.SetIsEditing = noop, noop, noop, noop, noop
         return value
     end
-    local unpatched = item()
-    local ok, err = pcall(unpatched.SetEditModeData, unpatched, extraCount + 2)
-    assert(not ok and tostring(err):find("BaseIconFilenames", 1, true), "native source must reproduce the reported missing-cache error")
     local viewers = {}
     local names = { "EssentialCooldownViewer", "UtilityCooldownViewer", "BuffIconCooldownViewer", "BuffBarCooldownViewer" }
     local function createViewers()
@@ -93,28 +96,27 @@ local function run(extraCount, delayed, isForever, build, shouldPatch)
     world.CreateFrame = function() return { RegisterEvent = noop, SetScript = noop } end
     if not delayed then createViewers() end
     local policy = assert(loadfile("QUI_CDM/cdm/cdm_editmode_policy.lua")); setfenv(policy, world)
-    policy("QUI_CDM", { Client = { isForever = isForever, build = build } })
+    policy("QUI_CDM", { Client = { isForever = isForever, build = "70205" } })
     if delayed then
         assert(not next(viewers), "viewers absent before delayed native load")
         createViewers()
         if onLoaded then onLoaded() end
     end
-    if not shouldPatch then
-        assert(registrations == 0 and acquireHooks == 0, "Retail must remain untouched")
-        for _, viewer in ipairs(viewers) do assert(viewer.active.GetFallbackSpellTexture == fallback) end
-        return
-    end
-    assert(registrations == 1 and acquireHooks == 4, "all four native viewers must receive the compatibility boundary")
     assert(world.IconDataProviderMixin.GetIconByIndex == providerLookup, "global icon provider must remain untouched")
     assert(world.CooldownViewerItemMixin.GetFallbackSpellTexture == fallback, "global native item mixin must remain untouched")
-    local function check(value)
+    local function check(value, baseAvailable)
         assert(value.GetSpellTexture == getTexture, "native real spell texture resolution must remain intact")
-        for _, index in ipairs({ 1, 2, 12, 13, 1000 }) do
+        for _, index in ipairs({ 1, 2, 12, 13, 1000, 1000000 }) do
             value:SetEditModeData(index)
             assert(value.editModeIndex == index, "preview index must retain its native timing/layout meaning")
             assert(value.texture == [[INTERFACE\ICONS\INV_MISC_QUESTIONMARK]]
-                or (type(value.texture) == "number" and value.texture > 200000 and value.texture <= 200000 + extraCount),
+                or (type(value.texture) == "number" and value.texture > 200000 and value.texture <= 200000 + extraCount)
+                or (baseAvailable and value.texture == 111111),
                 "placeholder lookup must stay within available icons")
+            if extraCount > 0 or baseAvailable then
+                assert(value.texture ~= [[INTERFACE\ICONS\INV_MISC_QUESTIONMARK]],
+                    "native wrapped previews must skip the question mark when spell icons exist")
+            end
         end
         value.spellID = 123
         value:RefreshData()
@@ -134,27 +136,22 @@ local function run(extraCount, delayed, isForever, build, shouldPatch)
         check(acquired)
         local method = acquired.GetFallbackSpellTexture
         viewer:OnAcquireItemFrame(acquired)
-        assert(acquired.GetFallbackSpellTexture == method, "pooled item reacquisition must not stack replacements")
+        assert(acquired.GetFallbackSpellTexture == method and method == fallback, "pooled items must retain native fallback ownership")
         check(acquired)
     end
+    assert(registrations == 0 and acquireHooks == 0, "fixed native preview providers must not receive QUI replacements")
+    for _, viewer in ipairs(viewers) do assert(viewer.active.GetFallbackSpellTexture == fallback) end
     local macro = world.CreateAndInitFromMixin(world.IconDataProviderMixin, world.IconDataProviderExtraType.Spellbook)
     viewers[1].active:SetEditModeData(extraCount + 2)
     assert(viewers[1].active.texture == 111111, "populated native base icon cache remains usable")
+    for _, viewer in ipairs(viewers) do check(viewer.active, true) end
     macro:Release()
     for _, viewer in ipairs(viewers) do check(viewer.active) end
 end
 
-run(10, false, true, "69893", true)
-run(0, true, true, "69893", true)
-run(1, true, true, "69893", true)
-run(10, false, true, "69913", true)
-run(0, true, true, "69913", true)
-run(1, true, true, 69913, true)
-run(10, false, false, "69893", false)
-run(10, false, false, "69913", false)
-run(10, true, true, "69900", true)
-run(10, true, true, "69914", true)
-run(0, true, true, "70000", true)
-run(1, false, true, 70000, true)
-run(10, true, false, "70000", false)
-print("OK forever_cdm_editmode_icons_test")
+for _, count in ipairs({10, 1, 0}) do
+    run(count, false, true)
+    run(count, true, true)
+    run(count, false, false)
+end
+print("OK: native CDM preview wrapping retains original methods and survives base icon cache release")

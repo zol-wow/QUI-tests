@@ -35,7 +35,7 @@ local world = setmetatable({
     ns = { Client = { isForever = false } },
     QUICore = { GetPixelSize = function() return pixelSize end },
     CharacterFrame = frame(), PaperDollSidebarTabs = frame(),
-    PaperDollSidebarTab1 = frame(), PaperDollSidebarTab2 = frame(), PaperDollSidebarTab3 = frame(),
+    PaperDollSidebarTab1 = frame(), PaperDollSidebarTab2 = frame(), PaperDollSidebarTab3 = frame(), PaperDollSidebarTab4 = frame(),
     HasPetUI = function() return hasPet end,
 }, { __index = _G })
 world._G = world
@@ -61,7 +61,7 @@ for _, pet in ipairs({ false, true, false, true }) do
     hasPet = pet
     pixelSize = pet and 0.75 or 1
     world.PaperDollFrame_UpdateSidebarTabLayout()
-    assert(world.PaperDollSidebarTab3.shown == pet, "native pet-tab visibility must remain intact")
+    assert(world.PaperDollSidebarTab4.shown == pet, "native pet-tab visibility must remain intact")
     style()
     local firstTab = world.PaperDollSidebarTab1.points.TOPLEFT
     assert(firstTab[2] == world.CharacterFrame and firstTab[4] == -74 and firstTab[5] == -40,
@@ -85,17 +85,23 @@ for _, pet in ipairs({ false, true, false, true }) do
         "Forever buttons must center on the native right pane rather than Retail's right-edge offset")
     assert(world.PaperDollSidebarTabs.width == 233 and world.PaperDollSidebarTabs.height == 85,
         "native container must retain space for the level display below the buttons")
-    for i = 1, 3 do
+    for i = 1, 4 do
         local tab = world["PaperDollSidebarTab" .. i]
         assert(tab.width == 42 and tab.height == 42, "native button size must match its atlas chrome")
     end
-    assert(world.PaperDollSidebarTab3.shown == pet, "pet button visibility remains native")
-    local equipment = world.PaperDollSidebarTab2.points.TOP
-    assert(equipment[2] == world.PaperDollSidebarTabs and equipment[4] == (pet and 0 or 21),
-        "Character and Equipment buttons must recenter when the pet button disappears")
+    assert(world.PaperDollSidebarTab4.shown == pet, "pet button visibility remains native")
+    local equipment = world.PaperDollSidebarTab2.points[pet and "TOPRIGHT" or "TOP"]
+    assert(equipment[2] == world.PaperDollSidebarTabs and equipment[4] == 0,
+        "Character, Equipment and Titles buttons must recenter when the pet button disappears")
     local character = world.PaperDollSidebarTab1.points.RIGHT
     assert(character[2] == world.PaperDollSidebarTab2 and character[3] == "LEFT",
         "Character button must remain beside Equipment without gaps")
+    assert(world.PaperDollSidebarTab3.points.LEFT[2] == world.PaperDollSidebarTab2,
+        "Titles button must remain beside Equipment")
+    if pet then
+        assert(world.PaperDollSidebarTab4.points.LEFT[2] == world.PaperDollSidebarTab3,
+            "Pet button must remain beside Titles")
+    end
     world.PaperDollFrame_UpdateSidebarTabLayout()
     style()
 end

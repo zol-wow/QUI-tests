@@ -2,43 +2,36 @@ local function noop() end
 local function fail() error("fallback must not mutate native controls or enter secure execution") end
 
 for _, case in ipairs({
-    { "1.60.1", "69893", true },
-    { "1.60.1", 69893, true },
-    { "1.60.1", "69913", true },
-    { "1.60.1", 69913, true },
-    { "1.60.1", "69894", true },
-    { "1.60.1", "69914", true },
-    { "1.60.2", "70000", true },
-    { "1.60.2", 70000, true },
-    { "12.1.5", "69893", false },
-    { "12.1.5", "69913", false },
-    { "12.1.5", "70000", false },
+    { "1.60.1", "70205", false },
+    { "1.60.1", 70205, false },
+    { "12.1.5", "70205", false },
 }) do
     local ns = {}
     local scope = setmetatable({ GetBuildInfo = function() return case[1], case[2], "", 16001 end }, { __index = _G })
     local chunk = assert(loadfile("core/client.lua"))
     setfenv(chunk, scope)
     chunk("QUI", ns)
-    assert(ns.Client.restrictedExecutionUnavailable == case[3], "fallback must apply to every Forever build and exclude Retail")
+    assert(ns.Client.restrictedExecutionUnavailable == case[3], "the current Forever compiler must enable secure handlers like Retail")
 end
 
+local function run(unavailable, project)
 local timers, created, hooks, elements = {}, {}, 0, {}
 local world = setmetatable({}, { __index = _G })
 world._G = world
 world.setfenv = setfenv
 world.UIParent = {}
-world.WOW_PROJECT_ID, world.WOW_PROJECT_MAINLINE = 1, 1
+world.WOW_PROJECT_ID, world.WOW_PROJECT_MAINLINE = project, 1
 world.InCombatLockdown = function() return false end
-world.GetBuildInfo = function() return "1.60.2", "70000", "", 16001 end
+world.GetBuildInfo = function() return "1.60.1", "70205", "", 16001 end
 world.C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
 world.BeginActionBarTransition = noop
 world.hooksecurefunc = function() hooks = hooks + 1 end
 world.CreateFrame = function(_, name, _, template)
-    assert(not template or not template:find("SecureHandler"), "must not create a restricted-script handler")
+    if unavailable then assert(not template or not template:find("SecureHandler"), "fallback must not create restricted-script handlers") end
     local frame = { scripts = {}, attributes = {} }
     function frame:SetScript(event, fn) self.scripts[event] = fn end
     function frame:SetAttribute(key, value) self.attributes[key] = value end
-    frame.Hide, frame.RegisterEvent = noop, noop
+    frame.Hide, frame.RegisterEvent, frame.UnregisterAllEvents = noop, noop, noop
     if name then created[name] = frame end
     return frame
 end
@@ -57,15 +50,36 @@ local function load(path)
     chunk("QUI_ActionBars", ns)
 end
 load("core/client.lua")
+if unavailable then ns.Client.restrictedExecutionUnavailable = true end
 for _, file in ipairs({ "actionbars_env.lua", "actionbars.lua", "actionbars_builder.lua", "actionbars_flyout.lua", "actionbars_public.lua" }) do
     load("QUI_ActionBars/actionbars/" .. file)
 end
 world.GSEOptions = { Multiclick = true }
 world.GSE = { ReloadSequences = fail }
 load("QUI_ActionBars/actionbars/gse_compat.lua")
-assert(world.GSEOptions.Multiclick == true, "native fallback must preserve GSE options")
+assert(world.GSEOptions.Multiclick == true and ns.QUI_GSECompat == nil, "Forever must preserve GSE exclusion after compiler restoration")
 local env = ns.ActionBarsEnv
 local owned = ns.ActionBarsOwned
+if not unavailable then
+    assert(not owned.useNativeButtons, "fixed Forever must use owned controls")
+    assert(owned.useOwnedFlyout, "Forever project 18 must enable owned flyouts")
+    assert(created.QUI_ActionBarLayoutHandler, "fixed compiler must enable secure layouts")
+    local entered = false
+    env.PatchLibKeyBoundForOwnedButtons = function() entered = true; error("supported initialization reached") end
+    local ok, err = pcall(owned.Initialize, owned)
+    assert(not ok and tostring(err):find("supported initialization reached", 1, true), tostring(err))
+    assert(entered, "fixed Forever must enter owned initialization")
+    local actionFlags, attributes = 0, {}
+    world.QUI_Bar1Button1 = {
+        SetAttribute = function(_, key, value) attributes[key] = value end,
+        RunAttribute = function(_, name) assert(name == "QUI_UpdateActionFlags"); actionFlags = actionFlags + 1 end,
+    }
+    env.GetDB = function() return { global = { useOnKeyDown = true } } end
+    env.EnsureOwnedFlyoutFrame = function() return nil end
+    world.QUI_ApplyUseOnKeyDown()
+    assert(attributes.useOnKeyDown == true and actionFlags == 1, "fixed Forever must apply owned key-down and press-hold flags")
+    return
+end
 local nativeBuilds, nativeRefreshes, nativeInitializations = 0, 0, 0
 env.BuildNativeBar = function() nativeBuilds = nativeBuilds + 1 end
 owned.InitializeNativeBars = function(self) nativeInitializations = nativeInitializations + 1; self.initialized = true end
@@ -96,12 +110,8 @@ assert(not owned.useOwnedFlyout and hooks == 0, "fallback must not hook native b
 assert(created.QUI_ActionBarLayoutHandler == nil)
 assert(world.loadstring_untainted == nil, "must not fabricate Blizzard's private compiler")
 
-owned.restrictedExecutionUnavailable = false
-owned.useNativeButtons = false
-owned.initialized = false
-local entered = false
-env.PatchLibKeyBoundForOwnedButtons = function() entered = true; error("supported initialization reached") end
-local ok, err = pcall(owned.Initialize, owned)
-assert(not ok and tostring(err):find("supported initialization reached", 1, true), tostring(err))
-assert(entered, "supported clients must still enter owned action-bar initialization")
-print("OK: Forever routes action bars to QUI native-button presentation without secure snippets")
+end
+run(true, 18)
+run(false, 18)
+run(false, 1)
+print("OK: Forever enables owned action bars and flyouts while preserving explicit unavailable fallback")

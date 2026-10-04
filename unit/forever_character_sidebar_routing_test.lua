@@ -36,10 +36,11 @@ for _, forever in ipairs({ true, false }) do
         CharacterStatsPanePetScrollBox = pet,
         PaperDollFrame = frame(),
         PaperDollSidebarTab1 = frame(), PaperDollSidebarTab2 = frame(), PaperDollSidebarTab3 = frame(),
+        PaperDollSidebarTab4 = forever and frame() or nil,
         CharacterFrameRightPaneHostStoneBg = { SetAtlas = function() end },
         PaperDollFrame_ShowSidebar = function() end,
         PaperDollFrame_UpdateSidebarTabs = false,
-        PAPERDOLL_SIDEBARS = { {}, {}, {} },
+        PAPERDOLL_SIDEBARS = forever and { {}, {}, {}, {} } or { {}, {}, {} },
         SOUNDKIT = {}, PlaySound = function() end,
         frameState = state, EMPTY = {}, statsPanel = panel, slotOverlays = {},
         GetSettings = function() return { enabled = enabled } end,
@@ -106,8 +107,15 @@ for _, forever in ipairs({ true, false }) do
         assert(not panel:IsShown(), "equipment selection must hide player stats")
         world.ScheduleUpdate()
         click(3)
+        assert(titlesPopup:IsShown() and titles:GetParent() == titlesPopup,
+            "Forever tab 3 must open the titles popup")
+        assert(not equipmentPopup:IsShown() and not panel:IsShown(), "titles tab must close equipment and player stats")
+        harness.RunTimers()
+        updateStats(panel, "player")
+        assert(not panel:IsShown() and renders == 0, "queued and direct updates must not overlay titles")
+        click(4)
         assert(pet:IsShown() and world.PaperDollFrame.currentSideBar == pet,
-            "Forever tab 3 must retain native pet selection")
+            "Forever tab 4 must retain native pet selection")
         assert(not equipmentPopup:IsShown() and not titlesPopup:IsShown(), "pet tab must close popouts")
         harness.RunTimers()
         updateStats(panel, "player")
@@ -115,7 +123,7 @@ for _, forever in ipairs({ true, false }) do
         click(1)
         updateStats(panel, "player")
         assert(panel:IsShown() and renders == 1, "player stats must render again after selecting Character")
-        world.PaperDollFrame_SetSidebar(nil, 3)
+        world.PaperDollFrame_SetSidebar(nil, 4)
         assert(not panel:IsShown(), "programmatic native pet selection must immediately hide custom player stats")
         world.PaperDollFrame_SetSidebar(nil, 1)
         harness.RunTimers()
@@ -133,7 +141,7 @@ for _, forever in ipairs({ true, false }) do
             assert(nativeUpdates == nativeBefore + 1, "native stats must process " .. event)
             assert(renders == before + 1, "visible custom stats must refresh after native " .. event)
         end
-        click(3)
+        click(4)
         local before = renders
         nativeEvent("UNIT_RESISTANCES")
         assert(renders == before and not panel:IsShown(), "native refresh must not overlay pet stats")
@@ -145,6 +153,9 @@ for _, forever in ipairs({ true, false }) do
         click(2)
         assert(not equipmentPopup:IsShown() and equipment:GetParent() == equipmentPopup,
             "disabled enhancement must not open its popup")
+        click(3)
+        assert(not titlesPopup:IsShown() and titles:GetParent() == titlesPopup,
+            "disabled enhancement must not open its titles popup")
     else
         click(2)
         assert(titlesPopup:IsShown() and titles:GetParent() == titlesPopup, "Retail tab 2 must retain title popup")

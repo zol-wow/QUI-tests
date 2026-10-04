@@ -13876,6 +13876,11 @@ function C_Spell.GetBaseSpell(spellIdentifier, spec, ...) end
 ---@param ... any
 ---@return any deadlyDebuffInfo
 function C_Spell.GetDeadlyDebuffInfo(spellIdentifier, ...) end
+--- Returns nil if the item is not found or on cooldown
+---@param itemID? number
+---@param ... any
+---@return any spellCooldownInfo
+function C_Spell.GetItemCooldown(itemID, ...) end
 ---@param spellID? number
 ---@param ... any
 ---@return table itemModifiedAppearanceIDs
@@ -20664,6 +20669,10 @@ function UnitTrialBankedLevels(unit, ...) end
 ---@param ... any
 ---@return number result
 function UnitTrialXP(unit, ...) end
+---@param unit? any
+---@param ... any
+---@return boolean result
+function UnitUsesAmmo(unit, ...) end
 ---@param unit? any
 ---@param ... any
 ---@return boolean result
