@@ -75,6 +75,7 @@ local ns = {
 }
 
 ns.SkinBase = {
+    CollectNumberedTabs = function() return {} end,
     RefreshFrameBackdropColors = function() end,
     IsSkinned = function() return false end,
     SkinButtonFrameTemplate = function(frame)
