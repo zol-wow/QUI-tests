@@ -94,8 +94,8 @@ return function(options)
     _G.UnitClass = function() return "Priest", "PRIEST", H.classID end
     _G.UnitGroupRolesAssigned = function(unit) local u = Unit(unit); return u and u.role or "NONE" end
     _G.UnitIsUnit = function(a, b) return Unit(a) ~= nil and Unit(a) == Unit(b) end
-    _G.UnitCanAssist = function(_, unit) return Unit(unit) ~= nil end
-    _G.UnitIsPlayer = function(unit) return Unit(unit) ~= nil end
+    _G.UnitCanAssist = function(_, unit) local u = Unit(unit); return u ~= nil and u.friendly ~= false end
+    _G.UnitIsPlayer = function(unit) local u = Unit(unit); return u ~= nil and u.isPlayer ~= false end
     _G.GetNormalizedRealmName = function() return "Realm" end
     _G.GetNumSubgroupMembers = function() return H.grouped == false and 0 or 2 end
     _G.GetNumGroupMembers = function() return 3 end

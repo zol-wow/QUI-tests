@@ -3,6 +3,7 @@ local R, S = H.R, H.ns.SpellReminderSounds
 local config = R.Add(10060)
 config.combatOnly, config.pi.focusSound = true, true
 config.pi.sound = "QUI Reminder Bell"
+H.focus = "party1"
 R.Refresh()
 assert(H.T.cells[H.cell], "combat-only tracking prepares frames before combat")
 assert(not H.T.cells[H.cell].container.enabled)
@@ -13,10 +14,11 @@ assert(#H.auraSounds == count, "unchanged registrations are reused")
 config.pi.soundChannel = "Dialog"
 H.blockSound = true
 S.Reconcile(config.pi, true)
-assert(#H.auraSounds == count and not H.auraSounds[1].removed, "failed registration preserves working sounds")
+assert(#H.auraSounds == count and H.auraSounds[1].removed and next(S.registrations) == nil,
+    "failed replacement must not retain the old sound configuration")
 H.blockSound = false
 S.Reconcile(config.pi, true)
-assert(#H.auraSounds == count * 2 and H.auraSounds[1].removed, "successful replacement retires old registrations")
+assert(#H.auraSounds == count * 2, "retry installs the new sound configuration")
 H.combat, H.secretAuras = true, true
 H.emit("PLAYER_REGEN_DISABLED")
 assert(H.T.cells[H.cell].container.enabled, "combat-only tracking activates its prepared slots")
@@ -62,6 +64,7 @@ local function Active()
 end
 local pi = config.pi
 pi.focusSound, pi.partySound = false, true
+H.focus = nil
 R.roster = {}
 H.emit("PLAYER_ENTERING_WORLD")
 local units = Active()
