@@ -134,6 +134,9 @@ _G.WhoFrame.WhoFrameListInset = {}
 local contactTabs = { {}, {}, {} }
 _G.FriendsTabHeader = { TabSystem = { tabs = contactTabs } }
 _G.FriendsFrame = { IgnoreListWindow = NewList(), FriendsTabHeader = _G.FriendsTabHeader }
+local broadcast = { EditBox = {}, UpdateButton = {}, CancelButton = {} }
+local contactsMenu = {}
+_G.FriendsFrame.BattlenetFrame = { ContactsMenuButton = contactsMenu, BroadcastFrame = broadcast }
 _G.FriendsFrame.IgnoreListWindow.UnignorePlayerButton = {}
 _G.FriendsFrameAddFriendButton = {}
 _G.FriendsFrameSendMessageButton = {}
@@ -153,7 +156,7 @@ for index = 1, 4 do
     _G["WhoFrameColumnHeader" .. index] = {}
 end
 
-assert(loadfile("modules/skinning/frames/social.lua"))("QUI", ns)
+assert(loadfile(arg[1] or "modules/skinning/frames/social.lua"))("QUI", ns)
 
 for _, addon in ipairs({
     "Blizzard_FriendsFrame", "Blizzard_SocialUI", "Blizzard_QuickJoin",
@@ -165,6 +168,12 @@ end
 callbacks.Blizzard_FriendsFrame()
 
 assert(calls.windows[_G.FriendsFrame] == 1, "legacy FriendsFrame shell must use QUI chrome")
+assert(calls.windows[broadcast] == 1 and calls.editBoxes[broadcast.EditBox] == 1,
+    "Camelot Battlenet broadcast window and editor must be skinned")
+assert(calls.buttons[broadcast.UpdateButton] == 1 and calls.buttons[broadcast.CancelButton] == 1,
+    "Camelot Battlenet broadcast actions must be skinned")
+assert(calls.buttons[contactsMenu] == 1 and calls.buttonOptions[contactsMenu].font == false,
+    "Camelot contacts menu must keep its icon while receiving button chrome")
 assert(calls.scrollBars[_G.FriendsListFrame.ScrollBar] == 1, "Contacts scrollbar must be skinned")
 assert(calls.scrollBars[_G.WhoFrame.ScrollBar] == 1, "Who scrollbar must be skinned")
 assert(calls.hiddenChrome[_G.WhoFrame.WhoFrameListInset], "Who inset chrome must be removed")

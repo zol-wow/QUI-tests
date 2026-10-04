@@ -40,7 +40,9 @@ local ns = {
         SetExpandedPixelPoints = noop,
         LockPooledRowText = noop,
         HookScrollBoxAcquired = function(_, callback) acquired = callback end,
-        OnAddOnLoaded = function(_, callback) initialized = callback end,
+        OnAddOnLoaded = function(addon, callback)
+            if addon == "Blizzard_UIPanels_Game" then initialized = callback end
+        end,
     },
 }
 loadIn("modules/skinning/frames/character.lua", env)("QUI", ns)
