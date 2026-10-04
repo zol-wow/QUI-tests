@@ -73,7 +73,7 @@ assert(#headers == 6 and headers[1] == "Automation" and headers[2] == "Auto Remo
 local expected = {
     general = [[sellJunk autoRepair fastAutoLoot autoAcceptInvites autoAcceptSummons
         autoRoleAccept autoAcceptQuest autoTurnInQuest autoSelectGossip questHoldShift
-        autoInsertKey closeBagsOnKeystoneInsert keystoneRerollReminder autoCombatLog autoCombatLogRaid
+        autoInsertKey closeBagsOnKeystoneInsert keystoneRerollReminder keystoneRerollReminderDuration autoCombatLog autoCombatLogRaid
         mplusTeleportEnabled autoDeleteConfirm worldMapTeleports auctionHouseExpansionFilter
         craftingOrderExpansionFilter autoDeclineDuel autoDeclinePetBattle autoRelease
         blockReleaseInRaid audioOutputDevice autoUnwrapCollections autoConfirmSocketReplace
@@ -109,6 +109,16 @@ for index, cells in ipairs(rows) do
                 "unexpected or duplicate binding: " .. tostring(widget.key))
             remaining[widget.db][widget.key] = nil
             actualCount = actualCount + 1
+            if widget.key == "keystoneRerollReminderDuration" then
+                assert(column == 2 and cells[1].widget.key == "keystoneRerollReminder",
+                    "duration must be next to the reroll reminder toggle")
+                assert(widget.db == general and widget.options and #widget.options == 3,
+                    "duration must bind the profile with exactly three choices")
+                for durationIndex, duration in ipairs({ 15, 30, 60 }) do
+                    assert(widget.options[durationIndex].value == duration, "incorrect duration choice")
+                    assert(widget.options[durationIndex].text == duration .. " seconds", "incorrect duration label")
+                end
+            end
             if widget.db == general.autoAcceptResurrection then
                 assert(widget.options and #widget.options == 3, "resurrection needs three modes")
                 for modeIndex, mode in ipairs({ "off", "outOfCombat", "always" }) do
@@ -142,3 +152,15 @@ for _, name in ipairs({
     assert(refreshed[name] == 1, name .. " callback must remain connected")
 end
 print("qol_automation_dual_column_test: ok (" .. actualCount .. " settings)")
+
+local function checkDurationUI(value, expected)
+    general.keystoneRerollReminderDuration = value
+    assert(ns.QUI_QoLOptions.BuildGeneralTab(NewFrame(), nil, "automation") > 0)
+    assert(general.keystoneRerollReminderDuration == expected,
+        "Automation must preserve valid saved durations and display 15 seconds for invalid/missing values")
+end
+for _, duration in ipairs({ 15, 30, 60 }) do checkDurationUI(duration, duration) end
+checkDurationUI(nil, 15)
+for _, invalid in ipairs({ 0, -1, 16, 120, "30", true, false, {}, math.huge, 0/0 }) do
+    checkDurationUI(invalid, 15)
+end

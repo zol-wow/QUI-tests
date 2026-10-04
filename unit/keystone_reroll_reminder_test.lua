@@ -192,4 +192,66 @@ assert(not duplicate:visible(), "new completion must hide the previous reminder"
 duplicate:advance(1)
 assert(duplicate:visible() and duplicate:reminder().shows == 2, "new completion must reuse the reminder frame")
 
+-- Saved choices control visible lifetime; corrupt/old profiles retain 15 seconds.
+local function checkDuration(value, expected)
+    local state = scenario({ keystoneRerollReminderDuration = value })
+    state:fire("CHALLENGE_MODE_COMPLETED")
+    state:advance(1)
+    local popup = assert(state:reminder())
+    popup.scripts.OnUpdate(popup, expected - 0.1)
+    assert(state:visible(), "saved " .. tostring(value) .. " must remain visible for " .. expected .. " seconds")
+    popup.scripts.OnUpdate(popup, 0.2)
+    assert(not state:visible(), "saved " .. tostring(value) .. " must expire after " .. expected .. " seconds")
+end
+for _, duration in ipairs({ 15, 30, 60 }) do checkDuration(duration, duration) end
+checkDuration(nil, 15)
+for _, invalid in ipairs({ 0, -1, 16, 120, "30", true, false, {}, math.huge, 0/0 }) do
+    checkDuration(invalid, 15)
+end
+
+local latest = scenario({ keystoneRerollReminderDuration = 30 })
+latest.ownedLevel = nil
+latest:fire("CHALLENGE_MODE_COMPLETED")
+latest:advance(1)
+latest.settings.keystoneRerollReminderDuration = 60
+latest.ownedLevel = 10
+latest:advance(1)
+local latestPopup = assert(latest:reminder())
+latestPopup.scripts.OnUpdate(latestPopup, 30)
+assert(latest:visible(), "retry must use the latest saved duration when the reminder appears")
+latest.settings.keystoneRerollReminderDuration = 15
+latestPopup.scripts.OnUpdate(latestPopup, 29.9)
+assert(latest:visible(), "a setting change must not shorten an already visible reminder")
+latestPopup.scripts.OnUpdate(latestPopup, 0.2)
+assert(not latest:visible(), "the current reminder must keep its original countdown")
+latest:fire("CHALLENGE_MODE_COMPLETED")
+latest:advance(1)
+latestPopup.scripts.OnUpdate(latestPopup, 15)
+assert(not latest:visible(), "the next reminder must use the newly saved duration")
+
+-- Longer choices must retain the existing cancellation and disable behavior.
+for _, duration in ipairs({ 30, 60 }) do
+    for _, event in ipairs({ "CHALLENGE_MODE_START", "CHALLENGE_MODE_RESET", "PLAYER_ENTERING_WORLD" }) do
+        local state = scenario({ keystoneRerollReminderDuration = duration })
+        state:fire("CHALLENGE_MODE_COMPLETED")
+        state:advance(1)
+        state:fire(event)
+        assert(not state:visible(), event .. " must hide a longer reminder")
+        state.ownedLevel = nil
+        state:fire("CHALLENGE_MODE_COMPLETED")
+        state:advance(1)
+        state:fire(event)
+        state.ownedLevel = 10
+        state:advance(10)
+        assert(not state:visible(), event .. " must cancel a longer pending reminder")
+    end
+    local state = scenario({ keystoneRerollReminderDuration = duration })
+    state:fire("CHALLENGE_MODE_COMPLETED")
+    state:advance(1)
+    state.settings.keystoneRerollReminder = false
+    local popup = assert(state:reminder())
+    popup.scripts.OnUpdate(popup, 0.01)
+    assert(not state:visible(), "disabling must hide a longer reminder")
+end
+
 print("keystone_reroll_reminder_test.lua: ok")
