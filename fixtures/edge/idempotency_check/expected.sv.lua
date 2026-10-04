@@ -8232,6 +8232,10 @@ return {
           visibility = "FLYING_ONLY",
           width = 250
         },
+        spellReminders = {
+          enabled = false,
+          reminders = {}
+        },
         themePreset = "Horde",
         tooltip = {
           anchorToCursor = true,
