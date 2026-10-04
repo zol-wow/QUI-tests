@@ -123,7 +123,12 @@ local function loadModule()
     -- shape this test was written against (Task 45a: all 9 protected-frame
     -- guards in unitframe_blizzard.lua now route through
     -- ns.SafeCall("best-effort-style", ...)).
-    local function safeCallStub(_policy, fn, ...) return pcall(fn, ...) end
+    local errors = {}
+    local function safeCallStub(_policy, fn, ...)
+        local ok, result = pcall(fn, ...)
+        if not ok then errors[#errors + 1] = result end
+        return ok, result
+    end
 local function safeCallMethodStub(_policy, obj, name, ...)
     return pcall(function(...) return obj[name](obj, ...) end, ...)
 end
@@ -151,18 +156,62 @@ local safeCallMethodIfPresentStub = function(_policy, obj, name, ...) if obj == 
     }
 
     assert(loadfile("QUI_UnitFrames/unitframes/unitframe_blizzard.lua"))("QUI", ns)
-    return ns.QUI_UnitFrames, createdFrames
+    return ns.QUI_UnitFrames, createdFrames, errors
 end
 
 local function assertSuppressed(castbar, messagePrefix)
     assert(castbar.alpha == 0, messagePrefix .. " should set the default castbar alpha to zero")
-    assert(castbar.scale == 0.0001, messagePrefix .. " should shrink the default castbar")
+    assert(castbar.scale == 1, messagePrefix .. " should preserve the default castbar scale")
+    assert(castbar.point == nil, messagePrefix .. " should preserve the default castbar anchors")
     assert(castbar.shown == false, messagePrefix .. " should hide the default castbar")
     assert(castbar.setUnitCalls >= 1, messagePrefix .. " should detach via SetUnit (PTR7-safe path)")
     assert(castbar.unit == nil, messagePrefix .. " should leave the castbar unit detached")
     assert(castbar.eventsRegistered == false, messagePrefix .. " should unregister the default castbar events")
     assert(castbar.Icon.alpha == 0, messagePrefix .. " should set the default castbar icon alpha to zero")
     assert(castbar.Icon.shown == false, messagePrefix .. " should hide the default castbar icon")
+end
+
+local systemPath = "tests/framexml/Interface/AddOns/Blizzard_EditMode/Shared/EditModeSystemTemplates.lua"
+local systemFile = assert(io.open(systemPath, "rb"))
+local systemSource = systemFile:read("*a")
+systemFile:close()
+local first = assert(systemSource:find("function EditModeSystemMixin:SetScaleOverride(", 1, true))
+local last = assert(systemSource:find("\nend", first, true))
+local native = { EditModeSystemMixin = {} }
+setfenv(assert(loadstring(systemSource:sub(first, last + 3), "@" .. systemPath)), native)()
+
+for _, geometry in ipairs({"missing point count", "secret offsets"}) do
+    for _, path in ipairs({"initial", "watcher"}) do
+        local unitframes, createdFrames, errors = loadModule()
+        PlayerCastingBarFrame = newCastbar()
+        local castbar = PlayerCastingBarFrame
+        castbar.SetScaleBase = castbar.SetScale
+        castbar.SetScale = native.EditModeSystemMixin.SetScaleOverride
+        castbar.GetScale = function(self) return self.scale end
+        castbar.GetNumPoints = function()
+            if geometry == "missing point count" then return nil end
+            return 1
+        end
+        local secretOffset = setmetatable({}, {
+            __mul = function() error("attempt to perform arithmetic on secret offsetX") end,
+        })
+        castbar.GetPoint = function()
+            return "CENTER", UIParent, "CENTER", secretOffset, secretOffset
+        end
+
+        if path == "watcher" then
+            PlayerCastingBarFrame = nil
+            unitframes:HideBlizzardCastbars()
+            PlayerCastingBarFrame = castbar
+            createdFrames[1].scripts.OnUpdate(createdFrames[1], 0.1)
+        else
+            unitframes:HideBlizzardCastbars()
+        end
+
+        local label = path .. " suppression with " .. geometry
+        assert(#errors == 0, label .. " should not report Edit Mode errors: " .. table.concat(errors, "; "))
+        assertSuppressed(castbar, label)
+    end
 end
 
 do

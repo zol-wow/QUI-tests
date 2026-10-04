@@ -2,6 +2,10 @@ local function noop() end
 
 _G.InCombatLockdown = function() return false end
 _G.UIParent = {}
+_G.wipe = function(tbl)
+    for key in pairs(tbl) do tbl[key] = nil end
+    return tbl
+end
 
 local tooltipOwner, tooltipAnchor
 _G.GameTooltip = {
@@ -31,6 +35,7 @@ local function Region()
     }
 end
 
+local createdFrames = {}
 _G.CreateFrame = function(frameType, name, parent, template)
     local frame = {
         frameType = frameType,
@@ -45,6 +50,13 @@ _G.CreateFrame = function(frameType, name, parent, template)
     function frame:ClearAllPoints() self.allPoints = nil end
     function frame:SetPoint(...) self.point = { ... } end
     function frame:SetParent(value) self.parent = value end
+    function frame:GetChildren()
+        local children = {}
+        for _, child in ipairs(createdFrames) do
+            if child.parent == self then children[#children + 1] = child end
+        end
+        return unpack(children)
+    end
     function frame:SetFrameLevel(value) self.frameLevel = value end
     function frame:GetFrameLevel() return self.frameLevel end
     function frame:EnableMouse(value) self.mouseEnabled = value end
@@ -66,6 +78,7 @@ _G.CreateFrame = function(frameType, name, parent, template)
         function frame:SetDrawBling(value) self.drawBling = value end
         function frame:Clear() self.cleared = true end
     end
+    createdFrames[#createdFrames + 1] = frame
     return frame
 end
 
@@ -128,6 +141,37 @@ assert(factory._recycleRestrictedProtectedPool[1] == restricted,
     "restricted protected icons must use their isolated protected pool")
 assert(factory:AcquireIcon(parent, entry, true, true) == restricted,
     "clickable restricted acquisition must reuse the protected restricted shell")
+
+for _, layoutRestricted in ipairs({ false, true }) do
+    local container = CreateFrame("Frame", nil, UIParent)
+    local identities, distinct = {}, 0
+    local viewerType = layoutRestricted and "buff" or "utility"
+    for _ = 1, 3 do
+        local pool = factory:EnsurePool(viewerType)
+        for i = 1, 35 do
+            local icon = factory:AcquireIcon(container, entry, false, layoutRestricted)
+            pool[i] = icon
+            assert(not icon.clickButton and (not not icon._quiLayoutRestricted) == layoutRestricted,
+                "rebuilding must preserve plain/restricted/protected pool isolation")
+            if not identities[icon] then
+                identities[icon] = true
+                distinct = distinct + 1
+            end
+            icon:Show()
+        end
+        assert(select("#", container:GetChildren()) == 35,
+            "rebuilding a 35-icon container must not accumulate abandoned child frames")
+        factory:ClearPool(viewerType)
+        assert(select("#", container:GetChildren()) == 0,
+            "releasing more than 20 icons must detach every child before GetChildren can overflow")
+        for icon in pairs(identities) do
+            assert(not icon:IsShown() and icon._spellEntry == nil,
+                "released icons must remain hidden and unassigned")
+        end
+    end
+    assert(distinct == 35,
+        "repeated 35-icon rebuilds must reuse all frames instead of allocating 15 more per pass")
+end
 
 local rendererFile = assert(io.open("QUI_CDM/cdm/cdm_icon_renderer.lua", "rb"))
 local rendererSource = rendererFile:read("*a")

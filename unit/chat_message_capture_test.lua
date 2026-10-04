@@ -79,7 +79,7 @@ local captureFrame = {
 }
 function _G.CreateFrame() return captureFrame end
 _G.ChatTypeGroupInverted = { CHAT_MSG_SAY = "SAY", CHAT_MSG_GUILD = "GUILD", CHAT_MSG_BOGUS = "BOGUS",
-    GUILD_MOTD = "GUILD", CHAT_MSG_CHANNEL_NOTICE = "CHANNEL",
+    GUILD_MOTD = "GUILD", CHAT_MSG_CHANNEL_NOTICE = "CHANNEL", CHAT_MSG_CHANNEL_NOTICE_USER = "CHANNEL",
     CHAT_MSG_ACHIEVEMENT = "ACHIEVEMENT", CHAT_MSG_CHANNEL_LIST = "CHANNEL",
     CHAT_MSG_EMOTE = "EMOTE", CHAT_MSG_TEXT_EMOTE = "EMOTE",
     CHAT_MSG_MONSTER_YELL = "MONSTER_YELL", CHAT_MSG_RAID_BOSS_EMOTE = "MONSTER_BOSS_EMOTE",
@@ -96,6 +96,9 @@ _G.CHAT_INVERTED_CATEGORY_LIST = {
     WHISPER_INFORM = "WHISPER", BN_WHISPER_INFORM = "BN_WHISPER",
 }
 _G.CHAT_YOU_CHANGED_NOTICE = "Changed Channel: |Hchannel:%d|h[%s]|h"
+_G.CHAT_MUTED_NOTICE = "|Hchannel:%d|h[%s]|h You do not have permission to speak."
+_G.CHAT_YOU_LEFT_NOTICE = "Left Channel: |Hchannel:%d|h[%s]|h"
+_G.CHAT_INVITE_NOTICE = "%s: %s invited you to the channel."
 _G.BN_INLINE_TOAST_FRIEND_OFFLINE = "%s has gone offline."
 _G.BN_INLINE_TOAST_BROADCAST = "%s broadcast: %s"
 _G.BN_INLINE_TOAST_BROADCAST_INFORM = "Broadcast sent."
@@ -419,6 +422,54 @@ assert(eAch.m:find("|Hplayer:Ann|h[Ann]|h did it!", 1, true), "achievement forma
 fire("CHAT_MSG_CHANNEL_NOTICE", "YOU_CHANGED", nil, nil, "2. Trade", nil, nil, nil, 2, "Trade")
 local eNote; Store.ForEach(function(e) eNote = e end)
 assert(eNote.m == "[12:00] Changed Channel: |Hchannel:2|h[2. Trade]|h", "notice formatted+timestamped, got " .. tostring(eNote.m))
+
+do
+    local function notice(event, token, full, zone, number, base, expected)
+        local before = Store.Size()
+        fire(event, token, "Ann", "", full, "", "", zone, number, base)
+        assert(Store.Size() == before + (expected and 1 or 0),
+            event .. " must " .. (expected and "keep routable" or "drop unroutable") .. " notice")
+        if expected then
+            local entry; Store.ForEach(function(e) entry = e end)
+            if rawequal(expected, secret) then
+                assert(rawequal(entry.m, secret) and entry.s, "secret notice must remain opaque")
+            else
+                assert(entry.m == "[12:00] " .. expected, "notice text preserved, got " .. tostring(entry.m))
+            end
+        end
+    end
+    for _, event in ipairs({ "CHAT_MSG_CHANNEL_NOTICE", "CHAT_MSG_CHANNEL_NOTICE_USER" }) do
+        notice(event, "MUTED", "Guild", 0, 0, "", nil)
+        notice(event, "MUTED", "2. Trade", 0, 2, "Trade",
+            "|Hchannel:2|h[2. Trade]|h You do not have permission to speak.")
+        notice(event, "MUTED", "3. Guild", 0, 3, "Guild",
+            "|Hchannel:3|h[3. Guild]|h You do not have permission to speak.")
+        notice(event, "MUTED", "2. Trade", 0, 2, "",
+            "|Hchannel:2|h[2. Trade]|h You do not have permission to speak.")
+        notice(event, "MUTED", "Guild", 0, 0, secret,
+            "|Hchannel:0|h[Guild]|h You do not have permission to speak.")
+        notice(event, secret, "Guild", 0, 0, "", secret)
+    end
+    notice("CHAT_MSG_CHANNEL_NOTICE_USER", "INVITE", "Guild", 0, 0, "",
+        "Guild: |Hplayer:Ann|h[Ann]|h invited you to the channel.")
+    notice("CHAT_MSG_CHANNEL_NOTICE", "YOU_LEFT", "2. Trade", 0, 2, "Trade",
+        "Left Channel: |Hchannel:2|h[2. Trade]|h")
+    notice("CHAT_MSG_CHANNEL_NOTICE", "YOU_CHANGED", "Newcomer Chat", 32, 0, "",
+        "Changed Channel: |Hchannel:0|h[Newcomer Chat]|h")
+    local autoAdded
+    _G.C_ChatInfo = { IsChannelRegionalForChannelID = function(zone) return zone == 32 end }
+    ns.QUI.Chat.TabManager = { EnsureDefaultChannelListed = function(name) autoAdded = name end }
+    notice("CHAT_MSG_CHANNEL_NOTICE", "YOU_CHANGED", "4. Newcomer Chat", 32, 4, "Newcomer Chat",
+        "Changed Channel: |Hchannel:4|h[4. Newcomer Chat]|h")
+    assert(autoAdded == "Newcomer Chat", "regional YOU_CHANGED still auto-adds the channel")
+    _G.C_ChatInfo, ns.QUI.Chat.TabManager = nil, nil
+    local before = Store.Size()
+    fire("CHAT_MSG_SYSTEM", "You don't have permission to do that.")
+    assert(Store.Size() == before + 1, "system permission errors remain visible")
+    local entry; Store.ForEach(function(e) entry = e end)
+    assert(entry.m == "[12:00] You don't have permission to do that." and entry.k == "SYSTEM",
+        "system permission error text and routing remain intact")
+end
 
 -- Unknown notice token: DROPPED (no raw token lines)
 local beforeDrop = Store.Size()

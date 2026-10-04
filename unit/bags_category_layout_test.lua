@@ -11,6 +11,7 @@
 local ns = {}
 (dofile("tests/helpers/locale.lua"))(ns)
 assert(loadfile("QUI_Bags/bags/views/grid_layout.lua"))("QUI", ns)
+assert(loadfile("QUI_Bags/bags/ops/sort_planner.lua"))("QUI", ns)
 local chunk = assert(loadfile("QUI_Bags/bags/views/category_layout.lua"))
 chunk("QUI", ns)
 local CL = ns.Bags.CategoryLayout
@@ -32,8 +33,6 @@ assert(CL.Categorize({ classID = 1, quality = 1 }) == "misc", "containers land i
 assert(CL.Categorize({ classID = 15, quality = 1 }) == "misc", "miscellaneous bucket")
 assert(CL.Categorize(nil) == "misc", "pending details land in misc")
 
--- Group: ordered buckets (recent first, junk last), empty buckets omitted,
--- empty slots dropped, in-bucket sort quality desc → name asc → itemID asc.
 local cells = {
     { bagID = 0, slot = 1, entry = { itemID = 11, quality = 0 } },             -- junk
     { bagID = 0, slot = 2, entry = nil },                                      -- empty: dropped
@@ -56,7 +55,6 @@ assert(#groups == 4, "expected recent/equipment/consumables/junk, got " .. #grou
 assert(groups[1].key == "recent" and #groups[1].cells == 1
     and groups[1].cells[1].entry.itemID == 15, "recent bucket must come first")
 assert(groups[2].key == "equipment" and #groups[2].cells == 3, "equipment bucket second")
--- in-bucket: quality desc (13 epic first), then name asc (Axe before Bow)
 assert(groups[2].cells[1].entry.itemID == 13, "epic chest sorts first (quality desc)")
 assert(groups[2].cells[2].entry.itemID == 16 and groups[2].cells[3].entry.itemID == 12,
     "name ascending breaks quality ties (Axe before Bow)")
@@ -90,5 +88,65 @@ assert(b4.cell.entry.itemID == 12 and b4.x == 0 and b4.y == b2.y - 12,
     "row 2 wraps to column 0 one step (10+2) lower")
 assert(#layout.buttons == 6, "six occupied cells positioned")
 assert(layout.height > 0, "total height must be positive")
+
+local sortDetails = {
+    [101] = { quality = 2, classID = 4, subClassID = 2, name = "Delta", ilvl = 100, expacID = 3 },
+    [102] = { quality = 4, classID = 2, subClassID = 3, name = "Charlie", ilvl = 200, expacID = 1 },
+    [103] = { quality = 4, classID = 4, subClassID = 1, name = "Bravo", ilvl = 300, expacID = 2 },
+    [104] = { quality = 3, classID = 2, subClassID = 1, name = "Alpha", ilvl = 200, expacID = 4 },
+    [105] = { quality = 4, classID = 2, subClassID = 2, name = "Echo", ilvl = 400, expacID = 2 },
+}
+local expectedOrders = {
+    quality = { "105,102,103,104,101,106", "101,104,103,102,105,106" },
+    type = { "104,105,102,103,101,106", "101,103,102,105,104,106" },
+    name = { "104,103,102,101,105,106", "105,101,102,103,104,106" },
+    ilvl = { "105,103,102,104,101,106", "101,104,102,103,105,106" },
+    expansion = { "104,101,105,103,102,106", "102,103,105,101,104,106" },
+}
+local sortCells, originalEntries = {}, {}
+for id = 101, 106 do
+    local cell = { bagID = 0, slot = id - 100, entry = { itemID = id }, recent = true }
+    sortCells[#sortCells + 1] = cell
+    originalEntries[id] = cell.entry
+end
+for _, key in ipairs({ "quality", "type", "name", "ilvl", "expansion" }) do
+    for direction = 1, 2 do
+        local opts = { key = key, reverse = direction == 2 }
+        local sorted = CL.Group(sortCells, function(entry) return sortDetails[entry.itemID] end, opts)
+        local ids = {}
+        assert(#sorted == 1 and sorted[1].key == "recent", "sort must preserve the recent bucket")
+        for _, cell in ipairs(sorted[1].cells) do
+            ids[#ids + 1] = cell.entry.itemID
+            assert(cell == sortCells[cell.slot], "sort must preserve original cells")
+            assert(cell.entry == originalEntries[cell.entry.itemID], "sort must preserve original entries")
+            assert(cell._sortDetails == nil, "sort metadata must not leak onto cells")
+        end
+        local got = table.concat(ids, ",")
+        assert(got == expectedOrders[key][direction], key .. " reverse=" .. tostring(opts.reverse)
+            .. ": expected " .. expectedOrders[key][direction] .. ", got " .. got)
+        local mixed = CL.Group(cells, function(entry) return DETAILS[entry.itemID] end, opts)
+        local bucketKeys = {}
+        for _, group in ipairs(mixed) do bucketKeys[#bucketKeys + 1] = group.key end
+        assert(table.concat(bucketKeys, ",") == "recent,equipment,consumables,junk",
+            key .. ": sort must preserve category header order")
+    end
+end
+local defaultSorted = CL.Group(sortCells, function(entry) return sortDetails[entry.itemID] end)
+local defaultIDs = {}
+for _, cell in ipairs(defaultSorted[1].cells) do defaultIDs[#defaultIDs + 1] = cell.entry.itemID end
+assert(table.concat(defaultIDs, ",") == expectedOrders.quality[1], "default must use the quality chain")
+
+local stacks = {
+    { bagID = 0, slot = 1, entry = { itemID = 101, count = 2 } },
+    { bagID = 0, slot = 2, entry = { itemID = 101, count = 8 } },
+}
+for direction = 1, 2 do
+    local sorted = CL.Group(stacks, function(entry) return sortDetails[entry.itemID] end,
+        { key = "quality", reverse = direction == 2 })
+    local firstSlot = direction == 1 and 2 or 1
+    assert(sorted[1].cells[1] == stacks[firstSlot], "quality count tie must follow selected direction")
+end
+local tied = CL.Group(stacks, function(entry) return sortDetails[entry.itemID] end, { key = "name" })
+assert(tied[1].cells[1] == stacks[1], "exact name ties must preserve source order")
 
 print("OK: bags_category_layout_test")

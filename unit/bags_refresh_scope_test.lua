@@ -7,6 +7,7 @@
 local ns = {}
 (dofile("tests/helpers/locale.lua"))(ns)
 assert(loadfile("QUI_Bags/bags/views/grid_layout.lua"))("QUI", ns)
+assert(loadfile("QUI_Bags/bags/ops/sort_planner.lua"))("QUI", ns)
 assert(loadfile("QUI_Bags/bags/views/category_layout.lua"))("QUI", ns)
 local chunk = assert(loadfile("QUI_Bags/bags/views/refresh_scope.lua"))
 chunk("QUI", ns)
@@ -68,11 +69,12 @@ b = slotsA(); b[1].entry.count = 20
 assert(RS.LayoutSignature(b, flatGrouped, details) == gBase,
     "grouped: count change must not relayout")
 
--- Categories: signature carries the Group inputs — bucket (or recent),
--- quality, name, itemID. Count-only changes re-dress in place.
 local cBase = RS.LayoutSignature(slotsA(), cat, details)
 b = slotsA(); b[1].entry.count = 20
-assert(RS.LayoutSignature(b, cat, details) == cBase, "cat: count change must not relayout")
+assert(RS.LayoutSignature(b, cat, details) ~= cBase, "cat: quality count tie must invalidate sorting")
+local nameOpts = { layoutMode = "categories", sortKey = "name" }
+assert(RS.LayoutSignature(b, nameOpts, details) == RS.LayoutSignature(slotsA(), nameOpts, details),
+    "cat: count change must not relayout name sorting")
 b = slotsA(); b[1].entry.d.name = "Aoots"
 assert(RS.LayoutSignature(b, cat, details) ~= cBase, "cat: name arrival/change reorders → relayout")
 b = slotsA(); b[1].entry.quality = 3; b[1].entry.d.quality = 3
@@ -91,5 +93,38 @@ local recentOpts = { layoutMode = "categories",
     getRecent = function(cell) return cell.bagID == 0 and cell.slot == 1 end }
 assert(RS.LayoutSignature(slotsA(), recentOpts, details) ~= cBase,
     "cat: recent-flag flip must relayout")
+
+local function sortSlots()
+    local slots = slotsA()
+    slots[1].entry.d.subClassID = 1
+    slots[1].entry.d.ilvl = 100
+    slots[1].entry.d.expacID = 2
+    return slots
+end
+local sortBase = RS.LayoutSignature(sortSlots(), cat, details)
+for _, field in ipairs({ "subClassID", "ilvl", "expacID" }) do
+    local changed = sortSlots()
+    changed[1].entry.d[field] = changed[1].entry.d[field] + 1
+    assert(RS.LayoutSignature(changed, cat, details) ~= sortBase,
+        "cat: " .. field .. " change must invalidate sorting")
+end
+b = sortSlots(); b[1].entry.d.classID = 2
+assert(RS.LayoutSignature(b, cat, details) ~= sortBase,
+    "cat: class change within equipment must invalidate sorting")
+for _, key in ipairs({ "type", "name", "ilvl", "expansion" }) do
+    local opts = { layoutMode = "categories", sortKey = key }
+    assert(RS.LayoutSignature(sortSlots(), opts, details) ~= sortBase,
+        "cat: selected " .. key .. " sort must invalidate layout")
+end
+assert(RS.LayoutSignature(sortSlots(), { layoutMode = "categories", sortReverse = true }, details) ~= sortBase,
+    "cat: reverse sort must invalidate layout")
+assert(RS.LayoutSignature(sortSlots(), { layoutMode = "categories", sortKey = "quality", sortReverse = false }, details)
+    == sortBase, "cat: explicit default sort must match omitted defaults")
+local legacy = { layoutMode = "categories", sortKey = "legacy" }
+assert(RS.LayoutSignature(sortSlots(), legacy, details) == sortBase,
+    "cat: unknown saved sort mode must use the quality fallback")
+b = sortSlots(); b[1].entry.count = 20
+assert(RS.LayoutSignature(b, legacy, details) ~= sortBase,
+    "cat: quality fallback count tie must invalidate sorting")
 
 print("OK: bags_refresh_scope_test")
