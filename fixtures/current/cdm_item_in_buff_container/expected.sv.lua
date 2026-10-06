@@ -535,7 +535,7 @@ return {
             hiddenBags = {},
             iconSize = 36,
             layoutMode = "flat",
-            markUnusable = false,
+            markUnusable = true,
             qualityColorText = false,
             reagentDisplay = "separate",
             showBagSlots = true,
