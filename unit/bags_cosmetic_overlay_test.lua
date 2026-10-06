@@ -1,5 +1,8 @@
 local function sink()
-    return setmetatable({}, { __index = function() return function() end end })
+    return setmetatable({
+        color = { 1, 1, 1 },
+        SetVertexColor = function(self, r, g, b) self.color = { r, g, b } end,
+    }, { __index = function() return function() end end })
 end
 
 local created = {}
@@ -28,6 +31,7 @@ _G.CreateFrame = function(_, _, _, template)
         f.IconQuestTexture = sink()
         f.ItemContextOverlay = sink()
         f.NewItemTexture = sink()
+        f.Icon = sink()
     end
     created[#created + 1] = f
     return f
@@ -131,6 +135,66 @@ for _, case in ipairs({
     r = last()
     check(label .. " buttons clear the overlay when the slot empties",
         r ~= nil and r.op == "clear", r and ("op=" .. r.op) or "no overlay call")
+end
+
+_G.Enum = {
+    ItemClass = { Recipe = 9 },
+    ItemRecipeSubclass = { Tailoring = 2 },
+    Profession = { Tailoring = 7 },
+    TooltipDataLineType = { ItemSpellTriggerLearn = 38, LearnableSpell = 6, UsageRequirement = 43, NestedBlock = 19 },
+    TooltipDataUsageRequirementType = { NotAlreadyKnown = 14 },
+}
+_G.ITEM_SPELL_KNOWN = "Already known"
+_G.time = function() return 42 end
+local current = {}
+ns.Storage = {
+    Store = { IsReady = function() return true end, GetCurrentCharacter = function() return current end },
+    Bus = { Subscribe = function() end },
+}
+assert(loadfile("core/storage/recipe_learning.lua"))("QUI", ns)
+_G.C_Item = { GetItemInfoInstant = function() return 100, nil, nil, nil, nil, 9, 2 end }
+_G.C_TradeSkillUI = { GetProfessionSkillLineID = function() return 197 end }
+_G.GetProfessions = function() return 4 end
+_G.GetProfessionInfo = function() return nil, nil, nil, nil, nil, nil, 197 end
+local recipeData = { lines = {
+    { type = 43, requirementType = 14, usable = false },
+    { type = 38 },
+} }
+_G.C_TooltipInfo = {
+    GetBagItem = function() return recipeData end,
+    GetHyperlink = function() return recipeData end,
+}
+settings.appearance.markUnusable = true
+for _, case in ipairs({
+    { "live bags and bank", button, ItemButtons.Dress },
+    { "cached storage", ItemButtons.CreateCached({}), ItemButtons.DressCached },
+    { "guild bank", ItemButtons.CreateGuildLive({}), function(b, e) ItemButtons.DressGuildLive(b, 1, 1, e) end },
+}) do
+    case[3](case[2], { icon = 1, quality = 1, link = "item:100" })
+    local icon = case[2].Icon or case[2].icon or case[2]._icon
+    check(case[1] .. " red-tints a known recipe without red text", icon.color[2] == 0.35)
+    settings.appearance.markUnusable = false
+    case[3](case[2], { icon = 1, quality = 1, link = "item:100" })
+    check(case[1] .. " respects the tint setting", icon.color[2] == 1)
+    settings.appearance.markUnusable = true
+end
+recipeData = { lines = { { type = 43, usable = false }, { type = 38 } } }
+ItemButtons.Dress(button, { icon = 1, quality = 1, link = "item:100" })
+check("unmet recipe learning requirements tint red", button.Icon.color[2] == 0.35)
+recipeData = { lines = {
+    { type = 38 },
+    { type = 6 },
+    { type = 19 },
+    { type = 43, usable = false, leftColor = { r = 1, g = 0.1, b = 0.1 } },
+} }
+ItemButtons.Dress(button, { icon = 1, quality = 1, link = "item:100" })
+check("crafted output requirements do not tint the recipe", button.Icon.color[2] == 1)
+_G.GetProfessions = function() return nil end
+recipeData = { lines = { { type = 6 } } }
+for _, bagID in ipairs({ 0, 6, 12 }) do
+    button.GetBagID = function() return bagID end
+    ItemButtons.Dress(button, { icon = 1, quality = 1, link = "item:100" })
+    check("a non-tailor's pattern tints red in bag " .. bagID, button.Icon.color[2] == 0.35)
 end
 
 if fails > 0 then

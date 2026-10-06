@@ -197,4 +197,49 @@ shiftHeld = true
 currencyPostCall(GameTooltip, { id = 2706 })
 assert(#added > 0, "modifier mode must show counts with Shift")
 
+_G.C_Item = { GetItemInfoInstant = function(id) return id, nil, nil, nil, nil, id == 100 and 9 or 2 end }
+Enum.ItemClass = { Recipe = 9 }
+ns.Storage.Bus = { Subscribe = function() end }
+ns.Storage.Store.GetCurrentCharacter = function() return records["Main-TestRealm"] end
+assert(loadfile("core/storage/recipe_learning.lua"))("QUI", ns)
+records["Main-TestRealm"].recipeLearning = { [100] = { status = "canLearn", checkedAt = 10, version = 1 } }
+records["Alpha-TestRealm"].recipeLearning = { [100] = { status = "known", checkedAt = 10, version = 1 } }
+records["Zulu-TestRealm"].recipeLearning = { [100] = { status = "cannotLearn", checkedAt = 10, version = 1 } }
+local itemPostCall = callbacks[Enum.TooltipDataType.Item]
+settings.behavior.tooltipCounts = "off"
+added = {}
+itemPostCall(GameTooltip, { id = 100 })
+assert(#added == 3, "recipe tooltip must show only eligible and known characters even with counts disabled")
+assert(added[2] == "Can learn (last checked): |cff3fc7ebMain|r", "eligible characters must be visible")
+assert(added[3] == "Already known (last checked): Alpha", "known recipe characters must be separate")
+assert(records["Zulu-TestRealm"].recipeLearning[100].status == "cannotLearn",
+    "hiding cannot-learn tooltip rows must preserve the status used for tint")
+records["Alpha-TestRealm"].recipeLearning = nil
+added = {}
+itemPostCall(GameTooltip, { id = 100 })
+assert(#added == 2 and added[2] == "Can learn (last checked): |cff3fc7ebMain|r",
+    "unchecked and ineligible characters must not appear in recipe tooltip rows")
+records["Main-TestRealm"].recipeLearning[100].version = nil
+added = {}
+itemPostCall(GameTooltip, { id = 100 })
+assert(#added == 0, "tooltip must omit the entire recipe section when no valid eligible or known characters remain")
+added = {}
+itemPostCall(GameTooltip, { id = 200 })
+assert(#added == 0, "nonrecipes must not get recipe rows")
+
+ns.Storage.Store.IsReady = function() return true end
+_G.time = function() return 42 end
+Enum.TooltipDataLineType = { ItemSpellTriggerLearn = 38, UsageRequirement = 43 }
+Enum.TooltipDataUsageRequirementType = { NotAlreadyKnown = 14 }
+GameTooltip.GetProcessingTooltipInfo = function() return { getterName = "GetBagItem" } end
+added = {}
+itemPostCall(GameTooltip, { id = 100, lines = {
+    { type = 38 },
+    { type = 43, requirementType = 14, usable = false },
+} })
+assert(records["Main-TestRealm"].recipeLearning[100].status == "known",
+    "live pattern hover must update the logged-in character's cached result")
+assert(added[2] == "Already known (last checked): |cff3fc7ebMain|r",
+    "hover must immediately reflect newly learned recipes")
+
 print("OK: bags_tooltip_counts_test")
