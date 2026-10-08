@@ -10,11 +10,14 @@ function card.frame:GetHeight() return self.height end
 function card.frame:HookScript(_,fn) self.changed=fn end
 builder.CloseCard(card)
 assert(builder.Height()==250)
-assert(card.frame.changed,'group card must propagate responsive height changes to its section')
-card.frame.height=160;card.frame.changed(card.frame)
-assert(builder.Height()==170 and host.height==170,'following sections must move up when the last card compacts')
-card.frame.height=220;card.frame.changed(card.frame)
-assert(host.height==230,'section must also grow when its card needs more rows')
+assert(not card.frame.changed, 'shared card layout must own parent height updates')
+card.frame.height=160
+assert(host._quiMeasureSettingsHeight()==170,'absolute measurement must shrink with the card')
+card.frame.height=220
+assert(host._quiMeasureSettingsHeight()==230,'absolute measurement must grow with the card')
+builder.Spacer(7)
+assert(builder.Height(17)==264)
+assert(host._quiMeasureSettingsHeight()==244,'measurement must retain trailing spacing and custom bottom padding')
 print('OK: group_card_height_test')
 local first=assert(source:find('local function CreateSingleSectionTabFeature',1,true))
 local last=assert(source:find('local GENERAL_TAB_FEATURE',first,true))

@@ -482,6 +482,65 @@ Flush()
 assert(flowing.frame:GetHeight() == flowingHeight, "density reflow returns without height drift")
 
 local groupSource = Read(arg[1] or "QUI_GroupFrames/groupframes/settings/group_frames_schema.lua")
+local groupBuilderStart = assert(groupSource:find("local function CreateSectionBuilder(", 1, true))
+local groupBuilderCode = groupSource:sub(groupBuilderStart,
+    assert(groupSource:find("local function GetFontListWithDefault", groupBuilderStart, true)) - 1)
+local groupBuilderLoader = assert(compile("return function(GetOptionsAPI, PrepareSectionHost, SetSearchContext, GetSearchProviderKey, GetRenderContextMode, SECTION_BOTTOM_PAD)\n"
+    .. groupBuilderCode .. "\nreturn CreateSectionBuilder end"))
+local createGroupBuilder = groupBuilderLoader()(function() return options end, function() end,
+    function() end, function() return "groupFrames" end, function() return "party" end, 10)
+
+for _, case in ipairs({{count = 1, trailing = 0}, {count = 1, trailing = 31}, {count = 3, trailing = 31}}) do
+    local count = case.count
+    local host = Frame()
+    host:SetWidth(800)
+    local build = createGroupBuilder(host, {}, {})
+    build.Spacer(22)
+    local groups, heights, offsets = {}, {}, {}
+    for index = 1, count do
+        local group = build.Card()
+        group.AddRow(Cell("First setting"), Cell("Second setting"))
+        build.CloseCard(group)
+        groups[index], heights[index] = group, group.frame:GetHeight()
+        offsets[index] = select(5, group.frame:GetPoint())
+        if index < count then build.Spacer(7) end
+    end
+    local trailing = Frame(nil, nil, host)
+    trailing:SetPoint("TOPLEFT", host, "TOPLEFT", 0, -build.Height(0))
+    build.Spacer(case.trailing)
+    local initialHeight = build.Height(case.trailing == 0 and nil or 17)
+    host:SetHeight(initialHeight)
+    local trailingY = select(5, trailing:GetPoint())
+    Flush()
+    for cycle = 1, 3 do
+        for _, width in ipairs({480, 800}) do
+            host:SetWidth(width)
+            local totalDelta = 0
+            for index, group in ipairs(groups) do
+                group.frame.scripts.OnSizeChanged()
+                Flush()
+                local delta = group.frame:GetHeight() - heights[index]
+                if width == 480 then assert(delta > 0, "real group cards must grow when stacked") end
+                assert(select(5, group.frame:GetPoint()) == offsets[index] - totalDelta,
+                    "later group cards retain their gap after earlier cards resize")
+                totalDelta = totalDelta + delta
+            end
+            assert(host:GetHeight() == initialHeight + totalDelta,
+                ("group section extent must apply each shared LayoutRows delta exactly once (expected %s, got %s)")
+                    :format(initialHeight + totalDelta, host:GetHeight()))
+            assert(select(5, trailing:GetPoint()) == trailingY - totalDelta,
+                "trailing editor must follow all card deltas without losing spacing")
+            for _, group in ipairs(groups) do group.frame.scripts.OnSizeChanged() end
+            Flush()
+            assert(host:GetHeight() == initialHeight + totalDelta,
+                "zero-delta layout must preserve the absolute group extent")
+        end
+    end
+    createGroupBuilder(host, {}, {})
+    assert(host._quiMeasureSettingsHeight == nil, "rebuilding must discard the previous card measurement")
+end
+print("OK: real Group Frames builder and shared responsive card extents")
+
 local sectionStart = assert(groupSource:find("local function RenderGeneralEnableSection", 1, true))
 local sectionEnd = assert(groupSource:find("local function RenderGeneralCopySettingsSection", sectionStart, true))
 local controls = {}
@@ -506,14 +565,7 @@ local sectionLoader = assert(compile("return function(ns, GetGUI, ResolveGroupFr
 local renderEnable = sectionLoader()(groupNS, function() return GUI end,
     function() return {gfdb = {}, contextMode = "party"} end,
     function() end, function() return {} end, function() return options end,
-    function(host)
-        local groupCard
-        return {
-            Card = function() groupCard = options.CreateSettingsCardGroup(host, 0); return groupCard end,
-            CloseCard = function(value) value.Finalize() end,
-            Height = function() return groupCard.frame:GetHeight() + 10 end,
-        }
-    end)
+    createGroupBuilder)
 local groupHost = Frame()
 groupHost:SetWidth(900)
 groupHost:SetHeight(400)
