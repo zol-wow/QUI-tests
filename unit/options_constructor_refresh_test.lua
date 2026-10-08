@@ -72,9 +72,12 @@ env.UIKit.QueueScaleRefresh = function(ticks)
     scaleRefreshes = scaleRefreshes + 1
 end
 env.UIKit.Pixels = function(value) return value end
-env.UIKit.CreateRoundedSurface = function(_, options)
+env.UIKit.CreateRoundedSurface = function(parent, options)
     roundedRadii[#roundedRadii + 1] = options.radius
-    return { background = node() }
+    local background = node(nil, nil, parent)
+    background:SetVertexColor(unpack(options.bgColor or {0, 0, 0, 1}))
+    parent.background = background
+    return { background = background }
 end
 env.UIParent, env.UISpecialFrames = node(), {}
 env.C_AddOns = { GetAddOnMetadata = function() return "test" end }
@@ -140,4 +143,38 @@ frame:Show()
 gui:OnFontChanged()
 assert(rebuilds == 1 and refreshes == 2 and statusRefreshes == 2,
     "font edits with options open must still update gameplay skins and their private font objects")
+local function assertPanelOpacity(panel, expected)
+    local base = panel._bg.color[4]
+    assert(base == expected, "panel creation must restore saved background opacity")
+    local layers = {
+        {panel.sidebar.background},
+        {panel.contentArea.background, panel.contentArea._accentGlow},
+    }
+    for _, object in ipairs(nodes) do
+        if object.parent == panel.subTabBar and object.color and not object.width and not object.height then
+            layers[#layers + 1] = {object}
+        end
+    end
+    assert(#layers == 3, "opacity regression must include the subtab background")
+    for _, overlays in ipairs(layers) do
+        local opacity = base
+        for _, overlay in ipairs(overlays) do
+            opacity = 1 - (1 - opacity) * (1 - overlay.color[4])
+        end
+        assert(math.abs(opacity - expected) < 1e-12,
+            "overlapping panel backgrounds must not increase the configured opacity")
+    end
+    assert(panel.alpha == nil, "background opacity must not fade text and controls")
+end
+assertPanelOpacity(frame, 0.97)
+for _, saved in ipairs({0.3, 0.65, 0.97, 1}) do
+    gui.MainFrame = nil
+    env.QUI.QUICore.db.profile.configPanelAlpha = saved
+    local reloaded = gui:CreateMainFrame()
+    assertPanelOpacity(reloaded, saved)
+    for _, live in ipairs({0.3, 0.65, 0.97, 1}) do
+        reloaded._bg:SetVertexColor(unpack({gui.Colors.optionsWindow[1], gui.Colors.optionsWindow[2], gui.Colors.optionsWindow[3], live}))
+        assertPanelOpacity(reloaded, live)
+    end
+end
 print("PASS options_constructor_refresh_test")
