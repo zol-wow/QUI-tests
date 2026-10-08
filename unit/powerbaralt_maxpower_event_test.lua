@@ -59,10 +59,10 @@ local core = { db = { profile = { general = { skinPowerBarAlt = true } } } }
 local ns = {
     WhenLoggedIn = function(callback) callback() end,
     RunAfterFirstFrame = function(callback) callback() end,
-    Helpers = { GetCore = function() return core end, IsSecretValue = function() return false end,
+    Helpers = { ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end, GetCore = function() return core end, IsSecretValue = function() return false end,
         SetFrameBackdropColor = function(frame, ...) frame.skinBackground = { ... } end,
         SetFrameBackdropBorderColor = function(frame, ...) frame.skinBorder = { ... } end },
-    SkinBase = { GetSkinColors = function() return 1, 1, 1, 1, 0, 0, 0, 1 end,
+    SkinBase = { GetWindowColors = function() return 1, 1, 1, 1, 0, 0, 0, 1 end, GetSkinColors = function() return 1, 1, 1, 1, 0, 0, 0, 1 end,
         SetExpandedPixelPoints = noop, ApplyPixelBackdrop = function(frame) frame.skinBackdrop = true end,
         SkinFontString = function(frame) frame.skinFont = true end,
         SetFrameData = noop, MarkSkinned = noop },

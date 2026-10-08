@@ -164,7 +164,7 @@ local function build(forever, delayed)
     world.QUI = core
     local ns = { Client = { isForever = forever }, Addon = core, QUI = core,
         L = setmetatable({}, { __index = function(_, key) return key end }) }
-    ns.Helpers = {
+    ns.Helpers = { ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end, ApplyIconStyle = function() end,
         GetCore = function() return core end, GetProfile = function() return core.db.profile end,
         GetModuleDB = function(key) return core.db.profile[key] end,
         GetGeneralFont = function() return "QUIFont.ttf" end, GetGeneralFontOutline = function() return "OUTLINE" end,
@@ -176,7 +176,8 @@ local function build(forever, delayed)
     ns.QUI_LayoutMode = world.QUI_LayoutMode
     ns.WhenLoggedIn = function(callback) logins[#logins + 1] = callback end
     ns.Registry = { Register = noop }
-    ns.SkinBase = { GetSkinColors = function() return 0.2, 0.8, 0.6, 1, 0.05, 0.05, 0.05, 1 end,
+    ns.SkinBase = { GetWindowColors = function() return 0.2, 0.8, 0.6, 1, 0.05, 0.05, 0.05, 1 end,
+        GetSkinColors = function() return 0.2, 0.8, 0.6, 1, 0.05, 0.05, 0.05, 1 end,
         GetSkinBarColor = function() return 0.2, 0.8, 0.6 end,
         SetInsetPixelPoints = function(region, relativeTo, pixels)
             local inset = pixels * 0.5

@@ -37,7 +37,7 @@ check("feature-tile adapter preserves per-sub-page previews",
     shared:find("preview = subPage.preview", 1, true) ~= nil)
 check("sub-page preview is built before and outside the scroll root",
     framework:find("local contentRoot = container", 1, true) ~= nil
-    and framework:find('contentRoot:SetPoint("TOPLEFT", preview, "BOTTOMLEFT", 0, -8)', 1, true) ~= nil
+    and framework:find('contentRoot:SetPoint("TOPLEFT", preview, "BOTTOMLEFT", -18, -4)', 1, true) ~= nil
     and framework:find("CreateScrollableContent(contentRoot)", 1, true) ~= nil)
 check("aura page no longer allocates an inline scrolling preview",
     page:find("UFSurface.preview.build", 1, true) == nil
@@ -52,7 +52,7 @@ check("auto-fit does not recursively shrink preview content",
     and surface:find("scaleBudgetHeight - chromeHeight", 1, true) ~= nil)
 check("body-only preview reclaims castbar space",
     surface:find("if bodyOnly and mock._castbarMock then", 1, true) ~= nil
-    and surface:find("showDropdown and 56 or 20", 1, true) ~= nil
+    and surface:find("State.previewMock._previewChromeHeight = pv._quiPreviewChromeHeight", 1, true) ~= nil
     and surface:find("bodyOnly and 60 or 96", 1, true) ~= nil)
 check("regular Unit Frames preview is compact but retains its full mode",
     unitTile:find("previewHeight = 180", 1, true) ~= nil

@@ -50,7 +50,7 @@ end
 
 local ns = {
     L = setmetatable({}, { __index = function(_, key) return key end }),
-    Helpers = { ApplyFontWithFallback = noop },
+    Helpers = { ApplyFontWithFallback = noop, AssetPath = "Interface\\AddOns\\QUI\\assets\\" },
 }
 local env = setmetatable({ QUI = {}, CreateFrame = node }, { __index = _G })
 setfenv(assert(loadfile("core/theme.lua")), env)("QUI", ns)
@@ -64,6 +64,18 @@ env._G = { QUI_RefreshStatusTrackingBarSkin = function() statusRefreshes = statu
 env.QUI.QUICore = { db = { profile = { general = { themePreset = "Horde" } } } }
 env.GUI, env.C, env.ns = gui, gui.Colors, ns
 env.UIKit = { CreateBackground = node, CreateBorderLines = noop, UpdateBorderLines = noop, CreateCloseButton = noop }
+ns.UIKit = env.UIKit
+local roundedRadii = {}
+local scaleRefreshes = 0
+env.UIKit.QueueScaleRefresh = function(ticks)
+    assert(ticks == 2, "panel scale changes use the existing two-frame scale refresh")
+    scaleRefreshes = scaleRefreshes + 1
+end
+env.UIKit.Pixels = function(value) return value end
+env.UIKit.CreateRoundedSurface = function(_, options)
+    roundedRadii[#roundedRadii + 1] = options.radius
+    return { background = node() }
+end
 env.UIParent, env.UISpecialFrames = node(), {}
 env.C_AddOns = { GetAddOnMetadata = function() return "test" end }
 env.SetFont, env.GetFontPath = noop, noop
@@ -86,11 +98,22 @@ setfenv(assert(loadstring(source:sub(first, last - 1))), env)()
 
 local frame = gui:CreateMainFrame()
 assert(frame.sidebar and frame.contentArea and frame.resizeHandle, "constructor must finish building the window")
+assert(#roundedRadii == 8 and roundedRadii[1] == 12 and roundedRadii[2] == 4 and roundedRadii[3] == 6
+    and roundedRadii[4] == 4 and roundedRadii[5] == 6 and roundedRadii[6] == 10 and roundedRadii[7] == 10 and roundedRadii[8] == 10, "window and Theme/Language controls use native rounded surfaces")
 assert(refreshes == 0 and statusRefreshes == 0 and #timers == 0,
     "building options must not refresh unrelated gameplay skins, synchronously or later")
 local r, g, b = gui:ResolveThemePreset("Horde")
 assert(gui.Colors.accent[1] == r and gui.Colors.accent[2] == g and gui.Colors.accent[3] == b,
     "building options must retain the saved theme")
+for _, object in ipairs(nodes) do
+    if object.scripts.OnValueChanged then
+        object.scripts.OnValueChanged(object, 1.2)
+        assert(frame.scale == 1.2 and scaleRefreshes == 1,
+            "the actual panel scale control refreshes scale-sensitive preview geometry")
+        break
+    end
+end
+assert(scaleRefreshes == 1, "constructor must expose its real panel scale callback")
 
 local function clickLabel(text)
     for _, object in ipairs(nodes) do

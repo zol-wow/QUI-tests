@@ -206,6 +206,7 @@ local ns = {
         SkinTabGroup = function() end,
         -- Popout chrome (title accent + close button) lives in CharacterChrome;
         -- neither is the subject of this test.
+        GetWindowColors = function() return unpack(currentColors) end,
         GetSkinTextAccent = function() return 1, 1, 1, 1 end,
         SkinChromeCloseButton = function() end,
     },

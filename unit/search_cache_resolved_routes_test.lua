@@ -64,6 +64,40 @@ end
 
 GUI.MainFrame = frame
 
+local generalTile
+for _, tile in ipairs(frame._tiles) do
+    if tile.id == "global" then generalTile = tile end
+end
+assert(generalTile, "General tile is registered")
+for featureId, pageIndex in pairs({ modulesPage = 3, importExportPage = 4, thirdPartyAnchoring = 5, clickCastPage = 6 }) do
+    local feature = assert(ns.Settings.Registry:GetFeature(featureId))
+    assert(feature.nav.tileId == "global" and feature.nav.subPageIndex == pageIndex,
+        "registered feature navigation must target its real General page: " .. featureId)
+    local page = assert(generalTile.config.subPages[pageIndex])
+    assert(page.featureId == featureId, "feature navigation must agree with the actual mounted editor: " .. featureId)
+    local aliases = 0
+    for _, entry in ipairs(GUI.StaticNavigationRegistry) do
+        if entry.featureId == featureId and (entry.navType == "tab" or entry.navType == "subtab") then
+            local route = assert(GUI:ResolveSearchNavigation(entry))
+            assert(route.tileId == "global" and route.subPageIndex == pageIndex,
+                "generated feature alias must open its mounted editor: " .. featureId .. " / " .. tostring(entry.label))
+            aliases = aliases + 1
+        end
+    end
+    assert(aliases > 0, "generated cache contains native feature aliases: " .. featureId)
+end
+
+local legacyThirdParty = assert(GUI:ResolveV2Navigation(3, 7))
+assert(legacyThirdParty.tileId == "global" and legacyThirdParty.subPageIndex == 5
+    and generalTile.config.subPages[legacyThirdParty.subPageIndex].featureId == "thirdPartyAnchoring",
+    "legacy third-party navigation opens the actual integration editor")
+for _, entry in ipairs(GUI.StaticNavigationRegistry) do
+    if entry.tabIndex == 3 and entry.subTabIndex == 7 then
+        local route = assert(GUI:ResolveSearchNavigation(entry), "legacy Frame Positioning aliases remain reachable")
+        assert(route.tileId == "global" and route.subPageIndex == 5, "legacy third-party aliases open General Third-party")
+    end
+end
+
 local checked = 0
 local failures = {}
 local counts = {}

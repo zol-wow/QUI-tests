@@ -2834,6 +2834,7 @@ return {
             neverSell = "",
             previewOnly = true
           },
+          visualStyle = "Satin",
           worldMapTeleports = false
         },
         hudLayering = {
@@ -9006,9 +9007,9 @@ return {
           showWhenMounted = false
         },
         addonAccentColor = {
-          [1] = 0.376,
-          [2] = 0.64700000000000002,
-          [3] = 0.97999999999999998
+          [1] = 0.83530000000000004,
+          [2] = 0.74119999999999997,
+          [3] = 0.55289999999999995
         },
         alerts = {
           alertPosition = {
@@ -11159,9 +11160,9 @@ return {
             yOffset = -1172
           },
           addonAccentColor = {
-            [1] = 0.376,
-            [2] = 0.64700000000000002,
-            [3] = 0.97999999999999998,
+            [1] = 0.83530000000000004,
+            [2] = 0.74119999999999997,
+            [3] = 0.55289999999999995,
             [4] = 1
           },
           alertsBorderColor = {
@@ -11298,9 +11299,9 @@ return {
           skinAchievement = true,
           skinBank = true,
           skinBgColor = {
-            [1] = 0,
-            [2] = 0,
-            [3] = 0
+            [1] = 0.074499999999999997,
+            [2] = 0.10589999999999999,
+            [3] = 0.1176
           },
           skinBorderColor = {
             [1] = 1,
@@ -11345,7 +11346,7 @@ return {
           statusTrackingBarsBorderUseClassColor = false,
           statusTrackingBarsHideBackground = false,
           statusTrackingBarsHideBorder = false,
-          themePreset = "Sky Blue",
+          themePreset = "Satin Gold",
           tooltips = {
             bgOpacity = 0.94999999999999996,
             borderUseClassColor = false,
@@ -15907,7 +15908,7 @@ return {
           vigorFontSize = 12,
           visibility = "AUTO"
         },
-        themePreset = "Sky Blue",
+        themePreset = "Satin Gold",
         tooltip = {
           anchorPosition = {
             point = "CENTER",

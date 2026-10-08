@@ -51,6 +51,7 @@ local ns = {
         GetGeneralFont = function() return "Interface\\QUIFont.ttf" end,
     },
     SkinBase = {
+        GetWindowColors = function() return 0.6, 0.7, 0.8, 1, 0.1, 0.2, 0.3, 0.9 end,
         GetSkinColors = function() return 0.6, 0.7, 0.8, 1, 0.1, 0.2, 0.3, 0.9 end,
         CreateBackdrop = function() end,
         GetBackdrop = function() return nil end,

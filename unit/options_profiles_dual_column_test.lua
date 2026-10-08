@@ -133,7 +133,8 @@ local Shared = {
         return card
     end,
     BuildSettingRow = function(_, labelText, widget, desc)
-        return { _settingRowLabel = labelText, _widgetLabel = labelText, _widget = widget, _desc = desc }
+        return { _settingRowLabel = labelText, _widgetLabel = labelText, _widget = widget, _desc = desc,
+            SetEnabled = function(self, enabled) self._enabled = enabled end }
     end,
 }
 

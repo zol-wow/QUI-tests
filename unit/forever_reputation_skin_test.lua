@@ -25,6 +25,9 @@ env.CreateFrame = function()
 end
 local ns = {
     Helpers = {
+        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
+        ApplyIconStyle = function() end,
+        ApplyTextureStyle = function(_, texture, path) texture:SetTexture(path) end,
         CreateStateTable = function() return {} end,
         GetCore = function() return { db = { profile = { general = { skinCharacterFrame = true } } } } end,
         CreateSkinColorGetter = function() return function() return 0.3, 0.6, 0.9, 1 end end,
@@ -32,6 +35,7 @@ local ns = {
     },
     UIKit = { DisablePixelSnap = function(region) region.pixelSnapDisabled = true end },
     SkinBase = {
+        GetWindowColors = function() return 0.3, 0.6, 0.9, 1, 0.05, 0.05, 0.05, 0.9 end,
         CHROME = { BORDER_PX = 1 },
         GetFrameData = function(frame, key) return frame[key] end,
         SetFrameData = function(frame, key, value) frame[key] = value end,

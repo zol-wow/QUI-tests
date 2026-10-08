@@ -135,6 +135,7 @@ local ns = {
             }
         end,
         CreateStateTable = function() return setmetatable({}, { __mode = "k" }) end,
+        GetWindowColors = function() return 0.4, 0.7, 1, 1, 0.02, 0.02, 0.02, 0.9 end,
         GetSkinBorderColor = function() return 0.4, 0.7, 1, 1 end,
         GetSkinBgColor = function() return 0.02, 0.02, 0.02, 0.9 end,
         GetGeneralFont = function() return "Fonts\\FRIZQT__.TTF" end,

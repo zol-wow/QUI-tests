@@ -56,6 +56,7 @@ local ns = {
     Helpers = { GetCore = function() return { db = { profile = { general = settings } } } end },
     Registry = { Register = function(_, key, entry) registry[key] = entry end },
 }
+SkinBase.GetWindowColors = SkinBase.GetSkinColors
 ns.SkinBase = SkinBase
 
 local function Load(module)

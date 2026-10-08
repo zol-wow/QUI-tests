@@ -68,8 +68,9 @@ local core = { GetPixelSize = function() return 1 end, db = { profile = { genera
 local ns = {
     Addon = core,
     WhenLoggedIn = function(callback) callback() end,
-    Helpers = { SetFrameBackdropColor = noop, SetFrameBackdropBorderColor = noop },
+    Helpers = { ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end, ApplyIconStyle = function() end, SetFrameBackdropColor = noop, SetFrameBackdropBorderColor = noop },
     SkinBase = {
+        GetWindowColors = function() return 1, 1, 1, 1, 0, 0, 0, 1 end,
         GetSkinColors = function() return 1, 1, 1, 1, 0, 0, 0, 1 end,
         GetFrameData = function(frame, key) return data[frame] and data[frame][key] end,
         SetFrameData = function(frame, key, value) data[frame] = data[frame] or {}; data[frame][key] = value end,

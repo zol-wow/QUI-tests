@@ -643,6 +643,7 @@ do
     ns.Helpers = {
         GetGeneralFont        = function() return "Interface\\Fonts\\FRIZQT__.TTF" end,
         GetGeneralFontOutline = function() return "OUTLINE" end,
+        ApplyBarStyle         = function(bar, path) bar:SetStatusBarTexture(path) end,
         ApplyFontWithFallback = function(fs, font, sz, outline)
             if fs and fs.SetFont then fs:SetFont(font, sz, outline) end
         end,
@@ -892,6 +893,7 @@ do
 
     local oldHelpersE = ns.Helpers
     ns.Helpers = {
+        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
         GetGeneralFont = function() return "Interface\\Fonts\\FRIZQT__.TTF" end,
         GetGeneralFontOutline = function() return "" end,
     }
@@ -992,6 +994,7 @@ do
     ns.Helpers = {
         GetGeneralFont = function() return "Interface\\Fonts\\FRIZQT__.TTF" end,
         GetGeneralFontOutline = function() return "" end,
+        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
         GetSkinBorderColor = function() return 0, 0, 0, 1 end,
     }
     _G.C_Spell = { GetSpellName = function() return "X" end }
@@ -1105,6 +1108,7 @@ do
     end
     ns.Helpers = {
         GetGeneralFont = function() return "QUIFONT.TTF" end,
+        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
         GetGeneralFontOutline = function() return "OUTLINE" end,
         GetSkinBorderColor = function() return 0, 0, 0, 1 end,
     }

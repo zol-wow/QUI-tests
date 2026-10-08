@@ -1,3 +1,10 @@
+local originalLoadfile = loadfile
+local baseline = os.getenv("QUI_FORM_SOURCE")
+if baseline then
+    _G.loadfile = function(path, ...)
+        return originalLoadfile(path == "QUI_Options/framework.lua" and baseline or path, ...)
+    end
+end
 -- tests/unit/test_form_slider_init.lua
 -- Regression: building a slider widget must NOT write the DB. framework.lua
 -- used to call the local SetValue(GetValue(), true) at construction time,
@@ -53,3 +60,15 @@ assert(store2.maxIcons == nil,
     "widget init seeded absent key: " .. tostring(store2.maxIcons))
 
 print("OK: test_form_slider_init")
+
+local roomy=GUI:CreateFormSlider(parent,nil,0,100,1,'value',{value=50},nil,{}, {})
+assert(roomy:GetWidth()>=216,'slider must reserve a full track beside numeric controls')
+
+local responsive = GUI:CreateFormSlider(parent, "Visible Buttons", 1, 12, 1, "value", {value=12}, nil, {}, {})
+assert(type(responsive._quiLayoutFormSlider) == "function", "labeled form sliders must adapt before their tracks collapse")
+responsive:_quiLayoutFormSlider(336)
+assert(responsive.label:GetHeight() >= 18, "stacked slider labels must have an explicit visible text height")
+assert(responsive:GetHeight() == 52 and responsive._quiDualColumnRowHeight == 52, "narrow slider labels must move above a usable track and reserve row height")
+responsive:_quiLayoutFormSlider(500)
+assert(responsive:GetHeight() < 52, "wide sliders must retain their compact inline layout")
+print("OK: responsive_form_slider")

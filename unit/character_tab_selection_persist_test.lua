@@ -78,6 +78,7 @@ local BASE = { 0.10, 0.20, 0.30, 1, 0.40, 0.50, 0.60, 0.90 }
 local ns = {
     Addon = { GetPixelSize = function() return 0.5 end },
     Helpers = {
+        GetWindowColors = function() return unpack(BASE) end,
         CHROME = { BORDER_PX = 1, BG_FALLBACK = { 0.05, 0.05, 0.05, 0.95 }, BORDER_FALLBACK = { 0, 0, 0, 1 }, BUTTON_BOOST = 0.07, SCROLLROW_BOOST = 0.03, DEPTH = { PANEL = { boost = 0, alpha = 0.95 }, SUBPANEL = { boost = 0.04, alpha = 0.85 }, ROW = { boost = 0.07, alpha = 0.75 } } },
         CreateStateTable = CreateStateTable,
         GetCore = function()

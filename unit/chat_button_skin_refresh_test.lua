@@ -97,7 +97,7 @@ local ns = {
         SafeToNumber = function(v, d) return tonumber(v) or d end,
         IsSecretValue = function() return false end,
         GetGeneralFont = function() return "Interface\\QUIFont.ttf" end,
-        GetSkinColors = function()
+        GetWindowColors = function()
             return SKIN[1], SKIN[2], SKIN[3], SKIN[4], SKIN[5], SKIN[6], SKIN[7], SKIN[8]
         end,
     },

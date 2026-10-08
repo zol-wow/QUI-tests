@@ -47,6 +47,7 @@ local ns = {
         GetCore = function() return nil end,
         GetGeneralFont = function() return "font" end,
         GetSkinColors = function() return 1, 1, 1 end,
+        GetWindowColors = function() return 1, 1, 1, 1, 0.05, 0.05, 0.05, 0.95 end,
     },
     UIKit = { DisablePixelSnap = noop, CreateBorderLines = noop, UpdateBorderLines = noop },
     SafeCallMethod = function() return true end,

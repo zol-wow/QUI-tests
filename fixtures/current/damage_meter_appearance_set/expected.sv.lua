@@ -2834,6 +2834,7 @@ return {
             neverSell = "",
             previewOnly = true
           },
+          visualStyle = "Satin",
           worldMapTeleports = false
         },
         hudLayering = {

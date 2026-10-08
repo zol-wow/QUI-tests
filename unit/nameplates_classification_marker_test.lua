@@ -103,7 +103,10 @@ local settings = {
 }
 
 local ns = {
-    Helpers = {
+   Helpers = {
+        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
+        ApplyTextureStyle = function(_, texture, path) texture:SetTexture(path) end,
+        ApplyIconStyle = function() end,
         IsSecretValue = function() return false end,
         SafeToNumber = function(v, fb) return tonumber(v) or fb or 0 end,
         TruncateUTF8 = function(s) return s end,

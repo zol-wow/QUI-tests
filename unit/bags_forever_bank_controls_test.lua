@@ -78,6 +78,7 @@ ns.Helpers = {
     CreateDBGetter = function() return function() return {} end end,
     GetGeneralFont = function() return "font" end,
     GetSkinColors = function() return 1, 1, 1 end,
+        GetWindowColors = function() return 1, 1, 1, 1, 0.05, 0.05, 0.05, 0.95 end,
     GetCore = function() return {} end,
 }
 ns.UIKit = { CreateBorderLines = function() end, UpdateBorderLines = function() end }

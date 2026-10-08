@@ -98,13 +98,14 @@ assert(env.GetItemQualityColor == nil, "legacy GetItemQualityColor must be absen
 
 local ns = {
     Addon = { db = { profile = { loot = { enabled = true }, lootRoll = { enabled = true } } } },
-    Helpers = {
+    Helpers = { ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end, ApplyIconStyle = function() end,
         CreateStateTable = function() return {} end,
         SetFrameBackdropColor = noop,
         SetFrameBackdropBorderColor = function(frame, ...) frame.borderColor = { ... } end,
     },
     SkinBase = {
         CHROME = { BORDER_PX = 1 },
+        GetWindowColors = function() return 1, 1, 1, 1, 0, 0, 0, 1 end,
         GetSkinColors = function() return 1, 1, 1, 1, 0, 0, 0, 1 end,
         ApplyPixelBackdrop = noop,
         SetPixelPoint = noop,

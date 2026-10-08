@@ -54,8 +54,8 @@ do
         "minimap.lua: drawer overlay 0.05,0.05,0.05,0.9 must source RGB from GetSkinBgColor()/GetDepthColor")
 
     -- Confirm the skinning API is now referenced in minimap
-    assertContains(src, "GetSkinBgColor",
-        "minimap.lua: must reference GetSkinBgColor")
+    assertContains(src, "GetWindowColors",
+        "minimap.lua: must reference GetWindowColors")
 
     -- Semantic guard: existing live-theme minimap border path must remain
     assertContains(src, "GetSkinBorderColor",
@@ -89,13 +89,13 @@ do
 
     -- Migrated dark bg literal must be gone (the raw SetBackdropColor call)
     assertAbsent(src, "SetBackdropColor%(0%.05, 0%.05, 0%.05, 0%.95%)",
-        "consumablecheck.lua: raw SetBackdropColor(0.05,0.05,0.05,0.95) must use GetSkinBgColor()")
+        "consumablecheck.lua: raw SetBackdropColor(0.05,0.05,0.05,0.95) must use GetWindowColors()")
 
     -- Skin bg and border APIs must now be referenced
-    assertContains(src, "GetSkinBgColor",
-        "consumablecheck.lua: must reference GetSkinBgColor for picker bg")
-    assertContains(src, "GetSkinBorderColor",
-        "consumablecheck.lua: must reference GetSkinBorderColor for picker border")
+    assertContains(src, "GetWindowColors",
+        "consumablecheck.lua: must reference GetWindowColors for picker bg")
+    assertContains(src, "GetWindowColors",
+        "consumablecheck.lua: must reference GetWindowColors for picker border")
 end
 
 -- ===========================================================================
@@ -274,17 +274,15 @@ do
     -- Old hardcoded palette fallback for bg must be gone from GetChatSurfaceColors;
     -- the function now sources bg RGB from the skin API.
     assertAbsent(src, "glass and glass%.bgColor%) or {0, 0, 0}",
-        "chat.lua: GetChatSurfaceColors must not use the old glass.bgColor/{0,0,0} fallback — source from GetSkinBgColorWithOverride")
+        "chat.lua: GetChatSurfaceColors must not use the old glass.bgColor/{0,0,0} fallback — source from GetWindowColors")
 
     -- Skin bg API must now be referenced in chat.lua chrome path.
-    assertContains(src, "GetSkinBgColorWithOverride",
-        "chat.lua: must reference GetSkinBgColorWithOverride for chat window bg")
-    assertContains(src, "GetSkinBgColor",
-        "chat.lua: must reference GetSkinBgColor as fallback in GetChatSurfaceColors")
+    assertContains(src, "GetWindowColors",
+        "chat.lua: must reference GetWindowColors for chat window bg")
 
     -- Skin border API must now be referenced in chat.lua chrome path.
-    assertContains(src, "GetSkinBorderColor",
-        "chat.lua: must reference GetSkinBorderColor for chat window border")
+    assertContains(src, 'brR, brG, brB, brA = Helpers.GetWindowColors(settings, "chat")',
+        "chat.lua: window border must retain its module settings and alpha")
 
     -- Semantic guard: sender class coloring lives in message_format.lua now
     -- (the rendered-path class_colors modifier was excised with the takeover).
@@ -308,8 +306,8 @@ do
         "mplus_timer.lua: must reference GetGeneralFont()")
 
     -- Skin bg API must now be referenced for progress bar and sleek bar backdrops
-    assertContains(src, "GetSkinBgColor",
-        "mplus_timer.lua: must reference GetSkinBgColor() for progress bar / sleek bar backdrop bg")
+    assertContains(src, "GetWindowColors",
+        "mplus_timer.lua: must reference GetWindowColors() for progress bar / sleek bar backdrop bg")
 
     -- SkinBase.CreateBackdrop must now be referenced
     assertContains(src, "SkinBase.CreateBackdrop",
@@ -477,10 +475,8 @@ do
         "chat.lua: GetChatSurfaceColors must use a userSet guard to detect a non-black glass.bgColor")
 
     -- (b) Skin-default path must still be present (consolidation win preserved).
-    assertContains(chatSrc, "GetSkinBgColorWithOverride",
-        "chat.lua: GetSkinBgColorWithOverride must still be the skin-default bg RGB source")
-    assertContains(chatSrc, "GetSkinBgColor",
-        "chat.lua: GetSkinBgColor fallback must still be present for older Helpers API")
+    assertContains(chatSrc, "GetWindowColors",
+        "chat.lua: GetWindowColors must remain the skin-default background source")
     -- (chatTab border machinery was excised with the takeover: Blizzard tabs
     -- are hidden; the QUI display's tab bar colors from theme text + accent.)
 end
