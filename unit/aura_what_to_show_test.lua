@@ -12,7 +12,12 @@ do -- WhatToShowKeys
     local h = E.WhatToShowKeys("HELPFUL")
     check("helpful keys", table.concat(h, ",") == "all,mine,defensives,important,purgeable,whitelist", table.concat(h, ","))
     local d = E.WhatToShowKeys("HARMFUL")
-    check("harmful keys", table.concat(d, ",") == "all,dispellable,crowdControl,important,boss,roleBoss,whitelist", table.concat(d, ","))
+    local harmfulKeys = {}
+    for _, key in ipairs(d) do harmfulKeys[key] = true end
+    check("harmful encounter key", harmfulKeys.encounter == true)
+    local existing = {}
+    for _, key in ipairs(d) do if key ~= "encounter" then existing[#existing + 1] = key end end
+    check("harmful existing keys", table.concat(existing, ",") == "all,dispellable,crowdControl,important,boss,roleBoss,whitelist", table.concat(d, ","))
     check("defaults to helpful", table.concat(E.WhatToShowKeys(nil), ",") == "all,mine,defensives,important,purgeable,whitelist")
 end
 
@@ -72,7 +77,7 @@ end
 do -- Derive is the exact reverse of Apply for every key
     local KEYS = {
         HELPFUL = { "all", "mine", "defensives", "important", "purgeable", "whitelist" },
-        HARMFUL = { "all", "dispellable", "crowdControl", "important", "boss", "roleBoss", "whitelist" },
+        HARMFUL = { "all", "dispellable", "crowdControl", "important", "encounter", "boss", "roleBoss", "whitelist" },
     }
     for _, pol in ipairs({ "HELPFUL", "HARMFUL" }) do
         for _, key in ipairs(KEYS[pol]) do
@@ -106,6 +111,50 @@ do -- Non-canonical states derive to "custom"
     -- blacklist coexists with any intent and never forces custom
     local b = E.NewFilterStripElement("HARMFUL"); E.ApplyWhatToShow(b, "boss"); b.blacklist = { [123] = true }
     check("blacklist ignored by derive", E.DeriveWhatToShow(b) == "boss")
+end
+
+do
+    local e = E.NewFilterStripElement("HARMFUL")
+    e.onlyMine = true
+    e.gateBossAura = true
+    e.gateBossOrRoleAura = true
+    e.gateRoleAura = true
+    e.gatePriorityAura = true
+    e.gateStealable = true
+    e.filterMode = "classify"
+    e.classifications = { important = true }
+    e.filterFlags = { PLAYER = true }
+    e.dispelFilterMode = "include"
+    e.dispelTypes = { Magic = true }
+    e.nameplateOnly = true
+    e.hidePermanent = true
+    e.maxDurationSec = 30
+    E.ApplyWhatToShow(e, "encounter")
+    check("encounter enables source preset", e.gateEncounterDebuffs == true)
+    check("encounter clears classification and mine", e.filterMode == "off" and e.onlyMine == false
+        and e.classifications.important ~= true and next(e.filterFlags) == nil)
+    check("encounter clears boss and role gates", not e.gateBossAura and not e.gateBossOrRoleAura
+        and not e.gateRoleAura and not e.gatePriorityAura and not e.gateStealable)
+    check("encounter clears dispel restriction", e.dispelFilterMode == "off" and next(e.dispelTypes) == nil)
+    check("encounter clears nameplate-only restriction", not e.nameplateOnly)
+    check("encounter permits durationless auras", not e.hidePermanent and (tonumber(e.maxDurationSec) or 0) == 0)
+    for _, key in ipairs(E.WhatToShowKeys("HARMFUL")) do
+        if key ~= "encounter" then
+            E.ApplyWhatToShow(e, "encounter")
+            E.ApplyWhatToShow(e, key)
+            check(key .. " clears encounter gate", not e.gateEncounterDebuffs)
+        end
+    end
+    for _, field in ipairs({ "onlyMine", "gateBossAura", "gateBossOrRoleAura", "gateRoleAura", "gatePriorityAura", "gateStealable" }) do
+        E.ApplyWhatToShow(e, "encounter")
+        e[field] = true
+        check("encounter plus " .. field .. " derives custom", E.DeriveWhatToShow(e) == "custom")
+    end
+    for _, key in ipairs({ "important", "whitelist" }) do
+        E.ApplyWhatToShow(e, key)
+        e.gateEncounterDebuffs = true
+        check("encounter plus " .. key .. " derives custom", E.DeriveWhatToShow(e) == "custom")
+    end
 end
 
 print("aura_what_to_show_test " .. (failures == 0 and "OK" or "FAILED"))
