@@ -5611,6 +5611,9 @@ function C_Discord.IsGuildSettingSet(setting, ...) end
 ---@return boolean hasOAuth
 function C_Discord.IsUserOAuthed(...) end
 ---@param ... any
+---@return boolean enabled
+function C_Discord.IsVoiceEnabled(...) end
+---@param ... any
 function C_Discord.RefreshAuth(...) end
 ---@param setting? any
 ---@param set? boolean
@@ -17337,10 +17340,10 @@ function C_VignetteInfo.GetVignettePosition(vignetteGUID, uiMapID, ...) end
 function C_VignetteInfo.GetVignettes(...) end
 
 C_VoiceChat = {}
----@param channelID? number
+---@param channelID? any
 ---@param ... any
 function C_VoiceChat.ActivateChannel(channelID, ...) end
----@param channelID? number
+---@param channelID? any
 ---@param ... any
 function C_VoiceChat.ActivateChannelTranscription(channelID, ...) end
 ---@param listenToLocalUser? boolean
@@ -17356,27 +17359,30 @@ function C_VoiceChat.CanPlayerUseVoiceChat(...) end
 ---@param ... any
 ---@return any status
 function C_VoiceChat.CreateChannel(channelDisplayName, ...) end
----@param channelID? number
+---@param channelID? any
 ---@param ... any
 function C_VoiceChat.DeactivateChannel(channelID, ...) end
----@param channelID? number
+---@param channelID? any
 ---@param ... any
 function C_VoiceChat.DeactivateChannelTranscription(channelID, ...) end
 ---@param ... any
 function C_VoiceChat.EndLocalCapture(...) end
 ---@param ... any
----@return number channelID
+---@return any channelID
 function C_VoiceChat.GetActiveChannelID(...) end
 ---@param ... any
 ---@return any channelType
 function C_VoiceChat.GetActiveChannelType(...) end
+---@param ... any
+---@return any activeVoiceProviderID
+function C_VoiceChat.GetActiveVoiceProviderID(...) end
 ---@param ... any
 ---@return table inputDevices
 function C_VoiceChat.GetAvailableInputDevices(...) end
 ---@param ... any
 ---@return table outputDevices
 function C_VoiceChat.GetAvailableOutputDevices(...) end
----@param channelID? number
+---@param channelID? any
 ---@param ... any
 ---@return any channel
 function C_VoiceChat.GetChannel(channelID, ...) end
@@ -17405,30 +17411,30 @@ function C_VoiceChat.GetJoinClubVoiceChannelError(clubId, ...) end
 ---@param ... any
 ---@return any memberInfo
 function C_VoiceChat.GetLocalPlayerActiveChannelMemberInfo(...) end
----@param channelID? number
+---@param channelID? any
 ---@param ... any
----@return number memberID
+---@return any memberID
 function C_VoiceChat.GetLocalPlayerMemberID(channelID, ...) end
 ---@param ... any
 ---@return number scale
 function C_VoiceChat.GetMasterVolumeScale(...) end
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 ---@return string memberGUID
 function C_VoiceChat.GetMemberGUID(memberID, channelID, ...) end
----@param channelID? number
+---@param channelID? any
 ---@param memberGUID? string
 ---@param ... any
----@return number memberID
+---@return any memberID
 function C_VoiceChat.GetMemberID(channelID, memberGUID, ...) end
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 ---@return any memberInfo
 function C_VoiceChat.GetMemberInfo(memberID, channelID, ...) end
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 ---@return string memberName
 function C_VoiceChat.GetMemberName(memberID, channelID, ...) end
@@ -17472,8 +17478,8 @@ function C_VoiceChat.IsEnabled(...) end
 ---@param ... any
 ---@return boolean isLoggedIn
 function C_VoiceChat.IsLoggedIn(...) end
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 ---@return boolean isLocalPlayer
 function C_VoiceChat.IsMemberLocalPlayer(memberID, channelID, ...) end
@@ -17481,13 +17487,13 @@ function C_VoiceChat.IsMemberLocalPlayer(memberID, channelID, ...) end
 ---@param ... any
 ---@return boolean mutedForMe
 function C_VoiceChat.IsMemberMuted(playerLocation, ...) end
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 ---@return boolean mutedForAll
 function C_VoiceChat.IsMemberMutedForAll(memberID, channelID, ...) end
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 ---@return boolean silenced
 function C_VoiceChat.IsMemberSilenced(memberID, channelID, ...) end
@@ -17522,12 +17528,13 @@ function C_VoiceChat.IsTranscriptionAllowed(...) end
 ---@param ... any
 ---@return boolean connected
 function C_VoiceChat.IsVoiceChatConnected(...) end
----@param channelID? number
+---@param channelID? any
 ---@param ... any
 function C_VoiceChat.LeaveChannel(channelID, ...) end
+---@param channelType? any
 ---@param ... any
 ---@return any status
-function C_VoiceChat.Login(...) end
+function C_VoiceChat.Login(channelType, ...) end
 ---@param ... any
 ---@return any status
 function C_VoiceChat.Logout(...) end
@@ -17542,6 +17549,15 @@ function C_VoiceChat.RequestJoinAndActivateCommunityStreamChannel(clubId, stream
 ---@param autoActivate? boolean
 ---@param ... any
 function C_VoiceChat.RequestJoinChannelByChannelType(channelType, autoActivate, ...) end
+--- Changes the active voice provider to the party voice provider, or to the preferred voice provider when the party has none.
+---@param ... any
+---@return boolean changed
+function C_VoiceChat.RestoreActiveVoiceProvider(...) end
+--- Changes the active voice provider without changing the preferred voice provider.
+---@param voiceProviderID? any
+---@param ... any
+---@return boolean success
+function C_VoiceChat.SetActiveVoiceProvider(voiceProviderID, ...) end
 ---@param communicationMode? any
 ---@param ... any
 function C_VoiceChat.SetCommunicationMode(communicationMode, ...) end
@@ -17576,8 +17592,8 @@ function C_VoiceChat.SetOutputDevice(deviceID, ...) end
 ---@param ... any
 function C_VoiceChat.SetOutputVolume(volume, ...) end
 ---@param textureObject? any
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 function C_VoiceChat.SetPortraitTexture(textureObject, memberID, channelID, ...) end
 ---@param keys? table
@@ -18553,6 +18569,18 @@ function GetGameMessageInfo(gameErrorIndex, ...) end
 ---@return number hour
 ---@return number minute
 function GetGameTime(...) end
+--- If no playerWeaponSkill value is provided, uses the skill value for the player's main hand weapon/shapeshift form.
+---@param playerWeaponSkill? number
+---@param targetDefenseSkill? number
+---@param ... any
+---@return number result
+function GetGlancingBlowChance(playerWeaponSkill, targetDefenseSkill, ...) end
+--- If no playerWeaponSkill value is provided, uses the skill value for the player's main hand weapon/shapeshift form.
+---@param playerWeaponSkill? number
+---@param targetDefenseSkill? number
+---@param ... any
+---@return number result
+function GetGlancingBlowPenalty(playerWeaponSkill, targetDefenseSkill, ...) end
 ---@param ... any
 ---@return number result
 function GetHaste(...) end
