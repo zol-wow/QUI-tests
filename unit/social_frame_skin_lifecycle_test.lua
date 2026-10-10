@@ -295,6 +295,8 @@ local raid = {
     UpdateContents = function() end,
 }
 local raidInfo = NewList()
+raidInfo.Header = { Text = NewFontString("Raid Information") }
+raidInfo.Header.Text:SetTextColor(1, 0.82, 0)
 raidInfo.CloseButton = {}
 raidInfo.ExtendButton = {}
 local ignoreList = NewList()
@@ -411,3 +413,7 @@ assert(calls.hiddenTextures[contactsMenu.Icon],
 assert(calls.hiddenTextures[_G.FriendsFrame.TopTileStreaks]
     and calls.hiddenTextures[_G.FriendsFrameBg],
     "the actual native root top gradient and background must stay suppressed")
+
+assert(raidInfo.Header.Text.textColor[1] == 1 and raidInfo.Header.Text.textColor[2] == 1
+    and raidInfo.Header.Text.textColor[3] == 1,
+    "Raid Information header must use a white window title without recoloring lockout rows")

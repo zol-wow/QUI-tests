@@ -4,7 +4,7 @@ local source = file:read("*a"); file:close()
 local first = assert(source:find("local function GetSpellBookFrame(", 1, true))
 local last = assert(source:find("local function SkinSpellRows(", first, true))
 local chunk = assert(loadstring(source:sub(first, last - 1) .. "\nreturn StyleSpellBookControls"))
-setfenv(chunk, setmetatable({ SkinBase = env.SkinBase }, { __index = _G }))
+setfenv(chunk, setmetatable({ SkinBase = env.SkinBase, IsSettingEnabled = function() return true end }, { __index = _G }))
 local apply = chunk()
 local root = env.NewFrame("Frame")
 local book = env.NewFrame("Frame", nil, root)
@@ -39,7 +39,39 @@ rotation.UpdateDisplay = function(self)
     self.Label:SetWidth(80)
     self.Button.Border:SetAlpha(1)
 end
+local preview = env.NewFrame("Frame", nil, book)
+book.SearchPreviewContainer = preview
+for _, key in ipairs({ "Background", "BorderAnchor", "BotRightCorner", "BottomBorder", "LeftBorder", "RightBorder" }) do
+    preview[key] = preview:CreateTexture(); preview[key]:SetTexture("native-search-chrome")
+end
+local result = env.NewFrame("Button", nil, preview)
+result.Icon = result:CreateTexture(); result.Icon:SetTexture("native-spell"); result.Icon.desaturated = true
+result.IconFrame = result:CreateTexture(); result.HighlightTexture = result:CreateTexture()
+result.Name = result:CreateFontString(); result.Name:SetText("Frost Strike")
+local normal = result:CreateTexture(); result.normalTexture = normal
+local pushed = result:CreateTexture(); result.pushedTexture = pushed; result.GetPushedTexture = function(self) return self.pushedTexture end
+local selected = 0; local selectResult = function() selected = selected + 1 end
+result:SetScript("OnClick", selectResult)
+preview.ScrollBox = { EnumerateFrames = function() local seen = false; return function() if not seen then seen = true; return 1, result end end end }
+preview.UpdateResultsDisplay = function() normal:SetAlpha(1); pushed:SetAlpha(1) end
+local nativeFile = assert(io.open("tests/framexml/Interface/AddOns/Blizzard_PlayerSpells/SpellBook/Blizzard_SpellBookFrame.lua"))
+local nativeSource = nativeFile:read("*a"); nativeFile:close()
+local nativeStart = assert(nativeSource:find("local SEARCH_BOX_MAX_WIDTH", 1, true))
+local nativeEnd = assert(nativeSource:find("-- Expects a PlayerSpellsUtil", nativeStart, true))
+local nativeMixin = {}
+local nativeChunk = assert(loadstring(nativeSource:sub(nativeStart, nativeEnd - 1)))
+setfenv(nativeChunk, setmetatable({ SpellBookFrameMixin = nativeMixin }, { __index = _G }))
+nativeChunk()
+book.CategoryTabSystem = env.NewFrame("Frame", nil, book)
+book.CategoryTabSystem.GetRight = function() return 1027 end
+book.SearchBox = env.NewFrame("EditBox", nil, book)
+book.SearchBox:SetWidth(300)
+book.SearchBox.GetRight = function() return 1242 end
+book.SearchBox.GetLeft = function(self) return self:GetRight() - self:GetWidth() end
+book.ResizeSearchBox = nativeMixin.ResizeSearchBox
 apply(root)
+assert(book.SearchBox:GetLeft() >= book.CategoryTabSystem:GetRight() + 10,
+    "styled header must rerun native search sizing so category tabs cannot cover search input")
 rotation:UpdateDisplay()
 assert(rotation.Label:GetText() == "Single-Button Assistant",
     "native multiline caption must become one complete line")
@@ -54,4 +86,13 @@ assert(rotation.Button.BlackCover:GetAlpha() == 1
     and rotation.Button.Icon.texture == "native-assistant-spell"
     and rotation.Button:GetScript("OnClick") == nativeClick,
     "assistant spell artwork, usability overlay and native action stay intact")
+preview:UpdateResultsDisplay()
+assert(preview.Background:GetAlpha() == 0 and preview.BorderAnchor:GetAlpha() == 0,
+    "search suggestion container must suppress native brown chrome")
+assert(normal:GetAlpha() == 0 and pushed:GetAlpha() == 0 and result.IconFrame:GetAlpha() == 0,
+    "reused search results must suppress native row art")
+assert(result.Icon.texture == "native-spell" and result.Icon.desaturated == true
+    and result:GetScript("OnClick") == selectResult and result.Name:GetText() == "Frost Strike",
+    "search styling preserves spell icon desaturation labels and selection")
+result:GetScript("OnClick")(result); assert(selected == 1)
 print("OK: spellbook_assistant_header_test")

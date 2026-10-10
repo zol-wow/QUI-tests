@@ -2,6 +2,13 @@ local env=dofile("tests/helpers/character_chrome_harness.lua").Build()
 local skin,ns=env.SkinBase,env.ns
 env.profile.general.skinInspectFrame=true;env.profile.character={enabled=false}
 local root=env.NewFrame("Frame");_G.InspectFrame=root;root.CloseButton=false
+local tabs={}
+for i=1,3 do
+ local tab=env.NewFrame("Button","InspectFrameTab"..i,root);_G["InspectFrameTab"..i]=tab
+ tab.Text=tab:CreateFontString();tab.Text:SetText("Native "..i);tab:SetID(i)
+ tab:SetScript("OnClick",function() root.selectedTab=i end);tabs[i]=tab
+end
+root.selectedTab=1
 local model=env.NewFrame("PlayerModel",nil,root);_G.InspectModelFrame=model;model.rotation=0
 local controls=env.NewFrame("Frame",nil,model);model.controlFrame=controls;controls:SetAlpha(.5);controls:Hide()
 local nativeBg=controls:CreateTexture();nativeBg:SetTexture("native-control-panel")
@@ -40,6 +47,28 @@ end
 local click=buttons[1]:GetScript("OnClick");local uv=buttons[1].icon.texCoord[1]
 local setup;skin.OnAddOnLoaded=function(_,fn) setup=fn end
 assert(loadfile(arg[1] or "modules/skinning/frames/inspect.lua"))("QUI",ns);setup()
+local api=_G.QUI_InspectFrameSkinning
+api.SetExtended(true)
+local point=tabs[1].points[1]
+assert(point[1]=="TOPLEFT" and point[2]~=root and point[2]:GetParent()==root and point[3]=="BOTTOMLEFT",
+ "inspect tabs must dock to visible extended chrome rather than shorter native frame")
+local visible=point[2]
+ns.UIKit.RefreshScaleBoundWidgets()
+for _,tab in ipairs(tabs) do
+ local bd=skin.GetBackdrop(tab)
+ local top=bd.points[1]
+ assert(top[1]=="TOPLEFT" and top[2]==tab and top[4]==0 and top[5]==0,
+  "bulk scale refresh must retain full docked tab coverage rather than reapply detached tab insets")
+end
+tabs[2]:Fire("OnClick")
+assert(root.selectedTab==2 and tabs[1].points[1][2]==visible,
+ "native tab click must preserve selection ownership and visible docking")
+tabs[1]:ClearAllPoints();tabs[1]:SetPoint("BOTTOMLEFT",root,"BOTTOMLEFT",15,-81)
+api.RefreshTabs()
+assert(tabs[1].points[1][2]==visible,"pane layout replay must redock tabs to the visible surface")
+api.SetExtended(false)
+assert(tabs[1].points[1][2]==visible and visible.allPoints==root,
+ "normal mode must reuse dock owner at unextended window bounds")
 assert(nativeBg:GetAlpha()==0,"inspect model toolbar must suppress native panel chrome")
 for _,b in ipairs(buttons) do
  assert(skin.GetBackdrop(b) and skin.GetBackdrop(b)._quiRoundedSurface and b.icon:GetAlpha()==1 and b.bg:GetAlpha()==0,

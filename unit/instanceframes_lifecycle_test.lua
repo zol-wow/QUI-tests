@@ -109,6 +109,7 @@ do
         state[frame][key] = value
     end
     function SkinBase.StripTextures() end
+    function SkinBase.SkinFontString() end
     function SkinBase.SkinFrameText() end
     function SkinBase.LockFrameTextObjects() end
     function SkinBase.SkinButton(button)

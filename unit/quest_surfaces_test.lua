@@ -6,6 +6,10 @@ _G.CreateFromMixins = function(...) local result = {}; for _, mixin in ipairs({.
 assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/QuestFrame.lua"))()
 local frame = env.NewFrame("Frame", "QuestFrame")
 _G.QuestFrame = frame
+frame.TitleContainer = {TitleText = frame:CreateFontString()}
+local npcTitle = frame.TitleContainer.TitleText
+function npcTitle:SetFontObject() self:SetTextColor(1, 0.82, 0, 1) end
+npcTitle:SetFontObject("GameFontNormal")
 frame.FriendshipStatusBar = false
 _G.QuestTextContrast = {GetDefaultBackgroundAtlas = function() return "QuestBG-Parchment" end}
 local panels, scrolls = {}, {}
@@ -146,6 +150,9 @@ skin.OnAddOnLoaded = function(name, fn) if name == "Blizzard_UIPanels_Game" then
 ns.Registry = {Register = function(_, key, entry) if key == "skinQuest" then refresh = entry.refresh end end}
 assert(loadfile(arg[1] or "modules/skinning/frames/interaction.lua"))("QUI", ns)
 callback()
+npcTitle:SetFontObject("GameFontNormal")
+assert(npcTitle.textColor[1] == 1 and npcTitle.textColor[2] == 1 and npcTitle.textColor[3] == 1,
+    "native quest title font resets must retain neutral window title color")
 assert(panels[1].Bg:GetAlpha() == 0, "quest inner parchment must be suppressed")
 for _, panel in ipairs(panels) do
     _G.QuestFrame_SetMaterial(panel, "Stone")

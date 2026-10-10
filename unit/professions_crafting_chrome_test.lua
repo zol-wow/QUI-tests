@@ -4,7 +4,9 @@ local file = assert(io.open(os.getenv("QUI_PROFESSIONS_SOURCE") or "modules/skin
 local source = file:read("*a"); file:close()
 local first = assert(source:find("local function StyleProfessionNeutralText(", 1, true) or source:find("local function StyleProfessionTopControls(", 1, true))
 local last = assert(source:find("local function SkinProfessions(", first, true))
-local chunk = assert(loadstring(source:sub(first, last - 1) .. "\nreturn StyleProfessionTopControls"))
+local panelFirst = assert(source:find("local function SkinSubPanel(", 1, true))
+local panelLast = assert(source:find("local function SkinTabs(", panelFirst, true))
+local chunk = assert(loadstring(source:sub(panelFirst, panelLast - 1) .. source:sub(first, last - 1) .. "\nreturn StyleProfessionTopControls"))
 setfenv(chunk, setmetatable({ SkinBase = env.SkinBase, IsEnabled = function() return true end }, { __index = _G }))
 local apply = chunk()
 local function Frame(kind, parent)
@@ -77,6 +79,24 @@ root.OrdersPage = { BrowseFrame = {
     OrderList = { ResultsText = root:CreateFontString() },
 } }
 local view = Frame("Frame", root)
+local header = Frame("Button", root)
+header.Left, header.Middle, header.Right = header:CreateTexture(), header:CreateTexture(), header:CreateTexture()
+header.Arrow = header:CreateTexture()
+header.Arrow:SetTexture("native-sort-arrow")
+header:SetScript("OnClick", action)
+root.OrdersPage.tableBuilder = {}
+root.OrdersPage.tableBuilder.EnumerateHeaders = function()
+    local emitted = false
+    return function() if not emitted then emitted = true; return header end end
+end
+root.OrdersPage.SetupTable = function()
+    header.Left:SetAlpha(1); header.Middle:SetAlpha(1); header.Right:SetAlpha(1)
+end
+local remaining = Frame("Frame", root)
+remaining.Background = remaining:CreateTexture()
+remaining.OrdersRemaining = remaining:CreateFontString()
+remaining.OrdersRemaining:SetTextColor(1, .1, .1)
+root.OrdersPage.BrowseFrame.OrdersRemainingDisplay = remaining
 root.OrdersPage.OrderView = view
 view.OrderInfo = Frame("Frame", view)
 view.OrderInfo.BackButton = Frame("Button", view.OrderInfo)
@@ -160,3 +180,12 @@ local linkPoint, linkRelative, linkRelativePoint, linkX = page.LinkButton:GetPoi
 assert(linkPoint == "LEFT" and linkRelative == page.RankBar.ExpansionDropdownButton
     and linkRelativePoint == "RIGHT" and linkX == 8,
     "link action must stay clear of the expansion button")
+root.OrdersPage:SetupTable()
+assert(header.Left:GetAlpha() == 0 and header.Middle:GetAlpha() == 0 and header.Right:GetAlpha() == 0,
+    "rebuilt order headers must suppress native beveled strips")
+assert(header.Arrow.texture == "native-sort-arrow" and header:GetScript("OnClick") == action,
+    "order sorting arrows and native handlers must survive header restyling")
+assert(remaining.Background:GetAlpha() == 0 and env.SkinBase.GetBackdrop(remaining)._quiRoundedSurface,
+    "remaining orders must use rounded QUI panel chrome")
+assert(select(2, remaining.OrdersRemaining:GetTextColor()) == .1,
+    "order quota warning color must remain native")

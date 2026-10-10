@@ -81,7 +81,7 @@ for _, needle in ipairs({
     "local function SkinSendMailControls()",
     "SkinBase.SkinEditBox(_G.SendMailNameEditBox)",
     "SkinBase.SkinEditBox(_G.SendMailSubjectEditBox)",
-    "SkinBase.SkinEditBox(_G.SendMailBodyEditBox)",
+    "SkinBase.SkinFontString(_G.SendMailBodyEditBox)",
     "SkinBase.SkinButton(_G.SendMailCancelButton",
     "SkinBase.SkinButton(_G.SendMailMailButton",
     -- Send-money / C.O.D. are RADIO CheckButtons — canonical checkbox/radio verb,
