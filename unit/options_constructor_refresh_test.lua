@@ -50,7 +50,7 @@ end
 
 local ns = {
     L = setmetatable({}, { __index = function(_, key) return key end }),
-    Helpers = { ApplyFontWithFallback = noop },
+    Helpers = { ApplyFontWithFallback = noop, AssetPath = "Interface\\AddOns\\QUI\\assets\\" },
 }
 local env = setmetatable({ QUI = {}, CreateFrame = node }, { __index = _G })
 setfenv(assert(loadfile("core/theme.lua")), env)("QUI", ns)
@@ -64,6 +64,21 @@ env._G = { QUI_RefreshStatusTrackingBarSkin = function() statusRefreshes = statu
 env.QUI.QUICore = { db = { profile = { general = { themePreset = "Horde" } } } }
 env.GUI, env.C, env.ns = gui, gui.Colors, ns
 env.UIKit = { CreateBackground = node, CreateBorderLines = noop, UpdateBorderLines = noop, CreateCloseButton = noop }
+ns.UIKit = env.UIKit
+local roundedRadii = {}
+local scaleRefreshes = 0
+env.UIKit.QueueScaleRefresh = function(ticks)
+    assert(ticks == 2, "panel scale changes use the existing two-frame scale refresh")
+    scaleRefreshes = scaleRefreshes + 1
+end
+env.UIKit.Pixels = function(value) return value end
+env.UIKit.CreateRoundedSurface = function(parent, options)
+    roundedRadii[#roundedRadii + 1] = options.radius
+    local background = node(nil, nil, parent)
+    background:SetVertexColor(unpack(options.bgColor or {0, 0, 0, 1}))
+    parent.background = background
+    return { background = background }
+end
 env.UIParent, env.UISpecialFrames = node(), {}
 env.C_AddOns = { GetAddOnMetadata = function() return "test" end }
 env.SetFont, env.GetFontPath = noop, noop
@@ -86,11 +101,22 @@ setfenv(assert(loadstring(source:sub(first, last - 1))), env)()
 
 local frame = gui:CreateMainFrame()
 assert(frame.sidebar and frame.contentArea and frame.resizeHandle, "constructor must finish building the window")
+assert(#roundedRadii == 8 and roundedRadii[1] == 12 and roundedRadii[2] == 4 and roundedRadii[3] == 6
+    and roundedRadii[4] == 4 and roundedRadii[5] == 6 and roundedRadii[6] == 10 and roundedRadii[7] == 10 and roundedRadii[8] == 10, "window and Theme/Language controls use native rounded surfaces")
 assert(refreshes == 0 and statusRefreshes == 0 and #timers == 0,
     "building options must not refresh unrelated gameplay skins, synchronously or later")
 local r, g, b = gui:ResolveThemePreset("Horde")
 assert(gui.Colors.accent[1] == r and gui.Colors.accent[2] == g and gui.Colors.accent[3] == b,
     "building options must retain the saved theme")
+for _, object in ipairs(nodes) do
+    if object.scripts.OnValueChanged then
+        object.scripts.OnValueChanged(object, 1.2)
+        assert(frame.scale == 1.2 and scaleRefreshes == 1,
+            "the actual panel scale control refreshes scale-sensitive preview geometry")
+        break
+    end
+end
+assert(scaleRefreshes == 1, "constructor must expose its real panel scale callback")
 
 local function clickLabel(text)
     for _, object in ipairs(nodes) do
@@ -117,4 +143,38 @@ frame:Show()
 gui:OnFontChanged()
 assert(rebuilds == 1 and refreshes == 2 and statusRefreshes == 2,
     "font edits with options open must still update gameplay skins and their private font objects")
+local function assertPanelOpacity(panel, expected)
+    local base = panel._bg.color[4]
+    assert(base == expected, "panel creation must restore saved background opacity")
+    local layers = {
+        {panel.sidebar.background},
+        {panel.contentArea.background, panel.contentArea._accentGlow},
+    }
+    for _, object in ipairs(nodes) do
+        if object.parent == panel.subTabBar and object.color and not object.width and not object.height then
+            layers[#layers + 1] = {object}
+        end
+    end
+    assert(#layers == 3, "opacity regression must include the subtab background")
+    for _, overlays in ipairs(layers) do
+        local opacity = base
+        for _, overlay in ipairs(overlays) do
+            opacity = 1 - (1 - opacity) * (1 - overlay.color[4])
+        end
+        assert(math.abs(opacity - expected) < 1e-12,
+            "overlapping panel backgrounds must not increase the configured opacity")
+    end
+    assert(panel.alpha == nil, "background opacity must not fade text and controls")
+end
+assertPanelOpacity(frame, 0.97)
+for _, saved in ipairs({0.3, 0.65, 0.97, 1}) do
+    gui.MainFrame = nil
+    env.QUI.QUICore.db.profile.configPanelAlpha = saved
+    local reloaded = gui:CreateMainFrame()
+    assertPanelOpacity(reloaded, saved)
+    for _, live in ipairs({0.3, 0.65, 0.97, 1}) do
+        reloaded._bg:SetVertexColor(unpack({gui.Colors.optionsWindow[1], gui.Colors.optionsWindow[2], gui.Colors.optionsWindow[3], live}))
+        assertPanelOpacity(reloaded, live)
+    end
+end
 print("PASS options_constructor_refresh_test")

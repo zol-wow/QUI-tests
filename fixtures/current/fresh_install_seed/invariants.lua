@@ -15,8 +15,9 @@ return {
         name = "themePreset seeded to Starter Profile value (not legacy default)",
         assert = function(sv, ctx)
             local p = sv.QUI_DB.profiles.Default
-            -- seed = "Sky Blue"; core/defaults.lua = "Horde"
-            return p.themePreset == "Sky Blue"
+            return p.themePreset == "Satin Gold"
+                and p.general.themePreset == "Satin Gold"
+                and sv.QUI_DB.global._shippedProfileDefaults.general.visualStyle == "Satin"
         end,
     },
     {

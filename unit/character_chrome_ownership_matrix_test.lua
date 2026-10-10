@@ -100,7 +100,7 @@ do
     local shell = env.Chrome.EnsureShell({ extended = true })
     check("off/on: EnsureShell builds the fallback shell", shell ~= nil and shell.name == "QUI_CharacterFrameBg_Skin")
     check("off/on: fallback shell reaches past the frame",
-        shell and shell.points[2] and shell.points[2][4] == 55 and shell.points[2][5] == -50)
+        shell and shell.points[2] and shell.points[2][4] == 595 and shell.points[2][5] == -82)
     check("off/on: fallback shell carries the skin bg colour",
         shell and env.BgColor(shell) and approx(env.BgColor(shell)[1], env.colors[5]))
     check("off/on: native stats pane masked for the enhancement", CharacterStatsPane:GetAlpha() == 0)
@@ -187,9 +187,9 @@ do
 
     local shell = env.Chrome.SetExtended(true)
     check("on/on: SetExtended(true) reaches past the frame",
-        shell and shell.points[2] and shell.points[2][4] == 55)
+        shell and shell.points[2] and shell.points[2][4] == 595)
     env.Chrome.SetExtended(false)
-    check("on/on: SetExtended(false) hugs the frame", shell.allPoints == cf)
+    check("on/on: mode changes preserve the extended shell", shell.points[2][3] == "BOTTOMLEFT")
     check("on/on: close button skinned", env.SkinBase.GetFrameData(cf.CloseButton, "closeLabel") ~= nil)
 end
 

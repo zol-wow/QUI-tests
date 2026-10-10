@@ -27,6 +27,9 @@ local function NewTexture()
     function t:Hide() self.visible = false end
     function t:IsShown() return self.visible end
     function t:IsObjectType(objType) return objType == "Texture" end
+    function t:SetSize(w, h) self.width, self.height = w, h end
+    function t:SetTexCoord(...) self.texCoord = {...} end
+    function t:SetShown(v) if v then self:Show() else self:Hide() end end
     return t
 end
 
@@ -61,6 +64,10 @@ local function NewFrame(parent)
     function f:SetHighlightFontObject(fontObject) self.highlightFontObject = fontObject end
     function f:SetDisabledFontObject(fontObject) self.disabledFontObject = fontObject end
     function f:IsEnabled() return self.enabled end
+    function f:GetWidth() return self.width or 100 end
+    function f:GetHeight() return self.height or 100 end
+    function f:GetLeft() return 0 end
+    function f:GetBottom() return 0 end
     return f
 end
 
@@ -111,7 +118,7 @@ local ns = {
     SafeCall = function(_policy, fn, ...) return pcall(fn, ...) end,
     SafeCallMethod = function(_policy, obj, name, ...) return pcall(function(...) return obj[name](obj, ...) end, ...) end,
     SafeCallMethodIfPresent = function(_policy, obj, name, ...) if obj == nil then return nil end local okP, m = pcall(function() return obj[name] end) if not okP then return false end if m == nil then return nil end return pcall(m, obj, ...) end,
-    Helpers = {
+    Helpers = { AssetPath = [[Interface\AddOns\QUI\assets\]],
         CHROME = { BORDER_PX = 1, BG_FALLBACK = { 0.05, 0.05, 0.05, 0.95 }, BORDER_FALLBACK = { 0, 0, 0, 1 }, BUTTON_BOOST = 0.07, SCROLLROW_BOOST = 0.03, DEPTH = { PANEL = { boost = 0, alpha = 0.95 }, SUBPANEL = { boost = 0.04, alpha = 0.85 }, ROW = { boost = 0.07, alpha = 0.75 } } },
         CreateStateTable = function()
             local tbl = setmetatable({}, { __mode = "k" })
@@ -414,10 +421,10 @@ SkinBase.SkinTabGroup({ tabA, tabB }, owner, { hover = true })
 assert(SkinBase.IsStyled(tabA), "SkinTabGroup must skin each tab")
 assert(SkinBase.GetFrameData(tabA, "qTabHoverHooked"), "hover tabs must be hover-hooked")
 
--- Selected tab (tabID 1) gets full border alpha; unselected gets dimmed border
+-- Selection uses the underline while both tabs retain matching chrome
 local bdA = SkinBase.GetBackdrop(tabA)
 local bdB = SkinBase.GetBackdrop(tabB)
-assert(bdA._quiBorderA == 1, "selected tab must use full border alpha")
+assert(bdA._quiBorderA == bdB._quiBorderA, "selected and unselected tabs must use matching border alpha")
 assert(math.abs(bdB._quiBorderA - (1 * 0.6)) < 1e-9, "unselected tab must use dimmed border alpha")
 
 -- Hover actually runs: enter brightens the border, leave restores the
@@ -432,7 +439,7 @@ skinColors = { 0.2, 0.3, 0.4, 1, 0.05, 0.06, 0.07, 0.9 }
 SkinBase.RefreshTabGroup({ tabA, tabB }, owner)
 local scA = SkinBase.GetFrameData(tabA, "skinColor")
 assert(scA[1] == 0.2, "RefreshTabGroup must re-store tab skinColor")
-assert(SkinBase.GetBackdrop(tabA)._quiBorderR == 0.2, "RefreshTabGroup must recolor selected tab border")
+assert(SkinBase.GetBackdrop(tabA)._quiBorderR == 0.1, "RefreshTabGroup must recolor the neutral tab border")
 
 local anonymousA = NewFrame()
 local anonymousB = NewFrame()
@@ -463,7 +470,7 @@ assert(anonymousA:GetWidth() == 120 and anonymousB:GetWidth() == 136 and anonymo
     "text-fit PanelTabs must replay Blizzard's native min/max sizing after the QUI font is applied")
 assert(not anonymousA.Text:IsTruncated() and not anonymousB.Text:IsTruncated() and anonymousC.Text:IsTruncated(),
     "text-fit PanelTabs must preserve Blizzard's native maximum width")
-assert(anonymousBdA._quiBorderA == 1 and math.abs(anonymousBdB._quiBorderA - 0.6) < 1e-9,
+assert(SkinBase.GetFrameData(anonymousA, "tabUnderline"):IsShown() and not SkinBase.GetFrameData(anonymousB, "tabUnderline"):IsShown(),
     "ID-less PanelTabs must use the owner's selected array index")
 -- Palette ladder: white text, state by alpha (selected 1.0 / unselected 0.55).
 assert(anonymousA.Text.textColor[1] == 1 and anonymousA.Text.textColor[4] == 1
@@ -471,7 +478,7 @@ assert(anonymousA.Text.textColor[1] == 1 and anonymousA.Text.textColor[4] == 1
     "selected and inactive PanelTabs must use distinct text alphas (white 1.0 vs white 0.55)")
 anonymousOwner.selectedTab = 2
 anonymousB.scripts.OnClick(anonymousB)
-assert(math.abs(anonymousBdA._quiBorderA - 0.6) < 1e-9 and anonymousBdB._quiBorderA == 1,
+assert(not SkinBase.GetFrameData(anonymousA, "tabUnderline"):IsShown() and SkinBase.GetFrameData(anonymousB, "tabUnderline"):IsShown(),
     "ID-less PanelTabs must repaint when selection changes")
 assert(math.abs(anonymousA.Text.textColor[4] - 0.55) < 1e-9 and anonymousB.Text.textColor[4] == 1,
     "PanelTab text alphas must follow the selected tab")
@@ -496,14 +503,14 @@ function artTab:UpdateTabWidth() self.widthUpdates = (self.widthUpdates or 0) + 
 artTab:SetTabSelected(true)
 SkinBase.SkinTab(artTab, NewFrame())
 local artBd = SkinBase.GetBackdrop(artTab)
-assert(artBd._quiBorderA == 1 and artTab.Text.textColor[4] == 1,
+assert(SkinBase.GetFrameData(artTab, "tabUnderline"):IsShown() and artTab.Text.textColor[4] == 1,
     "Art-template tabs must read their native isSelected state")
 assert(artTab.widthUpdates > 0, "TabSystem tabs must be remeasured after their font is applied")
 local widthUpdatesBeforeSelection = artTab.widthUpdates
 artTab:SetTabSelected(false)
 assert(artTab.widthUpdates > widthUpdatesBeforeSelection,
     "TabSystem tabs must be remeasured after their selected state changes")
-assert(math.abs(artBd._quiBorderA - 0.6) < 1e-9 and math.abs(artTab.Text.textColor[4] - 0.55) < 1e-9,
+assert(not SkinBase.GetFrameData(artTab, "tabUnderline"):IsShown() and math.abs(artTab.Text.textColor[4] - 0.55) < 1e-9,
     "Art-template tabs must repaint after SetTabSelected")
 
 -- SkinTab (single tab, pooled-tab use) skins + hover-hooks

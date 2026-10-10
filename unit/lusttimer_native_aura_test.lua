@@ -123,6 +123,8 @@ local ns = {
             fontString:SetFont(path, size, flags)
         end,
         GetGeneralFont = function() return "Fonts\\FRIZQT__.TTF" end,
+        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
+        GetWindowColors = function() return 0, 0, 0, 1, 0.05, 0.05, 0.05, 0.95 end,
         GetSkinBorderColor = function() return 0, 0, 0, 1 end,
         BorderRegistry = { Register = function() end },
     },

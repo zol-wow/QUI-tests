@@ -115,7 +115,7 @@ ns.SkinBase = {
         end
         data[key] = value
     end,
-    GetSkinColors = function()
+    GetWindowColors = function()
         return 0.1, 0.2, 0.3, 1, 0.05, 0.06, 0.07, 0.88
     end,
     IsSkinned = function(frame)
@@ -167,6 +167,12 @@ ns.SkinBase = {
         capturedCallbacks[addon] = callback
     end,
 }
+
+ns.SkinBase.SkinFontString = function() end
+ns.SkinBase.ApplyChromeBackdrop = function(frame, opts)
+    ns.SkinBase.ApplyPixelBackdrop(frame, 1, true, false, opts.borderColor, opts.bgColor)
+end
+ns.SkinBase.RoundBarTexture = function() end
 
 assert(loadfile("modules/skinning/frames/worldmap.lua"))("QUI", ns)
 -- worldmap.lua registers several addon-loaded callbacks (WorldMap, FlightMap);

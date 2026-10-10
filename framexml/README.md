@@ -31,9 +31,10 @@ branch has the intended patch, rather than assuming `live` or `ptr` is newer.
 
 ## Current snapshot
 
-- **Patch:** 12.1.0.69933 (Midnight 12.1)
-- **Source branch:** `live` (Gethe/wow-ui-source)
-- **Vendored on:** 2026-09-25
+- **Patch:** 12.1.5.70077 (Midnight 12.1.5 PTR)
+- **Source branch:** `ptr2` (Gethe/wow-ui-source)
+- **Source commit:** `07ac548d7185832674fbd886ed243146b096c4fd`
+- **Vendored on:** 2026-09-30
 
 The exact patch version is recorded in `version.txt` at the root of this
 directory and should always match the snapshot.
@@ -45,7 +46,7 @@ When WoW patches, FrameXML files change. To refresh:
 ```sh
 # From repo root; choose the branch after comparing its version.txt values.
 stage_dir=$(mktemp -d /tmp/qui-wow-ui-source.XXXXXX)
-git clone --depth 1 --branch live https://github.com/Gethe/wow-ui-source.git "$stage_dir"
+git clone --depth 1 --branch ptr2 https://github.com/Gethe/wow-ui-source.git "$stage_dir"
 rsync -a --delete "$stage_dir/Interface/" tests/framexml/Interface/
 rsync -a --delete --exclude='README.md' --exclude='*.toc' \
   "$stage_dir/Interface/AddOns/Blizzard_APIDocumentationGenerated/" \

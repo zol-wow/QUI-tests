@@ -188,4 +188,47 @@ assert(closeBankCalls == callsBeforeLatchedRevert,
     "Revert must not re-send a close already in flight (closing latch)")
 assert(BankTakeover.IsLive() == false, "Revert must clear live even with a close in flight")
 
+local registrations = {}
+Enum.PlayerInteractionType = { Banker = 99 }
+Enum.PlayerInteractionType.CharacterBanker = 100
+Enum.PlayerInteractionType.AccountBanker = 101
+RegisterPlayerInteraction = function(kind, info) registrations[kind] = info end
+BankFrame_Open = function() error("Forever must not run the hidden native opener") end
+C_Bank.ShouldUsePlayerBagsInBank = function() return true end
+BankTakeover.Suppress()
+for _, kind in ipairs({ "Banker", "CharacterBanker", "AccountBanker" }) do
+    local info = assert(registrations[Enum.PlayerInteractionType[kind]])
+    assert(info.frame == "BankFrame" and info.showFunc == BankTakeover.OnBankOpened)
+    assert(info.hideFunc == BankTakeover.OnBankClosed)
+end
+local opensBefore = #openLog
+registrations[Enum.PlayerInteractionType.Banker].showFunc()
+BankTakeover.OnBankOpened()
+assert(BankTakeover.IsLive() and #openLog == opensBefore + 1,
+    "interaction and BANKFRAME_OPENED must open the custom bank only once")
+local closesBefore = closeBankCalls
+BankTakeover.UserClosedWindow()
+BankTakeover.UserClosedWindow()
+assert(closeBankCalls == closesBefore + 1)
+registrations[Enum.PlayerInteractionType.Banker].hideFunc()
+BankTakeover.OnBankClosed()
+assert(not BankTakeover.IsLive())
+BankTakeover.Revert()
+for _, kind in ipairs({ "Banker", "CharacterBanker", "AccountBanker" }) do
+    local info = registrations[Enum.PlayerInteractionType[kind]]
+    assert(info.showFunc == _G.BankFrame_Open and info.hideFunc == nil,
+        "disabling QUI must restore the native interaction handlers")
+end
+assert(bankFrame:GetScript("OnShow") == origOnShow and bankFrame:GetScript("OnHide") == origOnHide
+    and bankFrame:GetParent() == "UIParent")
+
+ns.Helpers = { CreateDBGetter = function()
+    return function() return { behavior = { autoDepositReagents = true } } end
+end }
+assert(loadfile("QUI_Bags/bags/ops/shared.lua"))("QUI", ns)
+assert(loadfile("QUI_Bags/bags/ops/transfers.lua"))("QUI", ns)
+C_Timer = { After = function(_, callback) callback() end }
+ns.Bags.Transfers.DepositReagents = function() error("native bank must not auto-deposit via QUI") end
+ns.Bags.Transfers.AutoDepositReagentsOnOpen()
+
 print("OK: bags_bank_takeover_test")

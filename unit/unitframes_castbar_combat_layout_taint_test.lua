@@ -196,6 +196,9 @@ EventRegistry = { RegisterCallback = noop }
 local ns = { Helpers = {}, Addon = {} }
 local pixelScale = 1
 ns.Helpers.IsSecretValue = function() return false end
+ns.Helpers.ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end
+ns.Helpers.ApplyTextureStyle = function(_, texture, path) texture:SetTexture(path) end
+ns.Helpers.ApplyIconStyle = function() end
 ns.Helpers.SafeValue = function(value) return value end
 ns.Helpers.EnsureDefaults = function(tbl, defaults)
     for key, value in pairs(defaults) do

@@ -25,7 +25,7 @@ end
 check("Resource Bars header matches the CDM Live Preview treatment",
     driver:find('lbl:SetText(ns.L["Live Preview"])', 1, true) ~= nil
     and driver:find("lbl:SetTextColor(0.6, 0.6, 0.6, 1)", 1, true) ~= nil
-    and driver:find("SkinBase.SkinFontString(lbl, { fontOnly = true })", 1, true) ~= nil
+    and driver:find("font = GUI and GUI:GetFontPath()", 1, true) ~= nil
     and driver:find('ns.L["PREVIEW"]', 1, true) == nil)
 
 check("tile height remains an initial budget while the driver owns auto-fit",

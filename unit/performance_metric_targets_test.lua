@@ -2,11 +2,12 @@
 -- Run: lua tests/unit/performance_metric_targets_test.lua
 
 local function noop() end
+local regions = {}
 
 local function makeRegion()
-    return {
+    local region = {
         SetPoint = noop,
-        SetText = noop,
+        SetText = function(self, text) self.text = text end,
         SetTextColor = noop,
         SetHeight = noop,
         SetWidth = noop,
@@ -15,6 +16,8 @@ local function makeRegion()
         Hide = noop,
         Show = noop,
     }
+    regions[#regions + 1] = region
+    return region
 end
 
 local function makeFrame()
@@ -152,5 +155,42 @@ _G.QUI_TogglePerfMonitor()
 
 assert(perf.GetCPUAPITier() == "profiler",
     "opening the load-on-demand perf monitor should detect the CPU profiler API")
+
+local function countText(text)
+    local count = 0
+    for _, region in ipairs(regions) do
+        if region.text == text then count = count + 1 end
+    end
+    return count
+end
+
+assert(countText("Configured script throttle limits:") == 1,
+    "throttle budgets must be labeled as configuration, not usage")
+assert(countText("Unavailable") == 2,
+    "clients without throttle limit reporting should show unavailable budgets")
+
+local limitReads = 0
+function GetScriptBucketThrottleLimits()
+    limitReads = limitReads + 1
+    return {
+        luaScriptBucketThrottleMaxMsPerSecondNormal = 125.5,
+        luaScriptBucketThrottleMaxMsPerSecondRestricted = 6.25,
+        luaScriptBucketThrottleMaxMsBurstNormal = 8.5,
+        luaScriptBucketThrottleMaxMsBurstRestricted = 1.75,
+    }
+end
+_G.QUI_TogglePerfMonitor()
+_G.QUI_TogglePerfMonitor()
+assert(limitReads == 1, "opening the monitor should read the configured limits")
+assert(countText("125.5 ms/s; 8.5 ms burst") == 1,
+    "normal sustained and burst budgets should retain their units and values")
+assert(countText("6.25 ms/s; 1.75 ms burst") == 1,
+    "restricted budgets should be reported separately from normal budgets")
+
+GetScriptBucketThrottleLimits = function() error("unavailable") end
+_G.QUI_TogglePerfMonitor()
+_G.QUI_TogglePerfMonitor()
+assert(countText("Unavailable") == 2,
+    "a failed API read should clear the previous limits without breaking the monitor")
 
 print("OK: performance_metric_targets_test")

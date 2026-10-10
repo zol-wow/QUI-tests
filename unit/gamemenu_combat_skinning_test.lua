@@ -208,8 +208,9 @@ local ns = {
     },
     SkinBase = {
         CHROME = { BUTTON_BOOST = 0.07 },
+        GetWindowColors = function() return 0.2, 0.6, 1, 1, 0.02, 0.02, 0.02, 0.95 end,
         GetSkinColors = function() return 0.2, 0.6, 1, 1, 0.02, 0.02, 0.02, 0.95 end,
-        ApplyFullBackdrop = function() backdropApplications = backdropApplications + 1 end,
+        ApplyChromeBackdrop = function() backdropApplications = backdropApplications + 1 end,
         SkinFontString = function(fs) fontStringSkins[#fontStringSkins + 1] = fs end,
         SkinFrameText = function() end,
         -- Canonical tier-3 label-font path: drives the button's per-state font OBJECTS

@@ -30,6 +30,9 @@ local function NewTexture()
     function t:Hide() self.visible = false end
     function t:IsShown() return self.visible end
     function t:IsObjectType(o) return o == "Texture" end
+    function t:SetSize(w, h) self.width, self.height = w, h end
+    function t:SetTexCoord(...) self.texCoord = {...} end
+    function t:SetShown(v) if v then self:Show() else self:Hide() end end
     return t
 end
 
@@ -54,6 +57,10 @@ local function NewFrame()
     function f:GetNormalTexture() return nil end
     function f:GetFontString() self._fs = self._fs or NewFontString(13); return self._fs end
     function f:HookScript() end
+    function f:GetWidth() return self.width or 100 end
+    function f:GetHeight() return self.height or 100 end
+    function f:GetLeft() return 0 end
+    function f:GetBottom() return 0 end
     return f
 end
 
@@ -85,7 +92,7 @@ end
 local generalFont = "Interface\\QUIFont.ttf"
 
 local ns = {
-    Helpers = {
+    Helpers = { AssetPath = [[Interface\AddOns\QUI\assets\]],
         CHROME = { BORDER_PX = 1, BG_FALLBACK = { 0.05, 0.05, 0.05, 0.95 }, BORDER_FALLBACK = { 0, 0, 0, 1 }, BUTTON_BOOST = 0.07, SCROLLROW_BOOST = 0.03, DEPTH = { PANEL = { boost = 0, alpha = 0.95 }, SUBPANEL = { boost = 0.04, alpha = 0.85 }, ROW = { boost = 0.07, alpha = 0.75 } } },
         CreateStateTable = CreateStateTable,
         GetCore = function() return { GetPixelSize = function() return 0.5 end,
@@ -205,6 +212,7 @@ assert(editBox.font == generalFont, "LockFontObject must survive EditBox SetFont
 do
     local ns2 = {
         Helpers = {
+            AssetPath = ns.Helpers.AssetPath,
             CHROME = ns.Helpers.CHROME,
             CreateStateTable = CreateStateTable,
             GetCore = function()

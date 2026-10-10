@@ -55,6 +55,7 @@ local function makeFrame()
         self.justifyH = "CENTER"
     end
     function f:SetJustifyH(value) self.justifyH = value end
+    function f:SetIndentedWordWrap() end
     function f:SetFading(v) self.fading = v end
     function f:SetTimeVisible(v) self.timeVisible = v end
     function f:SetMaxLines(n) self.maxLines = n end
@@ -78,10 +79,16 @@ local function makeFrame()
     return f
 end
 
-assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_ChatFrameBase/Shared/ChatFrame.lua"))()
-assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanelTemplates/Shared/UIPanelTemplatesShared.lua"))()
+local framexmlRoot = (arg and arg[1]) or "tests/framexml"
+local addonRoot = framexmlRoot .. "/Interface/AddOns/"
+assert(loadfile(addonRoot .. "Blizzard_ChatFrameBase/Shared/ChatFrame.lua"))()
+assert(loadfile(addonRoot .. "Blizzard_ChatFrameBase/Mainline/ChatFrameOverrides.lua"))()
+assert(loadfile(addonRoot .. "Blizzard_UIPanelTemplates/Shared/UIPanelTemplatesShared.lua"))()
+Settings = { SetOnValueChangedCallback = function() end }
+ScrollUtil = { InitScrollingMessageFrameWithScrollBar = function() end }
+GetCVarBool = function() return true end
 
-local xmlFile = assert(io.open("tests/framexml/Interface/AddOns/Blizzard_UIPanelTemplates/Mainline/UIPanelTemplates.xml"))
+local xmlFile = assert(io.open(addonRoot .. "Blizzard_UIPanelTemplates/Mainline/UIPanelTemplates.xml"))
 local inlineTemplate = assert(xmlFile:read("*a"):match('<Frame name="InlineHyperlinkFrameTemplate".-</Frame>'))
 xmlFile:close()
 
@@ -92,6 +99,8 @@ function _G.CreateFrame(ftype, name, parent, template)
     f.ftype, f.name, f.parent = ftype, name, parent
     for inherited in (template or ""):gmatch("[^, ]+") do
         if inherited == "ChatFrameTemplate" then
+            f.ScrollBar = makeFrame()
+            f.scripts.OnLoad = _G.ChatFrameMixin.OnLoad
             for _, script in ipairs({ "OnHyperlinkClick", "OnHyperlinkEnter", "OnHyperlinkLeave" }) do
                 f.scripts[script] = _G.ChatFrameMixin[script]
             end
@@ -101,6 +110,7 @@ function _G.CreateFrame(ftype, name, parent, template)
             end
         end
     end
+    if f.scripts.OnLoad then f.scripts.OnLoad(f) end
     frames[#frames + 1] = f
     createdFrameCount = createdFrameCount + 1
     if name then _G[name] = f end
@@ -489,7 +499,7 @@ assert(smf1.fading == false, "fade re-disabled: SetFading(false) called")
 
 do
     ChatFrameConstants = { MaxRememberedWhisperTargets = 10 }
-    assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_ChatFrameBase/Shared/ChatFrameUtil.lua"))()
+    assert(loadfile(addonRoot .. "Blizzard_ChatFrameBase/Shared/ChatFrameUtil.lua"))()
     local hoverEvent, hoverFrame
     EventRegistry = { TriggerEvent = function(_, event, source)
         hoverEvent, hoverFrame = event, source

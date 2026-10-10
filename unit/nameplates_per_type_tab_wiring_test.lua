@@ -20,6 +20,9 @@ local function NewMockFontString()
     function fs:SetText(t) self._text = t end
     function fs:GetText() return self._text end
     function fs:SetTextColor() end
+    function fs:SetWidth(w) self._width = w end
+    function fs:SetHeight(h) self._height = h end
+    function fs:SetWordWrap() end
     function fs:GetStringHeight() return 14 end
     return fs
 end

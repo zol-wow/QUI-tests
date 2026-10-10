@@ -13,12 +13,21 @@ local function NewRegion(parent)
         SetParent = function(self, p) self._parent = p end,
         GetParent = function(self) return self._parent end,
         SetAllPoints = noop, SetPoint = noop, ClearAllPoints = noop,
-        SetSize = noop, SetWidth = noop,
+        SetSize = function(self, w, h) self._w, self._h = w, h end,
+        SetWidth = function(self, w) self._w = w end,
         SetHeight = function(self, h) self._h = h end,
         GetTop = function(self) return self._top end,
         GetBottom = function(self) return self._bottom end,
         GetLeft = function(self) return self._left end,
         GetRight = function(self) return self._right end,
+        GetEffectiveScale = function(self)
+            local parent = self._parent
+            return (self._scale or 1) * (self._ignoreParentScale and 1
+                or (parent and parent:GetEffectiveScale() or 1))
+        end,
+        IsVisible = function(self)
+            return self._shown and (not self._parent or self._parent:IsVisible())
+        end,
         GetAlpha = function(self) return self._alpha end,
         SetColorTexture = noop, SetVertexColor = noop,
         SetAtlas = function(self, atlas) self._atlas = atlas end,
@@ -32,7 +41,8 @@ local function NewRegion(parent)
         SetText = function(self, t) self._text = t end,
         SetFormattedText = function(self, fmt, ...) self._text = string.format(fmt, ...) end,
         SetTextColor = function(self, r, g, b) self._color = { r, g, b } end,
-        SetFont = noop,
+        SetFont = function(self, ...) self._font = { ... }; return true end,
+        GetFont = function(self) return unpack(self._font or {}) end,
         SetJustifyH = noop,
     }
 end
@@ -51,7 +61,8 @@ local function NewFrame(parent)
     f.SetFrameLevel = noop
     f.GetFrameLevel = function() return 1 end
     f.SetScale = function(self, s) self._scale = s end
-    f.SetIgnoreParentScale = noop
+    f.GetScale = function(self) return self._scale or 1 end
+    f.SetIgnoreParentScale = function(self, ignore) self._ignoreParentScale = ignore end
     f.SetShown = function(self, s) if s then self:Show() else self:Hide() end end
     f.IsShown = function(self) return self._shown end
     f.GetWidth = function(self) return self._w or 700 end
@@ -127,7 +138,10 @@ local function SetFriendlyLook(mode)
 end
 
 local ns = {
-    Helpers = {
+   Helpers = {
+        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
+        ApplyTextureStyle = function(_, texture, path) texture:SetTexture(path) end,
+        ApplyIconStyle = function() end,
         IsSecretValue = function() return false end,
         SafeToNumber = function(v, fb) return tonumber(v) or fb or 0 end,
         TruncateUTF8 = function(s) return s end,
@@ -304,19 +318,19 @@ test("settings changes repaint through the refresh export", function()
     end
 end)
 
-test("the mock is never scaled, so it renders 1:1 with a live plate", function()
+test("an oversized specimen retains its live scale instead of shrinking to fit", function()
     local plate
     for _, f in ipairs(created) do
         if f._parent == host2 then plate = f break end
     end
-    if plate._scale ~= nil then
-        fail("the pop-out panel owns zoom; the mock must stay unscaled, got " .. tostring(plate._scale))
+    if plate:GetEffectiveScale() ~= UIParent:GetEffectiveScale() then
+        fail("default preview scale must match the world UI scale")
     end
 
     typeSettings.health.width = 2000
     ns.QUI_RefreshNameplatePreview()
-    if plate._scale ~= nil then
-        fail("an oversized mock must still not be scaled, got " .. tostring(plate._scale))
+    if plate:GetEffectiveScale() ~= UIParent:GetEffectiveScale() then
+        fail("oversized specimens must retain their live scale")
     end
     typeSettings.health.width = 210
     ns.QUI_RefreshNameplatePreview()
@@ -1012,6 +1026,145 @@ test("rebuilding on a second host does not strand the first", function()
     if platesA2[1] ~= plateA then
         fail("revisiting hostA must reuse its original plate object")
     end
+end)
+
+test("preview follows live dimensions independently of panel zoom and current owner", function()
+    GetPhysicalScreenSize = function() return 1920, 1080 end
+    ns.Helpers.CreateStateTable = function() return setmetatable({}, { __mode = "k" }) end
+    assert(loadfile("core/scaling.lua"))("QUI", ns)
+    local callbacks = {}
+    ns.UIKit.RegisterScaleRefresh = function(owner, _, callback) callbacks[owner] = callback end
+    settings.layout = { scale = 1.2, targetScale = 1.25 }
+    settings.simplified = { scale = 0.75 }
+    settings.types.enemyNPC.renderMode = "bars"
+    PreviewDriver.SetSelectedType("enemyNPC")
+    local window = NewFrame(UIParent)
+    local main, aura = NewFrame(window), NewFrame(window)
+    local afterFns = {}
+    C_Timer.After = function(_, fn) afterFns[#afterFns + 1] = fn end
+    ns.QUI_BuildNameplatePreview(main)
+    local specimen
+    for _, node in ipairs(created) do if node._parent == main then specimen = node; break end end
+    if not specimen then fail("main preview must mount its real specimen") end
+    local live = NewFrame(UIParent)
+    live:SetIgnoreParentScale(true)
+    NP.Health.Build(live)
+    NP.Castbar.Build(live)
+    live.npType = "enemyNPC"
+    local function LiveWidth(mode, target)
+        live.npRenderMode, live.npIsTarget = mode, target
+        NP.Driver.PinPlateScale(live)
+        ns.Addon:PushPixelReference(nil)
+        NP.Health.ApplyAppearance(live, typeSettings)
+        NP.Castbar.ApplyAppearance(live, typeSettings)
+        ns.Addon:PopPixelReference()
+        return live.healthBar:GetWidth() * live:GetEffectiveScale()
+    end
+    local function FlushMeasures()
+        local passes = 0
+        while #afterFns > 0 do
+            passes = passes + 1
+            if passes > 10 then fail("scale remeasurement must settle") end
+            local pending = afterFns
+            afterFns = {}
+            for _, fn in ipairs(pending) do fn() end
+        end
+    end
+    specimen._children = { specimen.healthBar }
+    specimen.healthBar._regions = {}
+    local painted = Paint(specimen.healthBar, 0, 1, 0, -1)
+    painted.GetRight = function() return specimen.healthBar:GetWidth() end
+    painted.GetBottom = function() return -specimen.healthBar:GetHeight() end
+    main._left, main._top = 0, 0
+    local seen
+    ns.QUI_SetNameplatePreviewObserver(function(w, h) seen = { w, h } end)
+    for _, uiScale in ipairs({ 0.65, 0.8 }) do
+        UIParent:SetScale(uiScale)
+        for _, mode in ipairs({ "bars", "simplified", "nameonly" }) do
+            typeSettings.renderMode = mode
+            for _, targeted in ipairs({ false, true }) do
+                previewState.isTarget = targeted
+                local expected = LiveWidth(mode, targeted)
+                for _, panelScale in ipairs({ 0.8, 1.0, 1.5 }) do
+                    window:SetScale(panelScale)
+                    ns.QUI_RefreshNameplatePreview()
+                    FlushMeasures()
+                    local width = specimen.healthBar:GetWidth() * specimen:GetEffectiveScale()
+                    if math.abs(width - expected) > 1e-6 then
+                        fail("preview must match live width across UI/panel scales, mode and target state")
+                    end
+                    local castHeight = specimen.castBar:GetHeight() * specimen:GetEffectiveScale()
+                    if math.abs(castHeight - live.castBar:GetHeight() * live:GetEffectiveScale()) > 1e-6 then
+                        fail("castbar must share the live specimen scale")
+                    end
+                    local _, previewFontSize = specimen.nameText:GetFont()
+                    local _, liveFontSize = live.nameText:GetFont()
+                    if not specimen.nameText:IsVisible()
+                        or math.abs(previewFontSize * specimen.nameText:GetEffectiveScale()
+                            - liveFontSize * live.nameText:GetEffectiveScale()) > 1e-6 then
+                        fail("visible name text must match live font size in bars, simplified and name-only modes")
+                    end
+                    if mode == "bars" then
+                        if not seen or math.abs(seen[1] * main:GetEffectiveScale() - expected) > 1e-6 then
+                            fail("measured host units must preserve physical width: " .. tostring(seen and seen[1])
+                                .. " host scale=" .. main:GetEffectiveScale() .. " expected=" .. expected)
+                        end
+                        window:SetScale(1.2)
+                        callbacks[specimen](specimen)
+                        FlushMeasures()
+                        if math.abs(seen[1] * main:GetEffectiveScale() - expected) > 1e-6 then
+                            fail("panel zoom refresh must remeasure card geometry without changing specimen size")
+                        end
+                    end
+                end
+            end
+        end
+    end
+    typeSettings.renderMode = "bars"
+    previewState.isTarget = true
+    main:Hide()
+    ns.QUI_BuildNameplatePreview(aura)
+    local auraSpecimen
+    for _, node in ipairs(created) do if node._parent == aura then auraSpecimen = node; break end end
+    FlushMeasures()
+    local refreshCount = 0
+    local apply = NP.Health.ApplyAppearance
+    NP.Health.ApplyAppearance = function(...) refreshCount = refreshCount + 1; return apply(...) end
+    for owner, callback in pairs(callbacks) do callback(owner) end
+    FlushMeasures()
+    if refreshCount ~= 1 then fail("scale refresh must repaint only the visible current owner") end
+    local expected = LiveWidth("bars", true)
+    if math.abs(auraSpecimen.healthBar:GetWidth() * auraSpecimen:GetEffectiveScale() - expected) > 1e-6 then
+        fail("Auras preview must use the same live scale")
+    end
+    window:Hide()
+    refreshCount = 0
+    for owner, callback in pairs(callbacks) do callback(owner) end
+    if refreshCount ~= 0 then fail("ancestor-hidden previews cannot repaint on scale refresh") end
+    window:Show()
+    aura:Hide()
+    main:Show()
+    ns.QUI_BuildNameplatePreview(main)
+    if math.abs(specimen.healthBar:GetWidth() * specimen:GetEffectiveScale() - expected) > 1e-6 then
+        fail("cached main preview must restore the live scale after an owner switch")
+    end
+    for _, zoom in ipairs({ 3, 2, 1 }) do
+        PreviewDriver.SetZoom(zoom)
+        FlushMeasures()
+        if math.abs(specimen.healthBar:GetWidth() * specimen:GetEffectiveScale() - expected * zoom) > 1e-6 then
+            fail("preview magnification must multiply the live scale without accumulating on refresh")
+        end
+        ns.QUI_RefreshNameplatePreview()
+        FlushMeasures()
+        if math.abs(specimen.healthBar:GetWidth() * specimen:GetEffectiveScale() - expected * zoom) > 1e-6 then
+            fail("repeated refresh must retain the selected magnification")
+        end
+        if settings.layout.scale ~= 1.2 or settings.layout.targetScale ~= 1.25 then
+            fail("preview magnification cannot change the player's live nameplate scales")
+        end
+    end
+    NP.Health.ApplyAppearance = apply
+    ns.QUI_SetNameplatePreviewObserver(nil)
 end)
 
 print("OK: nameplates_preview_test")

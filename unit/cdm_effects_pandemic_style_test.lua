@@ -159,10 +159,26 @@ assert(icon.PandemicGlow.alpha == 0 and calls[#calls].profile.cdmActiveGlow == n
 settings.essentialEnabled = true
 settings.essentialGlowType = "Pixel Glow"
 local overlay = CreateFrame("Frame")
+overlay.GetSize = function() return remainingAlpha, zeroAlpha end
+overlay._quiGlowSize = { width = 64, height = 28 }
 glows.ApplyPandemicToOverlay(overlay, icon._spellEntry)
 call = calls[#calls]
 assert(call.frame == overlay.PandemicGlow and call.profile.cdmActiveGlow.glowType == "Pixel Glow",
     "reanchored pandemic must use the selected style on its own host")
+assert(call.profile.iconWidth == 64 and call.profile.iconHeight == 28,
+    "secret overlay dimensions must use the current layout rectangle")
+styleCalls = #calls
+glows.ApplyPandemicToOverlay(overlay, icon._spellEntry)
+assert(#calls == styleCalls, "unchanged overlay dimensions must reuse pandemic styling")
+overlay._quiGlowSize.width, overlay._quiGlowSize.height = 74, 32
+glows.ApplyPandemicToOverlay(overlay, icon._spellEntry)
+assert(#calls == styleCalls + 1, "changing the shared layout rectangle must invalidate pandemic styling")
+assert(calls[#calls].profile.iconWidth == 74 and calls[#calls].profile.iconHeight == 32,
+    "resized layout dimensions must reach pandemic styling")
+overlay._quiGlowSize = nil
+glows.ApplyPandemicToOverlay(overlay, icon._spellEntry)
+assert(calls[#calls].profile.iconWidth == nil and calls[#calls].profile.iconHeight == nil,
+    "secret geometry without a layout rectangle must retain the safe size fallback")
 assert(overlay.PandemicGlow.alpha == 1, "native pandemic show enables the host")
 glows.ClearPandemicFromOverlay(overlay)
 assert(overlay.PandemicGlow.alpha == 0 and calls[#calls].profile.cdmActiveGlow == nil,

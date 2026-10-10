@@ -259,6 +259,7 @@ function Harness.Build(opts)
         L = setmetatable({}, { __index = function(_, key) return key end }),
     }
     ns.Helpers = {
+        AssetPath = [[Interface\AddOns\QUI\assets\]],
         CHROME = {
             BORDER_PX = 1, BG_FALLBACK = { 0.05, 0.05, 0.05, 0.95 }, BORDER_FALLBACK = { 0, 0, 0, 1 },
             BUTTON_BOOST = 0.07, SCROLLROW_BOOST = 0.03,
@@ -272,6 +273,10 @@ function Harness.Build(opts)
         GetModuleDB = function(name) return env.profile[name] end,
         GetGeneralFont = function() return "QUIFont.ttf" end,
         GetGeneralFontOutline = function() return "" end,
+        GetWindowColors = function() return unpack(env.colors) end,
+        ApplyIconStyle = function() end,
+        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
+        ApplyTextureStyle = function(_, texture, path) texture:SetTexture(path) end,
         GetSkinBorderColor = function() return env.colors[1], env.colors[2], env.colors[3], env.colors[4] end,
         GetSkinAccentColor = function() return env.colors[1], env.colors[2], env.colors[3], env.colors[4] end,
         GetSkinBgColor = function() return env.colors[5], env.colors[6], env.colors[7], env.colors[8] end,
@@ -304,8 +309,8 @@ function Harness.Build(opts)
     }
 
     assert(loadfile("core/safecall.lua"))("QUI", ns)
-    assert(loadfile("core/uikit.lua"))("QUI", ns)
-    assert(loadfile("modules/skinning/frames/character_chrome.lua"))("QUI", ns)
+    assert(loadfile(os.getenv("QUI_SKIN_UIKIT_SOURCE") or "core/uikit.lua"))("QUI", ns)
+    assert(loadfile(os.getenv("QUI_SKIN_CHROME_SOURCE") or "modules/skinning/frames/character_chrome.lua"))("QUI", ns)
     if opts.loadFrameSkin then
         assert(loadfile("modules/skinning/frames/character.lua"))("QUI", ns)
     end

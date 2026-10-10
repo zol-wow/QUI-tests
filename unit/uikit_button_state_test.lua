@@ -37,11 +37,13 @@ local function NewTexture(owner)
     function t:SetAllPoints() end
     function t:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
     function t:SetTexture(path) self.texture = path end
+    function t:SetTexCoord(...) self.coords = { ... } end
     function t:SetVertexColor(r, g, b, a) self.vertex = { r, g, b, a } end
     function t:SetDesaturated() end
     function t:Show() self.shown = true end
     function t:Hide() self.shown = false end
     function t:IsShown() return self.shown end
+    function t:SetShown(value) self.shown = value end
     function t:SetAlpha(a) self.alpha = a end
     function t:ClearAllPoints() self.points = {} end
     function t:SetPoint(...) self.points = self.points or {}; self.points[#self.points + 1] = { ... } end
@@ -133,6 +135,7 @@ function CreateFrame(kind, _, parent) return NewFrame(kind, parent) end
 ---------------------------------------------------------------------------
 local ns = {
     Helpers = {
+        AssetPath = "Interface\\AddOns\\QUI\\assets\\",
         CHROME = { BORDER_PX = 1, BG_FALLBACK = { 0.05, 0.05, 0.05, 0.95 }, BORDER_FALLBACK = { 0, 0, 0, 1 }, BUTTON_BOOST = 0.07, SCROLLROW_BOOST = 0.03, DEPTH = { PANEL = { boost = 0, alpha = 0.95 }, SUBPANEL = { boost = 0.04, alpha = 0.85 }, ROW = { boost = 0.07, alpha = 0.75 } } },
         CreateStateTable = function() return setmetatable({}, { __mode = "k" }) end,
         SafeToNumber = function(value, fallback) return tonumber(value) or fallback end,
@@ -413,6 +416,26 @@ for _, c in ipairs(GameTooltip.calls) do if c[1] == "SetText" and c[2] == "Not i
 check("outside the panel the reason routes to GameTooltip", sawReason and GameTooltip.shown == true)
 orphan:Fire("OnLeave")
 check("GameTooltip hidden on leave", GameTooltip.shown == false)
+
+local roundedButton = UIKit.CreateButton(panel, { text = "Rounded", radius = 5, font = "Fonts\\Sidebar.ttf" })
+local roundedSurface = roundedButton._quiRoundedSurface
+check("rounded controls reuse native corner geometry and explicit options font",
+    roundedSurface and roundedSurface.radius == 5 and roundedButton.text.font[1] == "Fonts\\Sidebar.ttf")
+roundedButton:Fire("OnEnter")
+check("rounded hover updates fill and outline without square overlays",
+    rgba(roundedSurface.fill.center.vertex, 1, 1, 1, 0.06) and rgba(roundedSurface.border.top.vertex, 1, 1, 1, 0.35))
+roundedButton._hoverBg:Hide()
+check("rounded fill preserves the legacy hover facade",
+    not roundedButton._hoverBg:IsShown() and roundedSurface.border.top.shown)
+roundedButton:Fire("OnLeave")
+roundedButton:SetEnabled(false, "Locked")
+check("rounded disabled state preserves hit target and muted palette",
+    roundedButton.mouse and rgba(roundedSurface.fill.center.vertex, 1, 1, 1, 0.04) and rgba(roundedSurface.border.top.vertex, 1, 1, 1, 0.10))
+local textureCount = #roundedButton.textures
+UIKit.CreateBorderLines(roundedButton)
+UIKit.UpdateBorderLines(roundedButton, 1, 0.1, 0.2, 0.3, 0.4)
+check("legacy border tint callbacks update rounded arcs without adding square edges",
+    #roundedButton.textures == textureCount and rgba(roundedSurface.border.tl.vertex, 0.1, 0.2, 0.3, 0.4))
 
 if failures > 0 then
     print(("FAILED: %d check(s)"):format(failures))

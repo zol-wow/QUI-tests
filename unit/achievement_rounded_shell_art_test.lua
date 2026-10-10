@@ -1,0 +1,21 @@
+local env = dofile("tests/helpers/character_chrome_harness.lua").Build()
+env.profile.general.skinAchievement = true
+local frame = env.NewFrame("Frame")
+_G.AchievementFrame = frame
+local corner = frame:CreateTexture()
+frame.Header = env.NewFrame("Frame", nil, frame)
+frame.Header.Left = frame.Header:CreateTexture()
+frame.Header.Right = frame.Header:CreateTexture()
+frame.Header.PointBorder = frame.Header:CreateTexture()
+frame.Header.Shield = frame.Header:CreateTexture()
+frame.Header.Title = frame.Header:CreateFontString()
+frame.Header.Points = frame.Header:CreateFontString()
+frame.Header.Points:SetText("24,410")
+env.SkinBase.OnAddOnLoaded = function(_, fn) fn() end
+assert(loadfile(os.getenv("QUI_ACHIEVEMENT_SOURCE") or "modules/skinning/frames/achievement.lua"))("QUI", env.ns)
+assert(corner:GetAlpha() == 0, "native metal and wood corners must not cover the rounded shell")
+assert(frame.Header.Left:GetAlpha() == 0 and frame.Header.PointBorder:GetAlpha() == 0, "header artwork must match the modern shell")
+assert(frame.Header.Shield:GetAlpha() == 1, "achievement points shield must remain meaningful artwork")
+assert(frame.Header.Points:GetText() == "24,410", "achievement points must remain Blizzard-owned")
+assert(env.SkinBase.GetBackdrop(frame)._quiRoundedSurface, "achievement shell must use rounded chrome")
+print("OK: achievement_rounded_shell_art_test")

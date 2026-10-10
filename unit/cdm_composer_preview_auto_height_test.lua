@@ -8,10 +8,22 @@ local function read(path)
     return source
 end
 
-local composer = read("QUI_CDM/cdm/settings/composer.lua")
+local composer = read(os.getenv("QUI_COMPOSER_SOURCE") or "QUI_CDM/cdm/settings/composer.lua")
 local driver = read("QUI_CDM/cdm/settings/composer_preview_driver.lua")
 local page = read("QUI_CDM/cdm/settings/containers_page.lua")
 
+local previewStart = assert(composer:find("local function BuildPreviewSection(", 1, true))
+local backdropStart = assert(composer:find("    local _bpsBR", previewStart, true))
+local backdropEnd = assert(composer:find("    local title =", backdropStart, true))
+local style = assert((loadstring or load)("return function(container, autoHeightOptions, GetChromeBgSubpanel, GetChromeBorder, SetSimpleBackdrop)\n"
+    .. composer:sub(backdropStart, backdropEnd - 1) .. "\nend"))()
+local backdropCalls = 0
+local function color() return 0.2, 0.2, 0.2 end
+local function backdrop() backdropCalls = backdropCalls + 1 end
+style({}, {outer = {}}, color, color, backdrop)
+assert(backdropCalls == 0, "inline CDM preview must not draw a second border inside its rounded card")
+style({}, {}, color, color, backdrop)
+assert(backdropCalls == 1, "standalone CDM preview must retain its own surface")
 local failures = 0
 local function check(name, ok)
     if ok then
@@ -50,7 +62,7 @@ check("standalone composer sections follow the fitted preview",
 
 check("pinned composer preview fits its outer surface pane",
     page:find("outer = pv", 1, true) ~= nil
-    and page:find("outerChromeHeight = LEFT_COL_HEIGHT + 4 + 8", 1, true) ~= nil
+    and page:find("outerChromeHeight = leftCol:GetHeight() + 12", 1, true) ~= nil
     and composer:find("container._previewChromeHeight + PREVIEW_MIN_CONTENT_HEIGHT", 1, true) ~= nil)
 
 check("preview scale slider is removed and its space is reclaimed",
@@ -68,4 +80,33 @@ if failures > 0 then
     os.exit(1)
 end
 
+local resizeStart = assert(composer:find("local function UpdatePreviewEmptyState(container)", 1, true))
+local resizeEnd = assert(composer:find("local function RequestPreviewAutoHeight", resizeStart, true))
+local resize = assert(loadstring([[
+local ns = {}
+local math_floor, math_max, math_abs = math.floor, math.max, math.abs
+local PREVIEW_INNER_CHROME_HEIGHT, PREVIEW_MIN_CONTENT_HEIGHT = 32, 60
+local function MeasurePreviewContentHeight() return 20 end
+]] .. composer:sub(resizeStart, resizeEnd - 1) .. "return ResizePreviewToContent"))()
+local outer = { height = 230, _quiPreviewChromeHeight = 40 }
+function outer:SetHeight(value) self.height = value end
+function outer:GetHeight() return self.height end
+local container = {
+    _previewAutoHeight = true,
+    _previewOuter = outer,
+    _previewChromeHeight = 94,
+    _previewMinHeight = 154,
+    _previewMinHeightFixed = false,
+}
+resize(container)
+assert(outer.height == 132, "measured CDM autoheight uses current narrow/short header instead of stale initial chrome")
+outer._quiPreviewChromeHeight = 72
+resize(container)
+assert(outer.height == 164, "wrapped CDM header reserves its actual extra height")
+outer._quiPreviewChromeHeight = 40
+resize(container)
+assert(outer.height == 132, "unwrapping CDM header releases height without drift")
+container._previewMinHeightFixed, container._previewMinHeight = true, 180
+resize(container)
+assert(outer.height == 180, "explicit preview minimum remains stable across responsive chrome")
 print("cdm_composer_preview_auto_height_test: all checks passed")

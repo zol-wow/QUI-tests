@@ -47,6 +47,7 @@ local ns = {
         GetCore = function() return nil end,
         GetGeneralFont = function() return "font" end,
         GetSkinColors = function() return 1, 1, 1 end,
+        GetWindowColors = function() return 1, 1, 1, 1, 0.05, 0.05, 0.05, 0.95 end,
     },
     UIKit = { DisablePixelSnap = noop, CreateBorderLines = noop, UpdateBorderLines = noop },
     SafeCallMethod = function() return true end,
@@ -104,6 +105,9 @@ local function load(path)
     chunk("QUI", ns)
 end
 load("core/storage/bus.lua")
+local storageLoader = dofile("tests/helpers/load_storage_data.lua")
+storageLoader.InstallBaseStubs()
+load("core/storage/scan_bank.lua")
 for _, name in ipairs({ "grid_layout", "category_layout", "refresh_scope", "details", "chassis" }) do
     load("QUI_Bags/bags/views/" .. name .. ".lua")
 end
