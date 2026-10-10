@@ -43,6 +43,9 @@ assert(select(2, category.Text:GetTextColor()) == 0.55,
     "unlearned categories must retain visibly disabled semantics")
 local ptrCategory = env.NewFrame("Button")
 ptrCategory.Label = ptrCategory:CreateFontString()
+local titleRegion = env.NewFrame("Frame", nil, ptrCategory)
+titleRegion.GetTextColor = function() error("Frame title region is not a category FontString") end
+ptrCategory.GetTitleRegion = function() return titleRegion end
 ptrCategory.GetElementData = function() return { GetData = function() return categoryData end } end
 ptrCategory.Init = function(self) self.Label:SetTextColor(1, 0.82, 0) end
 apply(ptrCategory)
@@ -177,3 +180,54 @@ assert(header.ButtonText:GetText()=="Unlearned" and select(1,header.ButtonText:G
     and env.SkinBase.GetFrameData(header,"qRecipeCategoryIndicator")==nativeGlyph,
     "native reused category must reset rank eligibility, preserve disabled shade and reuse indicator")
 print("Native profession category lifecycle passed")
+
+_G.ProfessionsRecipeListRecipeMixin = {}
+for _, name in ipairs({"GetLabelColor", "Init", "SetLabelFontColors", "OnLeave"}) do
+    assert(loadstring(assert(native:match("(function ProfessionsRecipeListRecipeMixin:" .. name .. "%b().-\nend)"))))()
+end
+_G.PROFESSION_RECIPE_COLOR = Color(1, .45, .1)
+_G.Professions = {GetHighestLearnedRecipe = function(info) return info end}
+_G.C_TradeSkillUI.GetCraftableCount = function() return 2 end
+_G.GameTooltip = {Hide = function() end}
+local recipe = env.NewFrame("Button")
+recipe:SetWidth(260)
+recipe.Label = recipe:CreateFontString()
+recipe.Count = recipe:CreateFontString()
+recipe.Label.SetVertexColor = recipe.Label.SetTextColor
+recipe.Count.SetVertexColor = recipe.Count.SetTextColor
+recipe.Count.SetFormattedText = function(self, pattern, ...) self:SetText(string.format(pattern, ...)) end
+recipe.LockedIcon = env.NewFrame("Button", nil, recipe)
+recipe.SkillUps = env.NewFrame("Button", nil, recipe)
+recipe.SkillUps:SetWidth(26)
+local recipeData = {recipeInfo = {name = "Native recipe", recipeID = 1, learned = true}}
+local recipeNode = {GetData = function() return recipeData end}
+recipe.GetElementData = function() return recipeNode end
+recipe.GetTitleRegion = function() return nil end
+for name, method in pairs(_G.ProfessionsRecipeListRecipeMixin) do recipe[name] = method end
+recipe:Init(recipeNode)
+apply(recipe)
+assert(not env.SkinBase.GetFrameData(recipe, "qRecipeCategoryIndicator") and not recipe.hooks.OnClick,
+    "ordinary native recipe buttons with Frame:GetTitleRegion must not receive category controls")
+assert(select(2, recipe.Label:GetTextColor()) == .45,
+    "styling must retain the native learned recipe color")
+recipe.Label:SetTextColor(.2, .8, .3, 1)
+assert(select(2, recipe.Label:GetTextColor()) == .8,
+    "native recipe color changes must not be replaced by category gray")
+recipeData.recipeInfo.learned = false
+recipe:Init(recipeNode)
+assert(select(1, recipe.Label:GetTextColor()) == .5,
+    "native unlearned recipe initialization must retain disabled text color")
+recipe:SetLabelFontColors(_G.HIGHLIGHT_FONT_COLOR)
+recipe:OnLeave()
+assert(select(1, recipe.Label:GetTextColor()) == .5,
+    "native recipe hover leave must restore disabled color")
+for _, key in ipairs({"isDivider", "topPadding", "bottomPadding"}) do
+    local spacer = env.NewFrame("Frame")
+    spacer.GetTitleRegion = function() return nil end
+    spacer.GetElementData = function() return {GetData = function() return {[key] = true} end} end
+    spacer.HookScript = function(_, script) assert(script ~= "OnClick", "native spacer Frame does not support OnClick") end
+    apply(spacer)
+    assert(not env.SkinBase.GetFrameData(spacer, "qRecipeCategoryIndicator") and not env.SkinBase.IsStyled(spacer),
+        "native divider and padding frames must remain outside recipe and category styling")
+end
+print("Native recipe versus category and spacer discrimination passed")
