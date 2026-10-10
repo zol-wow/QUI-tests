@@ -26,15 +26,23 @@ has(toc, "## OptionalDeps: BigWigs, DBM-Core", "boss mods load first when presen
 for _, file in ipairs({ "bossmods", "journal", "defensives", "callout", "engine" }) do
     has(toc, "reminders\\" .. file .. ".lua", "TOC lists " .. file)
 end
+for _, file in ipairs({ "model", "catalog", "group_frames", "presentation", "sounds", "runtime", "tracking", "init" }) do
+    has(toc, "spell_reminders\\" .. file .. ".lua", "module TOC owns spell reminder " .. file)
+end
 
 -- Settings page wiring.
 local optionsToc = readAll("QUI_Options/QUI_Options.toc")
 has(optionsToc, "..\\QUI_Reminders\\reminders\\settings\\reminders_content.lua", "QUI_Options loads the page")
-local tile = readAll("QUI_Options/tiles/gameplay.lua")
-has(tile, 'featureId = "remindersPage"', "gameplay tile routes to the page")
+local tile = readAll("QUI_Options/tiles/reminders.lua")
+has(tile, 'featureId = "remindersPage"', "reminders tile routes to the defensive page")
+has(tile, 'featureId = "spellRemindersPage"', "reminders tile routes to the spell page")
+has(tile, 'moduleFeatureId = "moduleAddon_QUI_Reminders"', "tile uses the module addon switch")
+has(readAll("QUI_Options/init.lua"), "ns.QUI_RemindersTile.Register(frame)", "sidebar registers the reminders tile")
+has(optionsToc, "tiles\\reminders.lua", "options loads the reminders tile")
 local searchTool = readAll("tools/generate_search_cache.lua")
-has(searchTool, 'path == "QUI_Reminders/reminders/settings/reminders_content.lua"', "search cache indexes the page")
+has(searchTool, 'path:match("^QUI_Reminders/.+/settings/")', "search cache indexes both module pages")
 local content = readAll("QUI_Reminders/reminders/settings/reminders_content.lua")
+has(content, 'nav = { tileId = "reminders", subPageIndex = SUBPAGE_INDEX }', "defensive search route uses the reminders tile")
 has(content, 'id = "remindersPage"', "feature id")
 has(content, 'moverKey = "remindersCallout"', "mover key matches the anchor key")
 for _, key in ipairs({ "enabled", "source", "leadTime", "linger", "onlyWhenTanking", "skipWhenCovered",
@@ -67,6 +75,8 @@ assert(not engine:find("_G.QUI_", 1, true), "engine exports on ns.*, never _G")
 
 -- Shared seams the module leans on.
 local mainToc = readAll("QUI.toc")
+assert(not mainToc:find("modules\\combat\\reminders\\", 1, true), "spell reminders no longer load in QUI core")
+assert(not mainToc:find("QUI_Reminders", 1, true), "the core manifest does not load the optional reminders module's files")
 has(mainToc, "core\\announce.lua", "announce seam ships in core")
 local announce = readAll("core/announce.lua")
 has(announce, "function Announce.PlaySound", "sound")
@@ -106,13 +116,13 @@ for _, key in ipairs({ "Reminder Callout", "QoL", "Defensive" }) do
     assert(calloutKeys[key], "callout text must reach the locale extractor: " .. key)
 end
 local pageKeys = keysOf("QUI_Reminders/reminders/settings/reminders_content.lua")
-for _, key in ipairs({ "Enable Reminders", "Boss Mod Source", "Defensive Priority", "Boss Abilities", "Tick My Role",
+for _, key in ipairs({ "Enable Defensive Reminders", "Boss Mod Source", "Defensive Priority", "Boss Abilities", "Tick My Role",
     "Seen From Boss Mods", "Blizzard Encounter Timeline", "Warning Time" }) do
     assert(pageKeys[key], "page text must reach the locale extractor: " .. key)
 end
 local initKeys = keysOf("init.lua")
 assert(initKeys["Reminders test: calling %s."] and initKeys["Reminders module is not loaded."], "slash feedback localized")
 local modulesKeys = keysOf("core/settings/content/module_addons_content.lua")
-assert(modulesKeys["Reminders"] and modulesKeys["Defensive callouts driven by BigWigs, DBM, or the encounter timeline."])
+assert(modulesKeys["Reminders"] and modulesKeys["Defensive callouts, spell cooldown reminders, and Power Infusion coordination."])
 
 print("OK: reminders_wiring_test")

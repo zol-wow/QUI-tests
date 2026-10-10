@@ -73,7 +73,7 @@ load("modules/qol/settings/swing_timers_content.lua")
 
 local registry = ns.Settings.Registry
 local page = assert(registry:GetFeature("swingTimersPage"))
-assert(page.nav.tileId == "gameplay" and page.nav.subPageIndex == 10)
+assert(page.nav.tileId == "gameplay" and page.nav.subPageIndex == 9)
 page.sectionsById.settings.build(frame)
 assert(controls.width.min == 80 and controls.width.max == 800)
 assert(controls.height.min == 8 and controls.height.max == 80)
@@ -87,6 +87,7 @@ assert(enabled, "enable control must call the shared native CVar adapter")
 
 for _, entry in ipairs(ns.SwingTimers.entries) do
     local feature = assert(registry:GetFeatureByMoverKey(entry.key), "each mover must resolve through the real settings registry")
+    assert(feature.nav.tileId == "gameplay" and feature.nav.subPageIndex == 9, "each mover must route to the Swing Timers page")
     assert(feature.getDB(profile) == profile.swingTimers[entry.key])
     local height = ns.Settings.Renderer:RenderFeature(feature, frame, { surface = "layout", providerKey = entry.key })
     assert(height == 240 and positionKey == entry.key)
@@ -115,8 +116,8 @@ for _, forever in ipairs({ false, true }) do
     ns.Client.isForever = forever
     ns.SwingTimers = forever and swingTimers or nil
     ns.QUI_GameplayTile.Register(frame)
-    assert(#tile.subPages == (forever and 10 or 9), "append swing page only on Forever without reindexing existing pages")
+    assert(#tile.subPages == (forever and 9 or 8), "append swing page only on Forever without reindexing existing pages")
 end
-assert(tile.subPages[10].featureId == page.id)
+assert(tile.subPages[9].featureId == page.id)
 
 print("OK: Forever swing timer settings route all movers, resize native bars, follow profiles, and remain absent on Retail")

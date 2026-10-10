@@ -7,12 +7,21 @@ local GUI = QUI.GUI
 local cache = dofile("tests/helpers/search_cache.lua")()
 local swingTimers = assert(ns.SwingTimers)
 
+for _, entries in ipairs({ cache.settings, cache.navigation }) do
+    for _, entry in ipairs(entries) do
+        if entry.subTabName == "Swing Timers" or (entry.featureId and entry.featureId:match("^swingTimer")) then
+            assert(entry.tileId == "gameplay" and entry.subPageIndex == 9,
+                "cached swing settings and navigation must resolve to the existing Swing Timers page")
+        end
+    end
+end
+
 local paths = {}
 for _, entry in ipairs(cache.settings) do
     if entry.featureId == "swingTimersPage" and entry.label == "Width" then
         local descriptor = assert(entry.widgetDescriptor)
         paths[descriptor.dbPath] = true
-        assert(entry.sectionName and entry.tileId == "gameplay" and entry.subPageIndex == 10)
+        assert(entry.sectionName and entry.tileId == "gameplay" and entry.subPageIndex == 9)
     end
 end
 for _, entry in ipairs(swingTimers.entries) do

@@ -49,6 +49,7 @@ local tileOrder = {
     "QUI_AppearanceTile",
     "QUI_ChatTooltipsTile",
     "QUI_GameplayTile",
+    "QUI_RemindersTile",
     "QUI_QoLTile",
     "QUI_BagsTile",
     "QUI_AltsTile",
