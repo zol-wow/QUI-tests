@@ -128,6 +128,7 @@ local slotOverlays, frameState, EMPTY = {}, {}, {}
 local RestoreCharacterPanePopouts = function() end
 local IsSkinningHandlingBackground = function() return false end
 local SetCharacterFrameScale = function() end
+local GetSettings = function() return {} end
 local AdjustForNonCharacterTab = function() end
 ]] .. slice(
     "    local function HideCustomElements()",

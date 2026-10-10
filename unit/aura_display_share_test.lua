@@ -68,6 +68,11 @@ E.EnsureSeeded(alpha.auras, function()
     return { E.NewTrackedElement({ 115151 }, "icon") }
 end)
 local alphaElementID = alpha.auras.elements["*"][1].id
+alpha.auras.elements["*"][1].casterName = {
+    fontSize = 10, anchor = "BOTTOM", offsetX = 0, offsetY = 1,
+    showRealmName = true, useClassColors = true, color = { 1, 1, 1, 1 },
+}
+alpha.auras.elements["*"][1].pandemicGlow = { style = "pulse", color = { 1, 0.85, 0.2, 1 } }
 if not alphaElementID then fail("source element must carry an id") end
 
 local beta = AD.NewDisplay("Beta", "Pack Child")
@@ -137,6 +142,9 @@ if importedElements[1].id == nil then fail("EnsureSeeded must re-mint element id
 if importedElements[1].spells[1] ~= 115151 then
     fail("tracked spells must survive the round trip")
 end
+assert(importedElements[1].casterName.fontSize == 10 and importedElements[1].casterName.showRealmName
+    and importedElements[1].casterName.useClassColors and importedElements[1].pandemicGlow.style == "pulse",
+    "native caster and pandemic settings must survive export and import")
 
 -- Display export/import --------------------------------------------------------
 
@@ -257,6 +265,19 @@ MalformedCase("non-numeric color channel", { groups = {}, displays = { { name = 
 MalformedCase("string pandemic glow channel", { groups = {}, displays = { { name = "D",
     auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = { 1 },
         pandemicGlow = { color = { "gold", 0.85, 0.2, 1 } } } } } } } } })
+for _, casterName in ipairs({ "Caster", { fontSize = "large" }, { fontSize = 1000 },
+    { anchor = "INVALID" }, { offsetY = math.huge }, { useClassColors = "yes" },
+    { showRealmName = 1 }, { font = {} }, { color = { "gold", 1, 1, 1 } },
+}) do
+    MalformedCase("invalid caster settings", { groups = {}, displays = { { name = "D",
+        auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = { 1 },
+            casterName = casterName } } } } } } })
+end
+for _, style in ipairs({ 23, "unknown" }) do
+    MalformedCase("invalid pandemic style", { groups = {}, displays = { { name = "D",
+        auras = { elements = { ["*"] = { { mode = "tracked", displayType = "icon", spells = { 1 },
+            pandemicGlow = { style = style } } } } } } } })
+end
 MalformedCase("bad dispel colour entry", { groups = {}, displays = { { name = "D",
     auras = { elements = { ["*"] = { { mode = "filterStrip", auraType = "HARMFUL",
         dispelColors = { Magic = { r = 2, g = 0, b = 1 } } } } } } } } })

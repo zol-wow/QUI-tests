@@ -37,6 +37,7 @@ _G.CreateFrame = function(_, _, _, template)
     return f
 end
 
+local finishLog = {}
 local overlayLog = {}
 _G.SetItemButtonOverlay = function(button, itemIDOrLink, quality)
     overlayLog[#overlayLog + 1] = { op = "set", button = button, link = itemIDOrLink, quality = quality }
@@ -47,7 +48,8 @@ end
 _G.SetItemButtonTexture = function() end
 _G.SetItemButtonCount = function() end
 _G.SetItemButtonDesaturated = function() end
-_G.CooldownFrame_Set = function() end
+local cooldownSetCalls = 0
+_G.CooldownFrame_Set = function() cooldownSetCalls = cooldownSetCalls + 1 end
 _G.GameTooltip = sink()
 _G.C_Container = {
     GetContainerItemCooldown = function() return 0, 0, 0 end,
@@ -59,13 +61,17 @@ local settings = {
     appearance = { corners = { tr1 = "crafting_quality" } },
     behavior = { junk = {} },
 }
+local canMutateCooldown = true
 
 local ns = {
     UIKit = { CreateBorderLines = function() end, UpdateBorderLines = function() end },
     Helpers = {
+        ApplyIconStyle = function(_, _, skinName) finishLog[#finishLog + 1] = skinName or "Default" end,
         CreateDBGetter = function() return function() return settings end end,
         GetGeneralFont = function() return "font" end,
         GetSkinColors = function() return 1, 1, 1 end,
+        GetWindowColors = function() return 1, 1, 1, 1, 0.05, 0.05, 0.05, 0.95 end,
+        CanMutateCooldown = function() return canMutateCooldown end,
     },
     SafeCall = function(_, fn, ...) return pcall(fn, ...) end,
 }
@@ -96,6 +102,13 @@ local rec = last()
 check("an occupied slot hands its link to SetItemButtonOverlay",
     rec ~= nil and rec.op == "set" and rec.link == COSMETIC and rec.quality == 4,
     rec and ("op=" .. rec.op) or "no overlay call")
+check("a mutable item cooldown is painted", cooldownSetCalls == 1)
+
+canMutateCooldown = false
+ItemButtons.Dress(button, { icon = 1, quality = 4, link = COSMETIC })
+check("a protected combat item cooldown is deferred",
+    cooldownSetCalls == 1 and ns.Bags.cooldownRefreshPending == true)
+canMutateCooldown = true
 
 reset()
 ItemButtons.Dress(button, { icon = 1, quality = 1 })
@@ -105,6 +118,10 @@ check("a linkless entry clears instead of calling with nil",
     rec and ("op=" .. rec.op .. " link=" .. tostring(rec.link)) or "no overlay call")
 
 reset()
+ItemButtons.Dress(button, nil)
+check("an empty live slot suppresses its icon finish", finishLog[#finishLog] == "Empty")
+ItemButtons.Dress(button, { icon = 1, quality = 1 })
+check("a reused live slot restores its icon finish", finishLog[#finishLog] == "Default")
 ItemButtons.Dress(button, nil)
 rec = last()
 check("an empty slot clears the overlay", rec ~= nil and rec.op == "clear",

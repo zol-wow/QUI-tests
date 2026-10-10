@@ -97,6 +97,7 @@ do
     local refreshes = {}
 
     local SkinBase = {}
+    function SkinBase.GetWindowColors() return 0.6, 0.7, 0.8, 1, 0.1, 0.2, 0.3, 0.9 end
     function SkinBase.GetSkinColors() return 0.6, 0.7, 0.8, 1, 0.1, 0.2, 0.3, 0.9 end
     function SkinBase.IsSkinned(frame) return frame and frame._skinned end
     function SkinBase.MarkSkinned(frame) frame._skinned = true end

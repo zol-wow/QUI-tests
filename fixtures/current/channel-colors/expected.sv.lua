@@ -535,7 +535,7 @@ return {
             hiddenBags = {},
             iconSize = 36,
             layoutMode = "flat",
-            markUnusable = true,
+            markUnusable = false,
             qualityColorText = false,
             reagentDisplay = "separate",
             showBagSlots = true,
@@ -2192,6 +2192,27 @@ return {
             sizeStable = true,
             widthAdjust = 0
           },
+          swingTimerMainHand = {
+            offsetX = 0,
+            offsetY = -180,
+            parent = "screen",
+            point = "CENTER",
+            relative = "CENTER"
+          },
+          swingTimerOffHand = {
+            offsetX = 0,
+            offsetY = -206,
+            parent = "screen",
+            point = "CENTER",
+            relative = "CENTER"
+          },
+          swingTimerRanged = {
+            offsetX = 0,
+            offsetY = -232,
+            parent = "screen",
+            point = "CENTER",
+            relative = "CENTER"
+          },
           targetCastbar = {
             autoHeight = false,
             autoWidth = true,
@@ -2759,11 +2780,13 @@ return {
           skinInspectFrame = true,
           skinInstanceFrames = false,
           skinKeystoneFrame = true,
+          skinLegacySystem = false,
           skinObjectiveTracker = true,
           skinOverrideActionBar = true,
           skinPowerBarAlt = true,
           skinProfessions = true,
           skinReadyCheck = true,
+          skinStable = false,
           skinStaticPopups = true,
           skinStatusTrackingBars = true,
           skinUseClassColor = true,
@@ -2811,6 +2834,7 @@ return {
             neverSell = "",
             previewOnly = true
           },
+          visualStyle = "Satin",
           worldMapTeleports = false
         },
         hudLayering = {
@@ -2877,6 +2901,7 @@ return {
               collections = true,
               help = false,
               housing = true,
+              legacy = true,
               lfg = true,
               professions = true,
               questlog = true,
@@ -8235,6 +8260,17 @@ return {
         spellReminders = {
           enabled = false,
           reminders = {}
+        },
+        swingTimers = {
+          ["*"] = {
+            fontSize = 11,
+            height = 20,
+            showTime = true,
+            showTitle = true,
+            texture = "Flat",
+            visibility = 0,
+            width = 250
+          }
         },
         themePreset = "Horde",
         tooltip = {

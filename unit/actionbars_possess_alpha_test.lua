@@ -168,4 +168,18 @@ for _, event in ipairs({ "UPDATE_POSSESS_BAR", "UPDATE_VEHICLE_ACTIONBAR", "ACTI
     env.OnOwnedEvent(nil, event)
     assert(main.alpha == 0, event .. ": standalone action bars must restore mouseover hiding on exit")
 end
+owned.useNativeButtons = true
+env.SKINNABLE_BAR_KEYS = { bar1 = true }
+local nativeMain = newFrame()
+env.GetBarFrame = function(key) return key == "bar1" and nativeMain end
+env.InCombatLockdown = function() return true end
+env.FadeHideTextures = function() error("native fades must not hide protected cooldowns") end
+env.FadeShowTextures = function() error("native fades must not replace native texture visibility") end
+action.state.fadeHidden = false
+possess = false
+env.SetOwnedBarAlpha("bar1", 0)
+assert(nativeMain.alpha == 0, "native bars follow presentation holder fades")
+assert(main.alpha == 0 and fadeState.bar1.requestedAlpha == 0 and fadeState.bar1.currentAlpha == 0)
+env.SetOwnedBarAlpha("bar1", 1)
+assert(main.alpha == 1 and nativeMain.alpha == 1 and fadeState.bar1.currentAlpha == 1)
 print("OK: actionbars_possess_alpha_test")

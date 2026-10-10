@@ -35,6 +35,7 @@ local function Provider(tag)
         built[tag] = ctx
         local y = ctx.y
         local row = env.NewFrame("Frame", nil, ctx.scrollChild)
+        row:SetHeight(28)
         y = ctx.PlaceRow(row, y)
         ctx.ResetRows()
         y = y - 250
@@ -66,8 +67,8 @@ check("panels published under their globals",
 -- 1. Shared geometry
 ---------------------------------------------------------------------------
 local ct, it = charFlyout.trigger, inspectFlyout.trigger
-check("trigger width identical (118)", ct.width == 118 and it.width == 118, ("%s vs %s"):format(ct.width, it.width))
-check("trigger height identical (20)", ct.height == 20 and it.height == 20)
+check("trigger width fits its label", ct.width == 76 and it.width == 76, ("%s vs %s"):format(ct.width, it.width))
+check("trigger height fits the control (24)", ct.height == 24 and it.height == 24)
 check("trigger label text", charFlyout.triggerLabel.text == "Settings" and inspectFlyout.triggerLabel.text == "Settings")
 check("trigger label font 12", charFlyout.triggerLabel.fontSize == 12 and inspectFlyout.triggerLabel.fontSize == 12)
 check("trigger label idle white .85",

@@ -17,6 +17,9 @@
 -- (ActionButton.lua:895) creates the same frame from UpdateAction:542, one
 -- line ABOVE the Update() call the override replaces.
 
+local isForever = ... == "forever"
+local corpusRoot = "tests/clients/forever/framexml/Interface/AddOns/"
+
 local actionBarsDB = {
     enabled = true,
     global = {},
@@ -35,6 +38,8 @@ local function NewFrame()
         frameRefs = {},
         shown = false,
         frameLevel = 1,
+        children = {},
+        _quiActionFlagRefreshInstalled = false,
     }
     frameMT = frameMT or {
         __index = function(_, key)
@@ -52,6 +57,19 @@ local function NewFrame()
                 return function(self, name, ref) self.frameRefs[name] = ref end
             elseif key == "GetFrameRef" then
                 return function(self, name) return self.frameRefs[name] end
+            elseif key == "Execute" then
+                return function(self, body, ...)
+                    return assert(loadstring("local self, control = ...; " .. body))(self, self, ...)
+                end
+            elseif key == "RunAttribute" then
+                return function(self, name) return self:Execute(assert(self.attributes[name])) end
+            elseif key == "ChildUpdate" then
+                return function(self, name, message)
+                    for _, child in ipairs(self.children) do
+                        local body = child.attributes["_childupdate-" .. name]
+                        if body then assert(loadstring("local self, message = ...; " .. body))(child, message) end
+                    end
+                end
             elseif key == "Show" then
                 return function(self) self.shown = true end
             elseif key == "Hide" then
@@ -82,9 +100,11 @@ SlashCmdList = {}
 BINDING_HEADER_QUI_ACTIONBARS = ""
 WOW_PROJECT_MAINLINE = 1
 WOW_PROJECT_ID = WOW_PROJECT_MAINLINE
+if isForever then dofile(corpusRoot .. "Blizzard_ProjectConstants/Camelot/ProjectConstants.lua") end
 RANGE_INDICATOR = ""
 
 function GetBuildInfo()
+    if isForever then return "1.60.1", "70205", "", 16001 end
     return "12.0.5", "66562", "May 1 2026", 120005
 end
 
@@ -93,9 +113,11 @@ end
 -- script that GetScript reports and SetScript can clear.
 local function templateOnUpdate() end
 
-function CreateFrame(_, _, parent, template)
+function CreateFrame(_, name, parent, template)
     local frame = NewFrame()
     frame.parent = parent
+    if name then rawset(_G, name, frame) end
+    if parent and parent.children then parent.children[#parent.children + 1] = frame end
     if template and template:find("AssistedCombatRotation", 1, true) then
         frame.scripts.OnUpdate = templateOnUpdate
     end
@@ -106,7 +128,8 @@ local testInCombat = false
 function InCombatLockdown() return testInCombat end
 function GetTime() return 1 end
 function HasAction(action) return action ~= nil and action > 0 end
-function RegisterStateDriver() end
+local stateDrivers = {}
+function RegisterStateDriver(frame, state, condition) stateDrivers[frame] = { state, condition } end
 function UnregisterStateDriver() end
 function LibStub() return nil end
 function GetCVar() return "0" end
@@ -228,12 +251,16 @@ setmetatable(_G, {
     end,
 })
 
+assert(loadfile("core/client.lua"))("QUI", ns)
+assert(ns.Client.isForever == isForever and not ns.Client.restrictedExecutionUnavailable,
+    "the current client must enable secure owned action bars")
 assert(loadfile("QUI_ActionBars/actionbars/actionbars_env.lua"))("QUI", ns)
 assert(loadfile("QUI_ActionBars/actionbars/actionbars.lua"))("QUI", ns)
 assert(loadfile("QUI_ActionBars/actionbars/actionbars_helpers.lua"))("QUI", ns)
 assert(loadfile("QUI_ActionBars/actionbars/actionbars_layout.lua"))("QUI", ns)
 assert(loadfile("QUI_ActionBars/actionbars/actionbars_builder.lua"))("QUI", ns)
 assert(loadfile("QUI_ActionBars/actionbars/actionbars_glow.lua"))("QUI", ns)
+assert(loadfile("QUI_ActionBars/actionbars/actionbars_editmode.lua"))("QUI", ns)
 
 rawset(_G, "C_ActionBar", setmetatable({
     IsAssistedCombatAction = function(action) return assistedSlots[action] == true end,
@@ -258,6 +285,22 @@ local function check(name, ok, detail)
         print("FAIL  " .. name .. (detail and ("\n        " .. detail) or ""))
     end
 end
+
+local pagingContainer = NewFrame()
+local pagedButtons = env.BuildStandardOwnedButtons(pagingContainer, "bar1")
+assert(#pagedButtons == 12 and pagedButtons[1]:GetAttribute("action") == 1
+    and stateDrivers[pagingContainer][1] == "page",
+    "supported clients must initialize all owned main-bar slots")
+actionInfoBySlot[13] = { "spell", 777 }
+IsPressHoldReleaseSpell = function(spellID) return spellID == 777 end
+assert(loadstring("local self, control, newstate = ...; " .. pagingContainer:GetAttribute("_onstate-page")))(pagingContainer, pagingContainer, "2")
+assert(pagingContainer:GetAttribute("qui-action-page") == 2 and pagedButtons[1]:GetAttribute("action") == 13,
+    "the installed owned paging snippet must update button actions")
+assert(pagedButtons[1]:GetAttribute("pressAndHoldAction") == true
+    and pagedButtons[1]:GetAttribute("typerelease") == "actionrelease",
+    "owned page changes must refresh press-and-hold release attributes")
+assert(_G.ActionBarActionEventsFrame.frames[pagedButtons[1]] == nil,
+    "owned initialization must preserve native dispatch isolation")
 
 local btn = env.EnsureOwnedActionButton(container, "bar5", "QUI_Bar5Button1", 1)
 assert(btn ~= nil, "sanity: create branch must return a button")
@@ -372,6 +415,7 @@ check("out of combat the ping attribute update passes straight through to Blizza
 local originalLayout = noop
 local layoutWrites = 0
 local microMenu = NewFrame()
+microMenu.BorderArt, microMenu.BackgroundArt = NewFrame(), NewFrame()
 local baseFrameMT = getmetatable(microMenu)
 setmetatable(microMenu, {
     __index = function(self, key)
@@ -410,6 +454,15 @@ for _, name in ipairs(env.MICRO_BUTTON_NAMES) do
     rawset(_G, name, NewMicroButton())
 end
 rawset(_G, "HelpMicroButton", NewMicroButton())
+if isForever then
+    microMenu.GenerateButtonInfos = function()
+        local infos = {}
+        for _, name in ipairs(env.MICRO_BUTTON_NAMES) do
+            infos[#infos + 1] = { button = _G[name] }
+        end
+        return infos
+    end
+end
 
 local externalMicroMenuOwner = NewFrame()
 microMenu.parent = externalMicroMenuOwner

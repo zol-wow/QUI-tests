@@ -25,7 +25,7 @@ end
 check("Action Bars header matches the CDM Live Preview treatment",
     content:find('lbl:SetText(ns.L["Live Preview"])', 1, true) ~= nil
     and content:find("lbl:SetTextColor(0.6, 0.6, 0.6, 1)", 1, true) ~= nil
-    and content:find("SkinBase.SkinFontString(lbl, { fontOnly = true })", 1, true) ~= nil
+    and content:find("font = GUI:GetFontPath()", 1, true) ~= nil
     and content:find('ns.L["P R E V I E W"]', 1, true) == nil)
 
 check("tile height remains an initial budget while the driver owns auto-fit",

@@ -41,10 +41,10 @@ local ns = {
         end,
         CreateStateTable = createStateTable,
         IsSecretValue = function() return false end,
-        GetSkinBgColorWithOverride = function(_, moduleKey)
+        GetWindowColors = function(_, moduleKey)
             skinBgCalls = skinBgCalls + 1
             assert(moduleKey == "chat", "chat surface must request the chat skin background")
-            return 0.20, 0.30, 0.40, 0.90
+            return 0.70, 0.80, 0.90, 1, 0.20, 0.30, 0.40, 0.90
         end,
         GetSkinBgColor = function()
             return 0.50, 0.60, 0.70, 0.90
@@ -80,13 +80,13 @@ local getColors = assert(ns.QUI.Chat._internals.GetChatSurfaceColors, "chat surf
 local bg = getColors(settings)
 assert(bg[1] == 0.20 and bg[2] == 0.30 and bg[3] == 0.40, "factory black without alpha should follow the skin background")
 assert(bg[4] == 0.42, "chat surface should keep glass.bgAlpha")
-assert(skinBgCalls == 1, "default black path should call the skin background helper")
+assert(skinBgCalls == 2, "default black derives both background and border from window colors")
 
 settings.glass.bgColor = { 0, 0, 0, 1 }
 bg = getColors(settings)
 assert(bg[1] == 0 and bg[2] == 0 and bg[3] == 0, "picker-written black with alpha must be honored as an explicit override")
 assert(bg[4] == 0.42, "explicit black should still use glass.bgAlpha")
-assert(skinBgCalls == 1, "explicit picker black must not fall back to the skin background")
+assert(skinBgCalls == 3, "explicit picker black still requests window border colors")
 
 settings.glass.bgColor = { 0.11, 0.12, 0.13 }
 bg = getColors(settings)

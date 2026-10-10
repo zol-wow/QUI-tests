@@ -52,9 +52,13 @@ assert(AutoOpen.ShouldOpenFor({ GetName = function() return "SomeRandomFrame" en
 assert(AutoOpen.ShouldOpenFor(nil) == true, "nil frame defaults to open")
 assert(AutoOpen.ShouldOpenFor({ GetName = function() return "QUI_BankWindow" end }) == true,
        "bank window enabled must open")
+assert(AutoOpen.ShouldOpenFor({ GetName = function() return "BankFrame" end }) == true,
+       "native bank must respect enabled auto-open")
 settings.behavior.autoOpen.bank = false
 assert(AutoOpen.ShouldOpenFor({ GetName = function() return "QUI_BankWindow" end }) == false,
        "bank window disabled must not open")
+assert(AutoOpen.ShouldOpenFor({ GetName = function() return "BankFrame" end }) == false,
+       "native bank must respect disabled auto-open")
 settings.behavior.autoOpen.bank = true
 
 assert(AutoOpen.ShouldOpenFor({ GetName = function() return "QUI_GuildBankWindow" end }) == true,

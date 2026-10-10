@@ -101,8 +101,8 @@ local relEnd = assert(source:find("\nend\n", relStart, true),
 assert(source:find("icon:Hide()", relStart, true) and
        source:find("icon:Hide()", relStart, true) < relEnd,
     "ReleaseForPreview must hide the icon")
-assert(source:find("icon.Cooldown:Clear()", relStart, true) and
-       source:find("icon.Cooldown:Clear()", relStart, true) < relEnd,
+assert(source:find("ClearCooldown(icon.Cooldown)", relStart, true) and
+       source:find("ClearCooldown(icon.Cooldown)", relStart, true) < relEnd,
     "ReleaseForPreview must clear any active cooldown swipe")
 do
     local recycleInsert = source:find("table.insert(recyclePool", relStart, true)

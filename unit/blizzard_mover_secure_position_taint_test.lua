@@ -130,4 +130,15 @@ assert((plainFrame.setPointCalls or 0) >= 1,
 assert(secureExecuteCount == 0,
     "non-protected frame must NOT go through the secure positioner")
 
+ns.Client = { restrictedExecutionUnavailable = true }
+secureExecuteCount = 0
+protectedFrame.setPointCalls = 0
+protectedFrame.clearCalls = 0
+mover.functions.applyFrameSettings(protectedFrame, "ProtectedPanel")
+assert(secureExecuteCount == 0, "affected Forever build must not execute secure snippets")
+assert(protectedFrame.setPointCalls == 0 and protectedFrame.clearCalls == 0,
+    "affected Forever build must preserve native protected positioning")
+mover.functions.applyFrameSettings(plainFrame, "PlainPanel")
+assert(plainFrame.setPointCalls >= 2, "ordinary mover positioning remains available")
+
 print("OK: blizzard_mover_secure_position_taint_test")

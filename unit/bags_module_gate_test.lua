@@ -56,9 +56,11 @@ ns.Bags.BankTakeover = {
     IsLive        = function() return bankLive end,
 }
 local bagToggles = 0
+local bagCooldownRefreshes = 0
 ns.Bags.BagWindow  = {
     Hide    = logger("bag-window-hide"),
     IsShown = function() return false end,
+    Refresh = function() bagCooldownRefreshes = bagCooldownRefreshes + 1 end,
     Toggle  = function() bagToggles = bagToggles + 1 end,
 }
 local searchWindowHides, searchToggles = 0, 0
@@ -70,6 +72,7 @@ ns.Bags.SearchWindow = {
     Toggle = function() searchToggles = searchToggles + 1 end,
 }
 local bankWindowHides = 0
+local bankCooldownRefreshes = 0
 local bankShows = {}
 ns.Bags.BankWindow = {
     Hide            = function()
@@ -77,6 +80,7 @@ ns.Bags.BankWindow = {
         takeoverLog[#takeoverLog + 1] = "bank-window-hide"
     end,
     IsShown         = function() return false end,
+    Refresh         = function() bankCooldownRefreshes = bankCooldownRefreshes + 1 end,
     ShowLive        = function() bankShows[#bankShows + 1] = "live" end,
     ShowCached      = function() bankShows[#bankShows + 1] = "cached" end,
     OnProfileChanged = function() end,
@@ -310,6 +314,9 @@ ns.Bags.SortExecutor = { OnCombat = function() sortCombats = sortCombats + 1 end
 ns.Bags.Transfers    = { OnCombat = function() transferCombats = transferCombats + 1 end }
 ns.Bags.Junk         = { OnCombat = function() junkCombats = junkCombats + 1 end }
 guildWindowShown = true
+ns.Bags.BagWindow.IsShown = function() return true end
+ns.Bags.BankWindow.IsShown = function() return true end
+ns.Bags.cooldownRefreshPending = true
 scripts.OnEvent(frame, "PLAYER_REGEN_DISABLED")
 scripts.OnEvent(frame, "PLAYER_REGEN_ENABLED")
 assert(sortCombats == 1, "PLAYER_REGEN_DISABLED must route to SortExecutor.OnCombat()")
@@ -317,7 +324,12 @@ assert(transferCombats == 1, "PLAYER_REGEN_DISABLED must route to Transfers.OnCo
 assert(junkCombats == 1, "PLAYER_REGEN_DISABLED must route to Junk.OnCombat()")
 assert(guildCombatRefreshes == 2,
        "combat transitions must refresh shown guild money controls")
+assert(bagCooldownRefreshes == 1 and bankCooldownRefreshes == 1
+       and ns.Bags.cooldownRefreshPending == nil,
+       "combat exit must repaint deferred bag and bank cooldowns once")
 guildWindowShown = false
+ns.Bags.BagWindow.IsShown = function() return false end
+ns.Bags.BankWindow.IsShown = function() return false end
 ns.Bags.SortExecutor, ns.Bags.Transfers, ns.Bags.Junk = nil, nil, nil
 
 -- Test 9: refresh while already enabled + active (profile switch between two

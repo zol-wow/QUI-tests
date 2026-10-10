@@ -29,7 +29,10 @@ local function NewTexture()
     function t:ClearAllPoints() end function t:SetPoint() end
     function t:SetHeight() end function t:SetWidth() end
     function t:Show() end function t:Hide() end
+    function t:SetSize() end
     function t:SetTexture() end
+    function t:SetTexCoord() end
+    function t:SetDrawLayer() end
     function t:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
     function t:SetVertexColor(r, g, b, a) self.color = { r, g, b, a } end
     return t
@@ -37,6 +40,8 @@ end
 
 local function NewBackdropFrame()
     local f = { frameLevel = 4 }
+    function f:GetWidth() return 250 end
+    function f:GetHeight() return 20 end
     function f:GetFrameLevel() return self.frameLevel end
     function f:SetFrameLevel(l) self.frameLevel = l end
     function f:SetAllPoints() end
@@ -79,6 +84,9 @@ local SETTINGS = { showBorder = true, frameBackgroundOpacity = 1 }
 
 local ns = {
     Helpers = {
+        AssetPath = "Interface\\AddOns\\QUI\\assets\\",
+        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
+        GetWindowColors = function() return 0.6, 0.7, 0.8, 1, 0.1, 0.2, 0.3, 0.9 end,
         CHROME = { BORDER_PX = 1, BG_FALLBACK = { 0.05, 0.05, 0.05, 0.95 }, BORDER_FALLBACK = { 0, 0, 0, 1 }, BUTTON_BOOST = 0.07, SCROLLROW_BOOST = 0.03, DEPTH = { PANEL = { boost = 0, alpha = 0.95 }, SUBPANEL = { boost = 0.04, alpha = 0.85 }, ROW = { boost = 0.07, alpha = 0.75 } } },
         CreateStateTable = CreateStateTable,
         GetCore = function()

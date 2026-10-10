@@ -54,6 +54,7 @@ ns.Helpers.FrameIsProtected = function() return false end
 ns.Helpers.FrameIsAnchoringRestricted = function() return false end
 ns.Helpers.FrameVisibleSecure = function(frame) return frame and frame:IsShown() or false end
 ns.Helpers.GetSkinBorderColor = function() return 1, 1, 1, 1 end
+ns.Helpers.GetWindowColors = function() return 1, 1, 1, 1, 0.05, 0.05, 0.05, 0.95 end
 ns.Addon.SafeSetFont = noop
 ns.Addon.Datatexts = { AttachToSlot = noop, DetachFromSlot = noop }
 
