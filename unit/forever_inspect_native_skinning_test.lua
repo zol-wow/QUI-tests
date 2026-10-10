@@ -32,7 +32,7 @@ for name, id in xml:gmatch('<Frame name="(InspectFrameModeTab%d+)" parentArray="
     tab:SetScript("OnMouseUp", tab.OnMouseUp)
     frame.ModeTabs.Tabs[#frame.ModeTabs.Tabs + 1] = tab
 end
-assert(#frame.ModeTabs.Tabs == 2, "Forever exposes two native inspect side tabs")
+assert(#frame.ModeTabs.Tabs == 3, "Forever exposes three native inspect side tabs")
 local paperDoll = harness.NewFrame("Frame", "InspectPaperDollFrame", frame)
 _G.InspectPaperDollFrame = paperDoll
 _G.InspectPaperDollItemsFrame = harness.NewFrame("Frame", "InspectPaperDollItemsFrame", paperDoll)
@@ -48,7 +48,7 @@ for _, tab in ipairs(frame.ModeTabs.Tabs) do
     assert(tab.Icon:GetAlpha() == 1 and tab.Mask:GetAlpha() == 1, "inspect portrait and mask must survive")
     assert(tab:GetScript("OnMouseUp") == tab.OnMouseUp, "inspect native mouse-release routing must survive")
 end
-local tab = frame.ModeTabs.Tabs[2]
+local tab = frame.ModeTabs.Tabs[3]
 tab:SetChecked(true)
 assert(harness.SkinBase.GetFrameData(tab, "tabChecked"), "inspect selected side tab must follow native SetChecked")
 local source = read("modules/skinning/character_pane/inspect.lua")
