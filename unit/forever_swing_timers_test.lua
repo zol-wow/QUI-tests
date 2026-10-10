@@ -176,7 +176,10 @@ local function build(forever, delayed)
     ns.QUI_LayoutMode = world.QUI_LayoutMode
     ns.WhenLoggedIn = function(callback) logins[#logins + 1] = callback end
     ns.Registry = { Register = noop }
-    ns.SkinBase = { GetWindowColors = function() return 0.2, 0.8, 0.6, 1, 0.05, 0.05, 0.05, 1 end,
+    ns.SkinBase = {
+        ApplyChromeBackdrop = function(frame, options) frame.chromeOptions = options end,
+        RoundBarTexture = function(owner, texture) texture.maskOwner = owner end,
+        GetWindowColors = function() return 0.2, 0.8, 0.6, 1, 0.05, 0.05, 0.05, 1 end,
         GetSkinColors = function() return 0.2, 0.8, 0.6, 1, 0.05, 0.05, 0.05, 1 end,
         GetSkinBarColor = function() return 0.2, 0.8, 0.6 end,
         SetInsetPixelPoints = function(region, relativeTo, pixels)
@@ -275,6 +278,12 @@ for _, entry in ipairs(api.entries) do
         assert(top and bottom and top[4] == 0.5 and top[5] == -0.5 and bottom[4] == -0.5 and bottom[5] == 0.5,
             "bar and background insets must use physical pixels at non-unit UI scale")
     end
+    assert(entry.chrome and entry.chrome.chromeOptions.radius == 3 and entry.chrome.chromeOptions.borderPixels == 1
+        and entry.chrome:GetParent() == frame and entry.chrome:GetFrameLevel() < frame.StatusBar:GetFrameLevel(),
+        "each swing must use rounded one-pixel chrome behind its native fill")
+    assert(frame.Border.texture == nil and frame.Background.texture == nil
+        and frame.StatusBar:GetStatusBarTexture().maskOwner == frame.StatusBar and frame.StatusBar.Pip.maskOwner == frame.StatusBar,
+        "square native art must be suppressed and fill/pip clipped")
     assert(frame:GetScript("OnEvent") == nil and frame.OnEvent == world.SwingTimerMixin.OnEvent
         and world.SwingTimerManagerFrame:GetScript("OnEvent") == world.SwingTimerManagerMixin.OnEvent
         and frame:GetScript("OnHide") == world.SwingTimerMixin.OnHide, "native timing scripts must remain installed")
@@ -310,11 +319,11 @@ test.event("PLAYER_SWING", 2, world.Enum.PlayerSwingType.MainHand)
 assert(main.StatusBar.Pip:IsShown(), "new native swing must show the skinned pip again")
 state.range = false
 test.event("PLAYER_TARGET_CHANGED")
-assert(main.StatusBar.alpha == 0.4 and main.Background.alpha == 0.4 and main.StatusBar.TimeLabel.textColor[2] == 0,
+assert(api.entries[1].chrome:GetAlpha() == 0.4 and main.StatusBar.alpha == 0.4 and main.Background.alpha == 0.4 and main.StatusBar.TimeLabel.textColor[2] == 0,
     "native range dimming and red labels must survive skinning")
 state.range = nil
 test.event("PLAYER_TARGET_CHANGED")
-assert(main.StatusBar.alpha == 1 and main.StatusBar.TimeLabel.textColor[2] == 1, "unknown range must not be treated as out of range")
+assert(api.entries[1].chrome:GetAlpha() == 1 and main.StatusBar.alpha == 1 and main.StatusBar.TimeLabel.textColor[2] == 1, "unknown range must not be treated as out of range")
 state.offhand, state.ranged = nil, nil
 test.event("WEAPON_SLOT_CHANGED")
 assert(not offhand:IsShown() and not ranged:IsShown() and not offhand:ShouldHandleSwing() and not ranged:ShouldHandleSwing()
@@ -366,5 +375,5 @@ main:SetIsInEditMode(true)
 for _, mover in pairs(test.movers) do mover.onOpen() end
 for _, mover in pairs(test.movers) do mover.onClose() end
 test.flush()
-assert(main.isInEditMode and main:IsShown(), "QUI preview cleanup must preserve active native edit mode")
+assert(api.entries[1].chrome:GetAlpha() == 1 and main.isInEditMode and main:IsShown(), "QUI preview cleanup must preserve active native edit mode")
 print("OK forever_swing_timers_test")

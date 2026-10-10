@@ -30,7 +30,7 @@ local source = readFile("modules/skinning/frames/auctionhouse.lua")
 -- stays on top of the QUI backdrop.
 assertContains(
     source,
-    "SkinBase.SkinDropdown(searchBar.FilterButton, { belowChildren = true })",
+    "SkinBase.SkinDropdown(searchBar.FilterButton, { skinArrow = true, belowChildren = true })",
     "AH filter backdrop must be lowered below the dropdown's children (belowChildren) so the clear-X stays on top")
 
 print("OK: auctionhouse_filter_clearx_strata_test")

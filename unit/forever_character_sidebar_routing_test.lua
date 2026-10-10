@@ -24,6 +24,9 @@ for _, forever in ipairs({ true, false }) do
     equipmentPopup:Hide()
     titlesPopup:Hide()
     panel.scrollChild = {}
+    panel:SetWidth(160)
+    equipment.ScrollBox, titles.ScrollBox = frame(), frame()
+    equipment.EquipSet, equipment.SaveSet = frame(), frame()
     local state = {}
     local world = setmetatable({
         ns = { Client = { isForever = forever }, QUI = {}, SafeCall = function()
@@ -42,8 +45,9 @@ for _, forever in ipairs({ true, false }) do
         PaperDollFrame_UpdateSidebarTabs = false,
         PAPERDOLL_SIDEBARS = forever and { {}, {}, {}, {} } or { {}, {}, {} },
         SOUNDKIT = {}, PlaySound = function() end,
-        frameState = state, EMPTY = {}, statsPanel = panel, slotOverlays = {},
+        frameState = state, EMPTY = {}, statsPanel = panel, slotOverlays = {}, allEquipmentSlots = {},
         GetSettings = function() return { enabled = enabled } end,
+        GetSkinBase = function() return nil end,
         GetChrome = function() return { GetNativeStatsPane = function() return native end } end,
         MaskNativeStatsPane = function() end,
         GetState = function(value) state[value] = state[value] or {}; return state[value] end,
@@ -85,13 +89,20 @@ for _, forever in ipairs({ true, false }) do
         setfenv(nativeEvents, world)
         nativeEvents()
     end
+    if source:find("local function ShowCharacterSidebarPane(", 1, true) then
+        local inline = assert(loadstring(slice(source, "local function ShowCharacterSidebarPane(",
+            "local function RestoreCharacterPanePopouts()") .. "\nreturn ShowCharacterSidebarPane"))
+        setfenv(inline, world)
+        world.ShowCharacterSidebarPane = inline()
+    end
     local hooks = assert(loadstring("local chrome = GetChrome()\n" .. slice(source,
         '    local nativeStatsPane = chrome and chrome.GetNativeStatsPane', "    if GearManagerPopupFrame then")))
     setfenv(hooks, world)
     hooks()
     world.PaperDollFrame_UpdateSidebarTabs = function() end
     local update = assert(loadstring(slice(source, "local function UpdateStatsPanel(", "local function GetAverageEquippedQuality(")
-        .. slice(source, "ScheduleUpdate = function()", "-- Side popouts are built")
+        .. slice(source, "ScheduleUpdate = function()", source:find("local function ShowCharacterSidebarPane(", 1, true)
+            and "local function ShowCharacterSidebarPane(" or "-- Side popouts are built")
         .. "\nreturn UpdateStatsPanel"))
     setfenv(update, world)
     local updateStats = update()
@@ -100,15 +111,22 @@ for _, forever in ipairs({ true, false }) do
         world["PaperDollSidebarTab" .. index]:Fire("OnClick")
     end
     click(forever and 2 or 3)
-    assert(equipmentPopup:IsShown() and equipment:GetParent() == equipmentPopup,
-        "native equipment tab must open the equipment popup")
+    assert(equipment:IsShown() and equipment:GetParent() == character,
+        "native equipment tab must stay inside the character panel")
+    assert(not panel:IsShown(), "equipment selection must replace player stats")
+    local actionTop = { equipment.EquipSet:GetPoint(1) }
+    assert(actionTop[1] == "TOPLEFT" and actionTop[2] == equipment and actionTop[5] == -6, "equipment actions must leave space below the view icons")
+    local equipmentTop = { equipment:GetPoint(1) }
+    assert(equipmentTop[2] == panel, "equipment pane must occupy the stats area")
+    assert(equipment.EquipSet:GetWidth() == 78 and equipment.SaveSet:GetWidth() == 78,
+        "equipment actions must fit side by side inside the stats area")
     assert(not titlesPopup:IsShown(), "equipment tab must not open titles")
     if forever then
         assert(not panel:IsShown(), "equipment selection must hide player stats")
         world.ScheduleUpdate()
         click(3)
-        assert(titlesPopup:IsShown() and titles:GetParent() == titlesPopup,
-            "Forever tab 3 must open the titles popup")
+        assert(titles:IsShown() and titles:GetParent() == character,
+            "Forever tab 3 must swap to inline titles")
         assert(not equipmentPopup:IsShown() and not panel:IsShown(), "titles tab must close equipment and player stats")
         harness.RunTimers()
         updateStats(panel, "player")
@@ -151,14 +169,23 @@ for _, forever in ipairs({ true, false }) do
         nativeEvent("UNIT_AURA")
         assert(renders == before, "disabled enhancement must not render after native stats refresh")
         click(2)
-        assert(not equipmentPopup:IsShown() and equipment:GetParent() == equipmentPopup,
+        assert(not equipmentPopup:IsShown() and equipment:GetParent() == character,
             "disabled enhancement must not open its popup")
         click(3)
-        assert(not titlesPopup:IsShown() and titles:GetParent() == titlesPopup,
-            "disabled enhancement must not open its titles popup")
+        assert(not titlesPopup:IsShown() and titles:GetParent() == character,
+            "disabled enhancement must preserve the native titles parent")
     else
         click(2)
-        assert(titlesPopup:IsShown() and titles:GetParent() == titlesPopup, "Retail tab 2 must retain title popup")
+        assert(titles:IsShown() and titles:GetParent() == character, "Retail tab 2 must swap to inline titles")
+        updateStats(panel, "player")
+        assert(not panel:IsShown() and renders == 0, "Retail stats refresh must not overlay titles")
+        world.PaperDollSidebarTab3:Fire("OnClick")
+        assert(equipment:IsShown() and not titles:IsShown(), "gear click must select the native equipment pane")
+        updateStats(panel, "player")
+        assert(not panel:IsShown() and renders == 0, "Retail stats refresh must not overlay equipment")
+        click(1)
+        updateStats(panel, "player")
+        assert(panel:IsShown() and renders == 1, "Retail stats must return after selecting Character")
     end
 end
 print("OK forever_character_sidebar_routing_test")

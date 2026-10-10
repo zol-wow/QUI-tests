@@ -118,7 +118,7 @@ end
 local pane = readFile("modules/skinning/character_pane/character.lua")
 local skin = readFile("modules/skinning/frames/character.lua")
 local chrome = readFile("modules/skinning/frames/character_chrome.lua")
-check("enhancement creates popouts through the owner", pane:find("chrome.CreatePopout(titleText, { name = globalName })", 1, true) ~= nil)
+check("enhancement keeps sidebar panes inline", pane:find("pane:SetPoint(\"TOPLEFT\", statsPanel, \"TOPLEFT\", 0, 0)", 1, true) ~= nil)
 check("enhancement has no dialog textures", pane:find("UI-DialogBox", 1, true) == nil)
 check("chrome owner has no dialog textures", chrome:find("UI-DialogBox", 1, true) == nil)
 check("frame skin no longer restyles the popout backdrop itself",

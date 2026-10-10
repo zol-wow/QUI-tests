@@ -14,7 +14,8 @@ local SkinBase = {
 }
 local ns = {
     Client = { isForever = true },
-    Helpers = { GetCore = function() return { db = { profile = { general = settings } } } end },
+    Helpers = { GetCore = function() return { db = { profile = { general = settings } } } end,
+        CreateStateTable = function() return setmetatable({}, { __mode = "k" }) end },
     SkinBase = SkinBase,
     Registry = { Register = function(_, key, entry) registry[key] = entry end },
 }

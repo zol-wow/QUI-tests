@@ -118,6 +118,13 @@ local ns = {
 }
 
 ns.SkinBase = {
+    ClampTextureHidden = function() end,
+    SkinButton = function() end,
+    ApplyChromeBackdrop = function() end,
+    GetBackdrop = function() end,
+    CreateBackdrop = function() end,
+    RoundBarTexture = function() end,
+    SkinTrimScrollBar = function() end,
     ForEachScrollBoxFrame = function(scrollBox, callback)
         if scrollBox and scrollBox.HasView and not scrollBox:HasView() then return end
         return ns.SafeCallMethodIfPresent("best-effort-style", scrollBox, "ForEachFrame", callback)

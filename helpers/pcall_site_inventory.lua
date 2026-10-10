@@ -128,6 +128,7 @@ return {
     "modules/skinning/character_pane/character.lua::28",
     "modules/skinning/character_pane/inspect.lua::9",
     "modules/skinning/frames/auctionhouse.lua::2",
+    "modules/skinning/frames/misc_frames.lua::1",
     "modules/skinning/system/tooltips.lua::19",
     "modules/trackers/atonement_counter.lua::7",
     "modules/trackers/aura_display_templates.lua::1",

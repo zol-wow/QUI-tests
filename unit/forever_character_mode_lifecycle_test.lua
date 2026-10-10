@@ -41,6 +41,8 @@ env.frameState, env.EMPTY = { [character] = states }, {}
 env.RestoreCharacterPanePopouts = function() restoreCalls = restoreCalls + 1 end
 env.IsSkinningHandlingBackground = function() return true end
 env.QUI_CharacterFrameSkinning = { SetExtended = function(value) backgroundExtended = value end }
+local settings = { panelScale = 1.15 }
+env.GetSettings = function() return settings end
 env.SetCharacterFrameScale = function(value) scale = value end
 env.AnchorCharacterFrameBottomTabs = function() end
 env.hooksecurefunc = hooksecurefunc
@@ -57,7 +59,8 @@ for _, name in ipairs(env.CHARACTERFRAME_SUBFRAMES) do
             assert(not element:IsShown(), name .. " must hide custom CharacterFrame elements")
         end
         assert(not overlay:IsShown(), name .. " must hide equipment overlays")
-        assert(scale == 1 and backgroundExtended == false, name .. " must restore native scale and shell bounds")
+        assert(math.abs(scale - 1.3 * settings.panelScale) < .00001, name .. " must preserve the configured Character panel zoom")
+        assert(backgroundExtended == false, name .. " must retain native shell bounds")
     end
 end
 assert(restoreCalls >= 5, "every non-PaperDoll mode must restore popouts")
