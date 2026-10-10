@@ -5,6 +5,7 @@ for _, key in ipairs({ "SetSize", "SetPoint", "SetFrameLevel", "SetStatusBarText
 local function widget()
     return setmetatable({ events = {}, scripts = {} }, { __index = methods })
 end
+function methods:GetStatusBarTexture() self.fill = self.fill or widget(); return self.fill end
 function methods:CreateFontString() return widget() end
 function methods:GetFrameLevel() return 2 end
 function methods:RegisterEvent(event) self.events[event] = true end
@@ -63,6 +64,8 @@ local ns = {
         SetFrameBackdropColor = function(frame, ...) frame.skinBackground = { ... } end,
         SetFrameBackdropBorderColor = function(frame, ...) frame.skinBorder = { ... } end },
     SkinBase = { GetWindowColors = function() return 1, 1, 1, 1, 0, 0, 0, 1 end, GetSkinColors = function() return 1, 1, 1, 1, 0, 0, 0, 1 end,
+        RoundBarTexture = function(owner, texture) owner.roundedFill = texture end,
+        ApplyChromeBackdrop = function(frame, options) frame.chromeOptions = options end,
         SetExpandedPixelPoints = noop, ApplyPixelBackdrop = function(frame) frame.skinBackdrop = true end,
         SkinFontString = function(frame) frame.skinFont = true end,
         SetFrameData = noop, MarkSkinned = noop },
@@ -71,6 +74,8 @@ local chunk = assert(loadfile(arg[1] or "modules/skinning/gameplay/powerbaralt.l
 setfenv(chunk, env)
 chunk("QUI", ns)
 local bar = assert(env.QUI_AltPowerBar)
+assert(bar.roundedFill == bar:GetStatusBarTexture(), "power fill must use the shared rounded mask")
+assert(bar.backdrop.chromeOptions.radius == 3 and bar.backdrop.chromeOptions.borderPixels == 1, "power shell must use rounded one-pixel chrome")
 assert(bar.events.UNIT_MAXPOWER == "player", "replacement must register native alternate-power maximum changes")
 assert(bar.maximum == 100 and bar.text.text == "Power: 25%")
 state.maximum = 50

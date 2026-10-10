@@ -1,22 +1,3 @@
--- tests/unit/character_tab_selection_persist_test.lua
--- Run: lua tests/unit/character_tab_selection_persist_test.lua
---
--- Regression guard for the "character-frame tab selection highlight reverts on
--- a scale refresh" bug.
---
--- The bottom tabs (Character/Reputation/Currency) get a SkinBase.CreateBackdrop
--- frame whose base colors are stored in SkinBase's pixelBackdropData. The
--- selected-vs-unselected tint (brightened bg for the active tab, dimmed for the
--- rest) is painted by the canonical SkinBase.RefreshTabSelected through
--- SkinBase.ApplyPixelBackdrop (same geometry CreateBackdrop used), so the
--- selection colors become the STORED data and survive a scale-refresh rebuild --
--- unlike a bare bd:SetBackdrop*Color, which updates only the live color that
--- SkinBase.RefreshPixelBackdrop discards on its next rebuild.
---
--- Since CharacterFrame's tabs migrated off their private fork onto the shared
--- SkinBase.SkinTabGroup, this also guards that the canonical verb persists the
--- selection tint. Drives the real _G.QUI_CharacterFrameSkinning.Refresh path
--- through the real SkinBase backdrop system and the real UIKit scale refresh.
 
 -- luacheck: globals CreateFrame C_Timer hooksecurefunc InCombatLockdown
 -- luacheck: globals CharacterFrame CharacterFrameTab1 CharacterFrameTab2 CharacterFrameTab3
@@ -24,14 +5,13 @@
 
 local function approx(a, b) return a and math.abs(a - b) < 1e-4 end
 
--- A frame whose backdrop API mirrors WoW + supports SkinBase's manual texture
--- path (CreateTexture). Mirrors the proven shape from mplus_timer_backdrop_persist.
 local function NewTexture()
     local t = {}
     function t:ClearAllPoints() end function t:SetPoint() end
     function t:SetHeight() end function t:SetWidth() end
     function t:Show() end function t:Hide() end
     function t:SetTexture() end
+    function t:SetSize() end function t:SetTexCoord() end function t:SetAlpha() end
     function t:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
     function t:SetVertexColor(r, g, b, a) self.color = { r, g, b, a } end
     return t
@@ -44,6 +24,7 @@ local function NewFrame()
     function f:SetFrameStrata() end
     function f:GetID() return self.id end
     function f:SetAllPoints() end
+    function f:SetSize() end
     function f:ClearAllPoints() end
     function f:SetPoint() end
     function f:EnableMouse() end
@@ -72,12 +53,12 @@ local function CreateStateTable()
     return tbl, get
 end
 
--- Base theme colors GetSkinColors() returns: sr,sg,sb,sa, bgr,bgg,bgb,bga.
 local BASE = { 0.10, 0.20, 0.30, 1, 0.40, 0.50, 0.60, 0.90 }
 
 local ns = {
     Addon = { GetPixelSize = function() return 0.5 end },
     Helpers = {
+        AssetPath = [[Interface\AddOns\QUI\assets\]],
         GetWindowColors = function() return unpack(BASE) end,
         CHROME = { BORDER_PX = 1, BG_FALLBACK = { 0.05, 0.05, 0.05, 0.95 }, BORDER_FALLBACK = { 0, 0, 0, 1 }, BUTTON_BOOST = 0.07, SCROLLROW_BOOST = 0.03, DEPTH = { PANEL = { boost = 0, alpha = 0.95 }, SUBPANEL = { boost = 0.04, alpha = 0.85 }, ROW = { boost = 0.07, alpha = 0.75 } } },
         CreateStateTable = CreateStateTable,
@@ -115,12 +96,9 @@ C_Timer = { After = function() end }
 hooksecurefunc = function() end
 function InCombatLockdown() return false end
 
--- Load the real UIKit/SkinBase, then the real character skinning module.
 assert(loadfile("core/uikit.lua"))("QUI", ns)
 local SkinBase = ns.SkinBase
 assert(type(SkinBase) == "table", "SkinBase must load from uikit.lua")
--- The bottom tabs are now styled by the chrome owner; frames/character.lua's
--- Refresh delegates to CharacterChrome.RefreshTheme -> StyleTabs.
 assert(loadfile("modules/skinning/frames/character_chrome.lua"))("QUI", ns)
 assert(loadfile("modules/skinning/frames/character.lua"))("QUI", ns)
 
@@ -128,7 +106,6 @@ local API = _G.QUI_CharacterFrameSkinning
 assert(type(API) == "table" and type(API.Refresh) == "function",
     "character.lua must expose _G.QUI_CharacterFrameSkinning.Refresh")
 
--- Build three tabs; tab 1 is the active one.
 CharacterFrame = NewFrame()
 CharacterFrame.selectedTab = 1
 local tabs = {}
@@ -148,34 +125,19 @@ for i = 1, 3 do
     SkinBase.MarkStyled(tab)
 end
 
--- Drive the real refresh path: SkinCharacterFrameTabs -> SkinBase.SkinTabGroup ->
--- refreshAll() -> RefreshTabSelected (canonical selected/unselected tint, persisted
--- via ApplyPixelBackdrop). CharacterFrame.selectedTab=1 resolves selection through
--- IsTabSelected's owner.selectedTab fallback.
 API.Refresh()
 
 local bd1 = SkinBase.GetBackdrop(tabs[1])
 local bd2 = SkinBase.GetBackdrop(tabs[2])
 assert(bd1 and bd2, "tabs must have SkinBase backdrops")
 
--- Selected tab bg is brightened (base + 0.10); unselected stays at base bg.
-local SEL_BG = { math.min(BASE[5] + 0.10, 1), math.min(BASE[6] + 0.10, 1), math.min(BASE[7] + 0.10, 1) }
-
-assert(approx(bd1._quiBgR, SEL_BG[1]) and approx(bd1._quiBgG, SEL_BG[2]) and approx(bd1._quiBgB, SEL_BG[3]),
-    "precondition: selected tab bg is brightened right after refresh")
-assert(approx(bd2._quiBgR, BASE[5]) and approx(bd2._quiBgG, BASE[6]),
-    "precondition: unselected tab bg is the base color right after refresh")
-
--- A scale refresh (e.g. UI scale change with the frame open) rebuilds the tab
--- backdrops. The selection tint must SURVIVE, not revert to the base color.
+assert(approx(bd1._quiBgR, BASE[5]) and approx(bd1._quiBgG, BASE[6]) and approx(bd1._quiBgB, BASE[7]),
+    "selected tabs must blend with the window fill")
+assert(approx(bd2._quiBgR, BASE[5]) and approx(bd2._quiBgG, BASE[6]) and approx(bd2._quiBgA, bd1._quiBgA),
+    "unselected tabs must use the same opaque fill")
 ns.UIKit.RefreshScaleBoundWidgets()
-
-assert(approx(bd1._quiBgR, SEL_BG[1]) and approx(bd1._quiBgG, SEL_BG[2]) and approx(bd1._quiBgB, SEL_BG[3]),
-    "FIX: selected tab's brightened bg must survive the scale refresh, not revert to base")
-assert(approx(bd1._quiBorderR, BASE[1]) and approx(bd1._quiBorderG, BASE[2]) and approx(bd1._quiBorderB, BASE[3]),
-    "FIX: selected tab's full-strength border must survive the scale refresh")
--- Unselected tab keeps its dimmed border (sc * 0.5) through the refresh too.
-assert(approx(bd2._quiBorderR, BASE[1] * 0.5) and approx(bd2._quiBorderG, BASE[2] * 0.5),
-    "FIX: unselected tab's dimmed border must survive the scale refresh")
-
+assert(approx(bd1._quiBgR, BASE[5]) and approx(bd1._quiBgG, BASE[6]),
+    "selected tab fill must survive scale refresh")
+assert(approx(bd1._quiBorderR, bd2._quiBorderR) and approx(bd1._quiBorderG, bd2._quiBorderG),
+    "selection must not add a second border treatment")
 print("OK: character_tab_selection_persist_test")

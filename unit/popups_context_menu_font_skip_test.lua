@@ -79,3 +79,34 @@ assert(skinFrameTextTargets[legacyMenu] == nil,
     "legacy DropDownList menus must NOT get SkinFrameText — font objects are driven via ApplyButtonFontObjectsDeep")
 
 print("OK: popups_context_menu_font_skip_test")
+local function Font(r, g, b)
+    return {
+        color = {r,g,b,1},
+        IsObjectType = function(_, kind) return kind == "FontString" end,
+        GetTextColor = function(self) return unpack(self.color) end,
+        SetTextColor = function(self, ...) self.color = {...} end,
+        SetFont = function() error("compositor font mutation is forbidden") end,
+    }
+end
+local heading = Font(1,.82,0)
+local className = Font(.77,.12,.23)
+local disabled = Font(.3,.3,.3)
+local row = NewMenuFrame("NativeRow")
+row.GetNumRegions = function() return 3 end
+row.GetRegions = function() return heading,className,disabled end
+row.arrow = {
+    SetDesaturated = function(self, value) self.desaturated = value end,
+    SetVertexColor = function(self, ...) self.color = {...} end,
+}
+local nativeClick = function() end
+row.OnClick = nativeClick
+modernMenu.GetNumChildren = function() return 1 end
+modernMenu.GetChildren = function() return row end
+_G.QUI_RefreshSystemPopupSkins()
+assert(heading.color[1] == .9 and heading.color[2] == .9 and heading.color[3] == .9,
+    "decorative gold section headings become neutral")
+assert(className.color[1] == .77 and disabled.color[1] == .3,
+    "semantic class colors and disabled state remain intact")
+assert(row.arrow.desaturated and row.arrow.color[1] == .9,
+    "submenu arrow stays visible with neutral artwork")
+assert(row.OnClick == nativeClick, "native context-menu action is preserved")

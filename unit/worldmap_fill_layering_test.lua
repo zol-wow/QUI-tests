@@ -168,6 +168,12 @@ ns.SkinBase = {
     end,
 }
 
+ns.SkinBase.SkinFontString = function() end
+ns.SkinBase.ApplyChromeBackdrop = function(frame, opts)
+    ns.SkinBase.ApplyPixelBackdrop(frame, 1, true, false, opts.borderColor, opts.bgColor)
+end
+ns.SkinBase.RoundBarTexture = function() end
+
 assert(loadfile("modules/skinning/frames/worldmap.lua"))("QUI", ns)
 -- worldmap.lua registers several addon-loaded callbacks (WorldMap, FlightMap);
 -- target the WorldMap one specifically.

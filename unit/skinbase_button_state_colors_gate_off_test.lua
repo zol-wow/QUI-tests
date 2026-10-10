@@ -25,6 +25,9 @@ local function NewTexture()
     function t:GetFont() return self.font, self.size or 12, self.flags end
     function t:SetTexture() end function t:SetColorTexture() end function t:SetVertexColor() end
     function t:SetAllPoints() end function t:IsObjectType(o) return o == "Texture" end
+    function t:SetSize(w, h) self.width, self.height = w, h end
+    function t:SetTexCoord(...) self.texCoord = {...} end
+    function t:SetShown(v) if v then self:Show() else self:Hide() end end
     return t
 end
 local function NewButton()
@@ -67,6 +70,10 @@ local function NewButton()
         end
         if self.scripts.OnEnable then self.scripts.OnEnable(self) end
     end
+    function f:GetWidth() return self.width or 100 end
+    function f:GetHeight() return self.height or 100 end
+    function f:GetLeft() return 0 end
+    function f:GetBottom() return 0 end
     return f
 end
 CreateFrame = function() return NewButton() end
@@ -85,7 +92,7 @@ local function CreateStateTable() local t = setmetatable({}, { __mode = "k" }); 
 local CHROME = { BORDER_PX=1, BG_FALLBACK={0.05,0.05,0.05,0.95}, BORDER_FALLBACK={0,0,0,1}, BUTTON_BOOST=0.07, SCROLLROW_BOOST=0.03, DEPTH={PANEL={boost=0,alpha=0.95},SUBPANEL={boost=0.04,alpha=0.85},ROW={boost=0.07,alpha=0.75}} }
 
 local function LoadWithGate(gate)
-    local ns = { Helpers = { CHROME=CHROME, CreateStateTable=CreateStateTable,
+    local ns = { Helpers = { AssetPath = [[Interface\AddOns\QUI\assets\]], CHROME=CHROME, CreateStateTable=CreateStateTable,
         GetCore = function() return { db = { profile = { general = { applyGlobalFontToBlizzard = gate } } } } end,
         SafeToNumber = function(v,d) return tonumber(v) or d end,
         GetSkinBorderColor = function() return 0.6, 0.7, 0.8, 1 end,

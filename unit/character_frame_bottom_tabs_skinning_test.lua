@@ -39,7 +39,7 @@ assertContains(
     "Chrome owner must expose StyleTabs")
 assertContains(
     chrome,
-    "SkinBase.SkinTabGroup(SkinBase.CollectNumberedTabs(\"CharacterFrame\", 3), CharacterFrame",
+    "SkinBase.SkinTabGroup(tabs, CharacterFrame",
     "Bottom CharacterFrame tabs must route through the canonical SkinBase.SkinTabGroup (covers CharacterFrameTab1..3 + selection dispatch + persisted selection tint)")
 
 -- Must NOT reintroduce the private fork (the inconsistency root).

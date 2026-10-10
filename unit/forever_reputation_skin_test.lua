@@ -41,6 +41,8 @@ local ns = {
         SetFrameData = function(frame, key, value) frame[key] = value end,
         GetDepthColor = function() return 0, 0, 0, 1 end,
         ApplyPixelBackdrop = noop,
+        ApplyChromeBackdrop = noop,
+        RoundBarTexture = noop,
         SetExpandedPixelPoints = noop,
         LockPooledRowText = noop,
         HookScrollBoxAcquired = function(_, callback) acquired = callback end,

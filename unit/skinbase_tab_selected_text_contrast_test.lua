@@ -36,6 +36,9 @@ local function NewTexture()
     function t:IsShown() return self.visible end
     function t:SetDrawLayer() end
     function t:IsObjectType(objType) return objType == "Texture" end
+    function t:SetSize(w, h) self.width, self.height = w, h end
+    function t:SetTexCoord(...) self.texCoord = {...} end
+    function t:SetShown(v) if v then self:Show() else self:Hide() end end
     return t
 end
 
@@ -68,6 +71,10 @@ local function NewFrame(parent)
     function f:SetDisabledFontObject(o) self.disabledFontObject = o end
     function f:IsEnabled() return self.enabled end
     function f:GetParent() return self.parent end
+    function f:GetWidth() return self.width or 100 end
+    function f:GetHeight() return self.height or 100 end
+    function f:GetLeft() return 0 end
+    function f:GetBottom() return 0 end
     return f
 end
 
@@ -75,6 +82,7 @@ function CreateFrame(_, _, parent) return NewFrame(parent) end
 C_Timer = { After = function(_, fn) fn() end }
 function hooksecurefunc(target, method, hook)
     if type(target) == "string" then
+        hook = method
         local original = _G[target]
         if type(original) ~= "function" then return end
         _G[target] = function(...)
@@ -98,6 +106,7 @@ function CreateFont(name)
     function obj:SetTextColor(r, g, b, a) self.textColor = { r, g, b, a } end
     return obj
 end
+function PanelTemplates_SelectTab() end
 function PanelTemplates_GetSelectedTab(frame) return frame.selectedTab end
 function PanelTemplates_SetTab(frame, id) frame.selectedTab = id end
 ScrollUtil = { AddAcquiredFrameCallback = function() end }
@@ -117,7 +126,7 @@ local ns = {
         if m == nil then return nil end
         return pcall(m, obj, ...)
     end,
-    Helpers = {
+    Helpers = { AssetPath = [[Interface\AddOns\QUI\assets\]],
         CHROME = { BORDER_PX = 1, BG_FALLBACK = { 0.05, 0.05, 0.05, 0.95 }, BORDER_FALLBACK = { 0, 0, 0, 1 }, BUTTON_BOOST = 0.07, SCROLLROW_BOOST = 0.03, DEPTH = { PANEL = { boost = 0, alpha = 0.95 }, SUBPANEL = { boost = 0.04, alpha = 0.85 }, ROW = { boost = 0.07, alpha = 0.75 } } },
         CreateStateTable = CreateStateTable,
         GetCore = function()
@@ -136,7 +145,7 @@ local ns = {
     UIKit = { RegisterScaleRefresh = function() end },
 }
 
-assert(loadfile("core/uikit.lua"))("QUI", ns)
+assert(loadfile(arg[1] or "core/uikit.lua"))("QUI", ns)
 local SkinBase = ns.SkinBase
 
 local function NewTab(owner)
@@ -192,8 +201,11 @@ assert(TextColor(tabB)[4] == 1 and near(TextColor(tabA)[4], 0.55),
 ---------------------------------------------------------------------------
 local ulB = SkinBase.GetFrameData(tabB, "tabUnderline")
 local ulA = SkinBase.GetFrameData(tabA, "tabUnderline")
+PanelTemplates_SelectTab(tabB)
+assert(ulB.alpha == 1, "native tab refresh must preserve the selected underline alpha")
 assert(ulB and ulB:IsShown(), "selected tab must show the accent underline")
 assert(ulA and not ulA:IsShown(), "unselected tab must hide the accent underline")
+assert(#ulB.points == 2, "selected underline must span both bottom corners")
 assert(ulB.height == 1, "underline must be exactly 1 physical pixel tall at pixel size 1")
 assert(ulB.colorTexture and near(ulB.colorTexture[1], 0.6) and near(ulB.colorTexture[2], 0.7),
     "underline must use the skin accent colour")

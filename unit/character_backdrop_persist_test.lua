@@ -228,6 +228,11 @@ function InCombatLockdown() return false end
 
 -- The popout is created by the chrome owner (CharacterChrome.CreatePopout);
 -- frames/character.lua re-tints it through RefreshPopout on skin + refresh.
+ns.SkinBase.ApplyChromeBackdrop = function(frame, opts)
+    ns.SkinBase.ApplyPixelBackdrop(frame, 1, true, false, opts.borderColor, opts.bgColor)
+end
+ns.SkinBase.RoundBarTexture = function() end
+
 assert(loadfile("modules/skinning/frames/character_chrome.lua"))("QUI", ns)
 assert(loadfile("modules/skinning/frames/character.lua"))("QUI", ns)
 

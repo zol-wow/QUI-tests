@@ -56,9 +56,12 @@ local ns = {
 }
 
 ns.SkinBase = {
+    GetBackdrop = function(frame) return frame.backdrop end,
+    GetWindowColors = function() return 1, 1, 1, 1, 0.1, 0.1, 0.1, 1 end,
+    CreateBackdrop = function(frame) frame.roundedBackdrop = true end,
     ApplyButtonFontObjects = function(button, opts) calls.buttonFontOptions[button] = opts end,
     ApplyButtonFontObjectsDeep = function() end,
-    ClampTextureHidden = function(texture) calls.hiddenTextures[texture] = true end,
+    ClampTextureHidden = function(texture) if texture then calls.hiddenTextures[texture] = true end end,
     GetFrameData = function(frame, key)
         return frameData[frame] and frameData[frame][key]
     end,
@@ -134,9 +137,27 @@ _G.WhoFrame.WhoFrameListInset = {}
 local contactTabs = { {}, {}, {} }
 _G.FriendsTabHeader = { TabSystem = { tabs = contactTabs } }
 _G.FriendsFrame = { IgnoreListWindow = NewList(), FriendsTabHeader = _G.FriendsTabHeader }
+_G.FriendsFrame.TopTileStreaks = {}
+_G.FriendsFrameBg = {}
+_G.FriendsFrame.Inset = { Bg = {} }
+_G.FriendsFrame.TitleText = NewFontString("Contacts")
+function _G.FriendsFrame:GetTitleText() return self.TitleText end
+function _G.FriendsFrame:SetTitle(text)
+    self.TitleText:SetText(text)
+    self.TitleText:SetTextColor(1, 0.82, 0)
+end
+_G.FriendsFrameIcon = {}
+_G.WhoFrameTotals = NewFontString("0 people found")
+
 local broadcast = { EditBox = {}, UpdateButton = {}, CancelButton = {} }
-local contactsMenu = {}
-_G.FriendsFrame.BattlenetFrame = { ContactsMenuButton = contactsMenu, BroadcastFrame = broadcast }
+local menuNormal, menuPushed, menuDisabled = {}, {}, {}
+local contactsMenu = {
+    GetNormalTexture = function() return menuNormal end,
+    GetPushedTexture = function() return menuPushed end,
+    GetDisabledTexture = function() return menuDisabled end,
+    Icon = {},
+}
+_G.FriendsFrameBattlenetFrame = { ContactsMenuButton = contactsMenu, BroadcastFrame = broadcast }
 _G.FriendsFrame.IgnoreListWindow.UnignorePlayerButton = {}
 _G.FriendsFrameAddFriendButton = {}
 _G.FriendsFrameSendMessageButton = {}
@@ -145,7 +166,10 @@ _G.WhoFrameAddFriendButton = {}
 _G.WhoFrameWhoButton = {}
 _G.WhoFrameEditBox = { searchIcon = { SetAlpha = function(self, alpha) self.alpha = alpha end } }
 _G.WhoFrameDropdown = { TabHighlight = {} }
-_G.FriendsFrameStatusDropdown = {}
+function _G.WhoFrameDropdown:ClearAllPoints() self.points = {} end
+function _G.WhoFrameDropdown:SetPoint(...) self.points[#self.points + 1] = { ... } end
+
+_G.FriendsFrameStatusDropdown = { Text = NewFontString() }
 _G.UserScaledFontGameNormal = { GetFont = function() return "Interface\\FrameXML\\Fonts\\Default.ttf", 15 end }
 _G.ALL_ASSIST_LABEL_SHORT = "All"
 _G.RaidFrameAllAssistCheckButton_UpdateAvailable = function(check)
@@ -172,8 +196,8 @@ assert(calls.windows[broadcast] == 1 and calls.editBoxes[broadcast.EditBox] == 1
     "Camelot Battlenet broadcast window and editor must be skinned")
 assert(calls.buttons[broadcast.UpdateButton] == 1 and calls.buttons[broadcast.CancelButton] == 1,
     "Camelot Battlenet broadcast actions must be skinned")
-assert(calls.buttons[contactsMenu] == 1 and calls.buttonOptions[contactsMenu].font == false,
-    "Camelot contacts menu must keep its icon while receiving button chrome")
+assert(calls.dropdowns[contactsMenu] == 1 and calls.dropdownOptions[contactsMenu].skinArrow,
+    "Camelot contacts menu must use the neutral QUI dropdown caret")
 assert(calls.scrollBars[_G.FriendsListFrame.ScrollBar] == 1, "Contacts scrollbar must be skinned")
 assert(calls.scrollBars[_G.WhoFrame.ScrollBar] == 1, "Who scrollbar must be skinned")
 assert(calls.hiddenChrome[_G.WhoFrame.WhoFrameListInset], "Who inset chrome must be removed")
@@ -186,12 +210,14 @@ assert(not calls.buttons[_G.WhoFrameColumnHeader2] and calls.stripped[_G.WhoFram
 assert(calls.dropdowns[_G.WhoFrameDropdown] == 1
     and calls.dropdownOptions[_G.WhoFrameDropdown].skinArrow == true,
     "the Zone selector must use dropdown chrome and a QUI arrow")
-assert(#calls.tabGroups == 1 and calls.tabGroups[1].tabs == contactTabs
-    and calls.tabGroups[1].owner == _G.FriendsTabHeader
-    and calls.tabGroups[1].opts.resizeToText == true,
+assert(#calls.tabGroups == 2 and calls.tabGroups[2].tabs == contactTabs
+    and calls.tabGroups[2].owner == _G.FriendsTabHeader
+    and calls.tabGroups[2].opts.resizeToText == true,
     "Friends, Recent Allies, and Recruit A Friend must use the QUI top-tab skin")
-assert(calls.windowOptions[_G.FriendsFrame].tabs[1] == _G.FriendsFrameTab1
-    and calls.windowOptions[_G.FriendsFrame].tabs[4] == _G.FriendsFrameTab4,
+assert(calls.tabGroups[1].owner == _G.FriendsFrame
+    and calls.tabGroups[1].opts.dockBottom
+    and calls.tabGroups[1].tabs[1] == _G.FriendsFrameTab1
+    and calls.tabGroups[1].tabs[4] == _G.FriendsFrameTab4,
     "Contacts, Who, Raid, and Quick Join must remain one navigation tab group")
 assert(_G.WhoFrameEditBox.searchIcon.alpha == 1, "Who search must retain its search icon")
 assert(calls.buttons[_G.WhoFrameWhoButton] == 1, "Who action buttons must use QUI chrome")
@@ -353,3 +379,35 @@ assert(calls.rowHooks[friendsList.ScrollBox] == 1,
     "later Social addon loads must not duplicate pooled-row callbacks")
 
 print("OK: social_frame_skin_lifecycle_test")
+
+assert(_G.FriendsFrameBattlenetFrame.roundedBackdrop, "Battle.net header must use QUI chrome")
+assert(calls.stripped[_G.FriendsFrameBattlenetFrame], "Battle.net native background must be suppressed")
+assert(calls.hiddenTextures[menuNormal] and calls.hiddenTextures[menuPushed] and calls.hiddenTextures[menuDisabled],
+    "contacts menu must not restore native gold button artwork")
+assert(_G.FriendsFrameStatusDropdown.Text.point[1] == "RIGHT", "status icon needs room beside the dropdown arrow")
+
+
+_G.FriendsFrame:SetTitle("Quick Join")
+assert(_G.FriendsFrame.TitleText.text == "Quick Join"
+    and _G.FriendsFrame.TitleText.textColor[2] == 1,
+    "native Social page changes must retain QUI white titles")
+assert(calls.hiddenTextures[_G.FriendsFrameIcon],
+    "the actual native Friends portrait must not float above the shell")
+local points = _G.WhoFrameDropdown.points
+assert(points[1][1] == "TOPLEFT" and points[1][2] == _G.WhoFrameColumnHeader2
+    and points[1][5] == 0 and points[2][1] == "BOTTOMRIGHT" and points[2][5] == 0,
+    "Zone dropdown must fit the same header height without native vertical overshoot")
+assert(_G.WhoFrameTotals.textColor[1] == 0.9,
+    "Who totals must use neutral text without altering the native count")
+
+
+assert(calls.stripped[_G.FriendsFrame.Inset]
+    and calls.hiddenTextures[_G.FriendsFrame.Inset.Bg],
+    "native Social inset gradient must stay suppressed across page changes")
+assert(calls.hiddenTextures[contactsMenu.Icon],
+    "native gold menu arrow must be replaced by QUI caret")
+
+
+assert(calls.hiddenTextures[_G.FriendsFrame.TopTileStreaks]
+    and calls.hiddenTextures[_G.FriendsFrameBg],
+    "the actual native root top gradient and background must stay suppressed")

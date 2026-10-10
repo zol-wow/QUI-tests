@@ -18,6 +18,7 @@ function methods:GetParent() return self.parent end
 function methods:GetFrameLevel() return 2 end
 function methods:SetScript(event, callback) self.scripts[event] = callback end
 function methods:GetNormalTexture() return nil end
+function methods:GetStatusBarTexture() return self.fill end
 
 local timers, events, data = {}, {}, setmetatable({}, { __mode = "k" })
 local state = { vehicle = false, health = false, mana = false, combat = false }
@@ -61,7 +62,13 @@ bar.xpBar = widget(bar)
 bar.xpBar.XpMid = widget(bar.xpBar)
 function bar.xpBar.XpMid:GetWidth() return 500 end
 for index = 1, 19 do bar.xpBar["XpDiv" .. index] = widget(bar.xpBar) end
-for index = 1, 6 do bar["SpellButton" .. index] = widget(bar) end
+for index = 1, 6 do
+    local button = widget(bar)
+    button.icon = widget(button)
+    bar["SpellButton" .. index] = button
+end
+bar.LeaveButton = widget(bar)
+bar.healthBar.fill, bar.powerBar.fill = widget(bar.healthBar), widget(bar.powerBar)
 env.OverrideActionBar = bar
 env.OverrideActionBarHealthBar, env.OverrideActionBarPowerBar = bar.healthBar, bar.powerBar
 local core = { GetPixelSize = function() return 1 end, db = { profile = { general = { skinOverrideActionBar = true } } } }
@@ -74,7 +81,11 @@ local ns = {
         GetSkinColors = function() return 1, 1, 1, 1, 0, 0, 0, 1 end,
         GetFrameData = function(frame, key) return data[frame] and data[frame][key] end,
         SetFrameData = function(frame, key, value) data[frame] = data[frame] or {}; data[frame][key] = value end,
-        ApplyPixelBackdrop = noop, SetExpandedPixelPoints = noop, MarkStyled = noop, MarkSkinned = noop,
+        ApplyPixelBackdrop = noop,
+        ApplyChromeBackdrop = function(frame, opts) frame.chromeRadius = opts.radius; frame.borderPixels = opts.borderPixels end,
+        RoundIconTexture = function(owner, texture) owner.roundedIcon = texture end,
+        RoundBarTexture = function(owner, texture) owner.roundedFill = texture end,
+        SetExpandedPixelPoints = noop, MarkStyled = noop, MarkSkinned = noop,
     },
 }
 local function flush()
@@ -99,6 +110,18 @@ for _, vehicle in ipairs({ false, true }) do
             end
         end
     end
+end
+assert(data[bar].backdrop.chromeRadius == 8 and data[bar].backdrop.borderPixels == 1,
+    "override shell must use rounded chrome with a one-pixel border")
+for index = 1, 6 do
+    local button = bar["SpellButton" .. index]
+    assert(data[button].backdrop.chromeRadius == 4 and button.roundedIcon == button.icon,
+        "all six native action icons and borders must share rounded styling")
+end
+assert(data[bar.LeaveButton].backdrop.chromeRadius == 4, "native exit control must share rounded button chrome")
+for _, resource in ipairs({bar.healthBar, bar.powerBar}) do
+    assert(data[resource].backdrop.chromeRadius == 3 and resource.roundedFill == resource.fill,
+        "both native resource bars must use rounded shells and owner-clipped fills")
 end
 state.combat, state.vehicle, state.health, state.mana = true, false, false, false
 bar:UpdateSkin()

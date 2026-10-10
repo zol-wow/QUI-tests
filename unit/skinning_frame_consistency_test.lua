@@ -58,7 +58,7 @@ end
 -- old noStrip left showing ("professions filter looks unskinned" bug).
 assertContains(professions, "SkinBase.SkinDropdown(recipeList.FilterDropdown, { belowChildren = true }",
     "Professions filter dropdown must use the canonical default strip + belowChildren")
-assertContains(professions, "SkinBase.SkinTabGroup(tabs, frame, { hover = true })",
+assertContains(professions, "SkinBase.SkinTabGroup(tabs, frame, { hover = true, dockBottom = true })",
     "Professions main tabs must keep selected-state-aware hover")
 assertContains(professions, "SkinBase.SkinTab(tab, owner, { hover = true })",
     "Professions spec pool tabs must keep hover via the shared single-tab helper")
@@ -70,21 +70,21 @@ assertAbsent(professions, "local function StyleTabSystemTab",
 -- Instance frames keep the arrow-preserving, inset dropdown treatment
 assertContains(instanceFrames, "SkinBase.SkinDropdown(",
     "Instance frame dropdowns must use SkinBase.SkinDropdown")
-assertContains(instanceFrames, "keepArrow = true",
+assertContains(instanceFrames, "skinArrow = true",
     "Instance frame dropdowns must keep the dropdown arrow visible")
 
-assertContains(instanceFrames, "SkinBase.SkinTabGroup(pveTabs, PVEFrame, { resizeToText = true })",
+assertContains(instanceFrames, "SkinBase.SkinTabGroup(pveTabs, PVEFrame, { resizeToText = true, dockBottom = true })",
     "PVE tabs must remeasure after the QUI font is applied")
-assertContains(mail, "SkinBase.SkinTabGroup(SkinBase.CollectNumberedTabs(\"MailFrame\", 2), frame, { resizeToText = true })",
+assertContains(mail, "SkinBase.SkinTabGroup(SkinBase.CollectNumberedTabs(\"MailFrame\", 2), frame, { resizeToText = true, dockBottom = true })",
     "Mail tabs must remeasure after the QUI font is applied")
-assertContains(journals, "SkinBase.SkinTabGroup(tabs, frame, { resizeToText = true })",
+assertContains(journals, "SkinBase.SkinTabGroup(tabs, frame, { resizeToText = true, dockBottom = true })",
     "Collections tabs must remeasure after the QUI font is applied")
-assertContains(inspect, "SkinBase.SkinTabGroup(SkinBase.CollectNumberedTabs(\"InspectFrame\", 3), InspectFrame, { font = true, resizeToText = true })",
+assertContains(inspect, "SkinBase.SkinTabGroup(SkinBase.CollectNumberedTabs(\"InspectFrame\", 3), InspectFrame, { font = true, resizeToText = true, dockBottom = true })",
     "Inspect tabs must remeasure after the QUI font is applied")
 assertContains(base, "SkinBase.SkinTabGroup(opts.tabs, opts.tabOwner or frame, { resizeToText = true })",
     "SkinWindow tabs must remeasure after the QUI font is applied")
-assertContains(social, "SkinBase.SkinWindow(frame, { tabs = tabs })",
-    "Friends tabs must use the standard SkinWindow tab path")
+assertContains(social, "SkinBase.SkinTabGroup(tabs, frame, { resizeToText = true, dockBottom = true })",
+    "Friends tabs must join the window through the shared tab group")
 for _, needle in ipairs({
     "SkinBase.CollectNumberedTabs(\"MerchantFrame\", 2)",
     "SkinBase.CollectNumberedTabs(\"GuildBankFrame\", 4)",

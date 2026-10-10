@@ -108,6 +108,8 @@ local ns = {
         GetWindowColors = function() return 1, 1, 1, 1, 0, 0, 0, 1 end,
         GetSkinColors = function() return 1, 1, 1, 1, 0, 0, 0, 1 end,
         ApplyPixelBackdrop = noop,
+        ApplyChromeBackdrop = function(frame, opts) frame.chrome = opts end,
+        RoundIconTexture = function(_, texture) texture.rounded = true end,
         SetPixelPoint = noop,
         CreateCloseButton = widget,
         SkinTrimScrollBar = noop,
@@ -143,6 +145,10 @@ nativeRollIDs, qualityCalls = {}, {}
 event("LOOT_OPENED", true)
 assert(env.QUI_LootFrame:IsShown(), "loot window should open")
 assert(env.QUI_LootFrame.height == 142, "all three loot slots should be laid out")
+assert(env.QUI_LootFrame.chrome.radius == 8, "loot shell must use rounded window chrome")
+assert(env.QUI_LootSlot1.iconBorder.chrome.radius == 4 and env.QUI_LootSlot1.icon.rounded, "loot icon and quality border must share rounded corners")
+assert(restoredRoll.chrome.radius == 8 and restoredRoll.icon.rounded, "restored roll must keep rounded shell and item artwork")
+assert(restoredRoll.needBtn.chrome.radius == 5 and restoredRoll.needBtn.icon.rounded, "roll actions must use rounded controls without losing their icons")
 for index, item in ipairs(items) do
     local slot = env.QUI_LootFrame.slots[index]
     checkColor(slot, item.quality or 1)

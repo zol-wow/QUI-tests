@@ -21,6 +21,7 @@ function frame:HookScript(event, fn) self.hooks[event] = fn end
 function frame:CreateTexture(_, layer, _, level)
     local texture = {layer = layer, level = level, alpha = 1, shown = true, points = {}}
     function texture:SetTexture(path) self.path = path end
+    function texture:SetColorTexture(...) self.solid = {...} end
     function texture:SetAlpha(value) self.alpha = value end
     function texture:SetVertexColor(...) self.color = {...} end
     function texture:ClearAllPoints() self.points = {} end
@@ -39,7 +40,7 @@ local surface = kit.CreateRoundedSurface(frame, {radius = 8, bgColor = {0.1, 0.2
 assert(#frame.textures == 15, "rounded fill and true outline must use 15 reusable pieces")
 assert(surface.fill.tl.width == 8 and surface.border.top.height == 1, "corner radius and thin border must be native pixel sized")
 assert(surface.fill.center.points[1][4] == 8 and surface.fill.center.points[2][4] == -8, "center fill must leave corner tiles uncovered")
-assert(surface.border.tl.coords[1] == 8 / 32, "border must sample the radius-specific arc, not a filled corner")
+assert(surface.border.tl.coords[1] == (8 + 15) / 64, "border must sample the radius-specific arc, not a filled corner")
 assert(surface.fill.tr.coords[1] > surface.fill.tr.coords[2], "right corners must reflect the original geometry")
 assert(surface.fill.bl.coords[3] > surface.fill.bl.coords[4], "bottom corners must reflect the original geometry")
 surface.background:SetAlpha(0.25)

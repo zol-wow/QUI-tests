@@ -749,3 +749,17 @@ moduleCard.Finalize()
 Flush()
 assert(moduleCard.frame._quiColumnCount == 3, "General module toggles must use three columns at docked width")
 print("OK: General uses shared three-column module cells")
+
+local dualCard = options.CreateSettingsCardGroup(dockedContent, -200, { maxColumns = 2 })
+local dualCells = {}
+for i = 1, 6 do
+    dualCells[i] = Cell("Toggle " .. i)
+    dualCells[i]._widget:SetWidth(26)
+    dualCard.AddRow(dualCells[i])
+end
+dualCard.Finalize()
+Flush()
+assert(dualCard.frame._quiColumnCount == 2, "two-column flyouts must retain two columns even when three would fit")
+assert(dualCells[1]:GetParent() == dualCells[2]:GetParent(), "flyout rows must pair controls in reading order")
+assert(dualCells[1]:GetParent() ~= dualCells[3]:GetParent(), "third flyout control must start the next row")
+print("OK: explicit dual-column card layout")
