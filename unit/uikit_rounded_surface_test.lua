@@ -65,6 +65,10 @@ assert(surface.fill.tl.width == 2, "tiny height must clamp corner radius")
 for _, texture in ipairs(frame.textures) do assert(not texture.shown, "resize must not reshow hidden chrome") end
 surface:Show()
 for _, texture in ipairs(frame.textures) do assert(texture.shown, "surface show must restore all pieces") end
+surface:Hide()
+frame.height = 100
+surface:Show()
+assert(surface.fill.tl.width == 24, "surface show must refresh geometry changed while hidden")
 local asset = assert(io.open("assets/appearance/RoundedSurface.tga", "rb"))
 local data = asset:read("*a")
 asset:close()

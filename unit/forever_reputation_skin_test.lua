@@ -14,14 +14,22 @@ local function textRegion()
     }
 end
 
+local chrome = dofile("tests/helpers/character_chrome_harness.lua").Build()
+local function IsVisible(frame)
+    while frame do
+        if frame.IsShown and not frame:IsShown() then return false end
+        frame = frame.GetParent and frame:GetParent()
+    end
+    return true
+end
 local acquired
 local initialized
 local backdropCount = 0
 local env = setmetatable({ CharacterFrame = {}, ReputationFrame = { ScrollBox = {} } }, { __index = _G })
 env._G = env
-env.CreateFrame = function()
+env.CreateFrame = function(kind, name, parent, template)
     backdropCount = backdropCount + 1
-    return { SetFrameLevel = noop, Show = noop }
+    return chrome.NewFrame(kind, name, parent, template)
 end
 local ns = {
     Helpers = {
@@ -41,7 +49,7 @@ local ns = {
         SetFrameData = function(frame, key, value) frame[key] = value end,
         GetDepthColor = function() return 0, 0, 0, 1 end,
         ApplyPixelBackdrop = noop,
-        ApplyChromeBackdrop = noop,
+        ApplyChromeBackdrop = chrome.SkinBase.ApplyChromeBackdrop,
         RoundBarTexture = noop,
         SetExpandedPixelPoints = noop,
         LockPooledRowText = noop,
@@ -57,12 +65,16 @@ assert(acquired, "character initialization must install the reputation row callb
 
 loadIn("tests/clients/forever/framexml/Interface/AddOns/Blizzard_SharedXML/Camelot/ProgressBars/ColoredProgressBar.lua", env)()
 local bar = {
+    shown = true,
+    SetShown = function(self, shown) self.shown = shown end,
+    IsShown = function(self) return self.shown end,
     Fill = {
         SetTexture = function(self, texture) self.texture = texture end,
         SetWidth = function(self, width) self.width = width end,
         SetTexCoord = function(self, ...) self.coords = { ... } end,
     },
     Mask = {},
+    Background = { shown = true, Hide = function(self) self.shown = false end },
     Text = textRegion(),
     GetWidth = function() return 160 end,
     GetParent = function() return env.CharacterFrame end,
@@ -82,12 +94,22 @@ assert(bar.Mask == mask and bar.Fill.color == color, "native mask and reputation
 assert(bar.Text.text == "Friendly" and bar.Text.font == "skin-font", "skin native Text without replacing its value")
 assert(bar.Text.fontSize == 10 and row.Content.Name.fontSize == 11)
 assert(bar.Fill.pixelSnapDisabled, "disable snapping on the actual Fill texture")
+local track = bar.backdrop._quiRoundedSurface
+assert(not bar.Background.shown, "reputation skin must suppress the native track background")
+assert(track and track.fill.center:IsShown() and track.fill.center.vertex[4] == 1,
+    "partly filled reputation must retain an opaque rounded track behind native progress")
 bar:SetFillPercent(0.75)
 bar:SetText("4,500 / 6,000")
 assert(bar.Fill.width == 120 and bar.Fill.coords[2] == 0.75, "native progress must still update after skinning")
 assert(bar.Text.text == "4,500 / 6,000", "native hover text must still update")
 acquired(row)
 assert(backdropCount == 1, "reacquiring a pooled row must not duplicate its backdrop")
+bar:SetShown(false)
+acquired(row)
+assert(not IsVisible(bar.backdrop), "recycling a reputation row as a header without reputation must hide its track")
+bar:SetShown(true)
+assert(IsVisible(bar.backdrop), "native header reputation visibility must restore its track")
+assert(bar.backdrop:GetFrameLevel() < bar:GetFrameLevel(), "reputation track must remain behind its native fill")
 
 local retail = {
     SetStatusBarTexture = function(self, texture) self.texture = texture end,
@@ -99,4 +121,7 @@ acquired({ Content = { ReputationBar = retail } })
 assert(retail.texture == "Interface\\Buttons\\WHITE8x8", "Retail must retain its StatusBar texture route")
 assert(retail.BarText.font == "skin-font" and retail.BarText.fontSize == 10)
 assert(retail.pixelSnapDisabled and backdropCount == 2)
+local retailTrack = retail.backdrop._quiRoundedSurface
+assert(retailTrack and retailTrack.fill.center.vertex[4] == 1,
+    "Retail reputation must retain the same opaque rounded track")
 print("OK: forever_reputation_skin_test")
