@@ -8,6 +8,9 @@ _G.SOUNDKIT = {}
 assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_ItemUpgradeUI/Mainline/Blizzard_ItemUpgradeUI.lua"))()
 local frame = env.NewFrame("Frame", "ItemUpgradeFrame")
 _G.ItemUpgradeFrame = frame
+frame.TitleContainer = env.NewFrame("Frame", nil, frame)
+frame.TitleContainer.TitleText = frame.TitleContainer:CreateFontString()
+frame.TitleContainer.TitleText:SetTextColor(1, .82, 0, 1)
 for method, fn in pairs(_G.ItemUpgradeMixin) do frame[method] = fn end
 for _, key in ipairs({"TopBG", "BottomBG", "BottomBGShadow", "IdleGlow", "MicaFleckSheen", "Ring", "BottomPanel_Flash"}) do
     frame[key] = frame:CreateTexture()
@@ -127,4 +130,12 @@ assert(slot:GetScript("OnClick") == _G.ItemUpgradeSlotMixin.OnClick
     and slot:GetScript("OnDragStart") == _G.ItemUpgradeSlotMixin.OnDrag
     and frame.UpgradeButton:GetScript("OnClick") == _G.ItemUpgradeButtonMixin.OnClick,
     "native item and upgrade action handlers must survive")
+assert(frame.TitleContainer.TitleText.textColor[2] == 1, "upgrade title must use neutral chrome text")
+frame.TitleContainer.TitleText:SetFontObject("GameFontNormal")
+assert(frame.TitleContainer.TitleText.textColor[2] == 1, "native title font reassignment must retain white text")
+frame.PlayerCurrencies:Hide()
+assert(not skin.GetBackdrop(frame.PlayerCurrenciesBorder):IsShown(), "empty native currency display must not leave a border")
+frame.PlayerCurrencies:Show()
+assert(skin.GetBackdrop(frame.PlayerCurrenciesBorder):IsShown() and frame.PlayerCurrencies.quantity:GetText() == "23",
+    "native populated currency display must restore its border and retain quantity")
 print("OK: item_upgrade_surfaces_test")

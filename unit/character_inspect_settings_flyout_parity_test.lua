@@ -175,6 +175,14 @@ check("character pane has no bespoke settings wheel handler", pane:find("current
 check("character stats panel uses the shared scroll contract", pane:find("chrome.AttachScroll(scrollFrame", 1, true) ~= nil)
 check("character stats panel dropped the 20 px jump", pane:find("current - delta * 20", 1, true) == nil)
 
+local originalPixelSize = env.ns.Addon.SetPixelPerfectSize
+function env.ns.Addon:SetPixelPerfectSize(frame, w, h) frame:SetSize(w / 1.3, h / 1.3) end
+local scaled = Chrome.CreateSettingsFlyout(inspectFrame, { title = "Scaled Inspect" })
+check("scaled trigger contains logical font width and icon padding",
+    scaled.trigger:GetWidth() >= scaled.triggerLabel:GetStringWidth() + 36)
+check("scaled trigger keeps physical height", approx(scaled.trigger:GetHeight() * 1.3, 24))
+env.ns.Addon.SetPixelPerfectSize = originalPixelSize
+
 if failures > 0 then
     print(("FAIL: character_inspect_settings_flyout_parity_test (%d)"):format(failures))
     os.exit(1)

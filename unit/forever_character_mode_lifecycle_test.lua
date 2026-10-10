@@ -17,6 +17,7 @@ local character = harness.BuildCharacterFrame()
 local nativeSource = read(corpus .. "CharacterFrame.lua")
 local env = setmetatable({ CharacterFrameMixin = {}, CharacterFrame = character }, { __index = _G })
 env._G = env
+env.ns = { Client = { isForever = true } }
 local constants = read(corpus .. "CharacterFrameConstants.lua")
 local loadConstants = assert(loadstring(constants:match("(CHARACTERFRAME_SUBFRAMES = [^\n]+)")))
 setfenv(loadConstants, env)()
@@ -60,6 +61,8 @@ for _, name in ipairs(env.CHARACTERFRAME_SUBFRAMES) do
         end
         assert(not overlay:IsShown(), name .. " must hide equipment overlays")
         assert(math.abs(scale - 1.3 * settings.panelScale) < .00001, name .. " must preserve the configured Character panel zoom")
+        local close = { character.CloseButton:GetPoint(1) }
+        assert(close[3] == "TOPRIGHT" and close[4] == -5, name .. " close button must remain inside native shell")
         assert(backgroundExtended == false, name .. " must retain native shell bounds")
     end
 end

@@ -134,6 +134,48 @@ local trainingList = env.NewFrame("Frame", nil, _G.TrainingGroundsFrame)
 _G.TrainingGroundsFrame.BonusTrainingGroundList = trainingList
 trainingList.RandomTrainingGroundBGButton = env.NewFrame("Button", nil, trainingList)
 trainingList.RandomTrainingGroundArenaButton = env.NewFrame("Button", nil, trainingList)
+local dungeonList = env.NewFrame("Frame", nil, _G.LFDQueueFrame)
+_G.LFDQueueFrame.Specific = dungeonList
+dungeonList.ScrollBox = env.NewFrame("Frame", nil, dungeonList)
+dungeonList.ScrollBar = env.NewFrame("Frame", nil, dungeonList)
+dungeonList.ScrollBar.Track = env.NewFrame("Frame", nil, dungeonList.ScrollBar)
+dungeonList.ScrollBar.Track.Thumb = env.NewFrame("Button", nil, dungeonList.ScrollBar.Track)
+local dungeonRow = env.NewFrame("Frame", nil, dungeonList.ScrollBox)
+dungeonRow.instanceName = dungeonRow:CreateFontString()
+dungeonRow.level = dungeonRow:CreateFontString()
+dungeonRow.level:SetTextColor(1, 0.82, 0)
+dungeonRow.enableButton = env.NewFrame("CheckButton", nil, dungeonRow)
+dungeonRow.enableButton.normalTexture = dungeonRow.enableButton:CreateTexture()
+dungeonRow.expandOrCollapseButton = env.NewFrame("Button", nil, dungeonRow)
+dungeonRow.expandOrCollapseButton.DisabledTexture = false
+dungeonRow.expandOrCollapseButton.normalTexture = dungeonRow.expandOrCollapseButton:CreateTexture()
+local nativeExpand = function() end
+local nativeSelect = function() end
+dungeonRow.expandOrCollapseButton:SetScript("OnClick", nativeExpand)
+dungeonRow.enableButton:SetScript("OnClick", nativeSelect)
+function dungeonList.ScrollBox:HasView() return true end
+function dungeonList.ScrollBox:ForEachFrame(fn) fn(dungeonRow) end
+_G.ScrollUtil = { AddAcquiredFrameCallback = function(owner, fn) owner.acquired = fn end }
+_G.LFGDungeonListButton_SetDungeon = function(row, collapsed)
+    row.isCollapsed = collapsed
+    row.expandOrCollapseButton:GetNormalTexture():SetTexture(collapsed and "native-plus" or "native-minus")
+    row.level:SetTextColor(1, 0.82, 0)
+end
+local searchRow = env.NewFrame("Button", nil, searchPanel.ScrollBox)
+searchRow.DisabledTexture = false
+function searchRow:CreateMaskTexture() return self:CreateTexture() end
+searchRow.Highlight = searchRow:CreateTexture()
+searchRow.Highlight:SetAtlas("groupfinder-highlightbar-blue")
+searchRow.Highlight.AddMaskTexture = function() end
+searchRow.ResultBG = searchRow:CreateTexture()
+searchRow.BackgroundTexture = searchRow:CreateTexture()
+searchRow.BackgroundTexture:SetAtlas("groupfinder-highlightbar-green")
+searchRow.Name = searchRow:CreateFontString()
+searchRow.Name:SetTextColor(0.2, 0.7, 1)
+local searchSelect = function() end
+searchRow:SetScript("OnClick", searchSelect)
+function searchPanel.ScrollBox:HasView() return true end
+function searchPanel.ScrollBox:ForEachFrame(fn) fn(searchRow) end
 env.SkinBase.OnAddOnLoaded = function(_, fn) fn() end
 assert(loadfile(os.getenv("QUI_INSTANCE_SOURCE") or "modules/skinning/frames/instanceframes.lua"))("QUI", env.ns)
 assert(env.SkinBase.GetBackdrop(_G.PVEFrame)._quiRoundedSurface, "Group Finder shell must render rounded chrome")
@@ -225,4 +267,29 @@ assert(rewardItem.IconBorder:IsShown() and rewardItem.IconBorder:GetAlpha() == 1
     "native reward quality-border visibility must survive skinning")
 assert(rewardItem:GetScript("OnClick") == nativeRewardClick,
     "Dungeon Finder reward clicks must remain native")
+env.RunTimers()
+assert(env.SkinBase.GetBackdrop(dungeonRow.enableButton),
+    "specific dungeon checkbox must use shared chrome")
+assert(env.SkinBase.GetBackdrop(dungeonList.ScrollBar.Track.Thumb)._quiRoundedSurface,
+    "specific dungeon scrollbar must retain a visible shared thumb")
+local expandGlyph = env.SkinBase.GetFrameData(dungeonRow.expandOrCollapseButton, "dungeonExpandGlyph")
+_G.LFGDungeonListButton_SetDungeon(dungeonRow, true)
+assert(expandGlyph:GetText() == "+", "collapsed headers must display plus after native row update")
+_G.LFGDungeonListButton_SetDungeon(dungeonRow, false)
+assert(expandGlyph:GetText() == "-", "expanded headers must display minus after row reuse")
+assert(dungeonRow.expandOrCollapseButton:GetNormalTexture():GetAlpha() == 0,
+    "native texture refresh must not restore red expand button art")
+assert(dungeonRow.level.textColor[1] == 1 and dungeonRow.level.textColor[2] == 0.82,
+    "dungeon difficulty color must remain native")
+assert(dungeonRow.expandOrCollapseButton:GetScript("OnClick") == nativeExpand
+    and dungeonRow.enableButton:GetScript("OnClick") == nativeSelect,
+    "styling must preserve native expand and selection handlers")
+assert(env.SkinBase.GetBackdrop(searchRow)._quiRoundedSurface,
+    "group search rows must use rounded shared chrome")
+assert(searchRow.ResultBG:GetAlpha() == 0,
+    "native rectangular result backgrounds must remain suppressed")
+assert(searchRow.BackgroundTexture.atlas == "groupfinder-highlightbar-green",
+    "application status artwork must remain native")
+assert(searchRow:GetScript("OnClick") == searchSelect,
+    "result selection must remain native")
 print("OK: instanceframes_rounded_navigation_test")

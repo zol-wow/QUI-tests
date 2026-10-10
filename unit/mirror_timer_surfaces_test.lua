@@ -1,3 +1,4 @@
+for _, backgroundAtlas in ipairs({"UI-CastingBar-Background", "ui-castingbar-background"}) do
 for _, legacy in ipairs({false, true}) do
     local env = dofile("tests/helpers/character_chrome_harness.lua").Build()
     env.profile.general.skinMirrorTimers = true
@@ -25,7 +26,7 @@ for _, legacy in ipairs({false, true}) do
     frame.Border = frame:CreateTexture()
     frame.TextBorder = frame:CreateTexture()
     local background = frame:CreateTexture()
-    background:SetAtlas("ui-castingbar-background")
+    background:SetAtlas(backgroundAtlas)
     function background:GetAtlas() return self.atlas end
     local bar = env.NewFrame("StatusBar", nil, frame)
     bar:SetFrameLevel(3)
@@ -96,5 +97,6 @@ for _, legacy in ipairs({false, true}) do
     backdrop._quiBorderR = -1
     refresh()
     assert(backdrop._quiBorderR ~= -1 and maskCount == 1, "theme refresh must restore chrome without duplicate masks")
+end
 end
 print("OK: mirror_timer_surfaces_test")

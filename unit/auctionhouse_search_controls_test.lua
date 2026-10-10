@@ -23,12 +23,22 @@ _G.SquareIconButtonMixin={OnLoad=function() end,OnEnter=function() end}
 local f=assert(io.open("tests/framexml/Interface/AddOns/Blizzard_AuctionHouseUI/Shared/Blizzard_AuctionHouseSearchBar.lua"))
 assert(loadstring(f:read("*a"),"@native-ah-search"))();f:close()
 local ah=frame();_G.AuctionHouseFrame=ah
+ah.TitleContainer=frame(nil,ah);ah.TitleContainer.TitleText=ah.TitleContainer:CreateFontString()
+ah.TitleContainer.TitleText:SetText("Browse Auctions");ah.TitleContainer.TitleText:SetTextColor(1,.82,0,1)
+ah.MoneyFrameInset=frame(nil,ah);ah.MoneyFrameInset.NineSlice=frame(nil,ah.MoneyFrameInset)
+local insetArt=ah.MoneyFrameInset.NineSlice:CreateTexture();insetArt:SetAtlas("native-inset")
+ah.MoneyFrameBorder=frame(nil,ah);ah.MoneyFrameBorder.NineSlice=frame(nil,ah.MoneyFrameBorder)
+local moneyArt=ah.MoneyFrameBorder:CreateTexture();moneyArt:SetAtlas("native-money-edge")
+local moneyEdge=ah.MoneyFrameBorder.NineSlice:CreateTexture();moneyEdge:SetAtlas("native-gold-edge")
+ah.MoneyFrameBorder.MoneyFrame=frame(nil,ah.MoneyFrameBorder);ah.MoneyFrameBorder.MoneyFrame.amount=112550
+local moneyText=ah.MoneyFrameBorder.MoneyFrame:CreateFontString();moneyText:SetText("112550");moneyText:SetTextColor(1,1,1,1)
 local bar=frame(nil,ah);ah.SearchBar=bar
 bar.SearchBox=frame("EditBox",bar);bar.SearchBox:SetText("native axes query")
 bar.SearchButton=frame("Button",bar)
 bar.FilterButton=frame("DropdownButton",bar)
 local filter=bar.FilterButton
 filter:SetFrameLevel(20);filter.Text=filter:CreateFontString();filter.Text:SetText("Native filter")
+filter.Text:SetTextColor(1,.82,0,1)
 filter.Background=filter:CreateTexture();filter.Background:SetAtlas("common-dropdown-b-button")
 filter.Arrow=false
 filter.ClearFiltersButton=frame("Button",filter);filter.ClearFiltersButton:SetFrameLevel(21)
@@ -87,4 +97,14 @@ assert(favorite:GetFrameLevel()==level and favorite.Icon.atlas=="auctionhouse-ic
  "theme must retain favorite level/art, entered query and invoke no search")
 assert(clear:GetScript("OnClick")==clearClick and favorite.callback==favoriteClick,
  "native clear and favorite handlers must retain ownership")
+local title=ah.TitleContainer.TitleText
+assert(select(2,title:GetTextColor())==1 and select(2,filter.Text:GetTextColor())==.95,
+ "auction title and filter caption must use neutral chrome colors")
+title:SetFontObject("GameFontNormal");filter.Text:SetFontObject("GameFontNormal")
+assert(select(2,title:GetTextColor())==1 and select(2,filter.Text:GetTextColor())==.95,
+ "native font reassignment must retain neutral captions")
+assert(moneyArt:GetAlpha()==0 and moneyEdge:GetAlpha()==0 and insetArt:GetAlpha()==0
+ and skin.GetBackdrop(ah.MoneyFrameBorder) and ah.MoneyFrameBorder:IsShown()
+ and ah.MoneyFrameBorder.MoneyFrame.amount==112550 and moneyText:GetText()=="112550",
+ "money shell must replace native decoration while preserving its visible display and amount")
 print("auctionhouse search controls passed")

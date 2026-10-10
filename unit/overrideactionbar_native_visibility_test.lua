@@ -14,6 +14,13 @@ function methods:GetAlpha() return self.alpha end
 function methods:ClearAllPoints() self.points = {} end
 function methods:SetPoint(...) self.points[#self.points + 1] = { ... } end
 function methods:SetAllPoints() end
+function methods:SetSize(w, h) self.width, self.height = w, h end
+function methods:GetHeight() return self.height end
+function methods:GetScript(event) return self.scripts[event] end
+function methods:CreateFontString() return widget(self) end
+function methods:SetFont(path, size) self.font, self.fontSize = path, size end
+function methods:SetText(text) self.text = text end
+function methods:SetTextColor() end
 function methods:GetParent() return self.parent end
 function methods:GetFrameLevel() return 2 end
 function methods:SetScript(event, callback) self.scripts[event] = callback end
@@ -22,7 +29,7 @@ function methods:GetStatusBarTexture() return self.fill end
 
 local timers, events, data = {}, {}, setmetatable({}, { __mode = "k" })
 local state = { vehicle = false, health = false, mana = false, combat = false }
-local env = setmetatable({ floor = math.floor }, { __index = _G })
+local env = setmetatable({ floor = math.floor, STANDARD_TEXT_FONT = "font" }, { __index = _G })
 env._G = env
 env.CreateFrame = function(_, _, parent)
     local frame = widget(parent)
@@ -57,6 +64,13 @@ for key, value in pairs(env.OverrideActionBarMixin) do bar[key] = value end
 bar.SetSkin, bar.UpdateXpBar, bar.UpdateMicroButtons = noop, noop, noop
 bar.pitchFrame, bar.leaveFrame = widget(bar), widget(bar)
 bar.healthBar, bar.powerBar = widget(bar), widget(bar)
+for _, key in ipairs({"Divider1", "PitchOverlay", "PitchBG", "PitchButtonBG", "PitchMarker", "PitchUpButton", "PitchDownButton"}) do
+    bar.pitchFrame[key] = widget(bar.pitchFrame)
+end
+bar.pitchFrame.PitchOverlay.height = 94
+local aimUp, aimDown = function() end, function() end
+bar.pitchFrame.PitchUpButton:SetScript("OnMouseDown", aimUp)
+bar.pitchFrame.PitchDownButton:SetScript("OnMouseUp", aimDown)
 bar.Divider2 = widget(bar)
 bar.xpBar = widget(bar)
 bar.xpBar.XpMid = widget(bar.xpBar)
@@ -81,6 +95,7 @@ local ns = {
         GetSkinColors = function() return 1, 1, 1, 1, 0, 0, 0, 1 end,
         GetFrameData = function(frame, key) return data[frame] and data[frame][key] end,
         SetFrameData = function(frame, key, value) data[frame] = data[frame] or {}; data[frame][key] = value end,
+        SkinButton = function(button) button.roundedButton = true end,
         ApplyPixelBackdrop = noop,
         ApplyChromeBackdrop = function(frame, opts) frame.chromeRadius = opts.radius; frame.borderPixels = opts.borderPixels end,
         RoundIconTexture = function(owner, texture) owner.roundedIcon = texture end,
@@ -111,6 +126,24 @@ for _, vehicle in ipairs({ false, true }) do
         end
     end
 end
+assert(bar.pitchFrame.points[1][1] == "BOTTOMRIGHT" and bar.pitchFrame.points[1][3] == "BOTTOMLEFT",
+    "native pitch controls must stay above the bottom edge instead of being centered below the window")
+assert(bar.pitchFrame.PitchUpButton.roundedButton and bar.pitchFrame.PitchDownButton.roundedButton,
+    "both native aiming buttons must receive shared rounded chrome")
+assert(bar.pitchFrame.PitchUpButton:GetScript("OnMouseDown") == aimUp and bar.pitchFrame.PitchDownButton:GetScript("OnMouseUp") == aimDown,
+    "native held aiming handlers must remain owned by FrameXML")
+assert(data[bar.pitchFrame.PitchUpButton].quiPitchGlyph.text == "▲" and data[bar.pitchFrame.PitchDownButton].quiPitchGlyph.text == "▼",
+    "direction glyphs must remain distinguishable after stripping native button art")
+assert(data[bar.pitchFrame].quiPitchTrack.height == 80 and data[bar.pitchFrame].quiPitchTrack.borderPixels == 1,
+    "pitch-position marker must have a visible contained track")
+bar:SetPitchValue(0)
+assert(bar.pitchFrame.PitchMarker.points[#bar.pitchFrame.PitchMarker.points][5] == 14)
+bar:SetPitchValue(1)
+assert(bar.pitchFrame.PitchMarker.points[#bar.pitchFrame.PitchMarker.points][5] == 73,
+    "native pitch mapping must retain its full 59-pixel travel range")
+assert(bar.pitchFrame.PitchMarker:GetAlpha() == 1, "native pitch-position indicator must remain visible")
+assert(bar.healthBar.width >= 28 and bar.powerBar.width >= 28,
+    "native percentage captions need enough width inside resource meters")
 assert(data[bar].backdrop.chromeRadius == 8 and data[bar].backdrop.borderPixels == 1,
     "override shell must use rounded chrome with a one-pixel border")
 for index = 1, 6 do
