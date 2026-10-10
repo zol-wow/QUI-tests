@@ -88,7 +88,7 @@ selected:SetIconSelector(popup)
 local selector = frame(nil, popup)
 popup.IconSelector = selector
 for key, value in pairs(_G.SelectorMixin) do selector[key] = value end
-selector.initialized = true
+selector.initialized = false
 local rows = {}
 for index = 1, 6 do
     local row = iconButton(selector, _G.SelectorButtonMixin)
@@ -97,7 +97,7 @@ for index = 1, 6 do
     row:Init(selector)
     row.selectionIndex = index
 end
-function selector:EnumerateButtons() local index = 0; return function() index = index + 1; return rows[index] end end
+local view = dofile("tests/helpers/selector_scrollbox_harness.lua")(selector, rows)
 function selector:UpdateSelections() for index, row in ipairs(rows) do self:RunSetup(row, index) end end
 function selector:ScrollToSelectedIndex() self.scrolled = self:GetSelectedIndex() end
 selector:SetSetupCallback(function(button, index, icon) button:SetIconTexture(icon) end)
@@ -138,6 +138,11 @@ assert(loadfile(arg[1] or "modules/skinning/frames/interaction.lua"))("QUI", ns)
 callback()
 assert(skin.GetBackdrop(popup) and skin.GetBackdrop(popup)._quiRoundedSurface,
     "guild bank icon-selector popup must use QUI window chrome")
+assert(not skin.GetBackdrop(rows[1]), "uninitialized guild selector must leave rows for native setup")
+selector.ScrollBox.view = view
+selector.initialized = true
+selector:SetSelectionsArray(icons)
+assert(skin.GetBackdrop(rows[1]), "native guild selector setup must style rows after initialization")
 popup:Hide()
 popup:Show()
 assert(popup.points[1][1] == "TOPLEFT" and popup.points[1][4] == 38 and edit.focused

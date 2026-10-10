@@ -461,15 +461,16 @@ assert(realDB:GetCurrentProfile() == "Default", "valid existing profiles must re
 _G.print = originalPrint
 
 local currentSpec = 1
-local previousLibrary = LibStub:NewLibrary("LibDualSpec-1.0", 33)
+local previousLibrary = LibStub:NewLibrary("LibDualSpec-1.0", 35)
 local libraryEnv = setmetatable({
     C_SpecializationInfo = {
         GetSpecialization = function() return currentSpec end,
         GetNumSpecializationsForClassID = function() return 2 end,
+        CanPlayerUseTalentUI = function() return true end,
     },
     ClassicExpansionAtLeast = function() return true end,
     ClassicExpansionAtMost = function() return false end,
-    UnitClassBase = function() return "PRIEST", 5 end,
+    UnitClass = function() return "Priest", "PRIEST", 5 end,
     GetSpecializationInfoForClassID = function(_, index) return index, "Spec" .. index end,
     IsLoggedIn = function() return true end,
 }, { __index = _G })
@@ -478,7 +479,7 @@ setfenv(libraryChunk, libraryEnv)
 libraryChunk()
 local dualSpec = LibStub("LibDualSpec-1.0")
 assert(dualSpec == previousLibrary and dualSpec.EnhanceDatabase,
-    "the patched library must upgrade a previously registered minor 33")
+    "the patched library must upgrade a previously registered upstream minor 35")
 local mapping = realDB:RegisterNamespace("LibDualSpec-1.0").char
 mapping.enabled, mapping[1], mapping[2] = true, legacyName, validName
 local ok, err = pcall(dualSpec.EnhanceDatabase, dualSpec, realDB, "QUI")
@@ -510,5 +511,18 @@ specDropdown:SetValue(validName)
 assert(mapping[1] == validName and realDB:GetCurrentProfile() == validName,
     "valid UI spec selection must still persist and activate")
 _G.print = originalPrint
+
+ns.Client = { isForever = true }
+_G.TALENT_SPEC_PRIMARY, _G.TALENT_SPEC_SECONDARY = "Primary", "Secondary"
+_G.C_SpecializationInfo = { GetActiveSpecGroup = function() return 2 end }
+_G.GetNumSpecializations = function() error("Forever profile mappings must use dual-spec groups") end
+cards = {}
+Profiles.BuildSpecProfilesContent(NewFrame())
+local foreverCard = cards[4]
+assert(#foreverCard.rows == 2 and foreverCard.rows[2].right,
+    "Forever must display exactly two group mappings in one paired row")
+assert(foreverCard.rows[2].left._settingRowLabel == "Primary"
+    and foreverCard.rows[2].right._settingRowLabel == "Secondary (Active)",
+    "Forever mapping labels and active marker must use talent groups")
 
 print("OK options_profiles_dual_column_test")
