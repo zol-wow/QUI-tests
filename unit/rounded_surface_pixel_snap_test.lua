@@ -8,6 +8,16 @@ frame.GetBottom = function() return bottom end
 frame:SetSize(37.4, 39.3)
 env.SkinBase.ApplyChromeBackdrop(frame, { radius = 3, withBackground = false })
 local surface = frame._quiRoundedSurface
+for _, regions in ipairs({ surface.fill, surface.border }) do
+    for _, texture in pairs(regions) do
+        texture.SetPoint = function(self, point, ...)
+            for index, existing in ipairs(self.points) do
+                if existing[1] == point then self.points[index] = { point, ... }; return end
+            end
+            self.points[#self.points + 1] = { point, ... }
+        end
+    end
+end
 local function Check()
     for _, regions in ipairs({ surface.fill, surface.border }) do
         for _, texture in pairs(regions) do
