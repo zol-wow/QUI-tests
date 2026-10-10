@@ -77,7 +77,6 @@ selected:SetIconSelector(popup)
 local selector = frame(nil, popup)
 popup.IconSelector = selector
 for key, value in pairs(_G.SelectorMixin) do selector[key] = value end
-selector.initialized = true
 local rows = {}
 for index = 1, 6 do
     local row = iconButton(selector, _G.SelectorButtonMixin)
@@ -86,7 +85,7 @@ for index = 1, 6 do
     row:Init(selector)
     row.selectionIndex = index
 end
-function selector:EnumerateButtons() local index = 0; return function() index = index + 1; return rows[index] end end
+local selectorView = dofile("tests/helpers/selector_scrollbox_harness.lua")(selector, rows)
 function selector:UpdateSelections() for index, row in ipairs(rows) do self:RunSetup(row, index) end end
 function selector:ScrollToSelectedIndex() self.scrolled = self:GetSelectedIndex() end
 selector:SetSetupCallback(function(button, index, icon) button:SetIconTexture(icon) end)
@@ -155,6 +154,11 @@ skin.OnAddOnLoaded=function(name,fn) if name=="Blizzard_UIPanels_Game" then call
 ns.Registry={Register=function(_,key,entry) if key=="skinBank" then refresh=entry.refresh end end}
 assert(loadfile(arg[1] or "modules/skinning/frames/interaction.lua"))("QUI",ns)
 callback()
+assert(not selector.ScrollBox:HasView() and not selector.initialized,
+ "skinning a hidden bank popup must preserve the uninitialized native selector")
+for _, row in ipairs(rows) do
+ assert(not skin.GetBackdrop(row), "hidden selector rows must wait for native initialization")
+end
 assert(not popup:IsShown() and skin.GetBackdrop(box.IconSelectorEditBox)
  and skin.GetBackdrop(box.IconSelectorEditBox)._quiRoundedSurface,
  "bank popup must skin its native name field without opening")
@@ -162,6 +166,12 @@ assert(skin.GetBackdrop(dropdown) and skin.GetBackdrop(dropdown)._quiRoundedSurf
  "nested deposit dropdown and separator must receive QUI presentation")
 for _,c in ipairs(deposit.DepositSettingsCheckboxes) do
  assert(skin.IsStyled(c) and skin.GetBackdrop(c),"all nested deposit checkboxes must receive QUI presentation")
+end
+selector.ScrollBox.view = selectorView
+selector.initialized = true
+selector:SetSelectionsDataProvider(function(index) return icons[index] end, function() return #icons end)
+for _, row in ipairs(rows) do
+ assert(skin.GetBackdrop(row), "native selector setup must skin rows after the view becomes ready")
 end
 popup:SetSelectedTab(1)
 popup:Show()
@@ -178,7 +188,10 @@ for _,c in ipairs(deposit.DepositSettingsCheckboxes) do
  assert(c.Text:GetFont()~="native-checkbox-reset","native checkbox initialization must retain QUI typography")
 end
 local count=masks
+skin.SetBackdropColors(skin.GetBackdrop(rows[1]), { 0, 0, 0, 0 }, nil)
 refresh()
+assert(skin.GetBackdrop(rows[1])._quiBorderR == skin.GetWindowColors(),
+ "theme refresh must restyle existing bank selector rows after initialization")
 assert(masks==count and count==7 and writes==0 and box.OkayButton:GetScript("OnClick")==okay,
  "refresh must reuse masks and preserve save handler without writing settings")
 tabData.name="Reused account tab"; tabData.icon="icon-5"; tabData.depositFlags=10

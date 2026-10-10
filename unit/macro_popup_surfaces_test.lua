@@ -88,7 +88,7 @@ selected:SetIconSelector(popup)
 local selector = frame(nil, popup)
 popup.IconSelector = selector
 for key, value in pairs(_G.SelectorMixin) do selector[key] = value end
-selector.initialized = true
+selector.initialized = false
 local rows = {}
 for index = 1, 6 do
     local row = iconButton(selector, _G.SelectorButtonMixin)
@@ -97,7 +97,7 @@ for index = 1, 6 do
     row:Init(selector)
     row.selectionIndex = index
 end
-function selector:EnumerateButtons() local index = 0; return function() index = index + 1; return rows[index] end end
+local popupView = dofile("tests/helpers/selector_scrollbox_harness.lua")(selector, rows)
 function selector:UpdateSelections() for index, row in ipairs(rows) do self:RunSetup(row, index) end end
 function selector:ScrollToSelectedIndex() self.scrolled = self:GetSelectedIndex() end
 selector:SetSetupCallback(function(button, index, icon) button:SetIconTexture(icon) end)
@@ -157,7 +157,7 @@ _G.InClickBindingMode = function() return false end
 local macroSelector = frame(nil, macro)
 macro.MacroSelector = macroSelector
 for key, value in pairs(_G.SelectorMixin) do macroSelector[key] = value end
-macroSelector.initialized, macroSelector.numMacros = true, 1
+macroSelector.initialized, macroSelector.numMacros = false, 1
 local macroRows = {}
 for index = 1, 4 do
     local row = iconButton(macroSelector, _G.SelectorButtonMixin)
@@ -168,7 +168,7 @@ for index = 1, 4 do
     row:SetScript("OnDragStart", _G.MacroButtonMixin.OnDragStart)
     macroRows[index] = row
 end
-function macroSelector:EnumerateButtons() local index = 0; return function() index = index + 1; return macroRows[index] end end
+local macroView = dofile("tests/helpers/selector_scrollbox_harness.lua")(macroSelector, macroRows)
 macroSelector.ScrollBar = false
 macroSelector:SetSelectedIndex(2)
 macro.GetSelectedIndex = _G.MacroFrameMixin.GetSelectedIndex
@@ -202,6 +202,14 @@ callback()
 assert(skin.GetBackdrop(popup) and skin.GetBackdrop(popup)._quiRoundedSurface,
     "Macro New/Edit popup must use QUI chrome independently of guild bank setting")
 assert(not popup:IsShown(), "skinning must not open the native macro popup")
+assert(not skin.GetBackdrop(rows[1]) and not skin.GetBackdrop(macroRows[1]),
+    "uninitialized macro selectors must leave rows for native setup")
+selector.ScrollBox.view = popupView
+macroSelector.ScrollBox.view = macroView
+selector.initialized, macroSelector.initialized = true, true
+for index, row in ipairs(macroRows) do macroSelector:RunSetup(row, index) end
+assert(skin.GetBackdrop(macroRows[1]) and macroRows[1].Name:GetFont(),
+    "native main selector setup must style icons and names after initialization")
 popup:Show()
 assert(not _G.MacroFrameText:IsShown() and not _G.MacroEditButton.enabled and not _G.MacroDeleteButton.enabled
     and not _G.MacroNewButton.enabled and not _G.MacroFrameTab1.enabled and not _G.MacroFrameTab2.enabled,
@@ -238,7 +246,10 @@ end
 assert(macro.SelectedMacroButton.Icon.texture == "native-selected-macro" and macro.SelectedMacroButton.Icon:GetAlpha() == 1,
     "selected macro preview must retain identifying art")
 local previous = masks
+skin.SetBackdropColors(skin.GetBackdrop(macroRows[1]), { 0, 0, 0, 0 }, nil)
 refresh()
+assert(skin.GetBackdrop(macroRows[1])._quiBorderR == skin.GetWindowColors(),
+    "theme refresh must restyle existing main macro rows after initialization")
 assert(masks == previous and previous == 12 and writes == 0 and panelUpdates == 4,
     "theme refresh must reuse all 12 masks without macro writes or native panel updates")
 for widget, script in pairs(mainActions) do assert(widget:GetScript("OnClick") == script, "main action/tab click ownership must survive") end

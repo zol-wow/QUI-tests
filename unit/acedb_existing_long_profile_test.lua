@@ -52,6 +52,7 @@ end
 
 ns.Client = { isForever = true }
 _G.GetBuildInfo = function() return "1.60.1", "70205", "", 16001 end
+_G.RegionalUniqueNamesEnabled = function() return true end
 _G.C_GameRules = { IsGameRuleActive = function() return false end }
 _G.Enum = { GameRule = { HardcoreRuleset = 1, RPRuleset = 2, PvPRuleset = 3 } }
 LoadAceDB()
@@ -60,19 +61,19 @@ _G.QUIDB = {
     profiles = { [legacyName] = { sentinel = 123 }, Default = { sentinel = 456 } },
 }
 local db = ns.Compatibility.CreateDatabase({})
-assert(db.keys.char == "TestChar - PvE" and db:GetCurrentProfile() == legacyName
+assert(db.keys.char == "TestChar" and db:GetCurrentProfile() == legacyName
     and db.profile.sentinel == 123,
     "Forever identity migration must preserve an existing long profile selection")
 assert(QUIDB.profileKeys[characterKey] == legacyName
-    and QUIDB.profileKeys["TestChar - PvE"] == legacyName,
+    and QUIDB.profileKeys["TestChar"] == legacyName,
     "Forever migration must preserve the legacy pointer and copy the new pointer")
 
 LibStub.libs["AceDB-3.0"] = nil
 LibStub.minors["AceDB-3.0"] = nil
-local previousLibrary = LibStub:NewLibrary("AceDB-3.0", 36)
+local previousLibrary = LibStub:NewLibrary("AceDB-3.0", 39)
 previousLibrary.db_registry = {}
 dofile("libs/AceDB-3.0/AceDB-3.0.lua")
 assert(LibStub("AceDB-3.0") == previousLibrary and previousLibrary.New,
-    "the patched library must upgrade a previously registered minor 36")
+    "the patched library must upgrade a previously registered upstream minor 39")
 
 print("OK: acedb_existing_long_profile")
