@@ -5,6 +5,13 @@
 
 return {
     {
+        name = "fresh install enables unusable item tint",
+        assert = function(sv, ctx)
+            return ctx.postMigration.bags.appearance.markUnusable == true
+                and ctx.postImport.bags.appearance.markUnusable == true
+        end,
+    },
+    {
         name = "themePreset seeded to Starter Profile value (not legacy default)",
         assert = function(sv, ctx)
             local p = sv.QUI_DB.profiles.Default

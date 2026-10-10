@@ -89,6 +89,16 @@ for _, query in ipairs({
         usedIndex and "results differ from the full scan" or "expected this query to use the index")
 end
 
+-- A query at the maximum prefix length must also include longer words.
+-- Otherwise "cooldown" finds exact tokens but drops "cooldowns" whenever
+-- the exact-token bucket prevents the full-scan fallback.
+do
+    GUI:RegisterStaticSettingEntry({ label = "Qqqqqqqq" })
+    GUI:RegisterStaticSettingEntry({ label = "QqqqqqqqSuffix" })
+    local usedIndex, identical, settings = compare("qqqqqqqq")
+    check("the longest indexed prefix includes longer words", usedIndex and identical and settings == 2)
+end
+
 -- 2. The behaviours the index cannot represent must fall back and still work.
 for _, case in ipairs({
     { query = "olor",   why = "mid-word substring match" },

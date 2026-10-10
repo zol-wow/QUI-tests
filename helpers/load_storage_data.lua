@@ -21,6 +21,7 @@ M.DATA_FILES = {
     "core/storage/scan_weeklies.lua",
     "core/storage/scan_lockouts.lua",
     "core/storage/summaries.lua",
+    "core/storage/recipe_learning.lua",
 }
 
 function M.InstallBaseStubs()

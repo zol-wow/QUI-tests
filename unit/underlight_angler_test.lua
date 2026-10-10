@@ -198,9 +198,17 @@ do
     local main = readAll("QUI_UnderlightAnglerHelper/angler/angler.lua")
     has(main, 'SLASH_QUIANGLER1 = "/quiangler"', "slash command")
     has(main, 'ns.SkinBase.OnAddOnLoaded("Blizzard_ArtifactUI", WatchArtifactFrame)', "artifact window watched")
-    has(main, "if not standalone then CreateLauncher(artifactFrame) end", "launcher only without the standalone addon")
-    has(main, 'watcher:RegisterEvent("ARTIFACT_UPDATE")', "launcher follows artifact swaps")
-    has(main, 'artifactFrame:HookScript("OnHide", OnArtifactChanged)', "closing the artifact refreshes launcher and window")
+    has(main, "if standalone or not (artifactFrame and artifactFrame:IsShown() and Angler.IsArtifactOpen()) then",
+        "overlay only on the Underlight Angler and without the standalone addon")
+    has(main, 'watcher:RegisterEvent("ARTIFACT_UPDATE")', "overlay follows artifact swaps")
+    has(main, 'artifactFrame:HookScript("OnHide", OnArtifactChanged)', "closing the artifact takes the overlay away")
+    has(main, 'Window.SetHost(nil)\n    Window.Show("checklist")', "slash opens the free-standing checklist")
+    has(window, "tabs.checklist:SetShown(not host)", "the overlay leaves the checklist out")
+    has(window, 'if host and activeView == "checklist" then SelectView("tree") end', "embedding moves off the checklist")
+    has(window, 'local EMBED_STRATA, EMBED_LEVEL = "HIGH", 5000', "overlay stays below the purchase confirmation")
+    has(window, "if host then HideUIPanel(host) else win:Hide() end", "closing the overlay closes the artifact window")
+    has(window, 'local HOST_TABS = { "PerksTabButton", "AppearancesTabButton" }', "Blizzard's tabs are muted under the overlay")
+    has(window, "SyncPurchasedRank(powerID, before and before.currentRank, 1)", "a purchase repaints until the rank lands")
     has(window, '"ARTIFACT_CLOSE"', "the window repaints when the artifact closes")
     has(main, 'local STANDALONE_ADDON = "UnderlightAnglerUI"', "stands down for the standalone addon")
 
@@ -211,7 +219,7 @@ do
     -- Every string the module shows is reachable by the i18n extractor.
     local enUS = readAll("core/locale/enUS.lua")
     for _, key in ipairs({ "Underlight Angler Helper", "Acquisition checklist", "Artifact Tree",
-        "Purchase %s for %s Artifact Power?", "Underlight Angler Tree" }) do
+        "Purchase %s for %s Artifact Power?", "Tips for alts" }) do
         has(enUS, ("%q"):format(key), "enUS base carries the module's strings")
     end
 end

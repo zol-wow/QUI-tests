@@ -107,7 +107,7 @@ frame._tiles = {}
 for index, id in ipairs({
     "welcome", "global", "help", "unit_frames", "group_frames", "nameplates", "action_bars",
     "cooldown_manager", "resource_bars", "auras", "appearance", "minimap", "infobar", "chat_tooltips",
-    "bags", "alts", "gameplay", "qol",
+    "bags", "alts", "gameplay", "reminders", "qol",
 }) do
     local tile = Node("Button", frame)
     tile.id, tile.index, tile.config = id, index, { name = id }
@@ -130,12 +130,15 @@ assert(togglePoint[1] == "RIGHT" and togglePoint[2] == toggleTile._navArrow and 
     "the module toggle sits left of the chevron with a gap")
 gui.MainFrame = frame
 gui:LayoutSidebarGroups(frame)
-assert(#frame._sidebarGroups == 5 and #frame._tiles == 18, "five categories contain all 18 module buttons")
+assert(#frame._sidebarGroups == 5 and #frame._tiles == 19, "five categories contain all 19 module buttons")
 local positions = {}
 for _, tile in ipairs(frame._tiles) do
     assert(tile.parent == frame._sidebarScrollChild and tile._sidebarTop, "each module uses the shared sidebar")
     positions[tile.id] = tile._sidebarTop
 end
+assert(positions.gameplay < positions.reminders and positions.reminders < positions.qol,
+    "the visible sidebar must place Reminders between Gameplay and Quality of Life")
+assert(frame._tiles[18]:IsShown(), "the Reminders module must remain visible in the sidebar")
 for _, label in ipairs(frame._sidebarGroups) do
     assert(label.kind == "FontString" and not next(label.scripts), "category labels have no collapse handlers")
 end
@@ -462,10 +465,10 @@ for _, sample in ipairs({ {0, 1}, {200, 2}, {430, 3}, {550, 4}, {600, 4}, {430, 
         assert((not not grouped[i].active) == (i == sample[2]), "scroll progress must traverse every section in both directions without a bottom jump")
     end
 end
-sectionTile.index = 19
+sectionTile.index = 20
 sectionTile.config.name = "Sections"
 sectionTile._pageFrame = Node("Frame", frame)
-frame._tiles[19] = sectionTile
+frame._tiles[20] = sectionTile
 local content = Node("Frame")
 function viewport:GetScrollChild() return content end
 function gui:_findAncestorScroll() return viewport end
