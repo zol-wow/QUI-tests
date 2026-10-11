@@ -14,9 +14,15 @@ container.widgetFrames={[7]=w};container.widgetPools=setmetatable({}, {__index=f
 local settings={skinObjectiveTracker=true,objectiveTrackerCustomBars=true,objectiveTrackerModuleFontSize=12,
  objectiveTrackerTitleColor={1,1,1,1},objectiveTrackerTextColor={.8,.8,.8,1}}
 local timers,hooks,data={},{},{}
+local progressBarWrapper
+local wrapperChanged=false
 local sandbox=setmetatable({ns={SafeCall=function(_,fn,...)return pcall(fn,...)end},_G={ScenarioObjectiveTracker={StageBlock={WidgetContainer=container}}},
  CUSTOM_BAR_FILL_TEXTURE="Interface\\Buttons\\WHITE8x8",
- StyleTrackerProgressBar=function(pb)assert(pb.Bar==w.TimerBar);pb.Bar.quiBorder=true end,
+ StyleTrackerProgressBar=function(pb)
+  assert(pb.Bar==w.TimerBar)
+  if progressBarWrapper and progressBarWrapper~=pb then wrapperChanged=true end
+  progressBarWrapper=pb;pb.Bar.quiBorder=true
+ end,
  GetSettings=function()return settings end,GetFontPath=function()return "QUIFont.ttf"end,GetFontFlags=function()return ""end,
  CJKFont=function(t,p,z,flags)t:SetFont(p,z,flags)end,SafeSetTextColor=function(t,c)t:SetTextColor(unpack(c))end,
  Helpers={IsSecretValue=function()return false end,ApplyBarStyle=function(bar,path)bar.texture=path end},
@@ -43,6 +49,7 @@ for remaining=299,290,-1 do
  assert(w.TimerBar.value==remaining and w.Timer.Text:GetText()==tostring(remaining),"native countdown must continue")
  assert(#timers==0,"timer appearance must not wait until the next frame")
 end
+assert(not wrapperChanged,"scenario timer updates must reuse their progress bar wrapper")
 local managerFile=assert(io.open("tests/framexml/Interface/AddOns/Blizzard_UIWidgets/Blizzard_UIWidgetManager.lua"));local managerSource=managerFile:read("*a");managerFile:close()
 local addChild=assert(managerSource:match("function UIWidgetHorizontalWidgetContainerMixin:AddChildWidget%(widgetFrame%)(.-)\nend"))
 local add=assert(loadstring("return function(self,widgetFrame)"..addChild.."\nend"))()
