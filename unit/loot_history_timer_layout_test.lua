@@ -5,7 +5,7 @@ local widgets=dofile("tests/helpers/character_chrome_harness.lua").Build()
 local source=read(os.getenv("QUI_LOOT_SOURCE") or "modules/skinning/notifications/loot.lua")
 local marker="-- <<< QUI_TEST_EXTRACT loot_history_timer_fill"
 local a=assert(source:find(marker,1,true))
-local b=assert(source:find("function Loot:ApplyLootHistoryTheme()",a,true))
+local b=assert(source:find("function Loot:ApplyResultsTheme()",a,true))
 local enabled=true
 local pixelSize=1
 local pixelEnv={SkinBase={},Helpers={GetCore=function()return {GetPixelSize=function()return pixelSize end}end},type=type}
@@ -14,11 +14,11 @@ setfenv(pixelChunk,pixelEnv);pixelChunk()
 widgets.SkinBase.GetPixelSize=pixelEnv.SkinBase.GetPixelSize
 widgets.ns.Helpers.SetFrameBackdropColor=function(frame,...)frame:SetBackdropColor(...)end
 widgets.ns.Helpers.SetFrameBackdropBorderColor=function(frame,...)frame:SetBackdropBorderColor(...)end
-local env=setmetatable({SkinBase=widgets.SkinBase,Helpers=widgets.ns.Helpers,frameParts={},
+local env=setmetatable({SkinBase=widgets.SkinBase,Helpers=widgets.ns.Helpers,frameParts={},Loot={},lootHistorySkinned=false,
  LSM={Fetch=function()return "QUITexture"end},GetDB=function()return {lootResults={enabled=enabled}}end,
  GetThemeColors=function()return {0,0,0,1},{1,1,1,1},{1,1,1,1},{1,1,1,1}end},{__index=_G})
-local chunk=assert(loadstring(source:sub(a+#marker,b-1).."\nreturn SkinGroupLootHistoryFrame"));setfenv(chunk,env)
-local skin=chunk()
+local chunk=assert(loadstring(source:sub(a+#marker,b-1).."\nreturn SkinGroupLootHistoryFrame, Loot.ApplyLootHistoryTheme"));setfenv(chunk,env)
+local skin,applyTheme=chunk()
 local native=read("tests/framexml/Interface/AddOns/Blizzard_FrameXML/Mainline/LootHistory.lua")
 local mixin={}
 local elapsed=0
@@ -32,6 +32,8 @@ history.Timer:SetSize(230,10)
 local fill=history.Timer:CreateTexture()
 fill:SetSize(234,13)
 history.Timer.Fill=fill
+history.Timer.Background=history.Timer:CreateTexture()
+history.Timer.Border=history.Timer:CreateTexture()
 history.encounterInfo={startTime=0,duration=100}
 history.GetSelectedEncounterID=function()return 1 end
 history.UpdateTimer=mixin.UpdateTimer
@@ -46,6 +48,27 @@ for _,px in ipairs({.5,1,2}) do
  end
 end
 elapsed=100;history:UpdateTimer();assert(not fill.shown,"finished roll must retain native hide state")
-enabled=false;elapsed=50;history:UpdateTimer();assert(fill.width==117,"disabled skin must retain native width")
+enabled=false;pixelSize=1;elapsed=50;history:UpdateTimer()
+assert(fill.width==114 and fill.height==8,"installed timer skin must keep fitting countdowns until the required reload")
+applyTheme()
+assert(history.Timer.Background:GetAlpha()==0 and history.Timer.Border:GetAlpha()==0,
+ "post-toggle theme refresh must retain installed cosmetics until reload")
+assert(env.frameParts[history.Timer].bg:IsShown() and env.frameParts[history.Timer].border:IsShown(),
+ "installed timer chrome must remain visible until reload")
+local nativeHistory=widgets.NewFrame("Frame")
+nativeHistory.NineSlice=widgets.NewFrame("Frame",nil,nativeHistory)
+nativeHistory.Bg=nativeHistory:CreateTexture()
+nativeHistory.Timer=widgets.NewFrame("Frame",nil,nativeHistory)
+nativeHistory.Timer.Background=nativeHistory.Timer:CreateTexture()
+nativeHistory.Timer.Border=nativeHistory.Timer:CreateTexture()
+nativeHistory.Timer.Fill=nativeHistory.Timer:CreateTexture()
+for _,region in ipairs({nativeHistory,nativeHistory.NineSlice,nativeHistory.Bg,nativeHistory.Timer,
+ nativeHistory.Timer.Background,nativeHistory.Timer.Border,nativeHistory.Timer.Fill}) do
+ for _,method in ipairs({"SetAlpha","ClearAllPoints","SetPoint","SetSize","SetWidth","SetHeight"}) do
+  region[method]=function()error("uninitialized native history must receive no theme writes")end
+ end
+end
+_G.GroupLootHistoryFrame=nativeHistory;env.lootHistorySkinned=false
+applyTheme()
 assert(source:find("SkinBase.SkinTrimScrollBar(HistoryFrame.ScrollBar)",1,true),"loot history must use shared scroll skin")
 print("OK: loot_history_timer_layout_test")
