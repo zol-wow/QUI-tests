@@ -277,7 +277,7 @@ for _, key in ipairs({ "UnitFrames", "ActionBars", "CooldownManager", "ResourceB
         Flush()
     end
     local contentOwner
-    if tile._subPageBodies then
+    if tile.config.subPages and tile._subPageBodies then
         contentOwner = tile._subPageBodies[1]:GetParent()
     else
         for _, child in ipairs({ tile._pageFrame:GetChildren() }) do
@@ -458,34 +458,30 @@ plate.healthBg.GetTop = function() return 0 end
 plate.healthBg.GetBottom = function() return -measuredHeight end
 ns.QUI_RefreshNameplatePreview()
 Flush()
-assert(mainHost:GetHeight() == measuredHeight,
-    "the real driver's painted-bound observer sizes the specimen host")
-local function CheckCentered(specimen, expectedWidth)
-    local point, relative, relativePoint, x, y = specimen:GetPoint(1)
-    assert(specimen:GetNumPoints() == 1 and point == "TOP" and relative == specimen:GetParent()
-        and relativePoint == "TOP" and x == 0 and y == 0,
-        "the measured specimen centers on its viewport instead of stretching from its left edge")
-    assert(specimen:GetWidth() == expectedWidth,
-        "the center anchor uses painted width including decorations")
+assert(card._quiPreviewFixedViewport and not card._quiPreviewViewport,
+    "Nameplates preview is fixed and never creates an internal scroll frame")
+local function CheckFixed(specimen)
+    local point, relative, relativePoint = specimen:GetPoint(1)
+    assert(point == "TOPLEFT" and relative == specimen:GetParent() and relativePoint == "TOPLEFT",
+        "specimen viewport stretches across the preview panel")
+    assert(specimen._npPreviewFit and specimen:GetNumPoints() == 2,
+        "painted composition fits inside a viewport bounded on both sides")
 end
-CheckCentered(mainHost, measuredWidth)
+CheckFixed(mainHost)
 for _, values in ipairs({ { 728, 340 }, { 478, 120 }, { 728, 240 } }) do
     host:SetWidth(values[1])
     measuredWidth = values[2]
     ns.QUI_RefreshNameplatePreview()
     Flush()
-    CheckCentered(mainHost, measuredWidth)
+    CheckFixed(mainHost)
 end
 local controlsToggle = assert(card._quiPreviewControlsToggle, "Nameplates offers a separate controls disclosure")
-local strip
-for _, child in ipairs({ host:GetChildren() }) do
-    if child ~= mainHost and child ~= controlsToggle then strip = child end
-end
+local strip = assert(card._quiPreviewControlsViewport:GetScrollChild())
 assert(strip and not strip:IsShown() and controlsToggle.text:GetText() == "Preview controls",
     "preview scenarios start folded so the specimen and settings keep their space")
-local compactHeight = card._quiPreviewChromeHeight + measuredHeight + 8 + controlsToggle:GetHeight()
-assert(card:GetHeight() == compactHeight and card._quiPreviewNaturalHeight == compactHeight,
-    "folding controls reserves only the actual specimen, disclosure and one bottom pad")
+local compactHeight = card:GetHeight()
+assert(card._quiPreviewNaturalHeight == compactHeight,
+    "preview uses its fixed panel height independently of painted extent")
 measuredHeight = 280
 ns.QUI_RefreshNameplatePreview()
 Flush()
@@ -503,22 +499,47 @@ local function FindWidget(node, key)
 end
 controlsToggle:GetScript("OnClick")(controlsToggle)
 Flush()
-assert(strip:IsVisible() and card._quiPreviewNaturalHeight == compactHeight + 4 + strip:GetHeight(),
-    "expanding scenarios adds exactly their current content extent")
+assert(strip:IsVisible() and card._quiPreviewNaturalHeight > compactHeight,
+    "expanding scenarios keeps the panel fixed and reduces specimen space")
 local casting = assert(FindWidget(strip, "casting"))
 casting.SetValue(false)
 Flush()
 assert(not plate.castBar:IsShown(), "scenario toggles still drive the actual preview renderer")
-card._quiPreviewViewport:SetVerticalScroll(90)
 controlsToggle:GetScript("OnClick")(controlsToggle)
 Flush()
 assert(not strip:IsShown() and casting.GetValue() == false and not plate.castBar:IsShown()
-    and card:GetHeight() == compactHeight and card._quiPreviewViewport:GetVerticalScroll() == 0,
+    and card:GetHeight() == compactHeight and not card._quiPreviewViewport,
     "folding preserves scenario values, removes their space and clears stale scroll offsets")
 controlsToggle:GetScript("OnClick")(controlsToggle)
 Flush()
 assert(strip:IsVisible() and casting.GetValue() == false,
     "reopening controls preserves the chosen preview state")
+local controlsViewport = assert(card._quiPreviewControlsViewport,
+    "expanded controls need their own bounded scroll viewport")
+strip:SetHeight(456)
+Flush()
+assert(controlsViewport:GetHeight() < strip:GetHeight() and card:GetHeight() <= 360,
+    "a tall responsive controls strip stays inside the preview height budget")
+local _, _, _, _, controlsInset = mainHost:GetPoint(2)
+assert(controlsInset < card:GetHeight() - card._quiPreviewChromeHeight,
+    "expanded controls leave positive space for the fitted specimen")
+local pageHeight, controlsHeight, previewNatural = nameplates._pageFrame:GetHeight(), controlsViewport:GetHeight(), card._quiPreviewNaturalHeight
+nameplates._pageFrame:SetHeight(450)
+Flush()
+assert(controlsViewport:GetHeight() < controlsHeight and card._quiPreviewNaturalHeight == previewNatural,
+    "reducing the parent height recomputes the controls viewport without replacing natural specimen height")
+nameplates._pageFrame:SetHeight(pageHeight)
+Flush()
+local controlsScroll = assert(ns.UIKit.GetSmoothScroll(controlsViewport))
+controlsScroll:ScrollTo(10000, true)
+assert(math.abs(controlsViewport:GetVerticalScroll() - (strip:GetHeight() - controlsViewport:GetHeight())) < 1,
+    "scrolling reaches the final controls without moving the fitted specimen")
+controlsToggle:GetScript("OnClick")(controlsToggle)
+Flush()
+assert(not controlsViewport:IsShown(), "folding hides the controls viewport")
+controlsToggle:GetScript("OnClick")(controlsToggle)
+Flush()
+assert(controlsViewport:GetVerticalScroll() == 0, "reopening controls resets their scroll position")
 casting.SetValue(true)
 controlsToggle:GetScript("OnClick")(controlsToggle)
 Flush()
@@ -627,38 +648,37 @@ local measuredNatural = card._quiPreviewNaturalHeight
 measuredHeight = 520
 ns.QUI_RefreshNameplatePreview()
 Flush()
-assert(mainHost:GetHeight() == 520 and card._quiPreviewNaturalHeight == measuredNatural + 440
+assert(card._quiPreviewNaturalHeight > measuredNatural
     and card:GetHeight() <= 360,
-    "tall measured nameplate decorations scroll without consuming settings space")
+    "tall decorations fit inside the fixed preview without growing settings space")
 assert(#({ mainHost:GetChildren() }) > 0, "the actual Nameplates builders paint a specimen inside the card")
-assert(toggle.text:GetText() == "Hide preview" and card._quiPreviewViewport,
+assert(toggle.text:GetText() == "Hide preview" and not card._quiPreviewViewport,
     "Nameplates retains a named disclosure and bounded viewport")
 assert(strip and strip:GetHeight() >= 200, "all existing state/reaction controls remain in the preview content")
 local stripLeft, stripLeftOwner, stripLeftRelative, stripX, stripY = strip:GetPoint(1)
-local stripRight, stripRightOwner, stripRightRelative, stripRightX = strip:GetPoint(2)
-assert(stripLeft == "TOPLEFT" and stripRight == "TOPRIGHT" and stripLeftOwner == controlsToggle
-    and stripRightOwner == controlsToggle and stripLeftRelative == "BOTTOMLEFT" and stripRightRelative == "BOTTOMRIGHT"
-    and stripX == 0 and stripRightX == 0 and stripY == -4,
-    "scenario controls retain full disclosure width beneath the centered specimen")
+assert(stripLeft == "TOPLEFT" and stripLeftOwner == controlsViewport
+    and stripLeftRelative == "TOPLEFT" and stripX == 0 and stripY == 0,
+    "scenario controls remain inside their own scroll viewport")
 local _, controlsOwner, _, _, controlsY = controlsToggle:GetPoint(1)
-assert(controlsOwner == host and controlsY == -(mainHost:GetHeight() + 8),
+assert(controlsOwner == mainHost and controlsY == -8,
     "the disclosure follows current specimen height without reserving hidden controls")
 local natural = card._quiPreviewNaturalHeight
-assert(natural > card:GetHeight() and card:GetHeight() <= 360,
+assert(natural >= card:GetHeight() and card:GetHeight() <= 360,
     "preview controls scroll without consuming the settings viewport")
 toggle:GetScript("OnClick")(toggle)
 assert(card._quiPreviewCollapsed and not host:IsShown() and toggle.text:GetText() == "Show preview")
 measuredHeight = 620
 ns.QUI_RefreshNameplatePreview()
 Flush()
-assert(mainHost:GetHeight() == 520, "hidden preview measurements cannot resize the collapsed card")
+local tallNatural = card._quiPreviewNaturalHeight
+assert(tallNatural > measuredNatural, "hidden preview measurements cannot resize the collapsed card")
 ns.QUI_NameplatesSettingsSurface.SetSelectedType("bossElite")
 Flush()
 assert(card._quiPreviewCollapsed and card:GetHeight() == card._quiPreviewCollapsedHeight,
     "type changes preserve collapsed state")
 toggle:GetScript("OnClick")(toggle)
 Flush()
-assert(host:IsVisible() and activeHost == mainHost and mainHost:GetHeight() == 620,
+assert(host:IsVisible() and activeHost == mainHost and mainHost._npPreviewFit,
     "expanding reactivates the same native specimen host with its latest measured extent")
 GUI:BuildTilePage(window, auras)
 Flush()
@@ -670,7 +690,7 @@ local auraPage = assert(auras._subPageBodies[5])
 auraPage:SetHeight(500)
 Flush()
 local auraCard = assert(auraPage._preview, "Auras Nameplates mounts its inline subpage preview")
-assert(auraCard._quiPreviewSurface and auraPage._previewToggle and auraCard._quiPreviewViewport,
+assert(auraCard._quiPreviewSurface and auraPage._previewToggle and not auraCard._quiPreviewViewport,
     "subpage previews reuse the rounded, collapsible, bounded card")
 assert(activeHost ~= mainHost and builds > before and activeHost:IsVisible(),
     "switching to Auras transfers ownership to its visible specimen host")
@@ -682,12 +702,9 @@ auraPlate.healthBg.GetTop = function() return 0 end
 auraPlate.healthBg.GetBottom = function() return -80 end
 ns.QUI_RefreshNameplatePreview()
 Flush()
-CheckCentered(auraHost, 300)
+CheckFixed(auraHost)
 local auraControls = assert(auraCard._quiPreviewControlsToggle)
-local auraStrip
-for _, child in ipairs({ auraCard._quiPreviewHost:GetChildren() }) do
-    if child ~= auraHost and child ~= auraControls then auraStrip = child end
-end
+local auraStrip = assert(auraCard._quiPreviewControlsViewport:GetScrollChild())
 assert(auraStrip and not auraStrip:IsShown(), "Auras inherits the collapsed scenario preference")
 auraControls:GetScript("OnClick")(auraControls)
 Flush()
@@ -745,14 +762,10 @@ for _, panelScale in ipairs({ 0.8, 1.5, 1.0 }) do
     window:SetScale(panelScale)
     ns.UIKit.RefreshScaleBoundWidgets()
     Flush()
-    assert(math.abs(plate:GetEffectiveScale() - UIParent:GetEffectiveScale()) < 1e-6,
-        "the inline specimen retains its world scale while the settings window zooms")
-    assert(math.abs(mainHost:GetWidth() * mainHost:GetEffectiveScale() - measuredWidth) < 1e-6
-        and math.abs(mainHost:GetHeight() * mainHost:GetEffectiveScale() - measuredHeight) < 1e-6,
-        "actual card observer reserves the specimen's physical extent after panel zoom")
-    CheckCentered(mainHost, measuredWidth / panelScale)
-    assert(math.abs(card._quiPreviewNaturalHeight - (card._quiPreviewChromeHeight
-        + measuredHeight / panelScale + 8 + controlsToggle:GetHeight() + 4 + strip:GetHeight())) < 1e-6,
-        "card height follows remeasured specimen space and keeps expanded controls below it")
+    assert(plate:GetEffectiveScale() <= UIParent:GetEffectiveScale() + 1e-6,
+        "preview fit may reduce magnification when panel space is limited")
+    assert(card._quiPreviewNaturalHeight > 0 and not card._quiPreviewViewport,
+        "panel scale changes do not introduce scrolling or content-driven height")
+    CheckFixed(mainHost)
 end
 print("options_inline_preview_mounting_test: ok")
