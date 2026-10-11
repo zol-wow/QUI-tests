@@ -286,4 +286,73 @@ commit()
 equal(fa.child.parent, nil, "excluded descendant must not become the root's parent")
 equal(fa.target.parent, "child", "descendant must retain its existing parent")
 
+local function useContentOverlay(handle, holder)
+    handle._isChildOverlay, handle._parentFrame = true, holder
+    function handle:GetLeft() return holder:GetLeft() - 16 end
+    function handle:GetRight() return holder:GetRight() + 10 end
+    function handle:GetTop() return holder:GetTop() end
+    function handle:GetBottom() return holder:GetTop() - 215 end
+end
+
+h, _, frame = setup(true, nil, 260, 600)
+useContentOverlay(h, frame)
+drag(h, 253, 535)
+equal(frame.x, 250, "content overlay snaps holder left edge")
+equal(frame.y, 530, "content overlay snaps holder bottom edge")
+fire(h, "OnDragStop")
+equal(fa.child.offsetX, 0, "content overlay saves holder horizontal seam")
+equal(fa.child.offsetY, 0, "content overlay saves holder vertical seam")
+assert(LM:NudgeMover("child", 1, 0))
+equal(fa.child.offsetX, 1, "content overlay nudge saves one horizontal pixel")
+equal(fa.child.offsetY, 0, "content overlay nudge preserves vertical seam")
+local savePosition = findUpvalue("SavePendingPosition")
+savePosition("child", "CENTER", "CENTER", frame.x - 500, frame.y - 400)
+equal(fa.child.offsetX, 1, "existing anchor keeps holder horizontal offset")
+equal(fa.child.offsetY, 0, "existing anchor keeps holder vertical offset")
+assert(LM:NudgeMover("child", 0, 0))
+commit()
+equal(fa.child.offsetX, 1, "saved content overlay retains holder horizontal offset")
+equal(fa.child.offsetY, 0, "saved content overlay retains holder vertical offset")
+
+local target
+h, target, frame = setup(true)
+local targetHolder = LM._elements.target.getFrame()
+targetHolder:SetSize(260, 600)
+useContentOverlay(target, targetHolder)
+local getAnchorRect = findUpvalue("GetAnchorRectInUIParent")
+local l, r, t, b = getAnchorRect("target")
+equal(l, targetHolder:GetLeft(), "anchor parent rect uses holder left")
+equal(r, targetHolder:GetRight(), "anchor parent rect uses holder right")
+equal(t, targetHolder:GetTop(), "anchor parent rect uses holder top")
+equal(b, targetHolder:GetBottom(), "anchor parent rect uses holder bottom")
+drag(h, 113, 525)
+equal(h.x, 110, "proxy child snaps to holder left")
+equal(h.y, 520, "proxy child snaps to holder top")
+fire(h, "OnDragStop")
+equal(fa.child.offsetX, 0, "proxy child saves holder-parent horizontal seam")
+equal(fa.child.offsetY, 0, "proxy child saves holder-parent vertical seam")
+commit()
+h.x, h.y = 0, 0
+LM:SyncElement("child")
+equal(h.x, 110, "proxy refresh retains holder-parent left seam")
+equal(h.y, 520, "proxy refresh retains holder-parent top seam")
+
+targetHolder.x, targetHolder.y = 1200, 1000
+function targetHolder:GetEffectiveScale() return 0.5 end
+l, r, t, b = getAnchorRect("target")
+equal(l, targetHolder:GetLeft() * 0.5, "scaled holder left uses UIParent units")
+equal(r, targetHolder:GetRight() * 0.5, "scaled holder right uses UIParent units")
+equal(t, targetHolder:GetTop() * 0.5, "scaled holder top uses UIParent units")
+equal(b, targetHolder:GetBottom() * 0.5, "scaled holder bottom uses UIParent units")
+h.x, h.y = 575, 670
+savePosition("child", "CENTER", "CENTER", h.x - 500, h.y - 400,
+    "target", "BOTTOMLEFT", "TOPLEFT")
+equal(fa.child.offsetX, 0, "scaled parent saves zero horizontal seam")
+equal(fa.child.offsetY, 0, "scaled parent saves zero vertical seam")
+commit()
+h.x, h.y = 0, 0
+LM:SyncElement("child")
+equal(h.x, 575, "proxy refresh retains scaled holder-parent left seam")
+equal(h.y, 670, "proxy refresh retains scaled holder-parent top seam")
+
 print("OK: layoutmode_anchor_snap_alignment_test")

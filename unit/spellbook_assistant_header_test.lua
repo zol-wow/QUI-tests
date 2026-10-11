@@ -1,7 +1,8 @@
 local env = dofile("tests/helpers/character_chrome_harness.lua").Build()
 local file = assert(io.open(os.getenv("QUI_JOURNALS_SOURCE") or "modules/skinning/frames/journals.lua"))
 local source = file:read("*a"); file:close()
-local first = assert(source:find("local function GetSpellBookFrame(", 1, true))
+local first = assert(source:find("local pendingPlayerSpellsStyles", 1, true)
+    or source:find("local function GetSpellBookFrame(", 1, true))
 local last = assert(source:find("local function SkinSpellRows(", first, true))
 local chunk = assert(loadstring(source:sub(first, last - 1) .. "\nreturn StyleSpellBookControls"))
 setfenv(chunk, setmetatable({ SkinBase = env.SkinBase, IsSettingEnabled = function() return true end }, { __index = _G }))
@@ -95,4 +96,55 @@ assert(result.Icon.texture == "native-spell" and result.Icon.desaturated == true
     and result:GetScript("OnClick") == selectResult and result.Name:GetText() == "Frost Strike",
     "search styling preserves spell icon desaturation labels and selection")
 result:GetScript("OnClick")(result); assert(selected == 1)
+local combat = true
+_G.InCombatLockdown = function() return combat end
+local protected = true
+rotation.IsProtected = function() return protected end
+local previousWidth = rotation:GetWidth()
+naturalWidth = 220
+book.SearchBox.IsProtected = function() return true end
+local nativeWidth = rotation.SetWidth
+rotation.SetWidth = function(self, width)
+    assert(not combat or not protected, "ADDON_ACTION_BLOCKED: protected assistant Frame:SetWidth in combat")
+    nativeWidth(self, width)
+end
+local resizeSearch = book.ResizeSearchBox
+book.ResizeSearchBox = function(self)
+    assert(not combat, "protected spellbook search resize must wait for combat end")
+    resizeSearch(self)
+end
+for i=1,3 do
+    rotation:UpdateDisplay()
+    normal:SetAlpha(1); pushed:SetAlpha(1); result.IconFrame:SetAlpha(1)
+    apply(root)
+    assert(rotation.Label:GetText()=="Single-Button Assistant",
+        "assistant caption skin must refresh immediately during combat")
+    assert(rotation.Button.Border:GetAlpha()==0 and rotation.Divider:GetAlpha()==0,
+        "QUI assistant chrome must remain active during combat")
+    assert(normal:GetAlpha()==0 and pushed:GetAlpha()==0 and result.IconFrame:GetAlpha()==0,
+        "search-result skin must refresh immediately during combat")
+end
+assert(rotation:GetWidth()==previousWidth, "protected ancestor geometry must remain unchanged during combat")
+protected=false
+naturalWidth=240
+rotation:UpdateDisplay()
+assert(rotation:GetWidth()>=naturalWidth+49, "unprotected frame geometry must remain live during combat")
+protected=true
+naturalWidth=260
+rotation:UpdateDisplay()
+local combatEvent
+for _, widget in ipairs(env.frames) do
+    if widget:GetScript("OnEvent") then
+        assert(not combatEvent, "combat styling must coalesce into one event listener")
+        combatEvent = widget
+    end
+end
+assert(combatEvent, "combat changes must queue a catch-up repaint")
+combatEvent:GetScript("OnEvent")(combatEvent, "PLAYER_REGEN_ENABLED")
+assert(rotation.Label:GetText()=="Single-Button Assistant", "combat event must retain already refreshed visual skin")
+combat=false
+combatEvent:GetScript("OnEvent")(combatEvent, "PLAYER_REGEN_ENABLED")
+assert(rotation.Label:GetText()=="Single-Button Assistant" and rotation:GetWidth()>=naturalWidth+49,
+    "native combat updates must regain the skinned caption and width after combat")
+assert(rotation.Button:GetScript("OnClick")==nativeClick, "combat deferral must preserve secure spell action")
 print("OK: spellbook_assistant_header_test")
