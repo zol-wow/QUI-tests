@@ -3,13 +3,17 @@ local file = assert(io.open(os.getenv("QUI_OBJECTIVE_SOURCE") or "modules/skinni
 local source = file:read("*a"); file:close()
 local first = assert(source:find("local function SkinTrackerHeader(", 1, true))
 local last = assert(source:find("local function UpdateMinimizeButtonAtlas", first, true))
-local chunk = assert(loadstring(source:sub(first, last - 1) .. "\nreturn SkinTrackerHeader"))
+local combat = false
+local chunk = assert(loadstring("local pendingProtectedLayoutUpdate = false\n"
+    .. source:sub(first, last - 1)
+    .. "\nreturn SkinTrackerHeader, function() return pendingProtectedLayoutUpdate end"))
 setfenv(chunk, setmetatable({ SkinBase = env.SkinBase, Helpers = env.ns.Helpers,
+    InCombatLockdown = function() return combat end,
     GetFontPath = function() return "QUIFont.ttf" end,
     GetFontFlags = function() return "" end,
     CJKFont = function(fs, path, size, flags) fs:SetFont(path, size, flags) end,
 }, { __index = _G }))
-local style = chunk()
+local style, hasPendingLayout = chunk()
 local owner = env.NewFrame("Frame")
 owner.collapsed = false
 function owner:IsCollapsed() return self.collapsed end
@@ -59,4 +63,44 @@ assert(button:GetScript("OnClick") == click and button:GetWidth() == 16 and butt
     "tracker styling must preserve native click action and hit geometry")
 assert(header.Background:GetAlpha() == 0 and header.Shine:GetAlpha() == 0 and header.Glow:GetAlpha() == 0,
     "header ornaments must yield to QUI section styling")
+local unstyledHeader = env.NewFrame("Frame", nil, owner)
+unstyledHeader.Text = unstyledHeader:CreateFontString()
+unstyledHeader.MinimizeButton = env.NewFrame("Button", nil, unstyledHeader)
+local function guardGeometry(target)
+    for _, method in ipairs({ "CreateTexture", "CreateFontString", "CreateMaskTexture",
+        "ClearAllPoints", "SetPoint", "SetAllPoints", "SetSize", "SetWidth", "SetHeight",
+        "SetFrameLevel", "SetParent", "SetFont" }) do
+        local original = rawget(target, method)
+        if original then
+            target[method] = function(self, ...)
+                assert(not combat, "header styling must not create or change geometry in combat: " .. method)
+                return original(self, ...)
+            end
+        end
+    end
+end
+for _, frame in ipairs(env.frames) do guardGeometry(frame) end
+for _, texture in ipairs(env.textures) do guardGeometry(texture) end
+local frameCount, textureCount = #env.frames, #env.textures
+combat = true
+owner.collapsed = true
+header:SetCollapsed(true)
+assert(glyph:GetText() == "-", "combat collapse styling must remain deferred")
+env.RunTimers()
+assert(glyph:GetText() == "+", "native combat collapse must refresh the existing glyph")
+owner.collapsed = false
+header:SetCollapsed(false)
+env.RunTimers()
+assert(glyph:GetText() == "-", "native combat expansion must refresh the existing glyph")
+local secret = {}
+env.ns.Helpers.IsSecretValue = function(value) return value == secret end
+owner.collapsed = secret
+style(header)
+assert(glyph:GetText() == "-", "secret collapsed state must retain the readable glyph")
+owner.collapsed = false
+style(unstyledHeader)
+assert(not env.SkinBase.GetFrameData(unstyledHeader.MinimizeButton, "qTrackerCollapseGlyph"),
+    "an unstyled combat header must defer glyph creation")
+assert(#env.frames == frameCount and #env.textures == textureCount and hasPendingLayout(),
+    "combat styling must defer geometry without creating frames or regions")
 print("OK: objective_tracker_header_chrome_test")
