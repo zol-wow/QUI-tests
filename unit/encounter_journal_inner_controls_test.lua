@@ -42,6 +42,20 @@ instance.GetNormalTexture = function(self) return self.NormalTexture end
 frame.encounter = env.NewFrame("Frame", nil, frame)
 frame.encounter.info = env.NewFrame("Frame", nil, frame.encounter)
 local info = frame.encounter.info
+
+info.instanceButton = env.NewFrame("Button", nil, info)
+local overviewButton = info.instanceButton
+overviewButton.DisabledTexture = false
+overviewButton:SetSize(64, 61)
+overviewButton.icon = overviewButton:CreateTexture()
+overviewButton.icon:SetTexture("native-circular-instance-icon")
+overviewButton.NormalTexture = overviewButton:CreateTexture()
+overviewButton.HighlightTexture = overviewButton:CreateTexture()
+overviewButton.HighlightTexture:SetTexture("native-circular-hover-ring")
+function overviewButton:GetNormalTexture() return self.NormalTexture end
+function overviewButton:GetHighlightTexture() return self.HighlightTexture end
+local overviewAction = function() end
+overviewButton:SetScript("OnClick", overviewAction)
 info.model = env.NewFrame("ModelScene", nil, info)
 info.model.dungeonBG = info.model:CreateTexture()
 info.model.dungeonBG:SetTexture("native-dungeon-background")
@@ -538,3 +552,18 @@ assert(frame.searchResults.Background:GetAlpha() == 0 and env.SkinBase.GetBackdr
 _G.QUI_RefreshEncounterJournalColors()
 assert(result.name:GetText() == "|cffa335eeIronsoul|r" and result.selectedTexture:IsShown(),
     "theme refresh must preserve native quality and selection")
+
+assert(not env.SkinBase.GetBackdrop(overviewButton),
+    "overview icon must not create an opaque rectangular surface over the first boss")
+assert(overviewButton.icon:GetAlpha() == 1 and overviewButton.icon.texture == "native-circular-instance-icon",
+    "overview shortcut must retain native circular instance art")
+assert(overviewButton.NormalTexture:GetAlpha() == 0 and overviewButton.HighlightTexture:GetAlpha() == 1
+    and overviewButton.HighlightTexture.texture == [[Interface\AddOns\QUI\assets\cursor\qui_ring_thin.png]],
+    "overview hover must replace Blizzard artwork with a plain QUI ring")
+local hp, ho, hr = overviewButton.HighlightTexture:GetPoint()
+assert(hp == "CENTER" and ho == overviewButton.icon and hr == "CENTER"
+    and overviewButton.HighlightTexture:GetWidth() == 44 and overviewButton.HighlightTexture:GetHeight() == 44,
+    "overview hover ring must surround the icon rather than the larger hit area")
+assert(overviewButton:GetWidth() == 64 and overviewButton:GetHeight() == 61
+    and overviewButton:GetScript("OnClick") == overviewAction,
+    "overview shortcut must preserve native hit area and click ownership")
