@@ -20,6 +20,7 @@ function row.highlight:AddMaskTexture() self.maskCount = self.maskCount + 1 end
 row.highlightTexture = row.highlight
 row.travelPassButton = env.NewFrame("Button", nil, row)
 local invite = row.travelPassButton
+invite:SetSize(24, 32)
 local createLabel = invite.CreateFontString
 function invite:CreateFontString(name, layer, template)
     assert(template == "GameFontNormal", "invite label must have a font before setting text")
@@ -150,3 +151,15 @@ assert(gallery.Title.Text.textColor[1] == 1 and rewardEntry.Months.Text.textColo
 assert(gallery.CloseButton:GetScript("OnClick") == click, "gallery close behavior must remain native")
 assert(view:GetScript("OnClick") == click and actions == 0, "recruitment styling must not invoke or replace actions")
 print("OK: social_row_controls_test")
+
+local inviteBackdrop = env.SkinBase.GetBackdrop(invite)
+assert(inviteBackdrop:GetWidth() == 20 and inviteBackdrop:GetHeight() == 20,
+    "contact invite border must be compact rather than filling the tall hit area")
+local p, owner, relative = inviteBackdrop:GetPoint()
+assert(p == "CENTER" and owner == invite and relative == "CENTER",
+    "compact invite border must stay centered inside its native control")
+assert(invite:GetWidth() == 24 and invite:GetHeight() == 32 and invite:GetScript("OnClick") == click,
+    "compact contact appearance must preserve native hit area and action")
+acquired(row)
+assert(inviteBackdrop:GetWidth() == 20 and inviteBackdrop:GetHeight() == 20,
+    "pooled refresh must retain compact contact geometry")
