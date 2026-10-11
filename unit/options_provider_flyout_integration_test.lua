@@ -11,6 +11,12 @@ for index = 1, math.huge do
     if name == "ns" then ns = value; break end
 end
 assert(ns)
+assert(loadfile("QUI_Options/search_cache.lua"))("QUI", ns)
+-- Navigation destinations are tested here; actual settling is covered by
+-- options_initial_section_navigation_test with a ticking layout driver.
+function GUI:RunWhenSettingsLayoutReady(_, _, callback, isCurrent)
+    C_Timer.After(0, function() if not isCurrent or isCurrent() then callback() end end)
+end
 for _, path in ipairs({
     "QUI_ActionBars/actionbars/actionbars_env.lua", "QUI_ActionBars/actionbars/actionbars.lua",
     "QUI_ActionBars/actionbars/actionbars_helpers.lua", "QUI_ActionBars/actionbars/actionbars_per_bar_builders.lua",
@@ -24,8 +30,8 @@ local function Copy(value)
     return result
 end
 local profile = QUI.QUICore.db.profile
-for _, key in ipairs({ "actionBars", "general", "bags", "alts", "infobar" }) do
-    profile[key] = Copy(ns.defaults.profile[key])
+for key, value in pairs(ns.defaults.profile) do
+    profile[key] = Copy(value)
 end
 profile.general.optionsMotion = false
 local create = CreateFrame
@@ -163,6 +169,10 @@ for _, name in ipairs({ "QUI_BagsTile", "QUI_AltsTile", "QUI_InfoBarTile" }) do
     local previous = frame._lastTileIndex
     assert(GUI:OpenNavigationFlyout(frame, tile), tile.id .. " opens its section flyout on first hover")
     assert(frame._lastTileIndex == previous, "warming a provider does not select its module")
+    assert(not tile._built, "hovering must preserve the unbuilt provider")
+    GUI:SelectFeatureTile(frame, tile.index)
+    GUI:CloseNavigationFlyout(frame)
+    GUI:OpenNavigationFlyout(frame, tile)
     local body = tile._subPageBodies[1]._contentBody
     local pages = GUI:GetTileNavigationPages(tile)
     if tile.id == "bags" or tile.id == "alts" then
@@ -212,6 +222,47 @@ for _, name in ipairs({ "QUI_BagsTile", "QUI_AltsTile", "QUI_InfoBarTile" }) do
         assert(#GUI:GetTileNavigationPages(tile) == #pages, "cached provider pages retain their section flyout")
     end
     GUI:CloseNavigationFlyout(frame)
+end
+for _, spec in ipairs({
+    { tile = "QUI_GameplayTile", page = 5 },
+    { tile = "QUI_GameplayTile", page = 6 },
+    { tile = "QUI_GlobalTile", page = 7 },
+}) do
+    ns[spec.tile].Register(frame)
+    local tile = frame._tiles[#frame._tiles]
+    local config = tile.config.subPages[spec.page]
+    assert(config.featureIds, "regression fixture must select a composite page")
+    local coldPages = GUI:GetTileNavigationPages(tile)
+    local coldSections = {}
+    for _, page in ipairs(coldPages) do
+        if page.pageIndex == spec.page then coldSections[#coldSections + 1] = page end
+    end
+    assert(#coldSections == #config.featureIds,
+        "cold composite menus must list feature titles rather than internal settings headings")
+    for index, id in ipairs(config.featureIds) do
+        assert(coldSections[index].sectionId == id,
+            "cold composite links must use the feature IDs registered by the built page")
+    end
+    local destination
+    local ready = GUI.RunWhenSettingsLayoutReady
+    GUI.RunWhenSettingsLayoutReady = function(_, _, target) destination = target end
+    GUI:OpenNavigationFlyout(frame, tile, true)
+    for index, page in ipairs(frame._pageFlyout._pages) do
+        if page.pageIndex == spec.page and page.sectionId == config.featureIds[2] then
+            local button = frame._pageFlyout._buttons[index]
+            button._scripts.OnClick(button)
+            break
+        end
+    end
+    Flush()
+    GUI.RunWhenSettingsLayoutReady = ready
+    local sections = tile._subPageBodies[spec.page]._contentBody._sections
+    assert(destination == sections[2].frame,
+        "first composite click must resolve the actual mounted feature heading")
+    for index, section in ipairs(sections) do
+        assert(coldSections[index].label == section.label,
+            "cold and built composite menus must use identical feature title labels")
+    end
 end
 local cacheNS = {}
 assert(loadfile("QUI_Options/search_cache.lua"))("QUI", cacheNS)
