@@ -75,6 +75,7 @@ local ns = {
         end,
         GetGeneralFont = function() return "Interface\\QUIFont.ttf" end,
         SafeToNumber = function(v, d) return tonumber(v) or d end,
+        IsSecretValue = function() return false end,
         SetFrameBackdropColor = function(frame, r, g, b, a)
             frame:SetBackdropColor(r, g, b, a)
             frame._quiBgR, frame._quiBgG, frame._quiBgB, frame._quiBgA = r, g, b, a

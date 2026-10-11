@@ -45,6 +45,7 @@ local CHROME = { BORDER_PX=1, BG_FALLBACK={0.05,0.05,0.05,0.95}, BORDER_FALLBACK
 local border = {0.6,0.7,0.8,1}
 local ns = { Helpers = { AssetPath = [[Interface\AddOns\QUI\assets\]], CHROME=CHROME, CreateStateTable=CreateStateTable,
     GetCore = function() return {} end, SafeToNumber = function(v,d) return tonumber(v) or d end,
+    IsSecretValue = function() return false end,
     GetSkinBorderColor = function() return border[1],border[2],border[3],border[4] end,
     GetSkinBgColorWithOverride = function() return 0.1,0.2,0.3,0.9 end,
     GetGeneralFont = function() return "Q" end, GetGeneralFontOutline = function() return "" end },
