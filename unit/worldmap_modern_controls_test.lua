@@ -18,8 +18,12 @@ map.BorderFrame = Frame(nil, map)
 map.ScrollContainer = Frame(nil, map)
 map.NavBar = Frame(nil, map)
 local home = Frame("Button", map.NavBar)
+home.Disable = function(self) self.enabled = false end
+home.Enable = function(self) self.enabled = true end
 home.text = Font(home)
 local crumb = Frame("Button", map.NavBar)
+crumb.Disable = home.Disable
+crumb.Enable = home.Enable
 crumb.text = Font(crumb)
 crumb.text:SetText("Silvermoon")
 crumb.MenuArrowButton = Frame("DropdownButton", crumb)
@@ -40,7 +44,12 @@ local scroll = Frame("ScrollFrame", quest.QuestsFrame)
 quest.QuestsFrame.ScrollFrame = scroll
 scroll.Background = Texture(scroll)
 scroll.SearchBox = Frame("EditBox", scroll)
-local row = Frame("Button", scroll)
+local contents = Frame(nil, scroll)
+contents.IsLayoutFrame = function() return true end
+contents.IgnoreLayoutIndex = function() return false end
+local row = Frame("Button", contents)
+row.IsLayoutFrame = contents.IsLayoutFrame
+row.layoutIndex = 1
 row.Background = Texture(row)
 row.Progress = Font(row)
 row.NextObjective = Frame(nil, row)
@@ -50,6 +59,7 @@ row.UpdateNextObjective = function(self, expanded)
     self.NextObjective:SetShown(expanded)
 end
 row.bottomPadding = 10
+row.heightPadding = 3
 local objectiveLayouts, headerLayouts = 0, 0
 row.NextObjective.Layout = function() objectiveLayouts = objectiveLayouts + 1 end
 row.Layout = function() headerLayouts = headerLayouts + 1 end
@@ -142,18 +152,31 @@ threat.Eye.Eye = Texture(threat.Eye)
 threat.ModelSceneBottom = Frame(nil, threat)
 threat.ModelSceneTop = Frame(nil, threat)
 map.overlayFrames = {tracking, activity, floor, board, threat}
-_G.NavBar_CheckLength = function(nav)
-    crumb:ClearAllPoints()
-    crumb:SetPoint("LEFT", nav.overflowButton, "RIGHT", -18, 0)
-end
+local nativeNavigation = setmetatable({}, {__index = _G})
+local navigationSource = assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_FrameXML/Mainline/NavigationBar.lua"))
+setfenv(navigationSource, nativeNavigation)()
+map.NavBar.widthBuffer = 20
+map.NavBar:SetWidth(260)
+home:SetWidth(100)
+crumb:SetWidth(200)
+map.NavBar.overflowButton:SetWidth(30)
+_G.NavBar_CheckLength = nativeNavigation.NavBar_CheckLength
 local clicked = 0
 crumb:SetScript("OnClick", function() clicked = clicked + 1 end)
 assert(loadfile(os.getenv("QUI_MAP_SOURCE") or "modules/skinning/frames/worldmap.lua"))("QUI", ns)
 callbacks.Blizzard_WorldMap()
-assert(crumb.xoffset == 0 and map.NavBar.overflowButton.xoffset == 0, "rectangular breadcrumbs must remove native arrow overlap offsets")
+assert(home.xoffset == -18 and crumb.xoffset == -15 and map.NavBar.overflowButton.xoffset == -18,
+    "map skinning must preserve native offsets read during secure map navigation")
 _G.NavBar_CheckLength(map.NavBar)
 local _, relative, _, x = crumb:GetPoint()
 assert(relative == map.NavBar.overflowButton and x == 0, "native navigation refresh must retain non-overlapping overflow spacing")
+assert(not home:IsShown() and crumb:IsShown() and map.NavBar.overflowButton:IsShown(),
+    "native navigation must still collapse breadcrumbs and expose its overflow menu")
+map.NavBar:SetWidth(400)
+_G.NavBar_CheckLength(map.NavBar)
+local _, expandedRelative, _, expandedX = crumb:GetPoint()
+assert(home:IsShown() and not map.NavBar.overflowButton:IsShown() and expandedRelative == home and expandedX == 0,
+    "expanded navigation must retain QUI spacing without rewriting Blizzard layout fields")
 local _, tabRelative, _, tabX, tabY = quest.EventsTab:GetPoint()
 assert(tabRelative == quest.QuestsTab and tabX == 0 and tabY == 0, "map tabs must snap together without native gaps")
 assert(Skin.GetBackdrop(date):GetFrameLevel() > scheduled:GetFrameLevel(), "date surfaces must render above neighboring event timelines")
@@ -161,12 +184,38 @@ assert(Skin.GetBackdrop(date)._quiRoundedSurface.background.color[4] == 1, "date
 assert(tracking.Border:GetAlpha() == 0 and nativeTrackingBackground:GetAlpha() == 0, "tracking chrome without a Background field must be removed")
 assert(tracking.Icon:GetAlpha() == 0 and Skin.GetFrameData(tracking, "mapFilterIcon"), "filter button must replace its embedded circular art with a shared drawn funnel")
 assert(not Skin.GetBackdrop(crumb.MenuArrowButton):IsShown(), "breadcrumb arrow must not add a second nested outline")
-assert(Skin.GetBackdrop(row).ignoreInLayout, "owned campaign chrome must not feed back into native resize layout")
-assert(row.heightPadding >= 12 and row.bottomPadding == 10 and objectiveLayouts > 0 and headerLayouts > 0, "campaign font styling must recalculate content height with bottom padding")
+local chromeHost = Skin.GetBackdrop(row):GetParent()
+assert(chromeHost == Skin.GetFrameData(row, "mapLayoutBackdropHost") and chromeHost:GetParent() == contents,
+    "campaign chrome must remain under the scroll child inside a separate host for viewport clipping")
+assert(chromeHost.ignoreInLayout == nil and chromeHost.layoutIndex == nil,
+    "the native indexed layout must skip the chrome host without reading addon-written layout flags")
+local nativeLayout = setmetatable({CreateFromMixins = function(...)
+    local mixin = {}
+    for i = 1, select("#", ...) do
+        for key, value in pairs(select(i, ...)) do mixin[key] = value end
+    end
+    return mixin
+end}, {__index = _G})
+local layoutSource = assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_SharedXML/LayoutFrame.lua"))
+setfenv(layoutSource, nativeLayout)()
+local layoutChildren = {}
+nativeLayout.BaseLayoutMixin.AddLayoutChildren(contents, layoutChildren, row, chromeHost)
+assert(#layoutChildren == 1 and layoutChildren[1] == row,
+    "Blizzard's actual layout enumeration must include the campaign row and exclude QUI decoration")
+local _, chromeRelative = Skin.GetBackdrop(row):GetPoint()
+assert(chromeRelative == row, "campaign chrome must remain anchored to its row after leaving the native layout")
+row:Hide()
+assert(not chromeHost:IsShown(), "pooled campaign chrome must hide when its native owner is released")
+row:Show()
+assert(chromeHost:IsShown(), "pooled campaign chrome must return when its native owner is reused")
+assert(row.heightPadding == 3 and row.bottomPadding == 10 and objectiveLayouts == 0 and headerLayouts == 0,
+    "campaign styling must leave native layout and its dirty/padding fields in Blizzard execution")
+assert(row.NextObjective.Text.fontSize == 11, "campaign objective text must retain QUI font styling")
 row:UpdateNextObjective(false)
-assert(row.heightPadding == 0, "collapsed campaign must remove objective height padding before native list layout")
+assert(row.heightPadding == 3, "collapsing a campaign must preserve Blizzard-owned height padding")
 row:UpdateNextObjective(true)
-assert(row.heightPadding >= 12, "expanded campaign must restore height padding before native list layout")
+assert(row.heightPadding == 3, "expanding a campaign must preserve Blizzard-owned height padding")
+assert(objectiveLayouts == 0 and headerLayouts == 0, "campaign refresh hooks must not invoke native layout from addon execution")
 local selectedFill = Skin.GetBackdrop(quest.QuestsTab)._quiRoundedSurface.background.color
 local inactiveFill = Skin.GetBackdrop(quest.EventsTab)._quiRoundedSurface.background.color
 assert(selectedFill[1] == inactiveFill[1] and selectedFill[2] == inactiveFill[2] and selectedFill[3] == inactiveFill[3], "all map tabs must blend into the same window fill")
@@ -200,6 +249,8 @@ assert(objective.textColor[1] == .9, "dynamic quest objectives must be readable 
 assert(completed.textColor[1] == .65, "completed objectives must retain their subdued dark-background state")
 assert(Skin.GetBackdrop(details.RewardsFrameContainer.RewardsFrame), "fixed rewards must have a background separating them from scrolling text")
 _G.QUI_RefreshWorldMapColors()
+assert(home.xoffset == -18 and crumb.xoffset == -15 and map.NavBar.overflowButton.xoffset == -18 and row.heightPadding == 3,
+    "theme refresh must preserve all native map layout fields")
 assert(completed.textColor[1] == .65, "theme refresh must preserve completed objective contrast")
 details:Hide()
 assert(objective.textColor[1] == .25 and completed.textColor[1] == .2, "shared objective colors must be restored for other quest owners")
@@ -210,6 +261,7 @@ local recycled = Frame("Button", map.NavBar)
 recycled.text = Font(recycled)
 _G.NavBar_AddButton(map.NavBar, recycled)
 assert(Skin.GetBackdrop(recycled)._quiRoundedSurface, "new navigation buttons must be styled after native creation")
+assert(recycled.xoffset == nil, "skinning a pooled breadcrumb must not create a tainted native offset")
 local pooled = Frame("Button", scroll)
 pooled.Text = Font(pooled)
 scroll.headerFramePool = {EnumerateActive = function() return pairs({[pooled] = true}) end}
