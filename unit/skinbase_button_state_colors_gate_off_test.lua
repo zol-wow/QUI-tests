@@ -95,6 +95,7 @@ local function LoadWithGate(gate)
     local ns = { Helpers = { AssetPath = [[Interface\AddOns\QUI\assets\]], CHROME=CHROME, CreateStateTable=CreateStateTable,
         GetCore = function() return { db = { profile = { general = { applyGlobalFontToBlizzard = gate } } } } end,
         SafeToNumber = function(v,d) return tonumber(v) or d end,
+        IsSecretValue = function() return false end,
         GetSkinBorderColor = function() return 0.6, 0.7, 0.8, 1 end,
         GetSkinBgColorWithOverride = function() return 0.1, 0.2, 0.3, 0.9 end,
         GetGeneralFont = function() return "QUIFont" end, GetGeneralFontOutline = function() return "" end },
