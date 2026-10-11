@@ -13,9 +13,12 @@ local surface = frame._quiRoundedSurface
 assert(surface and surface.radius == 8, "tracker background must match the rounded window shell")
 assert(surface.background.color[4] == .45, "tracker must preserve configured background opacity")
 apply(frame, true, .2, .3, .4, 1, .05, .06, .07, .25)
-assert(not surface.shown, "hide-border option must suppress previous rounded border art")
+assert(surface.shown, "borderless tracker must retain its rounded fill")
+for _, texture in pairs(surface.border) do
+    assert(texture.vertex[4] == 0, "hide-border option must make rounded border transparent")
+end
 local background = frame.regions[1]
-assert(background:IsShown() and background.color[4] == .25,
+assert(not background:IsShown() and surface.background.color[4] == .25,
     "borderless tracker must preserve configured background opacity")
 for _, texture in ipairs(frame.regions) do
     if texture.layer == "BORDER" then assert(not texture:IsShown(), "hide-border option must hide physical border edges") end

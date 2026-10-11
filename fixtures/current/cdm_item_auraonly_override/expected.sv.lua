@@ -2680,12 +2680,21 @@ return {
             offsetX = 0,
             offsetY = -160
           },
+          objectiveTrackerBackgroundColor = {
+            [1] = 0.035000000000000003,
+            [2] = 0.035000000000000003,
+            [3] = 0.035000000000000003,
+            [4] = 1
+          },
+          objectiveTrackerBackgroundOpacity = 0.75,
+          objectiveTrackerBackgroundStyle = "theme",
           objectiveTrackerBarColor = {
             [1] = 0.26000000000000001,
             [2] = 0.41999999999999998,
             [3] = 1,
             [4] = 1
           },
+          objectiveTrackerBorderColorSource = "inherit",
           objectiveTrackerBulletColor = {
             [1] = 1,
             [2] = 0.81999999999999995,
