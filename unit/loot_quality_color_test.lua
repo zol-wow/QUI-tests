@@ -275,4 +275,60 @@ for _, slot in ipairs(env.QUI_LootFrame.slots) do
 end
 assert(env.QUI_LootFrame.scrollChild.height == 0, "empty slot refresh must clear the scroll content extent")
 assert(env.QUI_LootFrame.points == previousAnchors, "empty slot refresh must preserve the existing window position")
+-- Retail exposes item info through C_Item; the legacy global must be absent.
+assert(env.GetItemInfoInstant == nil, "legacy GetItemInfoInstant must be absent")
+local itemLink = "|cnIQ0:|Hitem:284577::::::::90:66:::::::::|h[Stinging Nettle]|h|r"
+local itemID, classID, sourceID, canCollect, collected = 284577, 7, 123, true, false
+local infoCalls, transmogCalls = 0, 0
+colors[0] = { 0.62, 0.62, 0.62 }
+items = { { texture = 134400, name = "Stinging Nettle", quantity = 1, quality = 0 } }
+ns.Addon.db.profile.loot.showTransmogMarker = true
+env.GetLootSlotLink = function() return itemLink end
+env.C_Item.GetItemInfoInstant = function(link)
+    assert(link == itemLink, "item lookup must receive the original loot hyperlink")
+    infoCalls = infoCalls + 1
+    return itemID, nil, nil, nil, nil, classID
+end
+env.C_TransmogCollection = {
+    GetItemInfo = function(link)
+        assert(link == itemLink, "transmog lookup must receive the original loot hyperlink")
+        transmogCalls = transmogCalls + 1
+        return nil, sourceID
+    end,
+    PlayerCanCollectSource = function(id)
+        assert(id == sourceID, "collectibility must be checked for the item source")
+        return false, canCollect
+    end,
+    PlayerHasTransmogItemModifiedAppearance = function(id)
+        assert(id == sourceID, "collection state must be checked for the item source")
+        return collected
+    end,
+}
+event("LOOT_OPENED", false, false)
+checkColor(env.QUI_LootSlot1, 0)
+assert(infoCalls == 1 and transmogCalls == 0 and not env.QUI_LootSlot1.transmogMarker:IsShown(),
+    "reported non-equipment loot must open without a transmog marker or collection lookup")
+
+local function checkMarker(expected, message)
+    event("LOOT_SLOT_CHANGED", 1)
+    assert(env.QUI_LootSlot1.transmogMarker:IsShown() == expected, message)
+end
+classID = 2
+checkMarker(true, "collectible unowned weapons must show the transmog marker")
+classID = 4
+checkMarker(true, "collectible unowned armor must show the transmog marker")
+collected = true
+checkMarker(false, "collected appearances must clear the transmog marker")
+collected, canCollect = false, false
+checkMarker(false, "uncollectible appearances must not show a marker")
+canCollect, sourceID = true, nil
+checkMarker(false, "items without an appearance source must not show a marker")
+itemID = nil
+checkMarker(false, "unavailable item information must not prevent loot refresh")
+itemLink = nil
+checkMarker(false, "missing loot links must not prevent loot refresh")
+itemID, itemLink, sourceID = 123, "item:123", 123
+env.C_TransmogCollection = nil
+checkMarker(false, "clients without transmog collection must still refresh loot")
+
 print("OK: loot_quality_color_test")
