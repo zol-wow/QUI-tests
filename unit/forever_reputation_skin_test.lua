@@ -76,6 +76,7 @@ local bar = {
     Mask = {},
     Background = { shown = true, Hide = function(self) self.shown = false end },
     Text = textRegion(),
+    FillArea = { GetWidth = function() return 148 end },
     GetWidth = function() return 160 end,
     GetParent = function() return env.CharacterFrame end,
     GetFrameLevel = function() return 5 end,
@@ -89,7 +90,7 @@ local color = bar.Fill.color
 local row = { Content = { ReputationBar = bar, Name = textRegion() } }
 acquired(row)
 assert(bar.Fill.texture == "Interface\\Buttons\\WHITE8x8", "Forever Frame must skin its Fill texture")
-assert(bar.Fill.width == 40 and bar.Fill.coords[2] == 0.25, "skinning must preserve native progress")
+assert(bar.Fill.width == 37 and bar.Fill.coords[2] == 0.25, "skinning must preserve native progress within the inset fill area")
 assert(bar.Mask == mask and bar.Fill.color == color, "native mask and reputation color must survive")
 assert(bar.Text.text == "Friendly" and bar.Text.font == "skin-font", "skin native Text without replacing its value")
 assert(bar.Text.fontSize == 10 and row.Content.Name.fontSize == 11)
@@ -100,7 +101,7 @@ assert(track and track.fill.center:IsShown() and track.fill.center.vertex[4] == 
     "partly filled reputation must retain an opaque rounded track behind native progress")
 bar:SetFillPercent(0.75)
 bar:SetText("4,500 / 6,000")
-assert(bar.Fill.width == 120 and bar.Fill.coords[2] == 0.75, "native progress must still update after skinning")
+assert(bar.Fill.width == 111 and bar.Fill.coords[2] == 0.75, "native progress must still update within the inset fill area after skinning")
 assert(bar.Text.text == "4,500 / 6,000", "native hover text must still update")
 acquired(row)
 assert(backdropCount == 1, "reacquiring a pooled row must not duplicate its backdrop")

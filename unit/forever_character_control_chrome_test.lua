@@ -26,6 +26,8 @@ end
 local bar = h.NewFrame("Frame")
 for key, value in pairs(env.ColoredProgressBarMixin) do bar[key] = value end
 bar:SetWidth(160)
+bar.FillArea = h.NewFrame("Frame", nil, bar)
+bar.FillArea:SetWidth(bar:GetWidth() - 12)
 bar.Fill = texture(bar, "common-stat-bar-green")
 bar.Fill:SetHeight(15)
 bar.Mask = texture(bar, "common-stat-bar-Mask")
@@ -35,12 +37,12 @@ bar:SetFillPercent(.25); bar:SetText("Friendly")
 style(bar, 0)
 assert(bg:GetAlpha() == 0, "unnamed native track art must be hidden")
 assert(bar.Fill:GetAtlas() == "common-stat-bar-green" and bar.Fill:GetAlpha() == 1, "native faction-colored fill must survive")
-assert(bar.Fill:GetWidth() == 40 and bar.Mask:GetAlpha() == 1 and bar.Text:GetText() == "Friendly", "native progress, mask and caption must survive")
+assert(bar.Fill:GetWidth() == 37 and bar.Mask:GetAlpha() == 1 and bar.Text:GetText() == "Friendly", "native progress, mask and caption must survive")
 assert(h.SkinBase.GetBackdrop(bar):GetHeight() == 17, "QUI track must fit native fill plus its one-pixel border")
 bar:SetFillPercent(.75); bar:SetFillTextureByColorType(env.ColoredProgressBarMixin.ColorType.Blue)
 local blueTexture = bar.Fill.texture
 style(bar, 0)
-assert(bar.Fill:GetWidth() == 120 and bar.Fill.texture == blueTexture, "reused bars retain native updates")
+assert(bar.Fill:GetWidth() == 111 and bar.Fill.texture == blueTexture, "reused bars retain native updates")
 local skills = read(root .. "Blizzard_UIPanels_Game/Camelot/SkillsFrame.lua")
 setfenv(assert(loadstring(slice(skills, "SkillsHeaderMixin =", "SkillsEntryMixin ="))), env)()
 local collapsed

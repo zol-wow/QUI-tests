@@ -1093,6 +1093,11 @@ function C_AuctionHouse.GetItemKeyInfo(itemKey, restrictQualityToFilter, ...) en
 ---@param ... any
 ---@return number requiredLevel
 function C_AuctionHouse.GetItemKeyRequiredLevel(itemKey, ...) end
+--- Returns a link for an item in this key's results with player-applied enchants, gems and reforges stripped
+---@param itemKey? any
+---@param ... any
+---@return string sampleItemLink
+function C_AuctionHouse.GetItemKeySampleLink(itemKey, ...) end
 ---@param itemKey? any
 ---@param itemSearchResultIndex? number
 ---@param ... any
@@ -1805,6 +1810,9 @@ function C_BattleNet.AreFriendTagsEnabled(...) end
 ---@return boolean installed
 function C_BattleNet.AreHighResTexturesInstalled(...) end
 ---@param ... any
+---@return boolean areRealIDFriendsEnabled
+function C_BattleNet.AreRealIDFriendsEnabled(...) end
+---@param ... any
 ---@return boolean areTitleFriendCustomNamesEnabled
 function C_BattleNet.AreTitleFriendCustomNamesEnabled(...) end
 ---@param ... any
@@ -1846,6 +1854,10 @@ function C_BattleNet.GetFriendGameAccountInfo(friendIndex, accountIndex, ...) en
 ---@param ... any
 ---@return any inviteInfo
 function C_BattleNet.GetFriendInviteInfo(inviteIndex, ...) end
+---@param inviteText? string
+---@param ... any
+---@return any friendLevel
+function C_BattleNet.GetFriendLevelFromInviteText(inviteText, ...) end
 ---@param friendIndex? number
 ---@param ... any
 ---@return number numGameAccounts
@@ -6263,6 +6275,9 @@ function C_ExpansionTrial.OnTrialLevelUpDialogShown(...) end
 
 C_ExternalEventURL = {}
 ---@param ... any
+---@return boolean canShow
+function C_ExternalEventURL.CanShow(...) end
+---@param ... any
 ---@return boolean hasURL
 function C_ExternalEventURL.HasURL(...) end
 ---@param ... any
@@ -6616,8 +6631,9 @@ function C_GameRules.IsWoWHack(...) end
 ---@param ... any
 function C_GameRules.SetForeverExperiencePreset(preset, ...) end
 ---@param setToSD? boolean
+---@param usageLocation? any
 ---@param ... any
-function C_GameRules.SetSDHDToggleValue(setToSD, ...) end
+function C_GameRules.SetSDHDToggleValue(setToSD, usageLocation, ...) end
 
 C_GamepadTargeting = {}
 ---@param ... any
@@ -6625,9 +6641,6 @@ C_GamepadTargeting = {}
 function C_GamepadTargeting.Disable(...) end
 ---@param ... any
 function C_GamepadTargeting.Enable(...) end
----@param ... any
----@return boolean hasReticleHoverTarget
-function C_GamepadTargeting.HasReticleHoverTarget(...) end
 ---@param filter? any
 ---@param ... any
 function C_GamepadTargeting.SetFilter(filter, ...) end
@@ -13369,7 +13382,10 @@ function C_SecureTransfer.GetHousingPurchaseQuantity(...) end
 function C_SecureTransfer.GetHousingVCPurchaseProductID(...) end
 ---@param ... any
 ---@return any mailInfo
-function C_SecureTransfer.GetMailInfo(...) end
+function C_SecureTransfer.GetMailReceiveInfo(...) end
+---@param ... any
+---@return any mailInfo
+function C_SecureTransfer.GetMailSendInfo(...) end
 ---@param ... any
 ---@return string name
 function C_SecureTransfer.GetTradePartner(...) end
@@ -13378,6 +13394,11 @@ function C_SecureTransfer.SendMail(...) end
 ---@param ... any
 ---@return boolean shouldShow
 function C_SecureTransfer.ShouldShowTradeOfferWarning(...) end
+---@param ... any
+---@return boolean shouldShow
+function C_SecureTransfer.ShouldShowTradeRMTWarning(...) end
+---@param ... any
+function C_SecureTransfer.TakeMailMoney(...) end
 
 C_SettingsUtil = {}
 ---@param ... any
@@ -16851,6 +16872,9 @@ function C_Tutorial.AbandonTutorialArea(...) end
 function C_Tutorial.GetCombatEventInfo(...) end
 ---@param ... any
 function C_Tutorial.ReturnToTutorialArea(...) end
+---@param skipTutorial? boolean
+---@param ... any
+function C_Tutorial.SendTutorialStartButtonTelem(skipTutorial, ...) end
 
 C_UI = {}
 --- True if any display attached has a notch. This does not mean the current view intersects the notch.
@@ -17184,9 +17208,11 @@ function C_UnitAuras.GetCooldownAuraBySpellID(spellID, ...) end
 ---@param ... any
 ---@return any aura
 function C_UnitAuras.GetDebuffDataByIndex(unit, index, filter, ...) end
+--- Returns the alerts passed to SetGroupBuffVisualAlerts plus an entry for every linked rank spell of those group buffs.
 ---@param ... any
 ---@return table visualAlerts
 function C_UnitAuras.GetGroupBuffVisualAlerts(...) end
+--- Returns the spell IDs passed to SetHiddenGroupBuffs plus every linked rank spell of those group buffs.
 ---@param ... any
 ---@return table spellIDs
 function C_UnitAuras.GetHiddenGroupBuffs(...) end
@@ -18418,6 +18444,9 @@ function GetCorruption(...) end
 ---@return number result
 function GetCorruptionResistance(...) end
 ---@param ... any
+---@return table info
+function GetCreditsDisplayInfo(...) end
+---@param ... any
 ---@return number result
 function GetCritChance(...) end
 ---@param stat? number
@@ -18443,6 +18472,10 @@ function GetCurrentRegionName(...) end
 ---@param ... any
 ---@return number result
 function GetCurrentTitle(...) end
+---@param ... any
+---@return number posX
+---@return number posY
+function GetCursorCenterPosition(...) end
 ---@param ... any
 ---@return number deltaX
 ---@return number deltaY
@@ -18764,6 +18797,9 @@ function GetNumTotemSlots(...) end
 function GetOSLocale(...) end
 ---@param ... any
 ---@return number result
+function GetOffhandHitModifier(...) end
+---@param ... any
+---@return number result
 function GetOverrideAPBySpellPower(...) end
 ---@param ... any
 ---@return number result
@@ -18795,6 +18831,13 @@ function GetParryChance(...) end
 ---@param ... any
 ---@return number result
 function GetParryChanceFromAttribute(...) end
+---@param ... any
+---@return number meleeCrit
+---@return number spellCrit
+function GetPetCritChance(...) end
+---@param ... any
+---@return number result
+function GetPetDodgeChance(...) end
 ---@param ... any
 ---@return number result
 function GetPetHitChanceModifier(...) end
@@ -19236,6 +19279,9 @@ function IsControlKeyDown(...) end
 ---@param ... any
 ---@return boolean isCpuBound
 function IsCpuBound(...) end
+---@param ... any
+---@return boolean visible
+function IsCursorVisible(...) end
 ---@param ... any
 ---@return boolean isDebugBuild
 function IsDebugBuild(...) end
