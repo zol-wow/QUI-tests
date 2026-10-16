@@ -155,6 +155,7 @@ function Harness.Build(opts)
         function f:IsObjectType(objType) return objType == self.kind end
         function f:GetObjectType() return self.kind end
         function f:IsForbidden() return false end
+        function f:IsAnchoringRestricted() return false end
         function f:SetBackdrop(info) self.backdropCalls[#self.backdropCalls + 1] = info; self.backdrop = info end
         function f:GetBackdrop() return self.backdrop end
         -- uikit's manual (4-texture) backdrop replaces these with setters
