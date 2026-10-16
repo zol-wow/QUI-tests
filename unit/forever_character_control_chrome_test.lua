@@ -28,6 +28,8 @@ for key, value in pairs(env.ColoredProgressBarMixin) do bar[key] = value end
 bar:SetWidth(160)
 bar.FillArea = h.NewFrame("Frame", nil, bar)
 bar.FillArea:SetWidth(bar:GetWidth() - 12)
+bar.FillArea:SetPoint("TOPLEFT", bar, "TOPLEFT", 6, 0)
+bar.FillArea:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -6, 0)
 bar.Fill = texture(bar, "common-stat-bar-green")
 bar.Fill:SetHeight(15)
 bar.Mask = texture(bar, "common-stat-bar-Mask")
@@ -39,10 +41,28 @@ assert(bg:GetAlpha() == 0, "unnamed native track art must be hidden")
 assert(bar.Fill:GetAtlas() == "common-stat-bar-green" and bar.Fill:GetAlpha() == 1, "native faction-colored fill must survive")
 assert(bar.Fill:GetWidth() == 37 and bar.Mask:GetAlpha() == 1 and bar.Text:GetText() == "Friendly", "native progress, mask and caption must survive")
 assert(h.SkinBase.GetBackdrop(bar):GetHeight() == 17, "QUI track must fit native fill plus its one-pixel border")
+local function assertTrackAnchors(target)
+    local backdrop = h.SkinBase.GetBackdrop(bar)
+    local left, leftTarget, leftRelative, leftX = backdrop:GetPoint(1)
+    local right, rightTarget, rightRelative, rightX = backdrop:GetPoint(2)
+    assert(left == "LEFT" and leftTarget == target and leftRelative == "LEFT" and leftX == 0
+        and right == "RIGHT" and rightTarget == target and rightRelative == "RIGHT" and rightX == 0,
+        "QUI track must follow the native fill area horizontally")
+end
+assertTrackAnchors(bar.FillArea)
 bar:SetFillPercent(.75); bar:SetFillTextureByColorType(env.ColoredProgressBarMixin.ColorType.Blue)
 local blueTexture = bar.Fill.texture
 style(bar, 0)
 assert(bar.Fill:GetWidth() == 111 and bar.Fill.texture == blueTexture, "reused bars retain native updates")
+bar:SetFillPercent(1)
+style(bar, 0)
+assert(bar.Fill:GetWidth() == bar.FillArea:GetWidth(), "native full progress must span the inset track")
+assertTrackAnchors(bar.FillArea)
+local nativeFillArea = bar.FillArea
+bar.FillArea = nil
+style(bar, 0)
+assertTrackAnchors(bar)
+bar.FillArea = nativeFillArea
 local skills = read(root .. "Blizzard_UIPanels_Game/Camelot/SkillsFrame.lua")
 setfenv(assert(loadstring(slice(skills, "SkillsHeaderMixin =", "SkillsEntryMixin ="))), env)()
 local collapsed
