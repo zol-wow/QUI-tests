@@ -5,6 +5,24 @@ ns.Client = { isForever = true }
 local root = env.NewFrame("Frame")
 root.CloseButton = false
 _G.PetStableFrame = root
+local function artwork(parent, atlas)
+    local texture = parent:CreateTexture()
+    texture:SetAtlas(atlas)
+    function texture:GetAtlas() return self.atlas end
+    return texture
+end
+local topBackground = artwork(root, "ui-stables-subheader-bg")
+local bottomBackground = artwork(root, "ui-stables-footer-bg")
+root.Background = topBackground
+root.insideFrameBottom = artwork(root, "common-insideframe")
+for _, key in ipairs({ "TopDividerFrame", "BottomDividerFrame" }) do
+    root[key] = env.NewFrame("Frame", nil, root)
+    root[key].horzDivider = artwork(root[key], "ui-stables-horz-divider")
+end
+root.modelScene = env.NewFrame("Frame", nil, root)
+root.modelScene.Background = artwork(root.modelScene, "ui-stables-pet-model-bg")
+local decorations = { topBackground, bottomBackground, root.insideFrameBottom,
+    root.TopDividerFrame.horzDivider, root.BottomDividerFrame.horzDivider }
 local records = { [1] = { icon = 123, name = "Wolf", level = 20, familyName = "Wolf" } }
 local unlocked, pickups, clears, events = 0, {}, 0, {}
 _G.C_StableInfo = {
@@ -59,7 +77,27 @@ skin.OnAddOnLoaded = function(addon, fn) callbacks[addon] = fn end
 ns.Registry = { Register = function(_, key, entry) registry[key] = entry end }
 local click = slots[1]:GetScript("OnClick")
 assert(loadfile(arg[1] or "modules/skinning/frames/misc_frames.lua"))("QUI", ns)
+env.profile.general.skinStable = false
 callbacks.Blizzard_StableUI()
+for _, texture in ipairs(decorations) do
+    assert(texture:GetAlpha() == 1, "disabled skin must retain native stable artwork")
+end
+env.profile.general.skinStable = true
+ns.Client.isForever = false
+callbacks.Blizzard_StableUI()
+assert(not skin.IsSkinned(root) and bottomBackground:GetAlpha() == 1, "stable artwork styling must not touch Retail")
+ns.Client.isForever = true
+root.IsForbidden = function() return true end
+callbacks.Blizzard_StableUI()
+assert(not skin.IsSkinned(root) and bottomBackground:GetAlpha() == 1, "forbidden stable frames must remain untouched")
+root.IsForbidden = function() return false end
+callbacks.Blizzard_StableUI()
+for _, texture in ipairs(decorations) do
+    assert(texture:GetAlpha() == 0, "stable shell decorations must be hidden")
+    texture:Show(); texture:SetAlpha(1)
+    assert(texture:GetAlpha() == 0, "native artwork resets must not restore stable shell decorations")
+end
+assert(root.modelScene.Background:GetAlpha() == 1, "pet model artwork must remain native")
 local function border(id) return skin.GetFrameData(_G[names[id] .. "IconTexture"], "iconBorder") end
 assert(border(1) and border(1)._quiRoundedSurface, "Stable slots must receive shared rounded borders")
 assert(border(1)._quiBorderR == env.colors[1] and border(2)._quiBorderR == env.colors[1]
@@ -102,7 +140,13 @@ for id, b in ipairs(slots) do
         "native updates must retain unlocked and current slot indicators")
 end
 local oldBorder = border(1)
+local replacementDivider = artwork(root.TopDividerFrame, "ui-stables-horz-divider")
+root.TopDividerFrame.horzDivider = replacementDivider
+decorations[#decorations + 1] = replacementDivider
 registry.skinStable.refresh()
+for _, texture in ipairs(decorations) do
+    assert(texture:GetAlpha() == 0, "theme refresh must retain hidden stable shell decorations")
+end
 assert(border(1) == oldBorder and masks == 12 and slots[1]:GetScript("OnClick") == click,
     "theme/update must retain masks and native handlers")
 env.profile.general.skinStable = false; unlocked = 0
