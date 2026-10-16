@@ -28,7 +28,10 @@ C_StableInfo = { GetStablePetInfo = function() return pet end, GetNumStableSlots
 SetItemButtonTexture = function(slot, icon) slot.icon = icon end
 format = string.format
 UNIT_LEVEL_TEMPLATE = "Level %d"
-local slot = { background = { SetVertexColor = function(self, ...) self.color = { ... } end } }
+local slot = {}
+for _, key in ipairs({ "lockedBackground", "unlockedBackground", "currentBackground", "lockIcon", "genericPetIcon", "currentGlow" }) do
+    slot[key] = { SetShown = function(self, shown) self.shown = shown end }
+end
 slot.GetID = function() return 3 end
 slot.Update = PetStableSlotMixin.Update
 slot.OnClick = PetStableSlotMixin.OnClick
@@ -56,8 +59,10 @@ assert(stable.fonted and stable.fontLocked,
 assert(stable.modelScene.Inset.NineSlice.hidden and stable.modelScene.Background.artwork,
     "stable skin must suppress frame chrome while retaining the pet scene")
 slot:Update()
-assert(slot.icon == pet.icon and slot.background.color[2] == 0.1,
-    "native pet icons and locked-slot red indication must survive skinning")
+assert(slot.icon == pet.icon and slot.lockedBackground.shown and slot.lockIcon.shown
+    and not slot.unlockedBackground.shown and not slot.currentBackground.shown
+    and not slot.genericPetIcon.shown and not slot.currentGlow.shown,
+    "native pet icons and locked-slot indicators must survive skinning")
 assert(slot.OnClick == originalClick and slot.OnDragStart == originalDrag and stable.footer.gamepad,
     "stable selection, dragging, and controller ownership must remain native")
 registry.skinStable.refresh()

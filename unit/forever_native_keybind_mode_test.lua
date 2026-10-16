@@ -8,7 +8,7 @@ end
 
 local source = read("QUI_ActionBars/actionbars/settings/action_bars_content.lua")
 local buttonSource = assert(source:match("(local keybindBtn = GUI:CreateButton.-\n    end%))"))
-local combat, libraryLookups, libraryToggles, highlights, captured = false, 0, 0, 0, nil
+local combat, libraryLookups, libraryToggles, highlights, modeEvents, captured = false, 0, 0, 0, 0, nil
 local listener = {}
 function listener:StartListening(command, slot) self.command, self.slot = command, slot end
 function listener:IsListening() return self.command ~= nil end
@@ -34,6 +34,10 @@ local env = setmetatable({
         ShowAllQuickKeybindButtonHighlights = function() highlights = highlights + 1 end,
     },
     ExtraActionBar_ForceShowIfNeeded = noop,
+    EventRegistry = { TriggerEvent = function(_, event)
+        assert(event == "QuickKeybindFrame.QuickKeybindModeEnabled", "native mode must emit its enabled event")
+        modeEvents = modeEvents + 1
+    end },
     KeybindListener = listener,
     GetBindingKey = function() return "ESCAPE" end,
 }, { __index = _G })
@@ -64,7 +68,7 @@ callback()
 assert(not quick.shown and libraryLookups == 0, "combat must skip both native and library keybind modes")
 combat = false
 callback()
-assert(quick.shown and highlights == 1 and libraryLookups == 0,
+assert(quick.shown and highlights == 1 and modeEvents == 1 and libraryLookups == 0,
     "native presentation must open Blizzard keybinding even when LibKeyBound is bundled")
 local button = setmetatable({
     commandName = "ACTIONBUTTON1", scripts = {}, QuickKeybindButtonSetTooltip = noop,
@@ -89,6 +93,6 @@ assert(libraryToggles == 1 and libraryLookups == 1, "Retail capture must remain 
 combat = false
 library = nil
 callback()
-assert(quick.shown and highlights == 2, "Retail without LibKeyBound must preserve its native fallback")
+assert(quick.shown and highlights == 2 and modeEvents == 2, "Retail without LibKeyBound must preserve its native fallback")
 
 print("OK: native keybind settings use Blizzard hover/key dispatch; Retail retains LibKeyBound and combat guards")
