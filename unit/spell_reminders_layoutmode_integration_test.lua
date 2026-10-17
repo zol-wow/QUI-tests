@@ -311,3 +311,53 @@ assert(layout._handles[key] and host.layoutPreview and not layout._handles["spel
     "turning the master switch back on must restore only the individually enabled reminder movers")
 layout:DiscardAndClose()
 print("OK: closing Layout Mode with the master switch off preserves individual reminder preferences")
+
+local runtimeEvents
+for _, frame in ipairs(H.frames) do
+    if frame.events.CHAT_MSG_WHISPER and frame.events.SPELL_UPDATE_COOLDOWN then runtimeEvents = frame end
+end
+assert(runtimeEvents)
+for _, runtimeFirst in ipairs({true, false}) do
+    currentConfig.showWhenReady, currentConfig.showBeforeReady = false, false
+    H.cooldowns[10060] = {isActive = true, isEnabled = true, startTime = H.now - 55, duration = 60}
+    layout:Open()
+    Flush()
+    local mover = layout._elements[key]
+    mover.setGameplayHidden(true)
+    R.Preview(10060, true)
+    assert(host:IsShown() and host.icon:IsShown() and host.sample:IsShown(),
+        "explicit previews must temporarily show even a reminder hidden during gameplay")
+    H.combat = true
+    R.Update()
+    assert(not host.icon:IsShown() and not host.sample:IsShown(),
+        "combat must suppress forced ready icons and PI samples before combat event handlers run")
+    assert(not host:IsShown(), "combat must restore a preview host's hidden gameplay preference")
+    local first = runtimeFirst and runtimeEvents or layout._combatFrame
+    local second = runtimeFirst and layout._combatFrame or runtimeEvents
+    first.scripts.OnEvent(first, "PLAYER_REGEN_DISABLED")
+    second.scripts.OnEvent(second, "PLAYER_REGEN_DISABLED")
+    assert(not layout._handles[key]:IsShown() and not host.icon:IsShown() and not host.sample:IsShown(),
+        "either combat event order must hide mover previews and show only normal reminder output")
+    mover.setGameplayHidden(false)
+    currentConfig.showBeforeReady = true
+    R.Update()
+    assert(host.icon:IsShown() and host.icon.cooldown:IsShown() and host.icon.cooldown.duration
+        and not host.sample:IsShown(), "combat must retain the actual cooldown countdown instead of forced ready preview art")
+    currentConfig.showBeforeReady = false
+    H.combat = false
+    R.Update()
+    assert(layout._combatSuspended and not host.icon:IsShown() and not host.sample:IsShown(),
+        "previews must stay suppressed after combat while Layout Mode waits for its deferred close")
+    local after = C_Timer.After
+    local deferredClose
+    C_Timer.After = function(delay, callback)
+        if delay == 0.5 then deferredClose = callback else after(delay, callback) end
+    end
+    layout._combatFrame.scripts.OnEvent(layout._combatFrame, "PLAYER_REGEN_ENABLED")
+    C_Timer.After = after
+    assert(deferredClose, "the actual combat dispatcher must schedule its postcombat close")
+    deferredClose()
+    assert(not layout.isActive and not host.layoutPreview and not host.sample:IsShown(),
+        "the postcombat close must clear Layout Mode preview ownership")
+end
+print("OK: combat suppresses Layout Mode previews and preserves cooldown output in either event order")
