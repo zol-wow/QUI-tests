@@ -177,7 +177,6 @@ local CVar =
 			},
 		},
 	},
-
 	Predicates =
 	{
 		{

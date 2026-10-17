@@ -36,7 +36,6 @@ local InstanceLeaverInfo =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

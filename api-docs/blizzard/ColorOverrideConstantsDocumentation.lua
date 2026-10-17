@@ -21,7 +21,6 @@ local ColorOverrideConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

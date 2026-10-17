@@ -101,7 +101,6 @@ local ProfessionSpecConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

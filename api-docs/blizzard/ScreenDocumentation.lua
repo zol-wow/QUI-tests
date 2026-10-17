@@ -61,7 +61,6 @@ local Screen =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

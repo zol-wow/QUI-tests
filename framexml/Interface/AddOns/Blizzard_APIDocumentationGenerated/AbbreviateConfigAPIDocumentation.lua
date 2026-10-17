@@ -40,7 +40,6 @@ local AbbreviateConfigAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

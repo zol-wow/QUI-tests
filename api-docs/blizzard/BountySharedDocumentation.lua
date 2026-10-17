@@ -15,7 +15,6 @@ local BountyShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

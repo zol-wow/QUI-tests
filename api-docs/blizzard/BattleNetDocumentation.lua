@@ -463,7 +463,6 @@ local BattleNet =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

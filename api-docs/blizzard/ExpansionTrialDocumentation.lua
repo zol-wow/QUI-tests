@@ -26,7 +26,6 @@ local ExpansionTrial =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

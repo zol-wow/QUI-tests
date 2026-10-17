@@ -3,7 +3,6 @@ local Action =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 		{

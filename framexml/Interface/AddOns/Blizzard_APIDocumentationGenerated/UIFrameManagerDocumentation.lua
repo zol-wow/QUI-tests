@@ -60,7 +60,6 @@ local UIFrameManager =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

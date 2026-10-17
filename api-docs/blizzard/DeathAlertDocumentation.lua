@@ -26,7 +26,6 @@ local DeathAlert =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

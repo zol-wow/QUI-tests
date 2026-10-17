@@ -38,7 +38,6 @@ local UIShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 		{

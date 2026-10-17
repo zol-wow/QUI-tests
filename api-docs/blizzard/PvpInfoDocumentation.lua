@@ -185,25 +185,6 @@ local PvpInfo =
 			},
 		},
 		{
-			Name = "GetArenaOpponentSpec",
-			Type = "Function",
-			MayReturnNothing = true,
-			Namespace = "",
-			SecretReturns = true,
-			SecretArguments = "AllowedWhenUntainted",
-
-			Arguments =
-			{
-				{ Name = "index", Type = "luaIndex", Nilable = false },
-			},
-
-			Returns =
-			{
-				{ Name = "specializationID", Type = "number", Nilable = false },
-				{ Name = "gender", Type = "number", Nilable = false },
-			},
-		},
-		{
 			Name = "GetArenaRewards",
 			Type = "Function",
 			MayReturnNothing = true,
@@ -615,20 +596,7 @@ local PvpInfo =
 			},
 		},
 		{
-			Name = "GetRandomTrainingGroundArenaRewards",
-			Type = "Function",
-
-			Returns =
-			{
-				{ Name = "honor", Type = "number", Nilable = false },
-				{ Name = "experience", Type = "number", Nilable = false },
-				{ Name = "itemRewards", Type = "table", InnerType = "BattlefieldItemReward", Nilable = true },
-				{ Name = "currencyRewards", Type = "table", InnerType = "BattlefieldCurrencyReward", Nilable = true },
-				{ Name = "roleShortageBonus", Type = "RoleShortageReward", Nilable = true },
-			},
-		},
-		{
-			Name = "GetRandomTrainingGroundBGRewards",
+			Name = "GetRandomTrainingGroundRewards",
 			Type = "Function",
 
 			Returns =
@@ -875,21 +843,12 @@ local PvpInfo =
 			},
 		},
 		{
-			Name = "HasRandomTrainingGroundArenaWinToday",
+			Name = "HasRandomTrainingGroundWinToday",
 			Type = "Function",
 
 			Returns =
 			{
-				{ Name = "hasRandomTrainingGroundArenaWinToday", Type = "bool", Nilable = false },
-			},
-		},
-		{
-			Name = "HasRandomTrainingGroundBGWinToday",
-			Type = "Function",
-
-			Returns =
-			{
-				{ Name = "hasRandomTrainingGroundBGWinToday", Type = "bool", Nilable = false },
+				{ Name = "hasRandomTrainingGroundWinToday", Type = "bool", Nilable = false },
 			},
 		},
 		{
@@ -1092,36 +1051,6 @@ local PvpInfo =
 			},
 		},
 		{
-			Name = "IsTrainingGroundsArena",
-			Type = "Function",
-			SecretArguments = "AllowedWhenUntainted",
-
-			Arguments =
-			{
-				{ Name = "lfgDungeonsID", Type = "number", Nilable = false },
-			},
-
-			Returns =
-			{
-				{ Name = "isTrainingGroundsArena", Type = "bool", Nilable = false },
-			},
-		},
-		{
-			Name = "IsTrainingGroundsBG",
-			Type = "Function",
-			SecretArguments = "AllowedWhenUntainted",
-
-			Arguments =
-			{
-				{ Name = "lfgDungeonsID", Type = "number", Nilable = false },
-			},
-
-			Returns =
-			{
-				{ Name = "isTrainingGroundsBG", Type = "bool", Nilable = false },
-			},
-		},
-		{
 			Name = "IsWarModeActive",
 			Type = "Function",
 
@@ -1174,7 +1103,7 @@ local PvpInfo =
 			Type = "Function",
 		},
 		{
-			Name = "JoinRandomTrainingGroundBG",
+			Name = "JoinRandomTrainingGroundBattleground",
 			Type = "Function",
 		},
 		{
@@ -1981,7 +1910,6 @@ local PvpInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

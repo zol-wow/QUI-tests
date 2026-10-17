@@ -161,7 +161,6 @@ local NamePlateConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

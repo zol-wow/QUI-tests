@@ -104,7 +104,6 @@ local MapConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

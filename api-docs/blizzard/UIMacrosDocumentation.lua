@@ -84,7 +84,6 @@ local UIMacros =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -51,7 +51,6 @@ local StorePublicUI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

@@ -307,7 +307,6 @@ local MajorFactions =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

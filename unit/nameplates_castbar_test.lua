@@ -156,10 +156,7 @@ local settings = {
 }
 
 local ns = {
-   Helpers = {
-        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
-        ApplyTextureStyle = function(_, texture, path) texture:SetTexture(path) end,
-        ApplyIconStyle = function() end,
+    Helpers = {
         IsSecretValue = function(v) return secrets[v] == true end,
         SafeToNumber = function(v, fallback)
             if secrets[v] then return fallback or 0 end

@@ -132,7 +132,6 @@ local ScrappingMachineUI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

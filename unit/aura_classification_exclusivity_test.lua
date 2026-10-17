@@ -46,16 +46,9 @@ local function wowSplit(delimiters, str)
     end
     return out
 end
--- luacheck: ignore 142/string 143/string 142/table
+-- luacheck: ignore 142/string 143/string
 string.split = function(delimiters, str)
     return (table.unpack or unpack)(wowSplit(delimiters, str))
-end
-
-table.contains = function(tbl, item)
-    for _, value in pairs(tbl) do
-        if value == item then return true end
-    end
-    return false
 end
 
 assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_SharedXMLBase/TableUtil.lua"))()

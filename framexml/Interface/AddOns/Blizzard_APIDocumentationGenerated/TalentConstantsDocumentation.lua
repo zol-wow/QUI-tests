@@ -11,7 +11,6 @@ local TalentConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

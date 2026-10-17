@@ -88,7 +88,6 @@ local SimpleAnimRotationAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

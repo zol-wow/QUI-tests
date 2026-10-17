@@ -22,7 +22,6 @@ local ClientSettings =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

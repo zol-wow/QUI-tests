@@ -232,7 +232,6 @@ local SimpleSliderAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

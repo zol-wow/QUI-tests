@@ -46,7 +46,6 @@ local LevelLink =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

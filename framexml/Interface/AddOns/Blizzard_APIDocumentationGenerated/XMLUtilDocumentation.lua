@@ -74,7 +74,6 @@ local XMLUtil =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

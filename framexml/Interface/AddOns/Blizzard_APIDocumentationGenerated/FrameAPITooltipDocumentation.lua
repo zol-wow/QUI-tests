@@ -141,7 +141,6 @@ local FrameAPITooltip =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

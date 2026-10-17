@@ -383,7 +383,6 @@ local UnitShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

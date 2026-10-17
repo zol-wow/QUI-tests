@@ -104,7 +104,6 @@ local PingConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

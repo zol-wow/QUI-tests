@@ -31,7 +31,6 @@ local TimerunningUI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

@@ -59,7 +59,6 @@ local ClientScene =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

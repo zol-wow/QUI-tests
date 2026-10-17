@@ -92,7 +92,6 @@ local FrameAPISimpleCheckout =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

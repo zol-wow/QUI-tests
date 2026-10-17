@@ -419,7 +419,6 @@ local GossipInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

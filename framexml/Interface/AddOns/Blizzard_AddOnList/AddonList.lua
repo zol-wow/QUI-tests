@@ -8,24 +8,11 @@ local ADDON_ACTIONS_BLOCKED = { };
 local ALL_CHARACTERS = "All";
 local addonCharacter = ALL_CHARACTERS;
 
-local function UpdateDefaultAddOnCharacter()
-	-- In Glue this defaults to "All", in-game it should default to the current character at design request.
-	if InGlue() then
-		addonCharacter = ALL_CHARACTERS;
-	else		
-		addonCharacter = UnitGUID("player");
-	end
-end
-
 local function GetAddonCharacter()
 	if addonCharacter == ALL_CHARACTERS then
 		return nil;
 	end
 	return addonCharacter;
-end
-
-local function IsAddonEnabled(addon, character)
-	return C_AddOns.GetAddOnEnableState(addon, character) > Enum.AddOnEnableState.None;
 end
 
 if ( not InGlue() ) then
@@ -193,18 +180,18 @@ function AddonList_HasAnyChanged()
 	if (AddonList.outOfDate and not C_AddOns.IsAddonVersionCheckEnabled() or (not AddonList.outOfDate and C_AddOns.IsAddonVersionCheckEnabled() and AddonList_HasOutOfDate())) then
 		return true;
 	end
-
-	local character = GetAddonCharacter();
-
 	for i=1,C_AddOns.GetNumAddOns() do
-		local enabled = IsAddonEnabled(i, character);
+		local character = nil;
+		if (not InGlue()) then
+			character = GetAddonCharacter();
+		end
+		local enabled = (C_AddOns.GetAddOnEnableState(i, character) > Enum.AddOnEnableState.None);
 		local reason = select(5,C_AddOns.GetAddOnInfo(i))
 		if ( enabled ~= AddonList.startStatus[i] and reason ~= "DEP_DISABLED" ) then
-			return true;
+			return true
 		end
 	end
-
-	return false;
+	return false
 end
 
 local function AddonList_Hide(save)
@@ -234,8 +221,6 @@ function AddonListMixin:OnLoad()
 
 	self.offset = 0;
 
-	UpdateDefaultAddOnCharacter();
-
 	if ( InGlue() ) then
 		self:SetParent(GlueParent)
 		AddonDialog:SetParent(GlueParent)
@@ -253,15 +238,16 @@ function AddonListMixin:OnLoad()
 		self.shouldReload = false;
 		self.outOfDate = C_AddOns.IsAddonVersionCheckEnabled() and AddonList_HasOutOfDate();
 		self.outOfDateIndexes = {};
-
-		local character = GetAddonCharacter();
-
 		for i=1,C_AddOns.GetNumAddOns() do
-			self.startStatus[i] = IsAddonEnabled(i, character);
+			local character = GetAddonCharacter();
+			self.startStatus[i] = (C_AddOns.GetAddOnEnableState(i, character) > Enum.AddOnEnableState.None);
 			if (select(5, C_AddOns.GetAddOnInfo(i)) == "INTERFACE_VERSION") then
 				tinsert(self.outOfDateIndexes, i);
 			end
 		end
+
+		-- In Glue this defaults to "All", in-game it should default to the current character at design request.
+		addonCharacter = UnitGUID("player");
 	end
 
 	local indent = 20;
@@ -304,7 +290,7 @@ function AddonListMixin:OnLoad()
 	self.DisableAllButton:SetScript("OnClick", AddonList_DisableAll);
 end
 
-function AddonList_SetStatus(self, lod, status, reload)
+function AddonList_SetStatus(self,lod,status,reload)
 	local button = self.LoadAddonButton
 	local string = self.Status
 	local relstr = self.Reload
@@ -365,7 +351,7 @@ function AddonList_InitAddon(entry, treeNode)
 	local checkboxState = C_AddOns.GetAddOnEnableState(addonIndex, character);
 	local enabled;
 	if ( not InGlue() ) then
-		enabled = IsAddonEnabled(addonIndex, character);
+		enabled = (C_AddOns.GetAddOnEnableState(addonIndex, character) > Enum.AddOnEnableState.None);
 	else
 		enabled = (checkboxState > Enum.AddOnEnableState.None);
 	end
@@ -713,7 +699,7 @@ function AddonListMixin:GetAddonMetricPercent(addonName, formatString, metric)
 	local warningPct = GetCVarNumberOrDefault("addonPerformanceMsgWarning");
 	local warningPctValid = warningPct > 0.0 and warningPct < 1.0;
 	local text = formatString:format(FormatProfilerPercent(pct * 100.0), addonName);
-
+	
 	local showWarning = warningPctValid and pct > warningPct;
 	if showWarning then
 		text = RED_FONT_COLOR:WrapTextInColorCode(text) .. CreateSimpleTextureMarkup([[Interface\DialogFrame\DialogIcon-AlertNew-16]], 16, 16);
@@ -786,15 +772,14 @@ function AddonListMixin:UpdateAddOnMemoryUsage()
 end
 
 function AddonList_HasOutOfDate()
-	local character = nil;
-	if (not InGlue()) then
-		character = GetAddonCharacter();
-	end
-
 	local hasOutOfDate = false;
 	for i=1, C_AddOns.GetNumAddOns() do
 		local name, title, notes, loadable, reason = C_AddOns.GetAddOnInfo(i);
-		local enabled = IsAddonEnabled(i, character);
+		local character = nil;
+		if (not InGlue()) then
+			character = GetAddonCharacter();
+		end
+		local enabled = (C_AddOns.GetAddOnEnableState(i, character) > Enum.AddOnEnableState.None);
 		if ( enabled and not loadable and reason == "INTERFACE_VERSION" ) then
 			hasOutOfDate = true;
 			break;
@@ -814,14 +799,13 @@ function AddonList_SetSecurityIcon(texture, index)
 end
 
 function AddonList_DisableOutOfDate()
-	local character = nil;
-	if (not InGlue()) then
-		character = GetAddonCharacter();
-	end
-
 	for i=1, C_AddOns.GetNumAddOns() do
 		local name, title, notes, loadable, reason = C_AddOns.GetAddOnInfo(i);
-		local enabled = IsAddonEnabled(i, character);
+		local character = nil;
+		if (not InGlue()) then
+			character = GetAddonCharacter();
+		end
+		local enabled = (C_AddOns.GetAddOnEnableState(i, character) > Enum.AddOnEnableState.None);
 		if ( enabled and not loadable and reason == "INTERFACE_VERSION" ) then
 			C_AddOns.DisableAddOn(i);
 		end

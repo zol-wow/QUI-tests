@@ -957,7 +957,6 @@ local HousingUI =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

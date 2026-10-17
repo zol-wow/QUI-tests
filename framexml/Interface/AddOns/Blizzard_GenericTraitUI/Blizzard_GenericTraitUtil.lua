@@ -144,16 +144,6 @@ function GenericTraitUtil.AddFrameLayoutInfo(treeID, frameLayoutInfo)
 	GenericTraitFrameLayouts[treeID] = frameLayoutInfo;
 end
 
--- Returns every treeID GenericTraitFrame has a custom layout for, sorted ascending.
-function GenericTraitUtil.GetKnownTreeIDs()
-	local treeIDs = {};
-	for treeID in pairs(GenericTraitFrameLayouts) do
-		table.insert(treeIDs, treeID);
-	end
-	table.sort(treeIDs);
-	return treeIDs;
-end
-
 function GenericTraitUtil.GetFrameTutorialInfo(treeID)
 	return GenericTraitFrameTutorials[treeID];
 end

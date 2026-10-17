@@ -155,7 +155,6 @@ local WorldLootObject =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

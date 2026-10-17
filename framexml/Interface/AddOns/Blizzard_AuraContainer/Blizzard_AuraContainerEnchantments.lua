@@ -72,11 +72,10 @@ end
 
 function AuraContainerItemEnchantmentManagerMixin:UnregisterItemEnchantment(itemEnchantmentSlot)
 	local itemEnchantment = self.itemEnchantmentsBySlot[itemEnchantmentSlot];
-
 	if itemEnchantment ~= nil then
-		self:ResetFrameAssignmentForItemEnchantment(itemEnchantment);
+		self:ClearItemEnchantmentFrame(itemEnchantment);
 		self.itemEnchantmentsBySlot[itemEnchantmentSlot] = nil;
-		table.removevalue(self.itemEnchantments, itemEnchantment);
+		tUnorderedRemove(self.itemEnchantments, itemEnchantment);
 		self:RebuildActiveItemEnchantments();
 		self:SignalItemEnchantmentsChanged();
 	end
@@ -95,21 +94,6 @@ function AuraContainerItemEnchantmentManagerMixin:ClearItemEnchantments()
 	self:SignalItemEnchantmentsChanged();
 end
 
-function AuraContainerItemEnchantmentManagerMixin:SetItemEnchantmentEnabled(itemEnchantment, enabled)
-	enabled = (enabled == true);
-
-	if itemEnchantment:IsEnabled() ~= enabled then
-		itemEnchantment:SetEnabled(enabled);
-
-		if not enabled then
-			self:ResetFrameAssignmentForItemEnchantment(itemEnchantment);
-		end
-
-		self:RebuildActiveItemEnchantments();
-		self:SignalItemEnchantmentsChanged();
-	end
-end
-
 function AuraContainerItemEnchantmentManagerMixin:SignalItemEnchantmentsChanged()
 	self.owner:OnItemEnchantmentsChanged();
 end
@@ -120,16 +104,6 @@ end
 
 function AuraContainerItemEnchantmentManagerMixin:HasAnyItemEnchantments()
 	return self.itemEnchantments[1] ~= nil;
-end
-
-function AuraContainerItemEnchantmentManagerMixin:HasAnyEnabledItemEnchantments()
-	for _index, itemEnchantment in self:EnumerateItemEnchantments() do
-		if itemEnchantment:IsEnabled() then
-			return true;
-		end
-	end
-
-	return false;
 end
 
 function AuraContainerItemEnchantmentManagerMixin:GetItemEnchantment(itemEnchantmentSlot)
@@ -166,11 +140,25 @@ local function CalculateItemEnchantmentRefreshResult(oldActiveItemEnchantments, 
 	return refreshResult;
 end
 
+function AuraContainerItemEnchantmentManagerMixin:ClearActiveItemEnchantments()
+	local oldActiveItemEnchantments = self:GetActiveItemEnchantments();
+
+	for _index, itemEnchantment in self:EnumerateActiveItemEnchantments() do
+		self:ClearItemEnchantmentFrame(itemEnchantment);
+		itemEnchantment:ClearEnchantmentInfo();
+	end
+
+	self.activeItemEnchantments = {};
+	self.activeItemEnchantmentFrames = {};
+
+	return CalculateItemEnchantmentRefreshResult(oldActiveItemEnchantments, self.activeItemEnchantments, oldActiveItemEnchantments[1] ~= nil);
+end
+
 function AuraContainerItemEnchantmentManagerMixin:RebuildActiveItemEnchantments()
 	local activeItemEnchantments = {};
 
 	for _index, itemEnchantment in self:EnumerateItemEnchantments() do
-		if itemEnchantment:IsEnabled() and itemEnchantment:IsActive() then
+		if itemEnchantment:IsActive() then
 			table.insert(activeItemEnchantments, itemEnchantment);
 		end
 	end
@@ -187,14 +175,12 @@ function AuraContainerItemEnchantmentManagerMixin:RebuildActiveItemEnchantments(
 	return activeItemEnchantments;
 end
 
-function AuraContainerItemEnchantmentManagerMixin:RefreshFrameAssignments()
+function AuraContainerItemEnchantmentManagerMixin:RefreshItemEnchantments()
 	local oldActiveItemEnchantments = self:GetActiveItemEnchantments();
 	local frameAssignmentsChanged = false;
 
 	for _index, itemEnchantment in self:EnumerateItemEnchantments() do
-		if itemEnchantment:IsEnabled() then
-			frameAssignmentsChanged = self:RefreshItemEnchantment(itemEnchantment) or frameAssignmentsChanged;
-		end
+		frameAssignmentsChanged = self:RefreshItemEnchantment(itemEnchantment) or frameAssignmentsChanged;
 	end
 
 	local newActiveItemEnchantments = self:RebuildActiveItemEnchantments();
@@ -245,28 +231,11 @@ function AuraContainerItemEnchantmentManagerMixin:ClearItemEnchantmentFrame(item
 	self.owner:ClearItemEnchantmentFrame(itemEnchantment, itemEnchantment:GetAuraFrame());
 end
 
-function AuraContainerItemEnchantmentManagerMixin:ResetFrameAssignmentForItemEnchantment(itemEnchantment)
-	if itemEnchantment:IsActive() then
-		self:ClearItemEnchantmentFrame(itemEnchantment);
-		itemEnchantment:ClearEnchantmentInfo();
-	end
-end
-
-function AuraContainerItemEnchantmentManagerMixin:ResetFrameAssignments()
-	for _index, itemEnchantment in self:EnumerateActiveItemEnchantments() do
-		self:ResetFrameAssignmentForItemEnchantment(itemEnchantment);
-	end
-
-	self.activeItemEnchantments = {};
-	self.activeItemEnchantmentFrames = {};
-end
-
 AuraContainerItemEnchantmentMixin = {};
 
 function AuraContainerItemEnchantmentMixin:Init(itemEnchantmentSlot, description)
 	assert(description.auraFrame ~= nil, "Item enchantments must have an aura frame.");
 
-	self.enabled = true;
 	self.itemEnchantmentSlot = itemEnchantmentSlot;
 	self.inventorySlot = AuraContainerUtil.GetItemEnchantmentInventorySlot(itemEnchantmentSlot);
 	self.auraFrame = description.auraFrame;
@@ -280,14 +249,6 @@ function AuraContainerItemEnchantmentMixin:Init(itemEnchantmentSlot, description
 	self.duration = 0;
 	self.expirationTime = 0;
 	self.auraData = nil;
-end
-
-function AuraContainerItemEnchantmentMixin:IsEnabled()
-	return self.enabled == true;
-end
-
-function AuraContainerItemEnchantmentMixin:SetEnabled(enabled)
-	self.enabled = (enabled == true);
 end
 
 function AuraContainerItemEnchantmentMixin:GetItemEnchantmentSlot()

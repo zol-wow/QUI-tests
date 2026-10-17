@@ -58,7 +58,6 @@ local SpellShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 		{

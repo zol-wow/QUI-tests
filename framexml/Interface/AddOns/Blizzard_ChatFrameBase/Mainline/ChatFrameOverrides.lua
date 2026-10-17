@@ -43,10 +43,6 @@ function ChatFrameMixin:OnLoad()
 	-- so this doesn't appear before the cursor test ever passes. See FCF_FadeInScrollbar and
 	-- FCF_FadeOutScrollbar.
 	self.ScrollBar:SetAlpha(0);
-
-	local flashAnim = self.ScrollToBottomButton.Flash.FlashAnim;
-	flashAnim.FadeIn:SetEndDelay(ChatFrameConstants.ScrollToBottomFlashInterval);
-	flashAnim.FadeOut:SetEndDelay(ChatFrameConstants.ScrollToBottomFlashInterval);
 end
 
 
@@ -79,7 +75,7 @@ local function ShouldAddRecentAllyIconToName(frameChatType, senderGUID)
 	-- Don't add the icon if the chat frame is a whisper window
 	if not senderGUID or isWhisper then
 		return false;
-	end
+	end 
 
 	return C_RecentAllies.IsRecentAllyByGUID(senderGUID);
 end
@@ -248,13 +244,8 @@ function ChatFrameMixin:SystemEventHandler(event, ...)
 		self:AddMessage(GetRegionalChatUnavailableString(), info.r, info.g, info.b, info.id);
 		return true;
 	elseif event == "NOTIFY_CHAT_SUPPRESSED" then
-		local message;
-		if C_SocialRestrictions.IsAgeVerificationRestricted() then
-			message = C_SocialRestrictions.IsAgeVerificationRestrictedMinor() and AGE_RESTRICTED_CHAT_MINOR or AGE_RESTRICTED_CHAT_UNVERIFIED;
-		else
-			local hyperlink = string.format("|Haadcopenconfig|h[%s]", RESTRICT_CHAT_CONFIG_HYPERLINK);
-			message = string.format(RESTRICT_CHAT_CHATFRAME_FORMAT, RESTRICT_CHAT_MESSAGE_SUPPRESSED, LIGHTBLUE_FONT_COLOR:WrapTextInColorCode(hyperlink));
-		end
+		local hyperlink = string.format("|Haadcopenconfig|h[%s]", RESTRICT_CHAT_CONFIG_HYPERLINK);
+		local message = string.format(RESTRICT_CHAT_CHATFRAME_FORMAT, RESTRICT_CHAT_MESSAGE_SUPPRESSED, LIGHTBLUE_FONT_COLOR:WrapTextInColorCode(hyperlink));
 		local info = ChatTypeInfo["SYSTEM"];
 		self:AddMessage(message, info.r, info.g, info.b, info.id);
 		return true;
@@ -418,7 +409,7 @@ function ChatFrameMixin:MessageEventHandler(event, ...)
 		elseif (type == "PING") then
 			-- arg2 is formatted natively for pings, containing potientially role text
 			local outMsg = format(ChatFrameUtil.GetOutMessageFormatKey(type), arg2);
-
+			
 			--Add Timestamps
 			local chatTimestampFmt = ChatFrameUtil.GetTimestampFormat();
 			if ( chatTimestampFmt ) then
@@ -709,12 +700,12 @@ function ChatFrameMixin:OnUpdate(elapsedSec)
 	if flash then
 		local shouldFlash = not self:AtBottom();
 
-		if shouldFlash ~= flash.FlashAnim:IsPlaying() then
+		if shouldFlash ~= UIFrameIsFlashing(flash) then
 			if shouldFlash then
-				ChatFrameUtil.StartFlash(flash, flash.FlashAnim);
+				UIFrameFlash(flash, .1, .1, -1, false, ChatFrameConstants.ScrollToBottomFlashInterval, ChatFrameConstants.ScrollToBottomFlashInterval);
 				FCF_FadeInScrollbar(self);
 			else
-				ChatFrameUtil.StopFlash(flash, flash.FlashAnim, false);
+				UIFrameFlashStop(flash);
 			end
 		end
 	end

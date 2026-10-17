@@ -107,7 +107,6 @@ local EncounterInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

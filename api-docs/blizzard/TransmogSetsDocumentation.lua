@@ -540,7 +540,6 @@ local TransmogSets =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

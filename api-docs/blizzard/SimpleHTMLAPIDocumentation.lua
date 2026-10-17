@@ -340,7 +340,6 @@ local SimpleHTMLAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

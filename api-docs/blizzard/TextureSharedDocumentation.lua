@@ -3,7 +3,6 @@ local TextureShared =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

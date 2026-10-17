@@ -54,7 +54,6 @@ local DuelInfo =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

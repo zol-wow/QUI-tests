@@ -244,7 +244,6 @@ local SimpleColorSelectAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

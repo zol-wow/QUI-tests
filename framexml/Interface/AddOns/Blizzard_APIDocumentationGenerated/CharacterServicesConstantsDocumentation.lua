@@ -35,7 +35,6 @@ local CharacterServicesConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -335,7 +335,6 @@ local HouseExteriorUI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

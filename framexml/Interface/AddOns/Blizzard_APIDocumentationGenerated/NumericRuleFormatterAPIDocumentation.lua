@@ -76,7 +76,6 @@ local NumericRuleFormatterAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

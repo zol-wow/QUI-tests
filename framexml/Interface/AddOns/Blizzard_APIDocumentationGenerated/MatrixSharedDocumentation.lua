@@ -3,7 +3,6 @@ local MatrixShared =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

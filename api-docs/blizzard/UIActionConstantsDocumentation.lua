@@ -15,7 +15,6 @@ local UIActionConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

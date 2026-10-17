@@ -88,7 +88,6 @@ local PowerTypeConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -51,7 +51,6 @@ local Streaming =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

@@ -61,7 +61,6 @@ local AccountInfo =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

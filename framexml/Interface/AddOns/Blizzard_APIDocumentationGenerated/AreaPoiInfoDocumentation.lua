@@ -179,7 +179,6 @@ local AreaPoiInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

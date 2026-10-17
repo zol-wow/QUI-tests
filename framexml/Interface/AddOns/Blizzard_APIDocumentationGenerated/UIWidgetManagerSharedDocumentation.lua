@@ -167,7 +167,6 @@ local UIWidgetManagerShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

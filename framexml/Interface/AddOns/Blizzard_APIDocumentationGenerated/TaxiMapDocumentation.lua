@@ -141,7 +141,6 @@ local TaxiMap =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

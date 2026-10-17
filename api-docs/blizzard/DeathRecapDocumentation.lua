@@ -84,7 +84,6 @@ local DeathRecap =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -601,7 +601,6 @@ local HousingLayoutUI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

@@ -641,7 +641,6 @@ local HousingCatalogUI =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

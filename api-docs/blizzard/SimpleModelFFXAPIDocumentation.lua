@@ -56,7 +56,6 @@ local SimpleModelFFXAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

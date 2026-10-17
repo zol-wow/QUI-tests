@@ -117,7 +117,6 @@ local SimpleAnimScaleAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

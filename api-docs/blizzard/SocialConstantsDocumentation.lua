@@ -17,7 +17,6 @@ local SocialConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

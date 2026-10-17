@@ -87,7 +87,6 @@ local AbbreviatedNumberFormatterAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

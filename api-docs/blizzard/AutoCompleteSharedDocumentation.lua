@@ -39,7 +39,6 @@ local AutoCompleteShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

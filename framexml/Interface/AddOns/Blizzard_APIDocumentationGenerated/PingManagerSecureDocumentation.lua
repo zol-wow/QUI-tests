@@ -376,7 +376,6 @@ local PingManagerSecure =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

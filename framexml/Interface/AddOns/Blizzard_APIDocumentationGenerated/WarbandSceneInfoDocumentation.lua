@@ -138,7 +138,6 @@ local WarbandSceneInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

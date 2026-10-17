@@ -880,7 +880,7 @@ function PerksProgramDividerFrameMixin:OnLoad()
 	EventRegistry:RegisterCallback("PerksProgramModel.OnProductSelectedAfterModel", self.OnProductSelectedAfterModel, self);
 end
 
-function PerksProgramDividerFrameMixin:OnProductSelectedAfterModel(data, skipTelemetry)
+function PerksProgramDividerFrameMixin:OnProductSelectedAfterModel(data)
 	local count = data and data.creatureDisplays and #data.creatureDisplays or 0;
 	local showDivider = count > 1;
 	self:SetShown(showDivider);
@@ -1793,7 +1793,7 @@ local function PerksProgramToy_ProcessLines(data)
 	return toyDescription, toyEffect;
 end
 
-function PerksProgramToyDetailsFrameMixin:OnProductSelectedAfterModel(data, skipTelemetry)
+function PerksProgramToyDetailsFrameMixin:OnProductSelectedAfterModel(data)
 	self:UpdateDetails(data);
 end
 
@@ -1882,7 +1882,7 @@ function PerksProgramProductDetailsFrameMixin:Refresh()
 	self:MarkDirty();
 end
 
-function PerksProgramProductDetailsFrameMixin:OnProductSelectedAfterModel(data, skipTelemetry)
+function PerksProgramProductDetailsFrameMixin:OnProductSelectedAfterModel(data)
 	self:SetData(data);
 end
 

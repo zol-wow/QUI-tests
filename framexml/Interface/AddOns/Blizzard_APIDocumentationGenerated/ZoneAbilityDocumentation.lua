@@ -52,7 +52,6 @@ local ZoneAbility =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -60,7 +60,7 @@ function TargetFrameAuraContainerSharedMixin:SetMaxBuffs(maxBuffs)
 	if self.maxBuffs ~= maxBuffs then
 		self.maxBuffs = maxBuffs;
 		self.buffAuraGroup:SetMaxFrameCount(maxBuffs);
-		self:RequestFrameAssignmentRefresh();
+		self:MarkDirty(AuraContainerDirtyMask.AuraFrameAssignments);
 	end
 end
 
@@ -74,7 +74,7 @@ function TargetFrameAuraContainerSharedMixin:SetMaxDebuffs(maxDebuffs)
 	if self.maxDebuffs ~= maxDebuffs then
 		self.maxDebuffs = maxDebuffs;
 		self.debuffAuraGroup:SetMaxFrameCount(maxDebuffs);
-		self:RequestFrameAssignmentRefresh();
+		self:MarkDirty(AuraContainerDirtyMask.AuraFrameAssignments);
 	end
 end
 
@@ -333,7 +333,7 @@ end
 	self:SignalAuraContainerAnchorsChanged();
 end
 
---[[override]] function TargetFrameAuraContainerPrivateMixin:OnFrameAssignmentsReset()
+--[[override]] function TargetFrameAuraContainerPrivateMixin:OnAuraFramesReset()
 	self:SetNumVisibleFlowLayoutLines(0);
 	self:SetSize(1, 1);
 end

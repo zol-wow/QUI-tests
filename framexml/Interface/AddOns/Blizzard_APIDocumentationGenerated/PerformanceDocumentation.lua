@@ -103,7 +103,6 @@ local Performance =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

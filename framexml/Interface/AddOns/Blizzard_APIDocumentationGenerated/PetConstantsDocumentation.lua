@@ -189,7 +189,6 @@ local PetConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

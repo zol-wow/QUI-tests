@@ -975,7 +975,6 @@ local SpellBook =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

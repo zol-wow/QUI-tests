@@ -66,7 +66,6 @@ local ZoneScript =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

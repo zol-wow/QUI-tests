@@ -674,7 +674,6 @@ local SimpleTextureBaseAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

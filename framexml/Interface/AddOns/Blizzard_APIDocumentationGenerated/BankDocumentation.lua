@@ -423,7 +423,6 @@ local Bank =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

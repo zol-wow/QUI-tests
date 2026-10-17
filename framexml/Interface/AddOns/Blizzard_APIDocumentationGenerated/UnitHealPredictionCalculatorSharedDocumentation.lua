@@ -106,7 +106,6 @@ local UnitHealPredictionCalculatorShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

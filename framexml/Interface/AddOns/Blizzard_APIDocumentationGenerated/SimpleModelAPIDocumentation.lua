@@ -775,7 +775,6 @@ local SimpleModelAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

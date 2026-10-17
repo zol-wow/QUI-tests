@@ -44,7 +44,6 @@ local ItemText =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

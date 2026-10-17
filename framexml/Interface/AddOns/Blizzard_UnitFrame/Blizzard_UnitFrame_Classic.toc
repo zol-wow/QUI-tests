@@ -4,7 +4,6 @@
 ## AllowLoad: Game
 ## AllowLoadGameType: classic
 Classic\UnitPowerBarAlt.xml
-Shared\UnitFrameUtil.lua
 Shared\StatusBarOverlaySegment.lua
 Shared\StatusBarOverlaySegment.xml
 Shared\UnitFrame.lua

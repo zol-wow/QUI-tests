@@ -23,7 +23,6 @@ local PingManagerShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

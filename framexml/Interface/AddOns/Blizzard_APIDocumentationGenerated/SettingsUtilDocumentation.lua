@@ -49,7 +49,6 @@ local SettingsUtil =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

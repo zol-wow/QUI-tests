@@ -16,6 +16,15 @@ local textureKitRegionExpandSpaceOverlayFormatStrings = {
 	["Overlay"] = "%s-background-space-overlay"
 };
 
+local defaultAtlases = {
+	["BG1"] = "legioninvasion-title-bg",
+};
+
+local eventToastTextureKitRegions = {
+	["GLine"] = "levelup-bar-%s",
+	["GLine2"] = "levelup-bar-%s",
+};
+
 local hideButtonNormalTexture = "%s-hide-button";
 local hideButtonHighlightTexture ="%s-hide-buttonhighlight";
 local hideButtonHitRectInsets = {
@@ -498,17 +507,24 @@ function EventToastScenarioBaseToastMixin:Setup(toastInfo)
 		self.PaddingFrame:SetHeight(16);
 	end
 
-	toastInfo.uiTextureKit = toastInfo.uiTextureKit or "evergreen-scenario";
+	local usesBGTextures = toastInfo.uiTextureKit or not toastInfo.hideDefaultAtlas;
+	self.BG1:SetShown(usesBGTextures);
+	self.hideParentAnim = usesBGTextures;
 
-	SetupTextureKitOnRegions(toastInfo.uiTextureKit, self, textureKitRegionFormatStrings, TextureKitConstants.SetVisibility, TextureKitConstants.UseAtlasSize);
-	SetupTextureKitOnRegions(toastInfo.uiTextureKit, self, textureKitRegionExpandFormatStrings, TextureKitConstants.SetVisibility, TextureKitConstants.UseAtlasSize);
-	SetupTextureKitOnRegions(toastInfo.uiTextureKit, self, textureKitRegionExpandBackgroundFormatStrings, TextureKitConstants.SetVisibility, false);
-	SetupTextureKitOnRegions(toastInfo.uiTextureKit, self, textureKitRegionExpandSpaceOverlayFormatStrings, TextureKitConstants.SetVisibility, false);
-	self:SetupTextureKitOffsets(toastInfo.uiTextureKit);
+	if(toastInfo.uiTextureKit) then
+		SetupTextureKitOnRegions(toastInfo.uiTextureKit, self, textureKitRegionFormatStrings, TextureKitConstants.SetVisibility, TextureKitConstants.UseAtlasSize);
+		SetupTextureKitOnRegions(toastInfo.uiTextureKit, self, textureKitRegionExpandFormatStrings, TextureKitConstants.SetVisibility, TextureKitConstants.UseAtlasSize);
+		SetupTextureKitOnRegions(toastInfo.uiTextureKit, self, textureKitRegionExpandBackgroundFormatStrings, TextureKitConstants.SetVisibility, false);
+		SetupTextureKitOnRegions(toastInfo.uiTextureKit, self, textureKitRegionExpandSpaceOverlayFormatStrings, TextureKitConstants.SetVisibility, false);
+		self:SetupTextureKitOffsets(toastInfo.uiTextureKit);
+	elseif(usesBGTextures) then
+		SetupAtlasesOnRegions(self, defaultAtlases, true);
+	end
 
 	self:GetParent():SetAnimationState(self.hideParentAnim);
 
 	self.uiTextureKit = toastInfo.uiTextureKit;
+	self.BannerFrame:SetShown(not usesBGTextures);
 end
 
 function EventToastScenarioBaseToastMixin:OnAnimFinished()
@@ -520,6 +536,21 @@ function EventToastScenarioBaseToastMixin:PlayAnim()
 		self.NewStageTextureKit:Play();
 	end
 	self:AnimIn();
+end
+
+function EventToastScenarioBaseToastMixin:SetupGLineAtlas(useWhiteGLineAtlas)
+	local parent = self:GetParent();
+	parent.GLine:SetAtlas("evergreen-scenario-line-bottom", TextureKitConstants.UseAtlasSize);
+	parent.GLine:SetPoint("BOTTOM", 0, -4);
+	parent.GLine2:SetAtlas("evergreen-scenario-line-top", TextureKitConstants.UseAtlasSize);
+	parent.GLine2:SetPoint("TOP", 0, -5);
+end
+
+function EventToastScenarioBaseToastMixin:SetupBlackBGAtlas()
+	local parent = self:GetParent();
+	parent.BlackBG:SetAtlas("evergreen-scenario-black-background");
+	parent.BlackBG:SetHeight(64);
+	parent:EnableBlackBGAnimation(false);
 end
 
 EventToastScenarioToastMixin = { };

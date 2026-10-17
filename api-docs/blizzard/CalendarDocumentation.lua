@@ -1178,7 +1178,6 @@ local Calendar =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

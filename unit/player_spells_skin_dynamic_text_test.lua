@@ -145,11 +145,6 @@ local ns = {
 }
 
 ns.SkinBase = {
-    ClampTextureHidden = function() end,
-    SkinButton = function() end,
-    SkinEditBox = function() end,
-    SkinDropdown = function() end,
-
     RefreshFrameBackdropColors = function() end,
     IsSkinned = function(frame) return calls.marked == frame end,
     SkinButtonFrameTemplate = function(frame)

@@ -490,7 +490,6 @@ local PaperDollInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

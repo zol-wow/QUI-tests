@@ -81,7 +81,6 @@ local PlayerMentorship =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

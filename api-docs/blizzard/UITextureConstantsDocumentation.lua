@@ -38,7 +38,6 @@ local UITextureConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

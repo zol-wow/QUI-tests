@@ -77,7 +77,6 @@ local SimpleObjectAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

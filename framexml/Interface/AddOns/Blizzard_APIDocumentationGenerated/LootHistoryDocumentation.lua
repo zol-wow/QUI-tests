@@ -195,7 +195,6 @@ local LootHistory =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

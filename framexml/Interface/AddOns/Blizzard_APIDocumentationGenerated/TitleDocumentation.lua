@@ -74,7 +74,6 @@ local Title =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

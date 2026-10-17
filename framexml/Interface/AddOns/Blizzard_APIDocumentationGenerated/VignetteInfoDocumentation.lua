@@ -148,7 +148,6 @@ local VignetteInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

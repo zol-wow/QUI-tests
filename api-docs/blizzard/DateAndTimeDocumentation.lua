@@ -153,7 +153,6 @@ local DateAndTime =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

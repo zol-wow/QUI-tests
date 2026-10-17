@@ -16,7 +16,6 @@ local WorldElapsedTimerConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

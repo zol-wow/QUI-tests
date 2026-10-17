@@ -421,7 +421,6 @@ local SimpleMessageFrameAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

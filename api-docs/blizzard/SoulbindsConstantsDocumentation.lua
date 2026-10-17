@@ -85,7 +85,6 @@ local SoulbindsConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

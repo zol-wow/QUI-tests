@@ -349,7 +349,6 @@ local ContentTracking =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

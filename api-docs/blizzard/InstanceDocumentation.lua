@@ -283,7 +283,6 @@ local Instance =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

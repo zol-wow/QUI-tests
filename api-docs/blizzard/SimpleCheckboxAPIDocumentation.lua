@@ -86,7 +86,6 @@ local SimpleCheckboxAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

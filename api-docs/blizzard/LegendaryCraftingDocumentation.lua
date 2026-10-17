@@ -329,7 +329,6 @@ local LegendaryCrafting =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

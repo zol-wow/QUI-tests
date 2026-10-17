@@ -112,7 +112,6 @@ local RaidMarkers =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

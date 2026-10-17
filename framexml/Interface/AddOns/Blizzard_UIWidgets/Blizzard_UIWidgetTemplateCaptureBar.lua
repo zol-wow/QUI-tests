@@ -65,6 +65,11 @@ function UIWidgetTemplateCaptureBarMixin:Setup(widgetInfo, widgetContainer)
 	local frameTextureKit = widgetInfo.frameTextureKit or "worldstate-capturebar";
 	local textureKit = widgetInfo.textureKit;
 
+	local isFactionsTextureKit = (textureKit == "factions");
+	if isFactionsTextureKit and IsInLFDBattlefield() then
+		textureKit = "lfd";
+	end
+
 	local barInfo = textureKitBarInfo[textureKit] or frameTextureKitBarInfo[frameTextureKit] or defaultBarInfo;
 
 	self:SetHeight(barInfo.barHeight);

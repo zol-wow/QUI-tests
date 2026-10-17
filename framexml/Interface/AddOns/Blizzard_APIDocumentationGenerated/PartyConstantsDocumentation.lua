@@ -56,7 +56,6 @@ local PartyConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

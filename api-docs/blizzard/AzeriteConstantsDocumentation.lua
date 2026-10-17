@@ -17,7 +17,6 @@ local AzeriteConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

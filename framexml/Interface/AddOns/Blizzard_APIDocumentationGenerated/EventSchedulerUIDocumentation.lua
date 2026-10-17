@@ -181,7 +181,6 @@ local EventSchedulerUI =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

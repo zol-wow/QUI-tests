@@ -36,7 +36,6 @@ local SuperTrackManagerShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

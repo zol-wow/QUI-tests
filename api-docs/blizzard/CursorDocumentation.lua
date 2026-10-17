@@ -62,7 +62,6 @@ local Cursor =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

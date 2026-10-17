@@ -27,7 +27,6 @@ local DyeColorInfoShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

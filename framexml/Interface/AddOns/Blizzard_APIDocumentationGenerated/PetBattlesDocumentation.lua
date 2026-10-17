@@ -85,7 +85,6 @@ local PetBattles =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

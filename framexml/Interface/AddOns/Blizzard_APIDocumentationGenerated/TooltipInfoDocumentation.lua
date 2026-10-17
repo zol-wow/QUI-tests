@@ -1403,7 +1403,6 @@ local TooltipInfo =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

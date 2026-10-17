@@ -2846,7 +2846,6 @@ local ChatInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

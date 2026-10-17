@@ -200,7 +200,6 @@ local FrameAPICinematicModel =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

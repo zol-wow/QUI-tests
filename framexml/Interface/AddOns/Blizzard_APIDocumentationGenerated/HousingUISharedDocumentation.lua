@@ -168,7 +168,6 @@ local HousingUIShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

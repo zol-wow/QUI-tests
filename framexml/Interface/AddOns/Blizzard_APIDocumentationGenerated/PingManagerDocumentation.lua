@@ -100,7 +100,6 @@ local PingManager =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

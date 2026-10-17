@@ -3,7 +3,6 @@ local Color =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

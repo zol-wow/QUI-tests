@@ -3,7 +3,6 @@ local QuestConstants_Mainline =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

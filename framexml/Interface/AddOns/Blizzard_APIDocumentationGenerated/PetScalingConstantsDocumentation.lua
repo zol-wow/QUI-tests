@@ -3,7 +3,6 @@ local PetScalingConstants =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

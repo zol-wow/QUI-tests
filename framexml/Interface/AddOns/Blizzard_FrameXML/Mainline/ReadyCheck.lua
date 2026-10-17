@@ -37,15 +37,13 @@ function ShowReadyCheck(initiator, timeLeft)
 					difficultyID = GetDungeonDifficultyID();
 				end
 			end
-			local readyCheckTxt = READY_CHECK_MESSAGE;
-			if difficultyID then
-				local difficultyName, _, _, _, _, _, toggleDifficultyID = GetDifficultyInfo(difficultyID);
-				if ( toggleDifficultyID and toggleDifficultyID > 0 ) then
-					-- the current difficulty might change while inside an instance so show the difficulty on the ready check
-					readyCheckTxt = READY_CHECK_MESSAGE.."\n"..RAID_DIFFICULTY..": "..difficultyName;
-				end
+			local difficultyName, _, _, _, _, _, toggleDifficultyID = GetDifficultyInfo(difficultyID);
+			if ( toggleDifficultyID and toggleDifficultyID > 0 ) then
+				-- the current difficulty might change while inside an instance so show the difficulty on the ready check
+				ReadyCheckFrameText:SetFormattedText(READY_CHECK_MESSAGE.."\n"..RAID_DIFFICULTY..": "..difficultyName, initiator);
+			else
+				ReadyCheckFrameText:SetFormattedText(READY_CHECK_MESSAGE, initiator);
 			end
-			ReadyCheckFrameText:SetFormattedText(readyCheckTxt, initiator);
 			ReadyCheckListenerFrame:Show();
 		end
 	end

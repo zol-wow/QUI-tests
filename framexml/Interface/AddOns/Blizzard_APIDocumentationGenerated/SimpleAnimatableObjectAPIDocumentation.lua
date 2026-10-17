@@ -52,7 +52,6 @@ local SimpleAnimatableObjectAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

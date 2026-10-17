@@ -88,7 +88,6 @@ local FrameAPITabardModelBase =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

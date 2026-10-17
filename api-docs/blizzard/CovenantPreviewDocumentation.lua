@@ -101,7 +101,6 @@ local CovenantPreview =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

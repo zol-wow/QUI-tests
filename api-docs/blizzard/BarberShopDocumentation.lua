@@ -324,7 +324,6 @@ local BarberShop =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

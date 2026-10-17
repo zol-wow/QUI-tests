@@ -313,7 +313,6 @@ local RecentAllies =
 			},
 		},
 	},
-
 	Predicates =
 	{
 		{

@@ -31,7 +31,7 @@ assertContains(
 
 assertContains(
     source,
-    "SkinBase.CreateBackdrop(header, sr, sg, sb, sa, bgr, bgg, bgb, 0.92, 5)",
+    "SkinBase.CreateBackdrop(header, sr, sg, sb, sa, bgr, bgg, bgb, 0.92)",
     "shopping tooltip compare headers must create QUI tab chrome")
 
 assertContains(

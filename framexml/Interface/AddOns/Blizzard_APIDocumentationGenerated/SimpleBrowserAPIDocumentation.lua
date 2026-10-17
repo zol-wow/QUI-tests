@@ -117,7 +117,6 @@ local SimpleBrowserAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

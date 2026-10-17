@@ -82,7 +82,6 @@ local CombatLogConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

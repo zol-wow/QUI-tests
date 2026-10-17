@@ -73,7 +73,6 @@ local BlackMarketInfo =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

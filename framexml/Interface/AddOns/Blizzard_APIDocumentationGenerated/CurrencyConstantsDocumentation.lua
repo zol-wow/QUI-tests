@@ -223,7 +223,6 @@ local CurrencyConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

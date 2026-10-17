@@ -109,7 +109,6 @@ local Connection =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

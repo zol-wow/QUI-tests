@@ -24,7 +24,6 @@
 				<KeyValue key="numConstrainedFlowLayoutLines" value="TargetFrameAuraContainerDefaults.NumConstrainedFlowLayoutLines" type="global"/>
 
 				<KeyValue key="showAuraCount" value="TargetFrameAuraContainerDefaults.ShowAuraCount" type="global"/>
-				<KeyValue key="editModePreviewEnabled" value="true" type="boolean"/>
 			</KeyValues>
 			<Mixins>
 				<Mixin key="TargetFrameAuraContainerInboundMixin" source="secure" targetPartition="public" inboundPartition="forbidden" secureDelegates="true"/>

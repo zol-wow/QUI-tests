@@ -431,7 +431,6 @@ local Loot =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

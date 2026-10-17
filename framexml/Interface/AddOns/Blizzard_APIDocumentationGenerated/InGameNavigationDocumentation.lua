@@ -129,7 +129,6 @@ local InGameNavigation =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

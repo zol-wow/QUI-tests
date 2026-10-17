@@ -314,7 +314,6 @@ local MinimapFrameAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

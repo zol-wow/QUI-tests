@@ -42,7 +42,6 @@ local GlyphInfo =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

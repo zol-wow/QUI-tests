@@ -25,7 +25,6 @@ local UIColor =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

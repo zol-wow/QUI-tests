@@ -38,7 +38,6 @@ local LiveEvent =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

@@ -324,7 +324,6 @@ local TraitConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

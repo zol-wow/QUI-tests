@@ -7,15 +7,6 @@ MathUtil =
 MathUtil.ApproxZero = MathUtil.Epsilon;
 MathUtil.ApproxOne = 1.0 - MathUtil.Epsilon;
 
--- Global aliases for backwards compatibility.
-Clamp = math.clamp;
-Lerp = math.lerp;
-PercentageBetween = math.normalize;
-Round = math.round;
-RoundToSignificantDigits = math.round;
-Saturate = math.saturate;
-Sign = math.sign;
-
 local securecallfunction = securecallfunction;
 function CreateCounter(initialCount, step)
 	local count = initialCount or 0;
@@ -29,17 +20,33 @@ function CreateCounter(initialCount, step)
     end;
 end
 
+function Lerp(startValue, endValue, amount)
+	return (1 - amount) * startValue + amount * endValue;
+end
+
+function Clamp(value, min, max)
+	if value > max then
+		return max;
+	elseif value < min then
+		return min;
+	end
+	return value;
+end
+
+function Saturate(value)
+	return Clamp(value, 0.0, 1.0);
+end
+
 function Wrap(value, max)
-	-- math.wrap uses a half-open [min, max) interval.
-	return math.wrap(value, 1, max + 1);
+	return (value - 1) % max + 1;
 end
 
 function ClampDegrees(value)
-	return math.wrap(value, 0, 360);
+	return ClampMod(value, 360);
 end
 
 function ClampMod(value, mod)
-	return math.wrap(value, 0, mod);
+	return ((value % mod) + mod) % mod;
 end
 
 function NegateIf(value, condition)
@@ -54,12 +61,12 @@ function PercentageBetween(value, startValue, endValue)
 end
 
 function ClampedPercentageBetween(value, startValue, endValue)
-	return math.saturate(math.normalize(value, startValue, endValue));
+	return Saturate(PercentageBetween(value, startValue, endValue));
 end
 
 local TARGET_FRAME_PER_SEC = 60.0;
 function DeltaLerp(startValue, endValue, amount, timeSec)
-	return math.lerp(startValue, endValue, math.saturate(amount * timeSec * TARGET_FRAME_PER_SEC));
+	return Lerp(startValue, endValue, Saturate(amount * timeSec * TARGET_FRAME_PER_SEC));
 end
 
 function FrameDeltaLerp(startValue, endValue, amount)
@@ -67,17 +74,33 @@ function FrameDeltaLerp(startValue, endValue, amount)
 end
 
 function RandomFloatInRange(minValue, maxValue)
-	return math.lerp(minValue, maxValue, math.random());
+	return Lerp(minValue, maxValue, math.random());
+end
+
+function Round(value)
+	if value < 0.0 then
+		return math.ceil(value - .5);
+	end
+	return math.floor(value + .5);
+end
+
+function RoundToSignificantDigits(value, numDigits)
+	local multiplier = 10 ^ numDigits;
+	return Round(value * multiplier) / multiplier;
 end
 
 -- Rounds the value to to the closest multiple of the passed multiplier
 -- Ex: (55, 50) => 50, (85, 50) => 100
 function RoundToNearestMultiple(value, multiplier)
-	return math.round(value / multiplier) * multiplier;
+	return Round(value / multiplier) * multiplier;
 end
 
 function Square(value)
 	return value * value;
+end
+
+function Sign(value)
+	return value > 0 and 1 or (value == 0 and 0 or -1);
 end
 
 function WithinRange(value, min, max)

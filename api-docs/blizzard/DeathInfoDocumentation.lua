@@ -216,7 +216,6 @@ local DeathInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

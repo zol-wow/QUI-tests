@@ -79,21 +79,6 @@ local FrameScript =
 			},
 		},
 		{
-			Name = "CreateFrameWithOptions",
-			Type = "Function",
-			SecretArguments = "AllowedWhenUntainted",
-
-			Arguments =
-			{
-				{ Name = "options", Type = "CreateFrameOptions", Nilable = false },
-			},
-
-			Returns =
-			{
-				{ Name = "frame", Type = "SimpleFrame", Nilable = false },
-			},
-		},
-		{
 			Name = "CreateFromMixins",
 			Type = "Function",
 			SecureHooksAllowed = false,
@@ -228,15 +213,6 @@ local FrameScript =
 			Returns =
 			{
 				{ Name = "forbiddenTable", Type = "FrameScriptObject", Nilable = false },
-			},
-		},
-		{
-			Name = "GetScriptBucketThrottleLimits",
-			Type = "Function",
-
-			Returns =
-			{
-				{ Name = "limits", Type = "ScriptBucketThrottleLimits", Nilable = false },
 			},
 		},
 		{
@@ -561,31 +537,6 @@ local FrameScript =
 			},
 		},
 		{
-			Name = "CreateFrameOptions",
-			Type = "Structure",
-			Fields =
-			{
-				{ Name = "frameType", Type = "cstring", Nilable = false },
-				{ Name = "name", Type = "cstring", Nilable = true },
-				{ Name = "parent", Type = "SimpleFrame", Nilable = true },
-				{ Name = "inherits", Type = "table", InnerType = "cstring", Nilable = true },
-				{ Name = "id", Type = "number", Nilable = true },
-				{ Name = "forbidden", Type = "bool", Nilable = false, Default = false },
-				{ Name = "hidden", Type = "bool", Nilable = false, Default = false },
-			},
-		},
-		{
-			Name = "ScriptBucketThrottleLimits",
-			Type = "Structure",
-			Fields =
-			{
-				{ Name = "luaScriptBucketThrottleMaxMsPerSecondNormal", Type = "number", Nilable = false },
-				{ Name = "luaScriptBucketThrottleMaxMsPerSecondRestricted", Type = "number", Nilable = false },
-				{ Name = "luaScriptBucketThrottleMaxMsBurstNormal", Type = "number", Nilable = false },
-				{ Name = "luaScriptBucketThrottleMaxMsBurstRestricted", Type = "number", Nilable = false },
-			},
-		},
-		{
 			Name = "SecureCopyOptions",
 			Type = "Structure",
 			Fields =
@@ -608,7 +559,6 @@ local FrameScript =
 			Type = "CallbackType",
 		},
 	},
-
 	Predicates =
 	{
 	},

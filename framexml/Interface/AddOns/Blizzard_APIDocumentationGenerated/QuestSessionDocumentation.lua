@@ -206,7 +206,6 @@ local QuestSession =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

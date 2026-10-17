@@ -667,7 +667,6 @@ local FriendList =
 			},
 		},
 	},
-
 	Predicates =
 	{
 		{

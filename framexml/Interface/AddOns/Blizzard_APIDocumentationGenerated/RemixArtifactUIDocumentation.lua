@@ -155,7 +155,6 @@ local RemixArtifactUI =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

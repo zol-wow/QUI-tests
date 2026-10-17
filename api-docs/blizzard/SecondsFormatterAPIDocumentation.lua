@@ -16,7 +16,7 @@ local SecondsFormatterAPI =
 
 			Arguments =
 			{
-				{ Name = "seconds", Type = "Seconds", Nilable = false },
+				{ Name = "seconds", Type = "DurationSecondsDouble", Nilable = false },
 			},
 
 			Returns =
@@ -61,7 +61,7 @@ local SecondsFormatterAPI =
 
 			Arguments =
 			{
-				{ Name = "seconds", Type = "Seconds", Nilable = false },
+				{ Name = "seconds", Type = "DurationSecondsDouble", Nilable = false },
 			},
 
 			Returns =
@@ -78,7 +78,7 @@ local SecondsFormatterAPI =
 
 			Arguments =
 			{
-				{ Name = "seconds", Type = "Seconds", Nilable = false },
+				{ Name = "seconds", Type = "DurationSecondsDouble", Nilable = false },
 			},
 
 			Returns =
@@ -95,7 +95,7 @@ local SecondsFormatterAPI =
 
 			Arguments =
 			{
-				{ Name = "seconds", Type = "Seconds", Nilable = false },
+				{ Name = "seconds", Type = "DurationSecondsDouble", Nilable = false },
 			},
 
 			Returns =
@@ -112,7 +112,7 @@ local SecondsFormatterAPI =
 
 			Arguments =
 			{
-				{ Name = "seconds", Type = "Seconds", Nilable = false },
+				{ Name = "seconds", Type = "DurationSecondsDouble", Nilable = false },
 				{ Name = "abbreviation", Type = "SecondsFormatterAbbreviation", Nilable = true, Documentation = { "Optional abbreviation mode to use in-place of the default." } },
 			},
 
@@ -149,7 +149,7 @@ local SecondsFormatterAPI =
 
 			Returns =
 			{
-				{ Name = "approximationSeconds", Type = "Seconds", Nilable = false },
+				{ Name = "approximationSeconds", Type = "DurationSecondsDouble", Nilable = false },
 			},
 		},
 		{
@@ -247,7 +247,7 @@ local SecondsFormatterAPI =
 
 			Returns =
 			{
-				{ Name = "threshold", Type = "Seconds", Nilable = false },
+				{ Name = "threshold", Type = "DurationSecondsDouble", Nilable = false },
 			},
 		},
 		{
@@ -323,7 +323,7 @@ local SecondsFormatterAPI =
 
 			Arguments =
 			{
-				{ Name = "seconds", Type = "Seconds", Nilable = false },
+				{ Name = "seconds", Type = "DurationSecondsDouble", Nilable = false },
 			},
 		},
 		{
@@ -422,7 +422,7 @@ local SecondsFormatterAPI =
 
 			Arguments =
 			{
-				{ Name = "threshold", Type = "Seconds", Nilable = false },
+				{ Name = "threshold", Type = "DurationSecondsDouble", Nilable = false },
 			},
 		},
 		{
@@ -478,7 +478,6 @@ local SecondsFormatterAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

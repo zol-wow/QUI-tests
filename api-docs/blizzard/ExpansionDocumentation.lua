@@ -319,7 +319,6 @@ local Expansion =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

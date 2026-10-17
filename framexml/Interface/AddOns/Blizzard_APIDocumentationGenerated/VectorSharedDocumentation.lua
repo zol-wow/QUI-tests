@@ -3,7 +3,6 @@ local VectorShared =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

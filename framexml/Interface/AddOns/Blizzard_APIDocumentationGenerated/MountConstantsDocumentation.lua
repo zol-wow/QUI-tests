@@ -41,7 +41,6 @@ local MountConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

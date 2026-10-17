@@ -33,7 +33,6 @@ local QuestItemUse =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

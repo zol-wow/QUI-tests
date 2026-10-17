@@ -23,7 +23,6 @@ local UICharacterClassConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

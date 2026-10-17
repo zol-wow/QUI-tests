@@ -605,7 +605,6 @@ local CraftingOrderUI =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

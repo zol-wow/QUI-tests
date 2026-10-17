@@ -270,7 +270,6 @@ local AccountStore =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

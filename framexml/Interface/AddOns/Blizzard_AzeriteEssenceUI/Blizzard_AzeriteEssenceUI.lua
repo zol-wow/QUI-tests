@@ -86,8 +86,6 @@ local LOCKED_RUNE_ATLASES = { "heartofazeroth-slot-minor-unlearned-bottomleft", 
 function AzeriteEssenceUIMixin:OnLoad()
 	CallbackRegistryMixin.OnLoad(self);
 
-	self.Slots = {};
-
 	self.TopTileStreaks:Hide();
 	self:SetupModelScene();
 	self:SetupMilestones();
@@ -105,9 +103,6 @@ function AzeriteEssenceUIMixin:SetupMilestones()
 	local lockedRuneCount = 0;
 
 	local milestones = C_AzeriteEssence.GetMilestones();
-	if not milestones then
-		return;
-	end
 
 	for i, milestoneInfo in ipairs(milestones) do
 		local template;
@@ -626,7 +621,7 @@ function AzeriteEssenceListMixin:OnLoad()
 	local function ButtonInitializer(button, essenceInfo)
 		local parent = self:GetParent();
 		button:Init(essenceInfo, parent:IsAzeriteItemEnabled(), parent:GetSlotEssences());
-
+		
 		button:SetScript("OnClick", OnButtonClick);
 	end
 
@@ -900,7 +895,7 @@ function AzeriteEssenceButtonMixin:Init(essenceInfo, isAzeriteItemEnabled, slotE
 		self.Background:SetAtlas("heartofazeroth-list-item-uncollected");
 		self.Background:SetDesaturated(not isAzeriteItemEnabled);
 	end
-
+		
 	local pendingEssenceID = C_AzeriteEssence.GetPendingActivationEssence();
 	self.PendingGlow:SetShown(essenceInfo.ID == pendingEssenceID and isAzeriteItemEnabled);
 	self.essenceID = essenceInfo.ID;
@@ -1188,9 +1183,9 @@ function AzeriteMilestoneSlotMixin:Refresh()
 
 		stateFrame:DesaturateHierarchy(desaturation);
 	elseif not self:IsMajorSlot() then
-
+			
 		self:CheckAndSetUpUnlockEffect();
-
+		
 		if self:ShouldShowUnlockState() then
 			self:ShowStateFrame(self.AvailableState);
 			self.AvailableState:DesaturateHierarchy(desaturation);

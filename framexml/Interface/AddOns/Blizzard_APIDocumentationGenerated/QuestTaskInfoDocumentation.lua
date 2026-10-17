@@ -199,7 +199,6 @@ local QuestTaskInfo =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

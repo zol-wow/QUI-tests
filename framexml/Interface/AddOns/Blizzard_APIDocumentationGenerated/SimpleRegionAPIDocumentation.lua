@@ -223,7 +223,6 @@ local SimpleRegionAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

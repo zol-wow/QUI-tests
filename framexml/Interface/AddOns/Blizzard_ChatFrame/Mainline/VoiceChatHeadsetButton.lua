@@ -225,10 +225,7 @@ function VoiceChatHeadsetButtonMixin:ShowTooltip()
 	tooltip:SetOwner(self, "ANCHOR_RIGHT");
 
 	local errorReason = self:GetClubErrorReason();
-	if C_SocialRestrictions.IsAgeVerificationRestricted() then
-		local errMsg = C_SocialRestrictions.IsAgeVerificationRestrictedMinor() and AGE_RESTRICTED_VOICE_CHAT_MINOR_TOOLTIP or AGE_RESTRICTED_VOICE_CHAT_UNVERIFIED_TOOLTIP;
-		GameTooltip_SetTitle(tooltip, errMsg, RED_FONT_COLOR);
-	elseif errorReason then
+	if errorReason then
 		if errorReason == Enum.VoiceChannelErrorReason.IsBattleNetChannel then
 			GameTooltip_SetTitle(tooltip, ERR_GROUPS_VOICE_CHAT_DISABLED, RED_FONT_COLOR);
 		else
@@ -263,10 +260,6 @@ end
 
 function VoiceChatHeadsetButtonMixin:ShouldEnable()
 	if not C_VoiceChat.CanPlayerUseVoiceChat() then
-		return false;
-	end
-
-	if C_SocialRestrictions.IsAgeVerificationRestricted() then
 		return false;
 	end
 

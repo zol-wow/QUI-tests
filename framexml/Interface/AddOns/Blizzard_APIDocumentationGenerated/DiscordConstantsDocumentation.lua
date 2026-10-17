@@ -60,7 +60,6 @@ local DiscordConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

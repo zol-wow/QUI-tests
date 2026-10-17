@@ -141,7 +141,6 @@ local MerchantFrame =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

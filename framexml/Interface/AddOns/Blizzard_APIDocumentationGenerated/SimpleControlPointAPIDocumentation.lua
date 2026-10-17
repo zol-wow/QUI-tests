@@ -75,7 +75,6 @@ local SimpleControlPointAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

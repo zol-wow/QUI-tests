@@ -190,7 +190,6 @@ local AzeriteItem =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

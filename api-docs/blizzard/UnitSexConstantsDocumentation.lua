@@ -18,7 +18,6 @@ local UnitSexConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -19,7 +19,6 @@ local SeasonsConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

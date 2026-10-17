@@ -228,7 +228,6 @@ local TTSSettings =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

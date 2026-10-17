@@ -137,7 +137,6 @@ local EncounterEvents =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

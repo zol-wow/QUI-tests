@@ -371,7 +371,6 @@ local GarrisonConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

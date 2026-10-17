@@ -36,7 +36,6 @@ local WorldSafeLocsUIInternal =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

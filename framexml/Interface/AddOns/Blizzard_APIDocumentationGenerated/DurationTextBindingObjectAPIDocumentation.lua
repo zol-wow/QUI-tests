@@ -385,7 +385,6 @@ local DurationTextBindingObjectAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

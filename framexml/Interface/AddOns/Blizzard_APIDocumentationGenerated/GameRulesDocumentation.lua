@@ -330,7 +330,6 @@ local GameRules =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

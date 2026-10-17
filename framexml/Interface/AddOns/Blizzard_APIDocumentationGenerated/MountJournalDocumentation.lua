@@ -692,7 +692,6 @@ local MountJournal =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

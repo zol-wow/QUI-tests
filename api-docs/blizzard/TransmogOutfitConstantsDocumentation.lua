@@ -431,7 +431,6 @@ local TransmogOutfitConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

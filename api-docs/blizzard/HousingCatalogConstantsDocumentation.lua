@@ -116,7 +116,6 @@ local HousingCatalogConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

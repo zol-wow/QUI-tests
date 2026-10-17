@@ -31,7 +31,6 @@ local CombatLogInternal =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

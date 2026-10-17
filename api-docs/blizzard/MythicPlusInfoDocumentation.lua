@@ -346,7 +346,6 @@ local MythicPlusInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -130,7 +130,6 @@ local RestrictedActions =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

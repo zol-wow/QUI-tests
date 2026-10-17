@@ -41,7 +41,6 @@ local MajorFactionsConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

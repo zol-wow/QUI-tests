@@ -99,7 +99,8 @@ function FloatingChatFrameMixin:OnLoad()
 	FCFTab_UpdateColors(_G[self:GetName().."Tab"], true);
 
 	local chatTab = _G[self:GetName().."Tab"];
-	ChatFrameUtil.SetTabAlphas(chatTab, CHAT_FRAME_TAB_SELECTED_MOUSEOVER_ALPHA, CHAT_FRAME_TAB_SELECTED_NOMOUSE_ALPHA);
+	chatTab.mouseOverAlpha = CHAT_FRAME_TAB_SELECTED_MOUSEOVER_ALPHA;
+	chatTab.noMouseAlpha = CHAT_FRAME_TAB_SELECTED_NOMOUSE_ALPHA;
 
 	self:SetRolesets("chat");
 	local editbox = _G[self:GetName().."Editbox"];
@@ -209,7 +210,7 @@ function PrimaryChatFrameMixin:OnLoad()
 end
 
 local function SetChatFrameButtonsEnabled(enabled, buttonDisabledTooltip)
-	local chatFrameButtons =
+	local chatFrameButtons = 
 	{
 		ChatFrameChannelButton,
 		TextToSpeechButton,
@@ -715,7 +716,7 @@ function FCF_OpenTemporaryWindow(chatType, chatTarget, sourceChatFrame, selectWi
 		conversationIcon:SetPoint("RIGHT", chatTab:GetFontString(), "LEFT", 0, conversationIcon.iconDisplayInfo.iconYOffset);
 		chatTab.conversationIcon = conversationIcon;
 
-		chatTab.Text:ClearAllPoints();
+		chatTab.Text:ClearAllPoints(); 
 		chatTab.Text:SetPoint("LEFT", chatTab.Left, "RIGHT", 10, -6);
 		chatTab.Text:SetJustifyH("LEFT");
 		chatTab.sizePadding = 10;
@@ -1039,7 +1040,7 @@ function FCF_FadeOutScrollbar(chatFrame)
 		UIFrameFadeOut(chatFrame.ScrollBar, CHAT_FRAME_FADE_OUT_TIME, chatFrame.ScrollBar:GetAlpha(), 0);
 
 		if chatFrame.ScrollToBottomButton then
-			if chatFrame.ScrollToBottomButton.Flash.FlashAnim:IsPlaying() then
+			if UIFrameIsFlashing(chatFrame.ScrollToBottomButton.Flash) then
 				UIFrameFadeRemoveFrame(chatFrame.ScrollToBottomButton);
 				chatFrame.ScrollToBottomButton:SetAlpha(1);
 			else
@@ -1071,8 +1072,7 @@ function FCF_FadeInChatFrame(chatFrame)
 	end
 
 	local chatTab = _G[frameName.."Tab"];
-	local mouseOverAlpha = ChatFrameUtil.GetTabAlphas(chatTab);
-	UIFrameFadeIn(chatTab, CHAT_FRAME_FADE_TIME, chatTab:GetAlpha(), mouseOverAlpha);
+	UIFrameFadeIn(chatTab, CHAT_FRAME_FADE_TIME, chatTab:GetAlpha(), chatTab.mouseOverAlpha);
 
 	--Fade in the button frame
 	if ( not chatFrame.isDocked ) then
@@ -1105,8 +1105,7 @@ function FCF_FadeOutChatFrame(chatFrame)
 	end
 
 	local chatTab = _G[frameName.."Tab"];
-	local _mouseOverAlpha, noMouseAlpha = ChatFrameUtil.GetTabAlphas(chatTab);
-	UIFrameFadeOut(chatTab, CHAT_FRAME_FADE_OUT_TIME, chatTab:GetAlpha(), noMouseAlpha);
+	UIFrameFadeOut(chatTab, CHAT_FRAME_FADE_OUT_TIME, chatTab:GetAlpha(), chatTab.noMouseAlpha);
 
 	--Fade out the ButtonFrame
 	if ( not chatFrame.isDocked ) then
@@ -1306,28 +1305,26 @@ end
 
 function FCFTab_UpdateAlpha(chatFrame)
 	local chatTab = _G[chatFrame:GetName().."Tab"];
-	local mouseOverAlpha, noMouseAlpha;
 	if ( not chatFrame.isDocked or chatFrame == FCFDock_GetSelectedWindow(GENERAL_CHAT_DOCK) ) then
-		mouseOverAlpha = CHAT_FRAME_TAB_SELECTED_MOUSEOVER_ALPHA;
-		noMouseAlpha = CHAT_FRAME_TAB_SELECTED_NOMOUSE_ALPHA;
+		chatTab.mouseOverAlpha = CHAT_FRAME_TAB_SELECTED_MOUSEOVER_ALPHA;
+		chatTab.noMouseAlpha = CHAT_FRAME_TAB_SELECTED_NOMOUSE_ALPHA;
 	else
-		if ( ChatFrameUtil.IsTabAlerting(chatTab) ) then
-			mouseOverAlpha = CHAT_FRAME_TAB_ALERTING_MOUSEOVER_ALPHA;
-			noMouseAlpha = CHAT_FRAME_TAB_ALERTING_NOMOUSE_ALPHA;
+		if ( chatTab.alerting ) then
+			chatTab.mouseOverAlpha = CHAT_FRAME_TAB_ALERTING_MOUSEOVER_ALPHA;
+			chatTab.noMouseAlpha = CHAT_FRAME_TAB_ALERTING_NOMOUSE_ALPHA;
 		else
-			mouseOverAlpha = CHAT_FRAME_TAB_NORMAL_MOUSEOVER_ALPHA;
-			noMouseAlpha = CHAT_FRAME_TAB_NORMAL_NOMOUSE_ALPHA;
+			chatTab.mouseOverAlpha = CHAT_FRAME_TAB_NORMAL_MOUSEOVER_ALPHA;
+			chatTab.noMouseAlpha = CHAT_FRAME_TAB_NORMAL_NOMOUSE_ALPHA;
 		end
 	end
-	ChatFrameUtil.SetTabAlphas(chatTab, mouseOverAlpha, noMouseAlpha);
 
 	-- If this is in the middle of fading, stop it, since we're about to set the alpha
 	UIFrameFadeRemoveFrame(chatTab);
 
 	if ( chatFrame.hasBeenFaded ) then
-		chatTab:SetAlpha(mouseOverAlpha);
+		chatTab:SetAlpha(chatTab.mouseOverAlpha);
 	else
-		chatTab:SetAlpha(noMouseAlpha);
+		chatTab:SetAlpha(chatTab.noMouseAlpha);
 	end
 end
 
@@ -1394,13 +1391,15 @@ end
 
 function FCF_StartAlertFlash(chatFrame)
 	if ( chatFrame.minFrame ) then
-		ChatFrameUtil.StartSyncedFlash(chatFrame.minFrame.glow, chatFrame.minFrame.glow.FlashAnim);
+		UIFrameFlash(chatFrame.minFrame.glow, 1.0, 1.0, -1, false, 0, 0, "chat");
+
+		chatFrame.minFrame.alerting = true;
 	end
 
 	local chatTab = _G[chatFrame:GetName().."Tab"];
-	ChatFrameUtil.StartSyncedFlash(chatTab.glow, chatTab.glow.FlashAnim);
+	UIFrameFlash(chatTab.glow, 1.0, 1.0, -1, false, 0, 0, "chat");
 
-	ChatFrameUtil.SetTabAlerting(chatTab, true);
+	chatTab.alerting = true;
 
 	FCFTab_UpdateAlpha(chatFrame);
 
@@ -1409,13 +1408,15 @@ end
 
 function FCF_StopAlertFlash(chatFrame)
 	if ( chatFrame.minFrame ) then
-		ChatFrameUtil.StopFlash(chatFrame.minFrame.glow, chatFrame.minFrame.glow.FlashAnim, false);
+		UIFrameFlashStop(chatFrame.minFrame.glow);
+
+		chatFrame.minFrame.alerting = false;
 	end
 
 	local chatTab = _G[chatFrame:GetName().."Tab"];
-	ChatFrameUtil.StopFlash(chatTab.glow, chatTab.glow.FlashAnim, false);
+	UIFrameFlashStop(chatTab.glow);
 
-	ChatFrameUtil.SetTabAlerting(chatTab, false);
+	chatTab.alerting = false;
 
 	FCFTab_UpdateAlpha(chatFrame);
 
@@ -1497,7 +1498,8 @@ function FCF_SelectDockFrame(frame)
 	end
 
 	if ( tabFlash ) then
-		ChatFrameUtil.StopFlash(tabFlash, tabFlash.FlashAnim, false);
+		UIFrameFlashStop(tabFlash);
+		tabFlash:Hide();
 	end
 	FCFDock_SelectWindow(GENERAL_CHAT_DOCK, frame);
 	FCF_DockUpdate();
@@ -1628,10 +1630,11 @@ end
 -- Tab flashing functions
 function FCF_FlashTab(self)
 	local tabFlash = _G[self:GetName().."TabFlash"];
-	if ( not self.isDocked or (self == SELECTED_DOCK_FRAME) or tabFlash.FlashAnim:IsPlaying() ) then
+	if ( not self.isDocked or (self == SELECTED_DOCK_FRAME) or UIFrameIsFlashing(tabFlash) ) then
 		return;
 	end
-	ChatFrameUtil.StartFlash(tabFlash, tabFlash.FlashAnim);
+	tabFlash:Show();
+	UIFrameFlash(tabFlash, 0.25, 0.25, 60, nil, 0.5, 0.5);
 end
 
 function FCF_Set_NormalChat()
@@ -2287,7 +2290,7 @@ function FCFDockOverflowButton_UpdatePulseState(self)
 	local shouldPulse = false;
 	for _, chatFrame in pairs(FCFDock_GetChatFrames(dock)) do
 		local chatTab = _G[chatFrame:GetName().."Tab"];
-		if ( not chatFrame.isStaticDocked and ChatFrameUtil.IsTabAlerting(chatTab) ) then
+		if ( not chatFrame.isStaticDocked and chatTab.alerting) then
 			--Make sure the rects are valid. (Not always the case when resizing the WoW client
 			if ( not chatTab:GetRight() or not dock.scrollFrame:GetRight() ) then
 				return false;
@@ -2301,13 +2304,15 @@ function FCFDockOverflowButton_UpdatePulseState(self)
 		end
 	end
 
-	local highlight = self:GetHighlightTexture();
 	if ( shouldPulse ) then
-		ChatFrameUtil.StartSyncedFlash(highlight, highlight.FlashAnim);
+		UIFrameFlash(self:GetHighlightTexture(), 1.0, 1.0, -1, true, 0, 0, "chat");
 		self:LockHighlight();
+		self.alerting = true;
 	else
-		ChatFrameUtil.StopFlash(highlight, highlight.FlashAnim, true);
+		UIFrameFlashStop(self:GetHighlightTexture());
 		self:UnlockHighlight();
+		self:GetHighlightTexture():Show();
+		self.alerting = false;
 	end
 
 	if ( self.list:IsShown() ) then
@@ -2388,10 +2393,12 @@ function FCFDockOverflowListButton_SetValue(button, chatFrame)
 		button.conversationIcon:Hide();
 	end
 
-	if ( ChatFrameUtil.IsTabAlerting(chatTab) ) then
-		ChatFrameUtil.StartSyncedFlash(button.glow, button.glow.FlashAnim);
+	if ( chatTab.alerting ) then
+		button.alerting = true;
+		UIFrameFlash(button.glow, 1.0, 1.0, -1, false, 0, 0, "chat");
 	else
-		ChatFrameUtil.StopFlash(button.glow, button.glow.FlashAnim, false);
+		button.alerting = false;
+		UIFrameFlashStop(button.glow);
 	end
 
 	button:Show();

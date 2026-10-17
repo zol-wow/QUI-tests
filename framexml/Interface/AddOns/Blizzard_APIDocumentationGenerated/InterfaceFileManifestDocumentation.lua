@@ -26,7 +26,6 @@ local InterfaceFileManifest =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

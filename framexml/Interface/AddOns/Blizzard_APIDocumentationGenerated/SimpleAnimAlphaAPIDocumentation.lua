@@ -65,7 +65,6 @@ local SimpleAnimAlphaAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

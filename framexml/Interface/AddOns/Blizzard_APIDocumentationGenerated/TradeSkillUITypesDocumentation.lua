@@ -433,7 +433,6 @@ local TradeSkillUITypes =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

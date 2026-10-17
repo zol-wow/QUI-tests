@@ -81,7 +81,6 @@ local Covenants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

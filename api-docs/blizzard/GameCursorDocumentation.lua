@@ -172,7 +172,6 @@ local GameCursor =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

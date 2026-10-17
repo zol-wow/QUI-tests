@@ -1387,7 +1387,6 @@ local TradeSkillUI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

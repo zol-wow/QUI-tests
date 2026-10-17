@@ -266,7 +266,6 @@ local Console =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

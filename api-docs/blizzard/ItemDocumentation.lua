@@ -1927,7 +1927,6 @@ local Item =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

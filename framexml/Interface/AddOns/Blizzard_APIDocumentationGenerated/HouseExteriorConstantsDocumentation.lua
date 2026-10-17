@@ -80,7 +80,6 @@ local HouseExteriorConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

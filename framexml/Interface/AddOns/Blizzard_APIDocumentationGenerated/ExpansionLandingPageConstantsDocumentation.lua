@@ -15,7 +15,6 @@ local ExpansionLandingPageConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

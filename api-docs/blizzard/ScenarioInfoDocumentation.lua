@@ -285,8 +285,7 @@ local ScenarioInfo =
 			Type = "Structure",
 			Fields =
 			{
-				{ Name = "themeColor", Type = "colorRGB", Mixin = "ColorMixin", Nilable = true },
-				{ Name = "startSoundKitID", Type = "number", Nilable = true },
+				{ Name = "themeColor", Type = "colorRGB", Mixin = "ColorMixin", Nilable = false },
 			},
 		},
 		{
@@ -348,7 +347,6 @@ local ScenarioInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

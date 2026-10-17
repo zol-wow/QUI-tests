@@ -223,7 +223,6 @@ local StableInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

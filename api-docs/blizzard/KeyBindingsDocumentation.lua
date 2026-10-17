@@ -249,7 +249,6 @@ local KeyBindings =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

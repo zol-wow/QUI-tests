@@ -133,7 +133,6 @@ local DamageConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

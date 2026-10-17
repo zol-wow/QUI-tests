@@ -231,7 +231,6 @@ local TextureUtils =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

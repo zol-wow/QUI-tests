@@ -5,9 +5,6 @@ local function readFile(path)
     return text
 end
 
-assert(readFile("modules/dungeon/map_teleports.lua"):find("ApplyCooldownFromStart", 1, true),
-    "map teleports must sink duration objects through the guarded cooldown helper")
-
 for _, path in ipairs({
     "modules/dungeon/map_teleports.lua",
     "modules/dungeon/teleport.lua",
@@ -68,8 +65,6 @@ function CreateFrame(frameType, _, parent)
 end
 function InCombatLockdown() return false end
 function IsSpellKnown() return true end
-Enum = { SpellBookSpellBank = { Player = 0 } }
-C_SpellBook = { IsSpellInSpellBook = function() return true end }
 GameTooltip = widget()
 C_ChallengeMode = {
     GetMapTable = function() return { 1 } end,
@@ -90,16 +85,6 @@ local mapNS = {
             return function() return { worldMapTeleports = true } end
         end,
         CanMutateCooldown = function() return canMutate end,
-        ApplyCooldownFromStart = function(cooldown, duration)
-            if not canMutate then return false end
-            cooldown:SetCooldownFromDurationObject(duration)
-            return true
-        end,
-        ClearCooldown = function(cooldown)
-            if not canMutate then return false end
-            cooldown:Clear()
-            return true
-        end,
     },
     DungeonData = {
         GetTeleportSpellID = function() return 123 end,

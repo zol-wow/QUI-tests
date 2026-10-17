@@ -152,7 +152,6 @@ local QuestConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

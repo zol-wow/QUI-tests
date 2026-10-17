@@ -45,7 +45,6 @@ local ExternalEventURL =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

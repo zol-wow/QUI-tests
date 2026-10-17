@@ -233,7 +233,6 @@ local EncodingUtil =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

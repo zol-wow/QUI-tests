@@ -65,7 +65,7 @@ function AuraContainerPrivateMixin:OnLoad_Intrinsic()
 	self.dynamicUnitEvents = {};
 	self.privateAurasUpdateCallback = CreatePrivateAuraUpdateCallback(OnPrivateAurasUpdated);
 
-	FrameUtil.RegisterFrameForEvents(self, GetKeysArray(self:GetStaticFrameEvents()));
+	FrameUtil.RegisterFrameForEvents(self, self:GetStaticFrameEvents());
 end
 
 function AuraContainerPrivateMixin:OnShow_Intrinsic()
@@ -128,30 +128,30 @@ function AuraContainerPrivateMixin:ShouldRegisterForItemEnchantmentEvents()
 end
 
 function AuraContainerPrivateMixin:GetStaticFrameEvents()
-	local frameEvents = {};
-	frameEvents["AURA_DATA_PROVIDER_SWITCH"] = true;
-	return frameEvents;
+	local events = {};
+	table.insert(events, "AURA_DATA_PROVIDER_SWITCH");
+	return events;
 end
 
 function AuraContainerPrivateMixin:GetDynamicFrameEvents()
-	local frameEvents = {};
+	local events = {};
 
 	if self:ShouldRegisterForItemEnchantmentEvents() then
-		frameEvents["WEAPON_ENCHANT_CHANGED"] = true;
-		frameEvents["WEAPON_SLOT_CHANGED"] = true;
+		table.insert(events, "WEAPON_ENCHANT_CHANGED");
+		table.insert(events, "WEAPON_SLOT_CHANGED");
 	end
 
-	return frameEvents;
+	return events;
 end
 
 function AuraContainerPrivateMixin:GetDynamicUnitEvents()
-	local unitEvents = {};
+	local events = {};
 
 	if self:ShouldRegisterForUnitAuraEvents() then
-		AuraContainerUtil.AddUnitEventRegistration(unitEvents, "UNIT_AURA", self:GetUnit());
+		table.insert(events, "UNIT_AURA");
 	end
 
-	return unitEvents;
+	return events;
 end
 
 function AuraContainerPrivateMixin:ShouldRegisterForDynamicEvents()
@@ -162,19 +162,16 @@ function AuraContainerPrivateMixin:UpdateEventRegistrations()
 	-- Current dynamic event lists should be unregistered first and then
 	-- replaced with new registrations if we're allowed to enable them.
 
-	FrameUtil.UnregisterFrameForEvents(self, GetKeysArray(self.dynamicFrameEvents));
-	FrameUtil.UnregisterFrameForEvents(self, GetKeysArray(self.dynamicUnitEvents));
+	FrameUtil.UnregisterFrameForEvents(self, self.dynamicFrameEvents);
+	FrameUtil.UnregisterFrameForEvents(self, self.dynamicUnitEvents);
 	self.privateAurasUpdateCallback:Unregister();
 
 	if self:ShouldRegisterForDynamicEvents() then
 		self.dynamicFrameEvents = self:GetDynamicFrameEvents();
 		self.dynamicUnitEvents = self:GetDynamicUnitEvents();
 
-		FrameUtil.RegisterFrameForEvents(self, GetKeysArray(self.dynamicFrameEvents));
-
-		for event, unitTokens in pairs(self.dynamicUnitEvents) do
-			self:RegisterUnitEvent(event, unpack(GetKeysArray(unitTokens)));
-		end
+		FrameUtil.RegisterFrameForEvents(self, self.dynamicFrameEvents);
+		FrameUtil.RegisterFrameForUnitEvents(self, self.dynamicUnitEvents, self:GetUnit());
 
 		if self:ShouldRegisterForPrivateAuraEvents() then
 			self.privateAurasUpdateCallback:Register(self:GetUnit());

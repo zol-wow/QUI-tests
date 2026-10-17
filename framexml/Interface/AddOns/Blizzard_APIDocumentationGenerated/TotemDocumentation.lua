@@ -127,7 +127,6 @@ local Totem =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

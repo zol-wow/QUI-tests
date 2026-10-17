@@ -37,7 +37,6 @@ local WowSurvey =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

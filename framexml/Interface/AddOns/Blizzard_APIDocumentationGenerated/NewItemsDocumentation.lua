@@ -47,7 +47,6 @@ local NewItems =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

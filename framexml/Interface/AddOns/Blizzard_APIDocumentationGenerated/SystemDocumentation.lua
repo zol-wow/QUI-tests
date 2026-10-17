@@ -233,7 +233,6 @@ local System =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

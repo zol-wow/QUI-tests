@@ -54,7 +54,6 @@ local HousingDecorShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

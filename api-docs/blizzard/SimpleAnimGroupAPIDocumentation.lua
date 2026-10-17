@@ -10,7 +10,6 @@ local SimpleAnimGroupAPI =
 			Name = "CreateAnimation",
 			Type = "Function",
 			SecretArguments = "NotAllowed",
-			ChecksForbiddenAspects = { { Argument = "self", Aspect = Enum.ForbiddenAspect.AddAnimations } },
 
 			Arguments =
 			{
@@ -74,7 +73,6 @@ local SimpleAnimGroupAPI =
 		{
 			Name = "GetElapsed",
 			Type = "Function",
-			ChecksForbiddenAspects = { { Argument = "self", Aspect = Enum.ForbiddenAspect.QueryAnimationProgress } },
 
 			Arguments =
 			{
@@ -88,7 +86,6 @@ local SimpleAnimGroupAPI =
 		{
 			Name = "GetLoopState",
 			Type = "Function",
-			ChecksForbiddenAspects = { { Argument = "self", Aspect = Enum.ForbiddenAspect.QueryAnimationProgress } },
 
 			Arguments =
 			{
@@ -115,7 +112,6 @@ local SimpleAnimGroupAPI =
 		{
 			Name = "GetProgress",
 			Type = "Function",
-			ChecksForbiddenAspects = { { Argument = "self", Aspect = Enum.ForbiddenAspect.QueryAnimationProgress } },
 
 			Arguments =
 			{
@@ -184,7 +180,6 @@ local SimpleAnimGroupAPI =
 		{
 			Name = "IsDone",
 			Type = "Function",
-			ChecksForbiddenAspects = { { Argument = "self", Aspect = Enum.ForbiddenAspect.QueryAnimationProgress } },
 
 			Arguments =
 			{
@@ -198,7 +193,6 @@ local SimpleAnimGroupAPI =
 		{
 			Name = "IsPaused",
 			Type = "Function",
-			ChecksForbiddenAspects = { { Argument = "self", Aspect = Enum.ForbiddenAspect.QueryAnimationProgress } },
 
 			Arguments =
 			{
@@ -212,7 +206,6 @@ local SimpleAnimGroupAPI =
 		{
 			Name = "IsPendingFinish",
 			Type = "Function",
-			ChecksForbiddenAspects = { { Argument = "self", Aspect = Enum.ForbiddenAspect.QueryAnimationProgress } },
 
 			Arguments =
 			{
@@ -226,7 +219,6 @@ local SimpleAnimGroupAPI =
 		{
 			Name = "IsPlaying",
 			Type = "Function",
-			ChecksForbiddenAspects = { { Argument = "self", Aspect = Enum.ForbiddenAspect.QueryAnimationProgress } },
 
 			Arguments =
 			{
@@ -240,7 +232,6 @@ local SimpleAnimGroupAPI =
 		{
 			Name = "IsReverse",
 			Type = "Function",
-			ChecksForbiddenAspects = { { Argument = "self", Aspect = Enum.ForbiddenAspect.QueryAnimationProgress } },
 
 			Arguments =
 			{
@@ -372,7 +363,6 @@ local SimpleAnimGroupAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

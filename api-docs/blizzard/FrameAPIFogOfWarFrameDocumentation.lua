@@ -155,7 +155,6 @@ local FrameAPIFogOfWarFrame =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

@@ -735,7 +735,6 @@ local SimpleFontStringAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

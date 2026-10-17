@@ -52,7 +52,6 @@ local RecruitAFriendShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -29,7 +29,6 @@ local UiModelSceneConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

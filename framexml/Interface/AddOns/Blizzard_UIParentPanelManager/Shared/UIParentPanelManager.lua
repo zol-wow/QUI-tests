@@ -4,7 +4,6 @@ local _, addonTable = ...; -- Used for passing functions between UIParentPanelMa
 UIPANEL_SKIP_SET_POINT = true;
 UIPANEL_DO_SET_POINT = nil;
 UIPANEL_VALIDATE_CURRENT_FRAME = true;
-UIPANEL_SKIP_SHOWN_CHECK = true;
 
 -- Move this stuff to UIParentPanelManager for TBC when it is created
 -- These are windows that rely on a parent frame to be open.  If the parent closes or a pushable frame overlaps them they must be hidden.
@@ -153,46 +152,11 @@ local FramePositionDelegate = CreateFrame("FRAME");
 FramePositionDelegate:SetForbidden();
 FramePositionDelegate:SetScript("OnAttributeChanged", FramePositionDelegate_OnAttributeChanged);
 
-function FramePositionDelegate:RepairUIPanelState()
-	if self.updatingPanels then
-		-- Do not repair panel state while updating panel positions.
-		--
-		-- Layout evaluation may re-enter ShowUIPanel (for example through
-		-- auto-minimize callbacks), and SetUIPanel temporarily assigns
-		-- frames to slots before those frames become shown.
-		return;
-	end
-
-	local framesToRepair = {};
-
-	for key in pairs(FRAME_POSITION_KEYS) do
-		local frame = self[key];
-
-		if ( frame and not frame:IsShown() ) then
-			table.insert(framesToRepair, frame);
-		end
-	end
-
-	for _index, frame in ipairs(framesToRepair) do
-		self:HideUIPanelImplementation(frame, UIPANEL_SKIP_SET_POINT);
-	end
-
-	if not TableIsEmpty(framesToRepair) then
-		self:UpdateUIPanelPositions();
-	end
-end
-
 function FramePositionDelegate:ShowUIPanel(frame, force, contextKey)
 	if ( AreAllPanelsDisallowed() ) then
 		self:ShowUIPanelFailed(frame);
 		return;
 	end
-
-	-- Frames hidden via direct Frame:Hide() calls bypass HideUIPanel and can
-	-- leave stale panel occupancy state behind. Repair any such state before
-	-- evaluating placement for newly shown panels.
-
-	self:RepairUIPanelState();
 
 	-- If the store-frame is open, we don't let people open up any other panels (just as if it were full-screened)
 	local useNewCashShop = C_CatalogShop.IsShop2Enabled();
@@ -883,12 +847,8 @@ function ShowUIPanel(frame, force, contextKey)
 	FramePositionDelegate:SetAttribute("panel-show", true);
 end
 
-function HideUIPanel(frame, skipSetPoint, skipShownCheck)
-	if ( not frame ) then
-		return;
-	end
-
-	if ( not skipShownCheck and not frame:IsShown() ) then
+function HideUIPanel(frame, skipSetPoint)
+	if ( not frame or not frame:IsShown() ) then
 		return;
 	end
 
@@ -1087,22 +1047,6 @@ function CloseSpecialWindows()
 	return found;
 end
 
-local function IsAnyWindowShown(...)
-	for i = 1, select("#", ...) do
-		local frame =  (select(i, ...));
-
-		if frame and frame:IsShown() then
-			return true;
-		end
-	end
-
-	return false;
-end
-
-local function CloseSingleWindow(frame)
-	HideUIPanel(frame, UIPANEL_SKIP_SET_POINT, UIPANEL_SKIP_SHOWN_CHECK);
-end
-
 function CloseWindows(ignoreCenter, frameToIgnore, context)
 	-- This function will close all frames that are not the current frame
 	local leftFrame = GetUIPanel("left");
@@ -1110,30 +1054,30 @@ function CloseWindows(ignoreCenter, frameToIgnore, context)
 	local rightFrame = GetUIPanel("right");
 	local doublewideFrame = GetUIPanel("doublewide");
 	local fullScreenFrame = GetUIPanel("fullscreen");
-	local found = IsAnyWindowShown(leftFrame, centerFrame, rightFrame, doublewideFrame, fullScreenFrame);
+	local found = leftFrame or centerFrame or rightFrame or doublewideFrame or fullScreenFrame;
 	local ignoreControlLostLeft =  ( leftFrame ~= nil and context == "lossOfControl" and GetUIPanelAttribute( leftFrame, "ignoreControlLost" ) )
 	local ignoreControlLostRight =  ( rightFrame ~= nil and context == "lossOfControl" and GetUIPanelAttribute( rightFrame, "ignoreControlLost" ) )
 	local ignoreControlLostCenter =  ( centerFrame ~= nil and context == "lossOfControl" and GetUIPanelAttribute( centerFrame, "ignoreControlLost" ) )
 
 	if ( ( not frameToIgnore or frameToIgnore ~= leftFrame ) and not ignoreControlLostLeft ) then
-		CloseSingleWindow(leftFrame);
+		HideUIPanel(leftFrame, UIPANEL_SKIP_SET_POINT);
 	end
 
-	CloseSingleWindow(fullScreenFrame);
-	CloseSingleWindow(doublewideFrame);
+	HideUIPanel(fullScreenFrame, UIPANEL_SKIP_SET_POINT);
+	HideUIPanel(doublewideFrame, UIPANEL_SKIP_SET_POINT);
 
 	if ( ( not frameToIgnore or frameToIgnore ~= centerFrame ) and not ignoreControlLostCenter ) then
 		if ( centerFrame ) then
 			local area = GetUIPanelAttribute(centerFrame, "area");
 			if ( area ~= "center" or not ignoreCenter ) then
-				CloseSingleWindow(centerFrame);
+				HideUIPanel(centerFrame, UIPANEL_SKIP_SET_POINT);
 			end
 		end
 	end
 
 	if ( ( not frameToIgnore or frameToIgnore ~= rightFrame ) and not ignoreControlLostRight ) then
 		if ( rightFrame ) then
-			CloseSingleWindow(rightFrame);
+			HideUIPanel(rightFrame, UIPANEL_SKIP_SET_POINT);
 		end
 	end
 

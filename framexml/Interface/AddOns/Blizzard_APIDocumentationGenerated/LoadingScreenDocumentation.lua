@@ -28,7 +28,6 @@ local LoadingScreen =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

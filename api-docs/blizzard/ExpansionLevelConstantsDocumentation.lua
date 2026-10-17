@@ -26,7 +26,6 @@ local ExpansionLevelConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -126,11 +126,10 @@ function PersonalResourceDisplayMixin:OnShow()
 	-- Ex. You take damage while out of combat, then enter combat, or your max health/power changes because you switched specs.
 	self:UpdateMaxHealth();
 	self:UpdateHealthPrediction();
-	-- If the spec or the displayed power changed while hidden, fully refresh the power bar and alternate power bar.
+	-- If the spec changed while hidden, fully refresh the power bar and alternate power bar.
 	-- Otherwise a simple max power update is sufficient.
 	local currentSpec = C_SpecializationInfo.GetSpecialization();
-	local currentPowerType, currentPowerToken = UnitPowerType("player");
-	if currentSpec ~= self.lastKnownSpec or currentPowerType ~= self.powerType or currentPowerToken ~= self.powerToken then
+	if currentSpec ~= self.lastKnownSpec then
 		self:UpdatePowerBar();
 		self:UpdateAlternatePowerBar();
 		self.lastKnownSpec = currentSpec;

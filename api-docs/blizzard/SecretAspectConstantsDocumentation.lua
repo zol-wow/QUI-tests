@@ -43,7 +43,6 @@ local SecretAspectConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

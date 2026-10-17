@@ -58,8 +58,7 @@ local settings = {}
 -- PLAYER_LOGIN. This is the ONLY init path that runs for an eager-LOD module.
 local ns = {
     __test = true,
-    Helpers = {
-        ApplyIconStyle = function() end, CreateDBGetter = function() return function() return settings end end },
+    Helpers = { CreateDBGetter = function() return function() return settings end end },
     ConsumableMacros = {
         GetVariantOrderForItem = function() return nil end,
         GetSelectedItem = function() return nil end,

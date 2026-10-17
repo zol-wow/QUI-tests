@@ -102,7 +102,6 @@ local PartyPoseUI =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

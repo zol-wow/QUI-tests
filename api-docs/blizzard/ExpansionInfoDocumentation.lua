@@ -54,7 +54,6 @@ local ExpansionInfo =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

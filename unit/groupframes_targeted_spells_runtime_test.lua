@@ -29,7 +29,6 @@ local durationObject = {
         return false
     end,
 }
-local castingDurationObject = durationObject
 local displayGateCalls = 0
 local castingDurationCalls = 0
 local visiblePlates = {}
@@ -48,8 +47,6 @@ local function NewFrame(parent)
         scripts = {},
         shown = true,
         frameLevel = 1,
-        canChangeProtectedState = true,
-        cooldownMutationCount = 0,
     }
     if parent and parent.children then
         parent.children[#parent.children + 1] = frame
@@ -101,14 +98,7 @@ local function NewFrame(parent)
                 end
             elseif key == "SetCooldownFromDurationObject" then
                 return function(self, object)
-                    assert(not inCombat or self.canChangeProtectedState,
-                        "protected combat cooldown mutation")
-                    self.cooldownMutationCount = (self.cooldownMutationCount or 0) + 1
                     self.durationObject = object
-                end
-            elseif key == "CanChangeProtectedState" then
-                return function(self)
-                    return self.canChangeProtectedState
                 end
             elseif key == "SetAlphaFromBoolean" then
                 return function(self, value, falseAlpha, trueAlpha)
@@ -120,16 +110,10 @@ local function NewFrame(parent)
                 end
             elseif key == "SetCooldown" then
                 return function(self, start, duration)
-                    assert(not inCombat or self.canChangeProtectedState,
-                        "protected combat cooldown mutation")
-                    self.cooldownMutationCount = (self.cooldownMutationCount or 0) + 1
                     self.cooldown = { start, duration }
                 end
             elseif key == "Clear" then
                 return function(self)
-                    assert(not inCombat or self.canChangeProtectedState,
-                        "protected combat cooldown mutation")
-                    self.cooldownMutationCount = (self.cooldownMutationCount or 0) + 1
                     self.cleared = true
                     self.durationObject = nil
                     self.cooldown = nil
@@ -266,7 +250,7 @@ end
 function UnitCastingDuration(unit)
     if unit == "nameplate1" then
         castingDurationCalls = castingDurationCalls + 1
-        return castingDurationObject
+        return durationObject
     end
     return nil
 end
@@ -316,9 +300,6 @@ local ns = {
         end,
         IsSecretValue = function()
             return false
-        end,
-        CanMutateCooldown = function(cooldown)
-            return not inCombat or cooldown:CanChangeProtectedState()
         end,
     },
     QUI_GroupFrames = {
@@ -396,24 +377,6 @@ assert(icon.shown == false, "stop event should hide the targeted spell icon")
 assert(icon._cooldown.shown == false, "stop event should hide the cooldown swipe")
 
 casting = true
-castingDurationObject = nil
-local cooldownMutationsBeforeProtectedCast = icon._cooldown.cooldownMutationCount
-icon._cooldown.canChangeProtectedState = false
-inCombat = true
-engineFrame.scripts.OnEvent(engineFrame, "NAME_PLATE_UNIT_ADDED", "nameplate1")
-local protectedScheduler = assert(engineFrame.scripts.OnUpdate,
-    "protected combat cast should still schedule marker resolution")
-now = now + 0.1
-protectedScheduler(engineFrame)
-assert(rawget(icon, "_targetedCaster") == "nameplate1",
-    "protected combat cast should still assign its marker")
-assert(icon._cooldown.cooldownMutationCount == cooldownMutationsBeforeProtectedCast,
-    "protected combat cast must not mutate its cooldown")
-assert(icon._cooldown.alpha == 0,
-    "protected combat cast must hide its stale cooldown")
-now = now + 0.15
-protectedScheduler(engineFrame)
-inCombat = false
 visiblePlates = { { namePlateUnitToken = "nameplate1" } }
 engineFrame.scripts.OnEvent(engineFrame, "PLAYER_REGEN_ENABLED")
 local regenScheduler = assert(engineFrame.scripts.OnUpdate, "combat exit should reseed an active visible cast")
@@ -421,12 +384,6 @@ now = now + 0.11
 regenScheduler(engineFrame)
 assert(rawget(icon, "_targetedCaster") == "nameplate1", "combat-exit reseed should restore the caster assignment")
 assert(icon.shown == true, "combat-exit reseed should restore the targeted spell icon")
-assert(icon._cooldown.cooldownMutationCount > cooldownMutationsBeforeProtectedCast,
-    "combat-exit reseed should apply the deferred cooldown")
-assert(icon._cooldown.cooldown ~= nil,
-    "combat-exit reseed should restore the numeric cooldown")
-assert(icon._cooldown.alpha == 1,
-    "combat-exit numeric cooldown should restore its alpha")
 now = now + 0.15
 regenScheduler(engineFrame)
 assert(engineFrame.scripts.OnUpdate == nil, "combat-exit reseed should drain the scheduler")

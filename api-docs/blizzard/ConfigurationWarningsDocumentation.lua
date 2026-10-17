@@ -72,7 +72,6 @@ local ConfigurationWarnings =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

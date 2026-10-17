@@ -137,7 +137,7 @@ function ProxyUtil.CreateProxyDirectory(name, enableReporting)
 			end
 
 			if print and Dump then
-				print("#", counter, " Proxies:", name, table.count(tbl), Proxies);
+				print("#", counter, " Proxies:", name, CountTable(tbl), Proxies);
 				Dump(byTags);
 			end
 

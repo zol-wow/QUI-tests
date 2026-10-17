@@ -75,7 +75,6 @@ local EndOfMatchUI =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -140,7 +140,6 @@ local CharacterCustomizationShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

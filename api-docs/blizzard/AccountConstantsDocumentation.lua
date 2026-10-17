@@ -282,7 +282,6 @@ local AccountConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -387,7 +387,6 @@ local HousingBlueprintUI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

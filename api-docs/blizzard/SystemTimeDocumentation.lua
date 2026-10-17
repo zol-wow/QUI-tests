@@ -80,7 +80,6 @@ local SystemTime =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

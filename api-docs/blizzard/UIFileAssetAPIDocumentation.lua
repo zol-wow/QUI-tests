@@ -64,7 +64,6 @@ local UIFileAssetAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

@@ -191,7 +191,6 @@ local SimpleScriptRegionResizingAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

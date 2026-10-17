@@ -531,7 +531,6 @@ local ChallengeModeInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

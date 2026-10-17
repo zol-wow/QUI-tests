@@ -187,7 +187,6 @@ local Localization =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

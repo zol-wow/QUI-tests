@@ -601,7 +601,6 @@ local FrameAPIModelSceneFrame =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

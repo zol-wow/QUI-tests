@@ -87,7 +87,6 @@ local LegendaryCraftingTypes =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

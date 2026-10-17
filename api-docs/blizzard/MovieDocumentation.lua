@@ -97,7 +97,6 @@ local Movie =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

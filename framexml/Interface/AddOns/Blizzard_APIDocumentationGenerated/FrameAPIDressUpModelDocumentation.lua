@@ -263,7 +263,6 @@ local FrameAPIDressUpModel =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

@@ -70,7 +70,6 @@ local ChromieTimeUI =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

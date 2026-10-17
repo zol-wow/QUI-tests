@@ -1110,7 +1110,6 @@ local SharedTraits =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

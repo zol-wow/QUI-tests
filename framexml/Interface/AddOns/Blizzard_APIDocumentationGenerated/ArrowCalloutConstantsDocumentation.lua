@@ -32,7 +32,6 @@ local ArrowCalloutConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

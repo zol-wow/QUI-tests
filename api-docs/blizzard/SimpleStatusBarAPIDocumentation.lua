@@ -372,7 +372,6 @@ local SimpleStatusBarAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

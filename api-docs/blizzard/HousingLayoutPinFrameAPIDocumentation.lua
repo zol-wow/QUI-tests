@@ -228,7 +228,6 @@ local HousingLayoutPinFrameAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

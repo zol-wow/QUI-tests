@@ -478,7 +478,6 @@ local HousingCustomizeModeUI =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

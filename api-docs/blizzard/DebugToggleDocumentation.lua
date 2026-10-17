@@ -56,7 +56,6 @@ local DebugToggle =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

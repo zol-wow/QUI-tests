@@ -88,7 +88,6 @@ local CurveUtil =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

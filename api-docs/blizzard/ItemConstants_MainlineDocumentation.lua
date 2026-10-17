@@ -72,7 +72,6 @@ local ItemConstants_Mainline =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

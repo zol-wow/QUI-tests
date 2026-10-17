@@ -30,7 +30,6 @@ local LuaDurationClockAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

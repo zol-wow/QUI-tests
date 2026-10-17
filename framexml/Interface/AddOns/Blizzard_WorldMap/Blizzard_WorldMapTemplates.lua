@@ -548,22 +548,11 @@ function WorldMapNavBarButtonMixin:OnClick()
 	self:GetParent():GoToMap(self.data.id)
 end
 
-local function SetCoordText(fontString, floatFormatString, integerFormatString, coordsByTenths, x, y, mapName)
-	local scaledX = x * 100;
-	local scaledY = y * 100;
-	if coordsByTenths then
-		fontString:SetFormattedText(floatFormatString, scaledX, scaledY, mapName);
-	else
-		fontString:SetFormattedText(integerFormatString, Round(scaledX), Round(scaledY), mapName);
-	end
-end
-
 WorldMapCoordsPanelMixin = { };
 
 function WorldMapCoordsPanelMixin:OnLoad()
 	CVarCallbackRegistry:RegisterCallback("worldMapShowPlayerCoords", self.CVarsUpdated, self);
 	CVarCallbackRegistry:RegisterCallback("worldMapShowCursorCoords", self.CVarsUpdated, self);
-	CVarCallbackRegistry:RegisterCallback("coordsByTenths", self.CVarsUpdated, self);
 	self:CVarsUpdated();
 end
 
@@ -575,7 +564,7 @@ function WorldMapCoordsPanelMixin:OnUpdate(elapsed)
 		local playerPosition = C_Map.GetPlayerMapPosition(mapID, "player");
 		if playerPosition then
 			local x, y = playerPosition:GetXY();
-			SetCoordText(self.PlayerCoords.Label, WORLD_MAP_PLAYER_COORDS, WORLD_MAP_PLAYER_COORDS_INTEGER, self.coordsByTenths, x, y);
+			self.PlayerCoords.Label:SetFormattedText(WORLD_MAP_PLAYER_COORDS, x * 100, y * 100);
 			shouldShowPlayer = true;
 		else
 			local playerMapID = C_Map.GetBestMapForUnit("player");
@@ -584,8 +573,7 @@ function WorldMapCoordsPanelMixin:OnUpdate(elapsed)
 				if actualPosition then
 					local x, y = actualPosition:GetXY();
 					local mapInfo = C_Map.GetMapInfo(playerMapID);
-					local mapName = mapInfo and mapInfo.name or UNKNOWN;
-					SetCoordText(self.PlayerCoords.Label, WORLD_MAP_PLAYER_COORDS_MAP_NAME, WORLD_MAP_PLAYER_COORDS_MAP_NAME_INTEGER, self.coordsByTenths, x, y, mapName);
+					self.PlayerCoords.Label:SetFormattedText(WORLD_MAP_PLAYER_COORDS_MAP_NAME, x * 100, y * 100, mapInfo and mapInfo.name or UNKNOWN);
 					shouldShowPlayer = true;
 				end
 			end
@@ -599,7 +587,7 @@ function WorldMapCoordsPanelMixin:OnUpdate(elapsed)
 	local showCursorCoords = self.showCursorCoords and self:GetParent():IsCanvasMouseFocusOrPinFocus();
 	if showCursorCoords then
 		local cursorX, cursorY = self:GetParent():GetNormalizedCursorPosition();
-		SetCoordText(self.CursorCoords.Label, WORLD_MAP_CURSOR_COORDS, WORLD_MAP_CURSOR_COORDS_INTEGER, self.coordsByTenths, cursorX, cursorY);
+		self.CursorCoords.Label:SetFormattedText(WORLD_MAP_CURSOR_COORDS, cursorX * 100, cursorY * 100);
 	end
 	if self.CursorCoords:IsShown() ~= showCursorCoords then
 		self.CursorCoords:SetShown(showCursorCoords);
@@ -615,7 +603,6 @@ end
 function WorldMapCoordsPanelMixin:CVarsUpdated()
 	self.showPlayerCoords = GetCVarBool("worldMapShowPlayerCoords");
 	self.showCursorCoords = GetCVarBool("worldMapShowCursorCoords");
-	self.coordsByTenths = GetCVarBool("coordsByTenths");
 end
 
 function WorldMapCoordsPanelMixin:Refresh()

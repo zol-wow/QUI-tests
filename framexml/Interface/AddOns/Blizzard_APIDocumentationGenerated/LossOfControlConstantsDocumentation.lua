@@ -11,7 +11,6 @@ local LossOfControlConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

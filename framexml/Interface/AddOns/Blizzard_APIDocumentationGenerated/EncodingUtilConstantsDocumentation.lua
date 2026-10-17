@@ -12,7 +12,6 @@ local EncodingUtilConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

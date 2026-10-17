@@ -1,7 +1,7 @@
 local function Register()
 	local category, layout = Settings.RegisterVerticalLayoutCategory(SOCIAL_LABEL);
 	Settings.SOCIAL_CATEGORY_ID = category:GetID();
-
+	
 	-- Disable Chat
 	do
 		local function InterceptDisableChatChanged(disabled)
@@ -21,43 +21,24 @@ local function Register()
 		local function GetDisabledChatTooltip()
 			local tooltip = OPTION_TOOLTIP_DISABLE_CHAT;
 
-			local errorText;
-			if C_SocialRestrictions.IsAgeVerificationRestricted() then
-				-- Account is restricted due to the age verification system, tell them how this can be resolved
-				errorText = C_SocialRestrictions.IsAgeVerificationRestrictedMinor() and OPTION_TOOLTIP_DISABLE_CHAT_AGE_RESTRICTED_MINOR or OPTION_TOOLTIP_DISABLE_CHAT_AGE_RESTRICTED_UNVERIFIED;
-			elseif C_SocialRestrictions.IsMuted() then
-				-- The account is muted through some other means, tell them how this can be resolved
-				errorText = OPTION_TOOLTIP_DISABLE_CHAT_ACCOUNT_MUTE;
-			end
-
-			if errorText then
-				tooltip = tooltip .. "\n\n" .. RED_FONT_COLOR:WrapTextInColorCode(errorText);
+			-- If the account is muted give the player extra information on how to unmute it.
+			if C_SocialRestrictions.IsMuted() == true then
+				tooltip = tooltip .. "\n\n" .. RED_FONT_COLOR:WrapTextInColorCode(OPTION_TOOLTIP_DISABLE_CHAT_ACCOUNT_MUTE);
 			end
 
 			return tooltip;
 		end
 
 		local function CanDisableChatBeChanged()
-			-- The option can't be changed if the account is muted or Age Verification restricted.
-			return (C_SocialRestrictions.IsMuted() == false) and (C_SocialRestrictions.IsAgeVerificationRestricted() == false);
+			-- The option can't be changed if the account is muted.
+			return C_SocialRestrictions.IsMuted() == false;
 		end
 
 		local defaultValue = false;
-
-		local function GetDisableChatValue()
-			-- Muted and Age Verification restricted accounts can have chat disabled without the
-			-- Disable Chat opt-in itself (C_SocialRestrictions.IsChatDisabled) being set.
-			if (C_SocialRestrictions.IsMuted() == true) or (C_SocialRestrictions.IsAgeVerificationRestricted() == true) then
-				return true;
-			end
-
-			return C_SocialRestrictions.IsChatDisabled();
-		end
-
+		
 		local function GetDisableChatDefaultValue()
-			-- While chat is forced off the default has to match, so Reset to Defaults doesn't try to
-			-- turn it back on. Otherwise it's the normal default and the button works as usual.
-			if (C_SocialRestrictions.IsMuted() == true) or (C_SocialRestrictions.IsAgeVerificationRestricted() == true) then
+			-- The option defaults to true if the account is muted.
+			if C_SocialRestrictions.IsMuted() == true then
 				return true;
 			end
 
@@ -65,7 +46,7 @@ local function Register()
 		end
 
 		local setting = Settings.RegisterProxySetting(category, "PROXY_DISABLE_CHAT",
-			Settings.VarType.Boolean, RESTRICT_CHAT_CONFIG_DISABLE, defaultValue, GetDisableChatValue, SetChatDisabled);
+			Settings.VarType.Boolean, RESTRICT_CHAT_CONFIG_DISABLE, defaultValue, C_SocialRestrictions.IsChatDisabled, SetChatDisabled);
 		setting.GetDefaultValueDerived = GetDisableChatDefaultValue;
 
 		local initializer = Settings.CreateCheckbox(category, setting, GetDisabledChatTooltip);
@@ -73,7 +54,7 @@ local function Register()
 		initializer:AddModifyPredicate(CanDisableChatBeChanged);
 
 		EventRegistry:RegisterFrameEventAndCallback("CHAT_DISABLED_CHANGED", function()
-			setting:SetValue(GetDisableChatValue());
+			setting:SetValue(C_SocialRestrictions.IsChatDisabled());
 		end);
 	end
 
@@ -107,10 +88,10 @@ local function Register()
 
 	-- Block Neighborhood Invites
 	SocialOverrides.CreateBlockNeighborhoodInvitesSetting(category);
-
+	
 	-- Block Calendar Invites
 	Settings.SetupCVarCheckbox(category, "restrictCalendarInvites", RESTRICT_CALENDAR_INVITES, OPTION_TOOLTIP_RESTRICT_CALENDAR_INVITES);
-
+	
 	-- Block Channel Invites
 	Settings.SetupCVarCheckbox(category, "blockChannelInvites", BLOCK_CHAT_CHANNEL_INVITE, OPTION_TOOLTIP_BLOCK_CHAT_CHANNEL_INVITE);
 
@@ -188,7 +169,7 @@ local function Register()
 
 	-- Chat Timestamps
 	do
-		local exampleTime =
+		local exampleTime = 
 		{
 			year = 2010,
 			month = 12,
@@ -345,7 +326,7 @@ local function Register()
 		displayNameInitializer:AddShownPredicate(IsDiscordSettingsAllowed);
 		displayNameInitializer:AddEvaluateStateFrameEvent("DISCORD_LINK_UPDATE");
 	end
-
+	
 	SocialOverrides.AdjustSocialSettings(category);
 
 	Settings.RegisterCategory(category, SETTING_GROUP_GAMEPLAY);

@@ -80,7 +80,6 @@ local MapExploration =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -19,7 +19,6 @@ local LogConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

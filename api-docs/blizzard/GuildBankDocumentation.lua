@@ -93,7 +93,6 @@ local GuildBank =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

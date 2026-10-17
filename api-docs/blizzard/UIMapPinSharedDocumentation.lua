@@ -14,7 +14,6 @@ local UIMapPinShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

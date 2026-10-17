@@ -40,7 +40,6 @@ local SimpleAnimTextureCoordTranslationAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

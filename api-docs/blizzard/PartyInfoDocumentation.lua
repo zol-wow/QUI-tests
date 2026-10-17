@@ -910,7 +910,6 @@ local PartyInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 		{

@@ -124,7 +124,6 @@ local ClickBindings =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

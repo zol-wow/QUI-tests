@@ -239,7 +239,6 @@ local CraftingOrderUIShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

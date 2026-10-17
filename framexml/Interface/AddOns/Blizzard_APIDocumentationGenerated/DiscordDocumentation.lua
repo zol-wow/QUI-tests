@@ -269,7 +269,6 @@ local Discord =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

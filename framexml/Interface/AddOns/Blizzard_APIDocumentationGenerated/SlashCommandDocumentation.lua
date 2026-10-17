@@ -34,7 +34,6 @@ local SlashCommand =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

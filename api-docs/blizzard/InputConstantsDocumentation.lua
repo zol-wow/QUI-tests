@@ -17,7 +17,6 @@ local InputConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

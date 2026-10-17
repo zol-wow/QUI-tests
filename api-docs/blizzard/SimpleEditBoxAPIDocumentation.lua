@@ -951,7 +951,6 @@ local SimpleEditBoxAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

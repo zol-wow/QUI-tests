@@ -744,7 +744,6 @@ local Map =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

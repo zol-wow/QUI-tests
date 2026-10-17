@@ -5,9 +5,9 @@ local GossipConstants =
 		{
 			Name = "GossipNpcOption",
 			Type = "Enumeration",
-			NumValues = 68,
+			NumValues = 67,
 			MinValue = 0,
-			MaxValue = 67,
+			MaxValue = 66,
 			Fields =
 			{
 				{ Name = "None", Type = "GossipNpcOption", EnumValue = 0 },
@@ -77,7 +77,6 @@ local GossipConstants =
 				{ Name = "ItemUpgrade", Type = "GossipNpcOption", EnumValue = 64 },
 				{ Name = "HouseFinder", Type = "GossipNpcOption", EnumValue = 65 },
 				{ Name = "TieredEntrance", Type = "GossipNpcOption", EnumValue = 66 },
-				{ Name = "RewardsShop", Type = "GossipNpcOption", EnumValue = 67 },
 			},
 		},
 		{
@@ -105,7 +104,6 @@ local GossipConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

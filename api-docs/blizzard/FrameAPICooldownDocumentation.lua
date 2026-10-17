@@ -9,7 +9,6 @@ local FrameAPICooldown =
 		{
 			Name = "Clear",
 			Type = "Function",
-			IsProtectedFunction = true,
 
 			Arguments =
 			{
@@ -71,7 +70,7 @@ local FrameAPICooldown =
 
 			Returns =
 			{
-				{ Name = "seconds", Type = "Seconds", Nilable = false },
+				{ Name = "seconds", Type = "DurationSecondsPrimitive", Nilable = false },
 			},
 		},
 		{
@@ -111,7 +110,7 @@ local FrameAPICooldown =
 
 			Returns =
 			{
-				{ Name = "seconds", Type = "Seconds", Nilable = false },
+				{ Name = "seconds", Type = "DurationSecondsPrimitive", Nilable = false },
 			},
 		},
 		{
@@ -192,7 +191,7 @@ local FrameAPICooldown =
 
 			Returns =
 			{
-				{ Name = "milliseconds", Type = "Milliseconds", Nilable = false },
+				{ Name = "milliseconds", Type = "DurationMillisecondsPrimitive", Nilable = false },
 			},
 		},
 		{
@@ -280,34 +279,31 @@ local FrameAPICooldown =
 		{
 			Name = "SetCooldown",
 			Type = "Function",
-			IsProtectedFunction = true,
 			SecretArgumentsAddAspect = { Enum.SecretAspect.Cooldown },
 			SecretArguments = "AllowedWhenUntainted",
 
 			Arguments =
 			{
-				{ Name = "start", Type = "Seconds", Nilable = false },
-				{ Name = "duration", Type = "Seconds", Nilable = false },
+				{ Name = "start", Type = "DurationSeconds", Nilable = false },
+				{ Name = "duration", Type = "DurationSeconds", Nilable = false },
 				{ Name = "modRate", Type = "number", Nilable = false, Default = 1 },
 			},
 		},
 		{
 			Name = "SetCooldownDuration",
 			Type = "Function",
-			IsProtectedFunction = true,
 			SecretArgumentsAddAspect = { Enum.SecretAspect.Cooldown },
 			SecretArguments = "AllowedWhenUntainted",
 
 			Arguments =
 			{
-				{ Name = "duration", Type = "Seconds", Nilable = false },
+				{ Name = "duration", Type = "DurationSeconds", Nilable = false },
 				{ Name = "modRate", Type = "number", Nilable = false, Default = 1 },
 			},
 		},
 		{
 			Name = "SetCooldownFromDurationObject",
 			Type = "Function",
-			IsProtectedFunction = true,
 			SecretArguments = "AllowedWhenUntainted",
 
 			Arguments =
@@ -319,21 +315,19 @@ local FrameAPICooldown =
 		{
 			Name = "SetCooldownFromExpirationTime",
 			Type = "Function",
-			IsProtectedFunction = true,
 			SecretArgumentsAddAspect = { Enum.SecretAspect.Cooldown },
 			SecretArguments = "AllowedWhenUntainted",
 
 			Arguments =
 			{
-				{ Name = "expirationTime", Type = "Seconds", Nilable = false },
-				{ Name = "duration", Type = "Seconds", Nilable = false },
+				{ Name = "expirationTime", Type = "DurationSeconds", Nilable = false },
+				{ Name = "duration", Type = "DurationSeconds", Nilable = false },
 				{ Name = "modRate", Type = "number", Nilable = false, Default = 1 },
 			},
 		},
 		{
 			Name = "SetCooldownUNIX",
 			Type = "Function",
-			IsProtectedFunction = true,
 			SecretArgumentsAddAspect = { Enum.SecretAspect.Cooldown },
 			SecretArguments = "AllowedWhenUntainted",
 
@@ -352,7 +346,7 @@ local FrameAPICooldown =
 
 			Arguments =
 			{
-				{ Name = "seconds", Type = "Seconds", Nilable = false, Documentation = { "Number of seconds below which numbers will be abbreviated. If above one hour or below one minute, no abbreviation will be performed." } },
+				{ Name = "seconds", Type = "DurationSecondsPrimitive", Nilable = false, Documentation = { "Number of seconds below which numbers will be abbreviated. If above one hour or below one minute, no abbreviation will be performed." } },
 			},
 		},
 		{
@@ -383,7 +377,7 @@ local FrameAPICooldown =
 
 			Arguments =
 			{
-				{ Name = "seconds", Type = "Seconds", Nilable = false, Documentation = { "Number of seconds below which numbers are displayed with milliseconds." } },
+				{ Name = "seconds", Type = "DurationSecondsPrimitive", Nilable = false, Documentation = { "Number of seconds below which numbers are displayed with milliseconds." } },
 			},
 		},
 		{
@@ -475,7 +469,7 @@ local FrameAPICooldown =
 
 			Arguments =
 			{
-				{ Name = "milliseconds", Type = "Milliseconds", Nilable = false },
+				{ Name = "milliseconds", Type = "DurationMillisecondsPrimitive", Nilable = false },
 			},
 		},
 		{
@@ -577,7 +571,6 @@ local FrameAPICooldown =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

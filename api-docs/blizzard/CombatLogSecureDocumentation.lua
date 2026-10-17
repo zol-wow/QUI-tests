@@ -149,7 +149,6 @@ local CombatLogSecure =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

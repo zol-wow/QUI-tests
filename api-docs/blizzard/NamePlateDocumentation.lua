@@ -63,7 +63,6 @@ local NamePlate =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

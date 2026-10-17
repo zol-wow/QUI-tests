@@ -353,7 +353,6 @@ local NeighborhoodInitiative =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

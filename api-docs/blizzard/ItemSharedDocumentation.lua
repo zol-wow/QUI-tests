@@ -3,7 +3,6 @@ local ItemShared =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

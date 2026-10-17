@@ -323,7 +323,6 @@ local Input =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 		{

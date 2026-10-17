@@ -130,7 +130,6 @@ local CharacterSelectionConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

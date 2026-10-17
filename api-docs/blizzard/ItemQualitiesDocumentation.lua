@@ -22,7 +22,6 @@ local ItemQualities =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

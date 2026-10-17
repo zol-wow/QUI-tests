@@ -3,7 +3,6 @@ local Player =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

@@ -175,7 +175,6 @@ local ReportSystem =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

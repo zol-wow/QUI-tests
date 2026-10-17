@@ -58,7 +58,6 @@ local RaidLocks =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

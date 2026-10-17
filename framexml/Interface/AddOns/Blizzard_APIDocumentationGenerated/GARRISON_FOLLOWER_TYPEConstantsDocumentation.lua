@@ -18,7 +18,6 @@ local GARRISON_FOLLOWER_TYPEConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -64,7 +64,6 @@ local SimpleVectorGraphicsAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

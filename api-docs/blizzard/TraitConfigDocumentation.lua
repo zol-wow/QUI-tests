@@ -16,7 +16,6 @@ local TraitConfig =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

@@ -44,7 +44,6 @@ local SpellBookConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

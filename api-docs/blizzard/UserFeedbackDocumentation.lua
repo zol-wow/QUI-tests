@@ -47,7 +47,6 @@ local UserFeedback =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

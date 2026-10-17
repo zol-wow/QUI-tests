@@ -55,7 +55,6 @@ local SecondsFormatterShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

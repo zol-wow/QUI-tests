@@ -86,13 +86,6 @@ local ns = {
 }
 
 ns.SkinBase = {
-    ClampTextureHidden = function() end,
-    SkinButton = function() end,
-    ApplyChromeBackdrop = function() end,
-    GetBackdrop = function() end,
-    CreateBackdrop = function() end,
-    RoundBarTexture = function() end,
-    SkinTrimScrollBar = function() end,
     RefreshFrameBackdropColors = function() end,
     IsSkinned = function() return false end,
     SkinButtonFrameTemplate = function(frame)
@@ -101,9 +94,8 @@ ns.SkinBase = {
     SkinFrameText = function(frame, opts)
         calls[frame] = opts or {}
     end,
-    SkinTabGroup = function(tabs, owner, opts)
-        tabGroups[#tabGroups + 1] = { tabs = tabs, owner = owner, opts = opts }
-        for _, tab in ipairs(tabs) do tabFonts[tab] = true end
+    SkinTabGroup = function(tabs, owner)
+        tabGroups[#tabGroups + 1] = { tabs = tabs, owner = owner }
     end,
     ApplyButtonFontObjects = function(button)
         tabFonts[button] = true
@@ -135,7 +127,7 @@ callbacks.Blizzard_EncounterJournal()
 assert(calls.buttonFrame == _G.EncounterJournal, "Encounter Journal must still get QUI frame chrome")
 assert(calls.marked == _G.EncounterJournal, "Encounter Journal must be marked skinned")
 -- Bottom tabs get the FONT fix only — no tab-art reskin (SkinTabGroup).
-assert(#tabGroups > 0 and tabGroups[1].opts.dockBottom, "Encounter Journal tabs must join the window footer")
+assert(#tabGroups == 0, "Encounter Journal bottom tabs must NOT be art-skinned (font-only)")
 local bottomTabKeys = {
     "JourneysTab", "MonthlyActivitiesTab", "suggestTab", "dungeonsTab",
     "raidsTab", "LootJournalTab", "TutorialsTab",

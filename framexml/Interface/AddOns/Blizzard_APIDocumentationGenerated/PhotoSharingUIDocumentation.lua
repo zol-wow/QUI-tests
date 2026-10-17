@@ -146,7 +146,6 @@ local PhotoSharingUI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

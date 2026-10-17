@@ -318,7 +318,6 @@ local Minimap =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

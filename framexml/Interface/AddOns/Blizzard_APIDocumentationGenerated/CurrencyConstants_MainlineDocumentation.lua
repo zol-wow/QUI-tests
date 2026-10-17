@@ -31,7 +31,6 @@ local CurrencyConstants_Mainline =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

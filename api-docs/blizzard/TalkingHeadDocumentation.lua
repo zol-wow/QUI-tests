@@ -28,7 +28,6 @@ local TalkingHead =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

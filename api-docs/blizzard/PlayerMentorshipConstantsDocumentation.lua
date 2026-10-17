@@ -29,7 +29,6 @@ local PlayerMentorshipConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

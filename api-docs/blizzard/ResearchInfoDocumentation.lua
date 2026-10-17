@@ -112,7 +112,6 @@ local ResearchInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

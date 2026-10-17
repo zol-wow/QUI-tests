@@ -112,7 +112,6 @@ local ColorOverrides =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

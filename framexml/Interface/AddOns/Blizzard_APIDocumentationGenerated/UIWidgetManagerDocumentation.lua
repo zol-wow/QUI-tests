@@ -2249,7 +2249,6 @@ local UIWidgetManager =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

@@ -535,7 +535,7 @@ return {
             hiddenBags = {},
             iconSize = 36,
             layoutMode = "flat",
-            markUnusable = false,
+            markUnusable = true,
             qualityColorText = false,
             reagentDisplay = "separate",
             showBagSlots = true,
@@ -2192,27 +2192,6 @@ return {
             sizeStable = true,
             widthAdjust = 0
           },
-          swingTimerMainHand = {
-            offsetX = 0,
-            offsetY = -180,
-            parent = "screen",
-            point = "CENTER",
-            relative = "CENTER"
-          },
-          swingTimerOffHand = {
-            offsetX = 0,
-            offsetY = -206,
-            parent = "screen",
-            point = "CENTER",
-            relative = "CENTER"
-          },
-          swingTimerRanged = {
-            offsetX = 0,
-            offsetY = -232,
-            parent = "screen",
-            point = "CENTER",
-            relative = "CENTER"
-          },
           targetCastbar = {
             autoHeight = false,
             autoWidth = true,
@@ -2780,13 +2759,11 @@ return {
           skinInspectFrame = true,
           skinInstanceFrames = false,
           skinKeystoneFrame = true,
-          skinLegacySystem = false,
           skinObjectiveTracker = true,
           skinOverrideActionBar = true,
           skinPowerBarAlt = true,
           skinProfessions = true,
           skinReadyCheck = true,
-          skinStable = false,
           skinStaticPopups = true,
           skinStatusTrackingBars = true,
           skinUseClassColor = true,
@@ -2834,7 +2811,6 @@ return {
             neverSell = "",
             previewOnly = true
           },
-          visualStyle = "Satin",
           worldMapTeleports = false
         },
         hudLayering = {
@@ -2901,7 +2877,6 @@ return {
               collections = true,
               help = false,
               housing = true,
-              legacy = true,
               lfg = true,
               professions = true,
               questlog = true,
@@ -8261,17 +8236,6 @@ return {
           enabled = false,
           reminders = {}
         },
-        swingTimers = {
-          ["*"] = {
-            fontSize = 11,
-            height = 20,
-            showTime = true,
-            showTitle = true,
-            texture = "Flat",
-            visibility = 0,
-            width = 250
-          }
-        },
         themePreset = "Horde",
         tooltip = {
           anchorToCursor = true,
@@ -9011,9 +8975,9 @@ return {
           showWhenMounted = false
         },
         addonAccentColor = {
-          [1] = 0.83530000000000004,
-          [2] = 0.74119999999999997,
-          [3] = 0.55289999999999995
+          [1] = 0.376,
+          [2] = 0.64700000000000002,
+          [3] = 0.97999999999999998
         },
         alerts = {
           alertPosition = {
@@ -9321,7 +9285,6 @@ return {
               [4] = false
             },
             iconSize = 30,
-            markUnusable = true,
             qualityColorText = true,
             showBagSlots = false,
             spacing = 0
@@ -11165,9 +11128,9 @@ return {
             yOffset = -1172
           },
           addonAccentColor = {
-            [1] = 0.83530000000000004,
-            [2] = 0.74119999999999997,
-            [3] = 0.55289999999999995,
+            [1] = 0.376,
+            [2] = 0.64700000000000002,
+            [3] = 0.97999999999999998,
             [4] = 1
           },
           alertsBorderColor = {
@@ -11304,9 +11267,9 @@ return {
           skinAchievement = true,
           skinBank = true,
           skinBgColor = {
-            [1] = 0.074499999999999997,
-            [2] = 0.10589999999999999,
-            [3] = 0.1176
+            [1] = 0,
+            [2] = 0,
+            [3] = 0
           },
           skinBorderColor = {
             [1] = 1,
@@ -11351,7 +11314,7 @@ return {
           statusTrackingBarsBorderUseClassColor = false,
           statusTrackingBarsHideBackground = false,
           statusTrackingBarsHideBorder = false,
-          themePreset = "Satin Gold",
+          themePreset = "Sky Blue",
           tooltips = {
             bgOpacity = 0.94999999999999996,
             borderUseClassColor = false,
@@ -15913,7 +15876,7 @@ return {
           vigorFontSize = 12,
           visibility = "AUTO"
         },
-        themePreset = "Satin Gold",
+        themePreset = "Sky Blue",
         tooltip = {
           anchorPosition = {
             point = "CENTER",

@@ -16,7 +16,6 @@ local ClassColor =
 			Arguments =
 			{
 				{ Name = "className", Type = "string", Nilable = false },
-				{ Name = "tintColor", Type = "colorRGB", Mixin = "ColorMixin", Nilable = true },
 			},
 
 			Returns =
@@ -33,7 +32,6 @@ local ClassColor =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

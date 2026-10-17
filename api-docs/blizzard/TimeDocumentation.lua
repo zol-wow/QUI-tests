@@ -16,7 +16,6 @@ local Time =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

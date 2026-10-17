@@ -99,7 +99,6 @@ local GarrisonShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

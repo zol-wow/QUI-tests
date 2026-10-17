@@ -158,7 +158,6 @@ local CooldownViewer =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

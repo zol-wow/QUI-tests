@@ -344,7 +344,6 @@ local AzeriteEmpoweredItem =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

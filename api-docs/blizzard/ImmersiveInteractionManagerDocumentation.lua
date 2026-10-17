@@ -37,7 +37,6 @@ local ImmersiveInteractionManager =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

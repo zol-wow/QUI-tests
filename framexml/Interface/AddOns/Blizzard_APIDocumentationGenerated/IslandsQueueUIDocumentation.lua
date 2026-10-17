@@ -88,7 +88,6 @@ local IslandsQueueUI =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

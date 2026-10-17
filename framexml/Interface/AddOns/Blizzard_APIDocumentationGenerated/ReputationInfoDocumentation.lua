@@ -362,7 +362,6 @@ local ReputationInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

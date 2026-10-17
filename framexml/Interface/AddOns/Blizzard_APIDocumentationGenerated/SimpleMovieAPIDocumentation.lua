@@ -68,7 +68,6 @@ local SimpleMovieAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

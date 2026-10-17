@@ -38,7 +38,6 @@ local AddOnProfilerConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

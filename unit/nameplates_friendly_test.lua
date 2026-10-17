@@ -165,10 +165,7 @@ local settings = {
     auras = { enabled = true, elements = {} }, cvars = {},
 }
 local ns = {
-   Helpers = {
-        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
-        ApplyTextureStyle = function(_, texture, path) texture:SetTexture(path) end,
-        ApplyIconStyle = function() end,
+    Helpers = {
         IsSecretValue = function() return false end,
         TruncateUTF8 = function(s) return s end,
         GetModuleSettings = function() return settings end,

@@ -3,7 +3,6 @@ local ButtonState =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

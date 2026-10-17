@@ -946,7 +946,6 @@ local EditModeManagerConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

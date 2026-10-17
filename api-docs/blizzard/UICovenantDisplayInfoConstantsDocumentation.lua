@@ -16,7 +16,6 @@ local UICovenantDisplayInfoConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

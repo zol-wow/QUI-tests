@@ -162,7 +162,6 @@ local LossOfControl =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

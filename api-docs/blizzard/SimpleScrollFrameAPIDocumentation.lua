@@ -128,7 +128,6 @@ local SimpleScrollFrameAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

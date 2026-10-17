@@ -112,7 +112,6 @@ local InstanceEncounter =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

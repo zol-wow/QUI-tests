@@ -125,7 +125,6 @@ local Cinematic =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

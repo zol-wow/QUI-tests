@@ -1455,7 +1455,6 @@ local GarrisonInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

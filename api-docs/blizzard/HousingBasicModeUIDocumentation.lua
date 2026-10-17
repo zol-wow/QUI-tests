@@ -284,7 +284,6 @@ local HousingBasicModeUI =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

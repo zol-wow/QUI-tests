@@ -199,7 +199,6 @@ local AddOnProfiler =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

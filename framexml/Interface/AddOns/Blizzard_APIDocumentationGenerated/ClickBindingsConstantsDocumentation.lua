@@ -41,7 +41,6 @@ local ClickBindingsConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

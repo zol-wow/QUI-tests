@@ -61,7 +61,6 @@ local SimpleAnimRadialProgressAPI =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

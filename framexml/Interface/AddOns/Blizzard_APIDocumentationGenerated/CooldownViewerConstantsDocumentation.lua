@@ -16,14 +16,13 @@ local CooldownViewerConstants =
 		{
 			Name = "CooldownSetSpellFlags",
 			Type = "Enumeration",
-			NumValues = 3,
+			NumValues = 2,
 			MinValue = 1,
-			MaxValue = 4,
+			MaxValue = 2,
 			Fields =
 			{
 				{ Name = "HideAura", Type = "CooldownSetSpellFlags", EnumValue = 1 },
 				{ Name = "HideByDefault", Type = "CooldownSetSpellFlags", EnumValue = 2 },
-				{ Name = "SelectHighestLevelLinkedSpell", Type = "CooldownSetSpellFlags", EnumValue = 4 },
 			},
 		},
 		{
@@ -224,7 +223,6 @@ local CooldownViewerConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

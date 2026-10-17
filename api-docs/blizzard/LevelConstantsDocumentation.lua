@@ -12,7 +12,6 @@ local LevelConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

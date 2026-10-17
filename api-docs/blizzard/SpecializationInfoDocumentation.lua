@@ -570,7 +570,6 @@ local SpecializationInfo =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

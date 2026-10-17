@@ -53,7 +53,6 @@ local LootConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

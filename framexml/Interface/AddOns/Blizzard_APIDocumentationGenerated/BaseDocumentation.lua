@@ -10,7 +10,6 @@ local Base =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

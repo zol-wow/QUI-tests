@@ -130,7 +130,6 @@ local EncounterTimelineConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

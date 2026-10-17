@@ -157,10 +157,7 @@ NamePlateDriverFrame.UpdateNamePlateOptions = function() end
 
 local settingsStore = nil
 local ns = {
-   Helpers = {
-        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
-        ApplyTextureStyle = function(_, texture, path) texture:SetTexture(path) end,
-        ApplyIconStyle = function() end,
+    Helpers = {
         IsSecretValue = function() return false end,
         TruncateUTF8 = function(s, n) return type(s) == "string" and s:sub(1, n) or s end,
         GetModuleSettings = function(_, defaults)

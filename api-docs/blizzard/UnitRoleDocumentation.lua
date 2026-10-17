@@ -119,7 +119,6 @@ local UnitRole =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

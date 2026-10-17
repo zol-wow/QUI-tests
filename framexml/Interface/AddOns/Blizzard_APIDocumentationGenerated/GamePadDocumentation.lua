@@ -430,7 +430,6 @@ local GamePad =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

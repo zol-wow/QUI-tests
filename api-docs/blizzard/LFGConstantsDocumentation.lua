@@ -149,7 +149,6 @@ local LFGConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

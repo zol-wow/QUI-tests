@@ -87,7 +87,6 @@ local ImageSharingConstants =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

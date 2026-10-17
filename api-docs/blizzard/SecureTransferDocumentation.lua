@@ -140,7 +140,6 @@ local SecureTransfer =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

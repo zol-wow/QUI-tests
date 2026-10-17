@@ -106,10 +106,7 @@ local ns = {
     SafeCallMethodIfPresent = function(_, owner, name, ...)
         if owner and owner[name] then owner[name](owner, ...) end
     end,
-   Helpers = {
-        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
-        ApplyTextureStyle = function(_, texture, path) texture:SetTexture(path) end,
-        ApplyIconStyle = function() end,
+    Helpers = {
         GetGeneralFont = function() return "font" end,
         GetGeneralFontOutline = function() return "" end,
         GetSkinBorderColor = function() return 0, 0, 0, 1 end,

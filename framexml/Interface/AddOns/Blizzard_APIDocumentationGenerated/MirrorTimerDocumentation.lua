@@ -66,7 +66,6 @@ local MirrorTimer =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

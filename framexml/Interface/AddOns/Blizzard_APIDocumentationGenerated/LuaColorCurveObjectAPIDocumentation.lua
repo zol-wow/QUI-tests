@@ -174,7 +174,6 @@ local LuaColorCurveObjectAPI =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

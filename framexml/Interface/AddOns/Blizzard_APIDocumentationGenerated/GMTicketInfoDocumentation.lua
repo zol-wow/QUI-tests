@@ -84,7 +84,6 @@ local GMTicketInfo =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

@@ -54,9 +54,9 @@ function AuraContainerAuraGroupManagerMixin:UnregisterAuraGroup(groupKey)
 	local auraGroup = self.auraGroupsByKey[groupKey];
 
 	if auraGroup ~= nil then
-		self:ResetFrameAssignmentForGroup(auraGroup);
+		self:ResetAuraGroupFrames(auraGroup);
 		self.auraGroupsByKey[groupKey] = nil;
-		table.removevalue(self.auraGroups, auraGroup);
+		tUnorderedRemove(self.auraGroups, auraGroup);
 		self:SignalAuraGroupsChanged();
 	end
 end
@@ -74,21 +74,6 @@ function AuraContainerAuraGroupManagerMixin:ClearAuraGroups()
 	self:SignalAuraGroupsChanged();
 end
 
-function AuraContainerAuraGroupManagerMixin:SetAuraGroupEnabled(auraGroup, enabled)
-	enabled = (enabled == true);
-
-	if auraGroup:IsEnabled() ~= enabled then
-		auraGroup:SetEnabled(enabled);
-
-		if not enabled then
-			auraGroup:ClearAuras();
-			self:ResetFrameAssignmentForGroup(auraGroup);
-		end
-
-		self:SignalAuraGroupsChanged();
-	end
-end
-
 function AuraContainerAuraGroupManagerMixin:SignalAuraGroupsChanged()
 	self.owner:OnAuraGroupsChanged();
 end
@@ -101,16 +86,6 @@ function AuraContainerAuraGroupManagerMixin:HasAnyAuraGroups()
 	return self.auraGroups[1] ~= nil;
 end
 
-function AuraContainerAuraGroupManagerMixin:HasAnyEnabledAuraGroups()
-	for _index, auraGroup in self:EnumerateAuraGroups() do
-		if auraGroup:IsEnabled() then
-			return true;
-		end
-	end
-
-	return false;
-end
-
 function AuraContainerAuraGroupManagerMixin:GetAuraGroup(groupKey)
 	return self.auraGroupsByKey[groupKey];
 end
@@ -121,9 +96,7 @@ end
 
 function AuraContainerAuraGroupManagerMixin:RegisterAuraParseConsumers(registrar)
 	for _index, auraGroup in self:EnumerateAuraGroups() do
-		if auraGroup:IsEnabled() then
-			registrar:RegisterAuraParseConsumer(auraGroup:GetFilterString(), self, auraGroup);
-		end
+		registrar:RegisterAuraParseConsumer(auraGroup:GetFilterString(), self, auraGroup);
 	end
 end
 
@@ -161,9 +134,7 @@ function AuraContainerAuraGroupManagerMixin:UpdateAuraInGroups(unitToken, auraIn
 	local hasMatchedFilterString = false;
 
 	for _index, auraGroup in self:EnumerateAuraGroups() do
-		if auraGroup:IsEnabled() then
-			aurasChanged = self:UpdateAuraGroupMembership(auraGroup, unitToken, auraInstanceID, auraData, hasMatchedFilterString) or aurasChanged;
-		end
+		aurasChanged = self:UpdateAuraGroupMembership(auraGroup, unitToken, auraInstanceID, auraData, hasMatchedFilterString) or aurasChanged;
 	end
 
 	return aurasChanged;
@@ -190,11 +161,11 @@ function AuraContainerAuraGroupManagerMixin:UpdateAuraGroupMembership(auraGroup,
 	return aurasChanged;
 end
 
-function AuraContainerAuraGroupManagerMixin:RefreshFrameAssignments(unitToken)
+function AuraContainerAuraGroupManagerMixin:RefreshDirtyAuraGroups(unitToken)
 	local refreshResult = AuraContainerFrameRefreshResult.None;
 
 	for _index, auraGroup in self:EnumerateAuraGroups() do
-		if auraGroup:IsEnabled() and auraGroup:AreFrameAssignmentsDirty() then
+		if auraGroup:AreFrameAssignmentsDirty() then
 			refreshResult = FlagsUtil.Combine(refreshResult, self:RefreshAuraGroup(auraGroup, unitToken), FlagsUtilConstants.CombineShouldSet);
 		end
 	end
@@ -345,14 +316,14 @@ function AuraContainerAuraGroupManagerMixin:ReleaseAuraFramesForGroup(auraGroup)
 	self:ReleaseAuraGroupFrameMap(auraGroup, framesByAuraInstanceID);
 end
 
-function AuraContainerAuraGroupManagerMixin:ResetFrameAssignmentForGroup(auraGroup)
+function AuraContainerAuraGroupManagerMixin:ResetAuraFramesForGroup(auraGroup)
 	self:ReleaseAuraFramesForGroup(auraGroup);
 	auraGroup:ClearFrameAssignments();
 end
 
-function AuraContainerAuraGroupManagerMixin:ResetFrameAssignments()
+function AuraContainerAuraGroupManagerMixin:ResetAuraFrames()
 	for _index, auraGroup in self:EnumerateAuraGroups() do
-		self:ResetFrameAssignmentForGroup(auraGroup);
+		self:ResetAuraFramesForGroup(auraGroup);
 	end
 end
 
@@ -362,7 +333,6 @@ function AuraContainerAuraGroupMixin:Init(description)
 	assert(AuraUtil.IsValidFilterString(description.filterString));
 	assert(description.frameProvider, "Aura container groups must have a frame provider");
 
-	self.enabled = true;
 	self.auraComparator = nil;
 	self.candidateFilters = nil;
 	self.filterString = nil;
@@ -384,14 +354,6 @@ function AuraContainerAuraGroupMixin:Init(description)
 	-- SetFilterString and friends, but we have no auras on Init so there's
 	-- no actual dirty state.
 	self.frameAssignmentsDirty = false;
-end
-
-function AuraContainerAuraGroupMixin:IsEnabled()
-	return self.enabled == true;
-end
-
-function AuraContainerAuraGroupMixin:SetEnabled(enabled)
-	self.enabled = (enabled == true);
 end
 
 function AuraContainerAuraGroupMixin:GetAuras()
@@ -545,10 +507,6 @@ function AuraContainerAuraGroupOwnerMixin:ShouldIncludeAuraInGroup(auraGroup, un
 		if not AuraContainerUtil.ShouldIncludeAuraForFilterString(unitToken, auraData, auraGroup:GetFilterString()) then
 			return false;
 		end
-	end
-
-	if auraData.processedAuraType == AuraUtil.AuraUpdateChangedType.None then
-		return false;
 	end
 
 	if not AuraContainerUtil.DoesAuraPassCandidateFilters(unitToken, auraData, auraGroup:GetCandidateFilters()) then

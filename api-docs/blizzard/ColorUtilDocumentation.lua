@@ -146,7 +146,6 @@ local ColorUtil =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

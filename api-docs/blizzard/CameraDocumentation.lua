@@ -50,7 +50,6 @@ local Camera =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

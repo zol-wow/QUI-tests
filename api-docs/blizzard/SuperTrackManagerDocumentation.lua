@@ -206,7 +206,6 @@ local SuperTrackManager =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

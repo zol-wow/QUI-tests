@@ -13,7 +13,6 @@ local ActionBarShared =
 			},
 		},
 	},
-
 	Predicates =
 	{
 		{

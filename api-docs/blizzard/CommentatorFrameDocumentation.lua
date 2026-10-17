@@ -1929,7 +1929,6 @@ local CommentatorFrame =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

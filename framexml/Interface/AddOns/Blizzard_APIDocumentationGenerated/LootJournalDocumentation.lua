@@ -75,7 +75,6 @@ local LootJournal =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

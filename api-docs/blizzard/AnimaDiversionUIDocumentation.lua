@@ -144,7 +144,6 @@ local AnimaDiversionUI =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

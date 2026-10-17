@@ -92,7 +92,6 @@ local ToyBoxInfo =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

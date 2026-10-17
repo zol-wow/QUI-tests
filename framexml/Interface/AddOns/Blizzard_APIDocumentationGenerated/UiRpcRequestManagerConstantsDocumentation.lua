@@ -3,7 +3,6 @@ local UiRpcRequestManagerConstants =
 	Tables =
 	{
 	},
-
 	Predicates =
 	{
 	},

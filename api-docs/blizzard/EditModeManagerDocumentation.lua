@@ -201,7 +201,6 @@ local EditModeManager =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},

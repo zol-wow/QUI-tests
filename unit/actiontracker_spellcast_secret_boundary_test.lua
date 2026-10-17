@@ -103,7 +103,6 @@ local ns = {
     Addon = {},
     L = setmetatable({}, { __index = function(_, k) return k end }),
     Helpers = {
-        ApplyIconStyle = function() end,
         CreateStateTable = function() return {} end,
         Clamp = function(v, lo, hi)
             if type(v) ~= "number" then v = lo or 0 end
@@ -123,7 +122,6 @@ local ns = {
         IsSecretValue = function(value)
             return issecretvalue and issecretvalue(value) or false
         end,
-        GetWindowColors = function() return nil, nil, nil, nil end,
         GetSkinBorderColor = function() return nil, nil, nil, nil end,
     },
     UIKit = {},

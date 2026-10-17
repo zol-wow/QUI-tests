@@ -28,7 +28,6 @@ local AppearanceSource =
 			},
 		},
 	},
-
 	Predicates =
 	{
 	},
