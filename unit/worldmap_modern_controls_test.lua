@@ -64,6 +64,9 @@ local objectiveLayouts, headerLayouts = 0, 0
 row.NextObjective.Layout = function() objectiveLayouts = objectiveLayouts + 1 end
 row.Layout = function() headerLayouts = headerLayouts + 1 end
 row.Text = Font(row)
+row.CheckHighlightTitle = function(self) self.Text:SetTextColor(.15,.15,.15,1) end
+row.UpdateTitle = row.CheckHighlightTitle
+row.UpdateProgress = function(self) self.Progress:SetTextColor(.15,.15,.15,1) end
 local title = Frame("Button", scroll)
 title.Text = Font(title)
 title.Text:SetTextColor(1, .4, .1, 1)
@@ -336,3 +339,15 @@ lateEvent:SetParent(eventScroll);lateEvent.IsForbidden=function() return true en
 eventAcquire(eventScroll,lateEvent);env.RunTimers()
 assert(lateEvent.Label.font=="Borrowed","forbidden acquired event row must remain untouched")
 print("World Map acquired event-row ownership guards passed")
+
+row:CheckHighlightTitle()
+assert(row.Text.textColor[1] >= .9, "native title refresh must retain readable header contrast")
+row:UpdateTitle()
+assert(row.Text.textColor[1] >= .9, "campaign title update must retain readable contrast")
+row:UpdateProgress()
+assert(row.Progress.textColor[1] >= .8, "campaign progress must remain readable against QUI background")
+local _, _, _, _, bottomInset = Skin.GetBackdrop(row):GetPoint(2)
+assert(bottomInset == -8, "expanded campaign chrome must leave breathing room below objective text")
+
+assert(Skin.GetBackdrop(row):GetFrameLevel() < row:GetFrameLevel(),
+    "pooled campaign decoration must render below its title and progress text")
