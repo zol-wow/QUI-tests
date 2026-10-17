@@ -541,6 +541,76 @@ for _, case in ipairs({{count = 1, trailing = 0}, {count = 1, trailing = 31}, {c
 end
 print("OK: real Group Frames builder and shared responsive card extents")
 
+assert(loadfile("core/settings/full_surface.lua"))("QUI", ns)
+local embeddedStart = assert(groupSource:find("local function GetBuilderCursorY(", 1, true))
+local embeddedEnd = assert(groupSource:find("local function RefreshGroupFrames(", embeddedStart, true))
+local embeddedLoader = assert(compile("return function(FullSurface, CreateFrame)\n"
+    .. groupSource:sub(embeddedStart, embeddedEnd - 1) .. "\nreturn RenderEmbeddedEditorSection end"))
+for _, useFullSurface in ipairs({true, false}) do
+    local renderEmbedded = embeddedLoader()(useFullSurface and ns.Settings.FullSurface or nil, Frame)
+    local editor, auraCard
+    local host = Frame()
+    host:SetWidth(800)
+    local feature = ns.Settings.Schema.Feature({id = "auraReflow", sections = {
+        {id = "auras", kind = "custom", render = function(sectionHost, ctx)
+            local builder = createGroupBuilder(sectionHost, ctx, {})
+            auraCard = builder.Card()
+            auraCard.AddRow(Cell("Enable Auras"), Cell("Editing Spec"))
+            builder.CloseCard(auraCard)
+            builder.Spacer(14)
+            renderEmbedded(sectionHost, builder, function(editorHost)
+                editor = editorHost
+                editor:SetHeight(100)
+                return 100
+            end, {minHeight = 1})
+            return builder.Height()
+        end},
+        {id = "targetedSpells", kind = "custom", render = function() return 160 end},
+        {id = "dispelOverlay", kind = "custom", render = function() return 140 end},
+    }})
+    ns.Settings.Schema:RenderFeature(feature, host, {surface = "tile"})
+    Flush()
+    local active = host._quiSettingsRuntime
+    local sectionHost = active.sectionHosts.auras
+    local initialHeight = host:GetHeight()
+    local initialSectionHeight = sectionHost:GetHeight()
+    local initialCardHeight = auraCard.frame:GetHeight()
+    local editorY = select(5, editor:GetPoint())
+    local function Top(frame)
+        if frame == host then return 0 end
+        local _, relative, relativePoint, _, y = frame:GetPoint()
+        return Top(relative) + y - (relativePoint == "BOTTOMLEFT" and relative:GetHeight() or 0)
+    end
+    local targetedY, dispelY = Top(active.sectionHosts.targetedSpells), Top(active.sectionHosts.dispelOverlay)
+    for cycle = 1, 3 do
+        for _, editorHeight in ipairs({400, 250, 100}) do
+            local previousHeight = editor:GetHeight()
+            editor:SetHeight(editorHeight)
+            active.ctx:ResizeSection("auras", active.sectionHeights.auras + editorHeight - previousHeight)
+            Flush()
+            for _, width in ipairs({480, 800}) do
+                sectionHost:SetWidth(width)
+                auraCard.frame.scripts.OnSizeChanged()
+                Flush()
+                local cardDelta = auraCard.frame:GetHeight() - initialCardHeight
+                local delta = editorHeight - 100 + cardDelta
+                assert(sectionHost:GetHeight() == initialSectionHeight + delta,
+                    "queued card layout must retain expanded aura height (expected "
+                        .. (initialSectionHeight + delta) .. ", got " .. sectionHost:GetHeight() .. ")")
+                assert(host:GetHeight() == initialHeight + delta,
+                    "the aura page scroll extent must include editor and responsive card growth")
+                assert(Top(active.sectionHosts.targetedSpells) == targetedY - delta,
+                    "Targeted Spells must stay below expanded aura controls after deferred layout")
+                assert(Top(active.sectionHosts.dispelOverlay) == dispelY - delta,
+                    "Dispel Overlay must follow Targeted Spells after expansion and collapse")
+                assert(select(5, editor:GetPoint()) == editorY - cardDelta,
+                    "responsive cards must move the editor without counting its growth twice")
+            end
+        end
+    end
+end
+print("OK: embedded aura expansion survives deferred card layout")
+
 local sectionStart = assert(groupSource:find("local function RenderGeneralEnableSection", 1, true))
 local sectionEnd = assert(groupSource:find("local function RenderGeneralCopySettingsSection", sectionStart, true))
 local controls = {}
