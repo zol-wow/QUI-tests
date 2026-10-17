@@ -314,6 +314,11 @@ for _, key in ipairs({ "CreateScrollBar", "AttachSmoothScroll", "AnimateValue", 
 end
 gui.Colors.scrollThumb, gui.Colors.scrollTrack = { 1, 1, 1, 0.6 }, { 1, 1, 1, 0.02 }
 QUI.db.profile.general.optionsMotion = true
+tile._pageFrame:SetAlpha(0.35)
+gui:AnimateOptionsPage(tile._pageFrame)
+assert(tile._pageFrame.alpha == 1, "settings content must appear fully opaque immediately when navigating with motion enabled")
+gui:AnimateOptionsPage(tile._pageFrame)
+assert(tile._pageFrame.alpha == 1, "reselecting a cached settings page must not restart a content fade")
 frame._pageFlyout = nil
 gui:OpenNavigationFlyout(frame, tile, true)
 flyout = frame._pageFlyout
@@ -326,6 +331,7 @@ for _, node in ipairs(nodes) do
 end
 assert(driver, "native UIKit supplies the animation driver")
 driver:Fire("OnUpdate", 0.065)
+assert(tile._pageFrame.alpha == 1, "settings content must remain opaque while flyout motion advances")
 assert(math.abs(flyout.alpha - 0.90625) < 0.0001, "the entrance eases out rather than fading linearly")
 QUI.db.profile.general.optionsMotion = false
 gui:RefreshOptionsMotion()
