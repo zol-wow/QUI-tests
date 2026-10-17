@@ -229,3 +229,46 @@ R.Preview(10060, true)
 assert(host.drag:GetRight() >= host.icon:GetRight(), "preview bounds must include imported icons wider than the sample")
 R.Preview(10060, false)
 print("OK: actual reminder Layout Mode overlay, drag, save, discard and active registration")
+
+layout:Open()
+Flush()
+handle = layout._handles[key]
+Drag(15, -10)
+local pendingPosition = layout._pendingPositions[key]
+local pendingX, pendingY = host:GetCenter()
+R.Refresh()
+Flush()
+local refreshedX, refreshedY = host:GetCenter()
+assert(layout._handles[key] == handle and layout._pendingPositions[key] == pendingPosition
+    and refreshedX == pendingX and refreshedY == pendingY,
+    "an unchanged enabled refresh must preserve the active handle and its pending position")
+currentConfig.enabled = false
+R.Refresh()
+Flush()
+assert(not layout._handles[key] and not host.layoutPreview and not host.icon:IsShown() and not host.sample:IsShown(),
+    "disabling an existing reminder through settings must release its mover and Layout Mode preview")
+R.Preview(10060, true)
+assert(not layout._handles[key] and not host.layoutPreview and host.icon:IsShown() and host.sample:IsShown(),
+    "an explicitly requested settings preview must remain available while the reminder is disabled")
+R.Preview(10060, false)
+currentConfig.enabled = true
+R.Refresh()
+Flush()
+handle = assert(layout._handles[key], "re-enabling an existing reminder through settings must restore its mover")
+assert(handle:IsVisible() and host.layoutPreview and host.icon:IsShown() and host.sample:IsShown(),
+    "re-enabling a reminder must restore its visible icon and recipient preview")
+H.db.enabled = false
+R.Refresh()
+Flush()
+assert(not layout._handles[key] and not layout._handles["spellReminder:29166"]
+    and not host.layoutPreview and not added.layoutPreview and not host.sample:IsShown(),
+    "disabling the reminder master switch must release every existing mover and preview")
+H.db.enabled = true
+R.Refresh()
+Flush()
+handle = assert(layout._handles[key], "re-enabling the master switch must restore existing reminder movers")
+assert(handle:IsVisible() and host.layoutPreview and host.icon:IsShown() and host.sample:IsShown()
+    and layout._handles["spellReminder:29166"] and added.layoutPreview,
+    "re-enabling the master switch must restore each enabled reminder preview")
+layout:DiscardAndClose()
+print("OK: settings and master toggles reconcile existing reminder movers without resetting unchanged positions")
