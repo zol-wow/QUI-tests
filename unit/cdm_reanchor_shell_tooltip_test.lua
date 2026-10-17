@@ -1,6 +1,9 @@
 -- tests/unit/cdm_reanchor_shell_tooltip_test.lua
 -- Run: lua tests/unit/cdm_reanchor_shell_tooltip_test.lua
 
+local Secret = dofile("tests/helpers/secret_sentinel.lua")
+Secret.InstallSecretStub()
+
 local function noop() end
 
 function InCombatLockdown() return false end
@@ -50,7 +53,10 @@ function CreateFrame(frameType, name, parent)
     function frame:GetScript(scriptName) return self.scripts and self.scripts[scriptName] end
     function frame:SetFrameLevel(level) self.frameLevel = level end
     function frame:GetFrameLevel() return self.frameLevel end
-    function frame:SetFrameStrata(strata) self.frameStrata = strata end
+    function frame:SetFrameStrata(strata)
+        assert(not issecretvalue(strata), "addon SetFrameStrata must never receive a secret")
+        self.frameStrata = strata
+    end
     function frame:GetFrameStrata() return self.frameStrata end
     function frame:CreateTexture() return NewRegion() end
     function frame:Show() self.shown = true end
@@ -100,7 +106,7 @@ GameTooltip = {
 
 local loadChunk = dofile("tests/helpers/load_cdm_consolidated_chunk.lua")
 loadChunk("QUI_CDM/cdm/cdm_icon_factory.lua", "cdm_icon_factory.lua")("QUI", ns)
-loadChunk("QUI_CDM/cdm/cdm_reanchor_realenv.lua", "cdm_reanchor_realenv.lua")("QUI", ns)
+assert(Secret.LoadInstrumented(arg[1] or "QUI_CDM/cdm/cdm_reanchor_realenv.lua"))("QUI", ns)
 
 assert(type(ns.CDMIconFactory.ShowEntryTooltip) == "function",
     "CDMIconFactory.ShowEntryTooltip must be shared by owned and reanchored CDM icons")
@@ -139,6 +145,23 @@ assert(hover.mouseEnabled == true and hover.mouseMotionEnabled == true and hover
     "hover overlay receives motion without taking click ownership")
 assert(hover:GetFrameLevel() > shell:GetFrameLevel(),
     "hover overlay is raised above the shell")
+
+local nativeGetStrata = live.GetFrameStrata
+local secretStrata = Secret.MakeSecretSentinel()
+live.GetFrameStrata = function() return secretStrata end
+container:SetFrameStrata("HIGH")
+env.beginShellPass(container)
+local reused = assert(env.positionClickSlot(container, live, entry, "essential", 2, -3, 40, 40))
+assert(reused == shell and shell:GetFrameStrata() == "HIGH" and hover:GetFrameStrata() == "HIGH",
+    "secret native strata must use the QUI container layer without losing the pooled tooltip overlays")
+assert(shell._quiCdmLive == live and hover:GetFrameLevel() > shell:GetFrameLevel(),
+    "secret native strata must preserve live identity and hover ordering")
+live.GetFrameStrata = nativeGetStrata
+live:SetFrameStrata("DIALOG")
+env.beginShellPass(container)
+assert(env.positionClickSlot(container, live, entry, "essential", 0, 0, 40, 40) == shell)
+assert(shell:GetFrameStrata() == "DIALOG" and hover:GetFrameStrata() == "DIALOG",
+    "readable native strata must remain authoritative when a pooled slot is reused")
 
 GameTooltip.owner, GameTooltip.spellID, GameTooltip.shown = nil, nil, false
 hover:GetScript("OnEnter")(hover)
