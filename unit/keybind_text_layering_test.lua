@@ -8,8 +8,8 @@ function wipe(tbl)
     end
 end
 
-function issecretvalue()
-    return false
+function issecretvalue(value)
+    return type(value) == "table" and rawget(value, "secretStrataValue") == true
 end
 
 function InCombatLockdown()
@@ -86,6 +86,15 @@ C_Widget = {
 
 local createdFrames = {}
 local fontStrings = {}
+local strataReads, strataWrites = 0, 0
+local secretStrata = { __eq = function() error("cannot compare secret frame strata") end }
+
+local function SetNativeStrata(frame, strata, secret)
+    frame.frameStrata, frame.secretStrata = strata, secret
+    for _, child in ipairs(frame.children) do
+        SetNativeStrata(child, strata, secret)
+    end
+end
 
 local function NewFontString(parent, layer, sublevel)
     local fontString = {
@@ -140,8 +149,11 @@ local function NewFrame(frameType, parent)
         parent = parent,
         frameLevel = parent and parent.frameLevel or 1,
         frameStrata = parent and parent.frameStrata or "LOW",
+        secretStrata = parent and parent.secretStrata,
+        children = {},
         shown = true,
     }
+    if parent then parent.children[#parent.children + 1] = frame end
 
     function frame:GetParent()
         return self.parent
@@ -156,10 +168,16 @@ local function NewFrame(frameType, parent)
         self.frameLevel = level
     end
     function frame:GetFrameStrata()
+        strataReads = strataReads + 1
+        if self.secretStrata then
+            return setmetatable({ secretStrataValue = true }, secretStrata)
+        end
         return self.frameStrata
     end
     function frame:SetFrameStrata(strata)
-        self.frameStrata = strata
+        assert(not issecretvalue(strata), "addon cannot pass secret frame strata")
+        strataWrites = strataWrites + 1
+        SetNativeStrata(self, strata, false)
     end
     function frame:CreateFontString(_, layer, _, sublevel)
         return NewFontString(self, layer, sublevel)
@@ -296,7 +314,7 @@ do
     addon.FormatKeybind = coreNs.FormatKeybind
 end
 
-assert(loadfile("modules/utility/keybinds.lua"))("QUI", addon)
+assert(loadfile(arg[1] or "modules/utility/keybinds.lua"))("QUI", addon)
 
 addon.Keybinds.UpdateViewer("customQuality")
 
@@ -315,6 +333,36 @@ assert(fontStrings[#fontStrings].layer == "OVERLAY",
     "CDM keybind text should remain on the overlay draw layer")
 assert(fontStrings[#fontStrings].text == "G",
     "CDM item keybind text should prefer stable bindings over transient button text")
+
+local initialLayer, initialText = keybindLayer, fontStrings[#fontStrings]
+icon.TextOverlay:SetFrameStrata("HIGH")
+addon.Keybinds.UpdateViewer("customQuality")
+assert(keybindLayer.frameStrata == "HIGH" and keybindLayer.frameLevel == 40,
+    "reused QUI parent must retain inherited strata and cooldown-relative text level")
+SetNativeStrata(icon.TextOverlay, "DIALOG", true)
+local readsBefore, writesBefore = strataReads, strataWrites
+addon.Keybinds.UpdateViewer("customQuality")
+assert(strataReads == readsBefore and strataWrites == writesBefore,
+    "native secret strata must remain inherited without addon reads or writes")
+assert(initialText:IsShown() and initialText.text == "G" and keybindLayer.secretStrata,
+    "secret native parent changes must preserve visible keybind text")
+
+icon.TextOverlay = NewFrame("Frame", icon)
+SetNativeStrata(icon.TextOverlay, "TOOLTIP", true)
+readsBefore, writesBefore = strataReads, strataWrites
+addon.Keybinds.UpdateViewer("customQuality")
+keybindLayer = createdFrames[#createdFrames]
+assert(keybindLayer.parent == icon.TextOverlay and keybindLayer ~= initialLayer
+    and not initialLayer:IsShown() and not initialText:IsShown(),
+    "changing native parents must replace and hide the old keybind layer")
+assert(keybindLayer.secretStrata and keybindLayer.frameStrata == "TOOLTIP"
+    and strataReads == readsBefore and strataWrites == writesBefore,
+    "new keybind layers must inherit native secret strata without copying it")
+icon.TextOverlay:SetFrameStrata("MEDIUM")
+addon.Keybinds.UpdateViewer("customQuality")
+assert(not keybindLayer.secretStrata and keybindLayer.frameStrata == "MEDIUM"
+    and fontStrings[#fontStrings]:IsShown(),
+    "reused layer must follow a parent returning to plain strata")
 
 icon._spellEntry = nil
 addon.Keybinds.UpdateViewer("customQuality")
