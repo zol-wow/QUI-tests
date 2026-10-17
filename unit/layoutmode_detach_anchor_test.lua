@@ -19,6 +19,7 @@ local function newFrame(x, y)
     function f:IsShown() return true end
     function f:IsMouseOver() return false end
     function f:GetEffectiveScale() return 1 end
+    function f:GetFrameLevel() return 100 end
     f.ClearAllPoints, f.EnableKeyboard, f.RegisterEvent = noop, noop, noop
     f.SetAlpha, f.SetColor, f.SetLineSize, f.Hide, f.Show = noop, noop, noop, noop, noop
     f._coords, f._label, f._bg, f._border = f, f, f, f
@@ -39,7 +40,11 @@ local fa = {}
 local core = { db = { profile = { frameAnchoring = fa } } }
 local ns = {
     Helpers = { GetCore = function() return core end, SafeToNumber = tonumber },
-    UIKit = { GetPixelSize = function() return 1 end },
+    UIKit = { GetPixelSize = function() return 1 end,
+        CreateIconButton = function()
+            return {SetPoint=function()end, SetFrameLevel=function()end,
+                Show=function()end, Hide=function()end, IsMouseOver=function()return false end}
+        end },
     L = setmetatable({}, { __index = function(_, key) return key end }),
     SafeCall = function(_, fn, ...) return fn(...) end,
     SafeCallMethod = function(_, frame, method, ...) return frame[method](frame, ...) end,

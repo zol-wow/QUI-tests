@@ -9,6 +9,7 @@ local function newFrame(parent)
         _height = 30,
         _mouseOver = false,
         _parent = parent,
+        _settingsButton = false,
         _shown = true,
         _width = 100,
         _x = 960,
@@ -24,6 +25,7 @@ local function newFrame(parent)
     function frame:GetCenter() return self._x, self._y end
     function frame:GetEffectiveScale() return 1 end
     function frame:GetFont() return nil end
+    function frame:GetFrameLevel() return 100 end
     function frame:GetFrameStrata() return "MEDIUM" end
     function frame:GetHeight() return self._height end
     function frame:GetObjectType() return "Frame" end
@@ -77,7 +79,11 @@ local ns = {
     AuraGlue = {},
     AuraSurface = { ApplyElementPass = function() end },
     L = setmetatable({}, { __index = function(_, key) return key end }),
-    UIKit = { GetPixelSize = function() return 1 end },
+    UIKit = { GetPixelSize = function() return 1 end,
+        CreateIconButton = function()
+            return {SetPoint=function()end, SetFrameLevel=function()end,
+                Show=function()end, Hide=function()end, IsMouseOver=function()return false end}
+        end },
 }
 
 ns.Helpers = {
