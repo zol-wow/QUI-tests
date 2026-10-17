@@ -146,6 +146,80 @@ env.SkinBase.HookScrollBoxAcquired = function(scroll, callback, opts)
 end
 env.SkinBase.HookScrollBoxRowFonts = function() end
 env.SkinBase.OnAddOnLoaded = function(_, fn) fn() end
+_G.PetJournal = env.NewFrame("Frame", nil, _G.CollectionsJournal)
+local pet = _G.PetJournal
+pet.Loadout = {}
+local petBars, petSpells = {}, {}
+local function NewPetBar(parent, color)
+    local bar = env.NewFrame("StatusBar", nil, parent)
+    bar.fill = bar:CreateTexture()
+    bar.decoration = bar:CreateTexture()
+    bar.decoration:SetAtlas("PetJournal-ExpBar-Left")
+    bar.rankText = bar:CreateFontString()
+    bar.rankText:SetText("50 / 100")
+    bar.color, bar.value, bar.maximum = color, 50, 100
+    function bar:GetStatusBarTexture() return self.fill end
+    function bar:SetStatusBarTexture(texture) self.fill:SetTexture(texture) end
+    function bar:GetStatusBarColor() return unpack(self.color) end
+    function bar:SetStatusBarColor(...) self.color = { ... } end
+    local enter, leave = function() end, function() end
+    bar:SetScript("OnEnter", enter)
+    bar:SetScript("OnLeave", leave)
+    petBars[#petBars + 1] = { bar = bar, color = color, enter = enter, leave = leave }
+    return bar
+end
+pet.PetCard = env.NewFrame("Frame", nil, pet)
+pet.PetCard.xpBar = NewPetBar(pet.PetCard, { .2, .6, 1, 1 })
+for i = 1, 3 do
+    local slot = env.NewFrame("Button", nil, pet)
+    pet.Loadout["Pet" .. i] = slot
+    slot.qualityBorder = slot:CreateTexture()
+    slot.qualityBorder:SetVertexColor(.1, .4, 1, 1)
+    slot.xpBar = NewPetBar(slot, { .2, .6, 1, 1 })
+    slot.healthFrame = env.NewFrame("Frame", nil, slot)
+    slot.healthFrame.healthBar = NewPetBar(slot.healthFrame, { .1, 1, .1, 1 })
+    for j = 1, 3 do
+        local spell = env.NewFrame("CheckButton", nil, slot)
+        slot["spell" .. j] = spell
+        spell.icon = spell:CreateTexture()
+        spell.icon:SetTexture("native-pet-ability")
+        spell.FlyoutArrow = spell:CreateTexture()
+        spell.BlackCover = spell:CreateTexture()
+        spell.LevelRequirement = spell:CreateFontString()
+        spell.LevelRequirement:SetText("4")
+        local background = spell:CreateTexture()
+        _G["PetJournalLoadoutPet" .. i .. "Spell" .. j .. "Background"] = background
+        local click, enter = function() end, function() end
+        spell:SetScript("OnClick", click)
+        spell:SetScript("OnEnter", enter)
+        petSpells[#petSpells + 1] = { spell = spell, background = background, click = click, enter = enter }
+    end
+end
+pet.SpellSelect = env.NewFrame("Frame", nil, pet)
+local selector = pet.SpellSelect
+selector.BgEnd = selector:CreateTexture()
+selector.BgTiled = selector:CreateTexture()
+local selectorSpells = {}
+for i = 1, 2 do
+    local spell = env.NewFrame("CheckButton", nil, selector)
+    selector["Spell" .. i] = spell
+    spell.icon = spell:CreateTexture()
+    spell.icon:SetTexture("native-selector-ability-" .. i)
+    spell.BlackCover = spell:CreateTexture()
+    spell.LevelRequirement = spell:CreateFontString()
+    spell.LevelRequirement:SetText("10")
+    spell.LevelRequirement:SetTextColor(1, .1, .1, 1)
+    spell.abilityID, spell.petID = 100 + i, "native-pet"
+    spell.checkedTexture = spell:CreateTexture()
+    function spell:SetChecked(value) self.checked = value end
+    function spell:GetChecked() return self.checked end
+    function spell:GetCheckedTexture() return self.checkedTexture end
+    local click, enter = function() end, function() end
+    spell:SetScript("OnClick", click)
+    spell:SetScript("OnEnter", enter)
+    spell:SetChecked(i == 2)
+    selectorSpells[i] = { spell=spell, click=click, enter=enter }
+end
 assert(loadfile(os.getenv("QUI_JOURNALS_SOURCE") or "modules/skinning/frames/journals.lua"))("QUI", env.ns)
 for _, control in ipairs({_G.MountJournal.searchBox, _G.MountJournal.FilterDropdown, _G.MountJournal.MountButton}) do
     local backdrop = env.SkinBase.GetBackdrop(control)
@@ -244,3 +318,45 @@ for _ = 1, 3 do
 end
 assert(collectionRegistrations == registered,
     "collection root/page show and theme refresh must reuse acquired callbacks")
+
+for _, data in ipairs(petBars) do
+    local bar = data.bar
+    assert(bar.decoration:GetAlpha() == 0, "pet XP/health decorative chrome must be suppressed")
+    assert(bar.fill:GetAlpha() == 1, "native pet progress fill must remain visible")
+    for i = 1, 4 do assert(bar.color[i] == data.color[i], "native pet progress colors must survive") end
+    assert(bar.value == 50 and bar.maximum == 100 and bar.rankText:GetText() == "50 / 100", "native pet values and text must survive")
+    assert(bar:GetScript("OnEnter") == data.enter and bar:GetScript("OnLeave") == data.leave, "native pet progress hover handlers must survive")
+    assert(bar._quiRoundedSurface, "pet progress must use rounded QUI chrome")
+    bar.decoration:SetAlpha(1)
+    assert(bar.decoration:GetAlpha() == 0, "native refresh must not restore decorative pet progress chrome")
+end
+for _, data in ipairs(petSpells) do
+    local spell = data.spell
+    assert(data.background:GetAlpha() == 0, "loadout ability ornate frame must be suppressed")
+    assert(env.SkinBase.GetFrameData(spell.icon, "iconBorder")._quiRoundedSurface, "loadout ability icons must use rounded borders")
+    assert(spell.icon.texture == "native-pet-ability" and spell.icon:GetAlpha() == 1, "native ability art must survive")
+    assert(spell.FlyoutArrow:GetAlpha() == 1 and spell.BlackCover:GetAlpha() == 1 and spell.LevelRequirement:GetText() == "4", "native selection/lock states must survive")
+    assert(spell:GetScript("OnClick") == data.click and spell:GetScript("OnEnter") == data.enter, "native ability selection and tooltip handlers must survive")
+end
+for i = 1, 3 do
+    assert(pet.Loadout["Pet" .. i].qualityBorder:GetAlpha() == 1, "native pet quality border must survive")
+end
+print("OK: collections_pet_chrome_test")
+
+assert(selector.BgEnd:GetAlpha() == 0 and selector.BgTiled:GetAlpha() == 0, "ability selector must suppress native flyout chrome")
+assert(env.SkinBase.GetBackdrop(selector)._quiRoundedSurface, "ability selector must use an opaque rounded QUI surface")
+for i, data in ipairs(selectorSpells) do
+    local spell = data.spell
+    assert(env.SkinBase.GetFrameData(spell.icon, "iconBorder")._quiRoundedSurface, "alternate abilities must have rounded icon borders")
+    assert(spell.icon.texture == "native-selector-ability-" .. i and spell.icon:GetAlpha() == 1, "alternate ability art must remain native")
+    assert(spell.abilityID == 100 + i and spell.petID == "native-pet", "ability selection identifiers must remain native")
+    assert(spell:GetScript("OnClick") == data.click and spell:GetScript("OnEnter") == data.enter, "ability changes and tooltips must keep native handlers")
+    assert(spell:GetChecked() == (i == 2), "native selected ability must survive styling")
+    assert(spell.BlackCover:GetAlpha() == 1 and spell.LevelRequirement:GetText() == "10", "locked ability cover and requirement must survive")
+    assert(select(1, spell.LevelRequirement:GetTextColor()) == 1, "level lock must retain semantic red")
+end
+selector.BgEnd:Show()
+selector.BgTiled:SetAlpha(1)
+selector:Fire("OnShow")
+assert(selector.BgEnd:GetAlpha() == 0 and selector.BgTiled:GetAlpha() == 0, "reopened flyout must not restore native decoration")
+print("OK: collections_pet_ability_selector_test")

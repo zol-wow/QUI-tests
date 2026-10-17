@@ -1,13 +1,13 @@
 local env=dofile("tests/helpers/character_chrome_harness.lua").Build()
 local skin,ns=env.SkinBase,env.ns
 env.profile.general.skinInspectFrame=true
-_G.NORMAL_FONT_COLOR={r=1,g=.82,b=0}
+_G.NORMAL_FONT_COLOR={r=1,g=.82352948188782,b=0}
 local function frame(parent) return env.NewFrame("Frame",nil,parent) end
 local root=frame();_G.InspectFrame=root;root.unit="target";root.CloseButton=false
 local guild=frame(root);_G.InspectGuildFrame=guild
 _G.InspectGuildFrameBG=guild:CreateTexture();_G.InspectGuildFrameBG:SetTexture("native-parchment")
 local function text(owner,color)
- local fs=owner:CreateFontString();fs:SetFont("Native text",14,"");fs:SetTextColor(unpack(color or {1,.82,0,1}))
+ local fs=owner:CreateFontString();fs:SetFont("Native text",14,"");fs:SetTextColor(unpack(color or {1,.81960791349411,0,1}))
  function fs:SetFormattedText(pattern,...) self:SetText(string.format(pattern,...)) end
  return fs
 end
@@ -47,7 +47,7 @@ local onload=assert(native:match("(function InspectPVPFrame_OnLoad%b().-\nend)")
 local update=assert(native:match("(function InspectPVPFrame_Update%b().-\nend)"))
 assert(loadstring("local arenaFrames;\n"..onload.."\n"..update))()
 _G.INSPECTED_UNIT="target";_G.MAX_ARENA_TEAMS=2
-_G.INSPECT_HONORABLE_KILLS="Kills: %d";_G.HONOR_LEVEL_LABEL="Honor: %d";_G.PVP_RECORD_DESCRIPTION="%d/%d"
+_G.INSPECT_HONORABLE_KILLS="|cffffd200Kills:|r %d";_G.HONOR_LEVEL_LABEL="Honor: %d";_G.PVP_RECORD_DESCRIPTION="%d/%d"
 _G.GetInspectHonorData=function() return nil,nil,nil,nil,300,nil,15 end
 _G.GetInspectArenaData=function(index) return 1500+index,10,7,0,0 end
 local allowed=true
@@ -63,12 +63,14 @@ assert(guild.Points.LeftCap:GetAlpha()==0 and guild.Points.RightCap:GetAlpha()==
  and guild.Points.Icon:GetAlpha()==1 and guild.Points.SumText.textColor[2]==1,"decorative points caps must clear while achievement icon and green sum remain")
 assert(_G.InspectGuildFrameBannerBorder.texture=="native-banner-border" and _G.InspectGuildFrameBannerBorder:GetAlpha()==1
  and _G.InspectGuildFrameTabardLeftIcon.texture=="native-left","native tabard identity art must remain")
+assert(pvp.HKs:GetText()=="|cffebebebKills:|r 300", "embedded native gold caption must become neutral while the kill value stays unchanged")
 assert(pvp.RatedBG.Rating:GetText()==1800 and pvp.RatedBG.Rating.textColor[2]==.1
  and pvp.RatedSoloShuffle.Record:GetText()=="10/2","native rating/record values and semantic colors must remain")
 local width=guild.Points:GetWidth()
 _G.InspectGuildFrame_Update();_G.InspectPVPFrame_Update();_G.QUI_RefreshInspectColors()
 assert(guild.Points:GetWidth()==width and guildUpdates==before+1 and tabards==2,
  "skin refresh must preserve native measured points layout without guild data/tabard updates")
+assert(pvp.HKs:GetText()=="|cffebebebKills:|r 300", "native honor refresh must retain neutral caption without rewriting its value")
 allowed=false;_G.InspectPVPFrame_Update();_G.QUI_RefreshInspectColors()
 assert(not pvp.RatedBG:IsShown() and not pvp.Arena2v2:IsShown() and not pvp.HonorLevel:IsShown(),
  "native PvP eligibility visibility must remain")

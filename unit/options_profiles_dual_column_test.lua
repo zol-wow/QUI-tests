@@ -435,16 +435,22 @@ for _, invalid in ipairs({ legacyName, "   " }) do
     assert(ok, "invalid new profile name must not throw: " .. tostring(err))
     assert(realDB:GetCurrentProfile() == "Default" and input:GetText() == invalid,
         "rejected creation must preserve the active profile and editable input")
-    ok, err = pcall(switch.SetValue, switch, invalid)
-    assert(ok, "legacy profile selection must not throw: " .. tostring(err))
+end
+local missingLongName = string.rep("y", 51)
+for _, invalid in ipairs({ missingLongName, "   " }) do
+    local ok, err = pcall(switch.SetValue, switch, invalid)
+    assert(ok, "invalid profile selection must not throw: " .. tostring(err))
     assert(realDB:GetCurrentProfile() == "Default" and switch._value == "Default",
         "rejected selection must restore the actual active profile in the dropdown")
-    assert(realDB.sv.profiles[invalid].sentinel, "rejected selection must preserve legacy settings")
 end
 assert(#messages == 4, "each rejected action must explain its error")
 for _, message in ipairs(messages) do
     assert(message:find("between 1 and 50", 1, true), "show the rejected name constraint")
 end
+switch:SetValue(legacyName)
+assert(realDB:GetCurrentProfile() == legacyName and realDB.profile.sentinel,
+    "an existing long profile must remain selectable without changing its settings")
+switch:SetValue("Default")
 local validName = string.rep("é", 50)
 input:SetText(validName)
 create._onClick()
@@ -455,15 +461,16 @@ assert(realDB:GetCurrentProfile() == "Default", "valid existing profiles must re
 _G.print = originalPrint
 
 local currentSpec = 1
-local previousLibrary = LibStub:NewLibrary("LibDualSpec-1.0", 32)
+local previousLibrary = LibStub:NewLibrary("LibDualSpec-1.0", 35)
 local libraryEnv = setmetatable({
     C_SpecializationInfo = {
         GetSpecialization = function() return currentSpec end,
         GetNumSpecializationsForClassID = function() return 2 end,
+        CanPlayerUseTalentUI = function() return true end,
     },
     ClassicExpansionAtLeast = function() return true end,
     ClassicExpansionAtMost = function() return false end,
-    UnitClassBase = function() return "PRIEST", 5 end,
+    UnitClass = function() return "Priest", "PRIEST", 5 end,
     GetSpecializationInfoForClassID = function(_, index) return index, "Spec" .. index end,
     IsLoggedIn = function() return true end,
 }, { __index = _G })
@@ -472,13 +479,13 @@ setfenv(libraryChunk, libraryEnv)
 libraryChunk()
 local dualSpec = LibStub("LibDualSpec-1.0")
 assert(dualSpec == previousLibrary and dualSpec.EnhanceDatabase,
-    "the patched library must upgrade a previously registered minor 32")
+    "the patched library must upgrade a previously registered upstream minor 35")
 local mapping = realDB:RegisterNamespace("LibDualSpec-1.0").char
 mapping.enabled, mapping[1], mapping[2] = true, legacyName, validName
 local ok, err = pcall(dualSpec.EnhanceDatabase, dualSpec, realDB, "QUI")
-assert(ok, "an invalid persisted mapping must not break startup: " .. tostring(err))
-assert(realDB:GetCurrentProfile() == "Default" and mapping[1] == legacyName)
-for _, invalid in ipairs({ legacyName, "   ", "", 42 }) do
+assert(ok, "an existing long persisted mapping must survive startup: " .. tostring(err))
+assert(realDB:GetCurrentProfile() == legacyName and mapping[1] == legacyName)
+for _, invalid in ipairs({ missingLongName, "   ", "", 42 }) do
     mapping[1] = invalid
     currentSpec = 2
     dualSpec.eventFrame:_OnEvent("PLAYER_SPECIALIZATION_CHANGED")
@@ -494,12 +501,28 @@ cards = {}
 Profiles.BuildSpecProfilesContent(NewFrame())
 local specDropdown = cards[4].rows[2].left._widget
 _G.print = function(message) messages[#messages + 1] = message end
-specDropdown:SetValue(legacyName)
+specDropdown:SetValue(missingLongName)
 assert(mapping[1] == "Default" and specDropdown._value == "Default",
     "invalid UI spec selection must preserve and display the actual previous mapping")
+specDropdown:SetValue(legacyName)
+assert(mapping[1] == legacyName and realDB:GetCurrentProfile() == legacyName,
+    "an existing long UI spec selection must persist and activate")
 specDropdown:SetValue(validName)
 assert(mapping[1] == validName and realDB:GetCurrentProfile() == validName,
     "valid UI spec selection must still persist and activate")
 _G.print = originalPrint
+
+ns.Client = { isForever = true }
+_G.TALENT_SPEC_PRIMARY, _G.TALENT_SPEC_SECONDARY = "Primary", "Secondary"
+_G.C_SpecializationInfo = { GetActiveSpecGroup = function() return 2 end }
+_G.GetNumSpecializations = function() error("Forever profile mappings must use dual-spec groups") end
+cards = {}
+Profiles.BuildSpecProfilesContent(NewFrame())
+local foreverCard = cards[4]
+assert(#foreverCard.rows == 2 and foreverCard.rows[2].right,
+    "Forever must display exactly two group mappings in one paired row")
+assert(foreverCard.rows[2].left._settingRowLabel == "Primary"
+    and foreverCard.rows[2].right._settingRowLabel == "Secondary (Active)",
+    "Forever mapping labels and active marker must use talent groups")
 
 print("OK options_profiles_dual_column_test")

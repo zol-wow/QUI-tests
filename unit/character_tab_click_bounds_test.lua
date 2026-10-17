@@ -11,7 +11,17 @@ local bounds = assert(native:match("(function CharacterFrameMixin:UpdateTabBound
 _G.CharacterFrameMixin = {}
 _G.min = math.min
 assert(loadstring("local function CompareFrameSize(a,b) return a:GetWidth() > b:GetWidth() end\n" .. bounds))()
-frame.UpdateTabBounds = _G.CharacterFrameMixin.UpdateTabBounds
+local nativeSort = table.sort
+local nativeSorting = false
+table.sort = function(t, compare)
+    assert(t ~= frame.Tabs or nativeSorting, "QUI must not taint Blizzard CharacterFrame.Tabs by sorting it")
+    return nativeSort(t, compare)
+end
+frame.UpdateTabBounds = function(self)
+    nativeSorting=true
+    _G.CharacterFrameMixin.UpdateTabBounds(self)
+    nativeSorting=false
+end
 frame.GetRight = function() return 540 end
 frame.Tabs = {}
 frame.numTabs, frame.selectedTab = 3, 1
@@ -43,9 +53,9 @@ for _, selected in ipairs({1, 2, 3, 1}) do
     frame:UpdateTabBounds()
     _G.PanelTemplates_UpdateTabs(frame)
     for i, tab in ipairs(frame.Tabs) do
-        assert(tab:GetID() == i, "native width sorting must not corrupt Character tab ID order")
-        assert(tab:IsEnabled() == (i ~= selected), "only the selected Character tab may be disabled")
+        assert(tab:IsEnabled() == (tab:GetID() ~= selected), "only the selected Character tab may be disabled")
     end
     assert(CharacterFrameTab1:GetWidth() == CharacterFrameTab3:GetWidth(), "native width adjustment must retain integrated tab widths")
 end
+table.sort = nativeSort
 print("OK: character_tab_click_bounds_test")

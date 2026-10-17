@@ -165,7 +165,7 @@ Advance(0.249)
 assert(not frame._pageFlyout and selections == 0, "hover waits 250 ms and does not select")
 Advance(0.001)
 local flyout = assert(frame._pageFlyout)
-assert(flyout:IsShown() and selections == 0 and builds > 0, "hover reveals pages without navigating")
+assert(flyout:IsShown() and selections == 0 and builds == 0, "hover reveals pages without navigating")
 assert(flyout._title.textColor[1] == 1 and flyout._title.textColor[2] == 1 and flyout._title.textColor[3] == 1,
     "flyout titles explicitly override the native yellow font template with neutral text")
 assert(flyout._hint.textColor[1] == gui.Colors.textDim[1], "flyout hints retain their intentional dim color")
@@ -465,6 +465,11 @@ for _, sample in ipairs({ {0, 1}, {200, 2}, {430, 3}, {550, 4}, {600, 4}, {430, 
         assert((not not grouped[i].active) == (i == sample[2]), "scroll progress must traverse every section in both directions without a bottom jump")
     end
 end
+-- Geometry settling is covered by options_initial_section_navigation_test;
+-- these fixture owners intentionally contain only navigation data.
+function gui:RunWhenSettingsLayoutReady(_, _, callback, isCurrent)
+    C_Timer.After(0, function() if not isCurrent or isCurrent() then callback() end end)
+end
 sectionTile.index = 20
 sectionTile.config.name = "Sections"
 sectionTile._pageFrame = Node("Frame", frame)
@@ -524,3 +529,30 @@ print("options_navigation_group_context: ok")
 assert(frame._pageFlyout._headings[1]._divider:GetWidth() == frame._pageFlyout._headings[1]:GetStringWidth(), "navigation divider must span its heading text")
 
 assert(frame._pageFlyout._headings[1].fontPath:find("Poppins-Bold.ttf", 1, true), "navigation group headings must use the bundled bold font")
+
+-- Unbuilt sections and nested tabs must be available without renderer work.
+ns.QUI_OptionsNavigationCatalog = {
+    cold = { sections = { { id = "Objective Tracker", label = "Objective Tracker" } } },
+    surface = { tabs = { { key = "general", label = "General" }, { key = "text", label = "Text" } } },
+}
+local cold = frame._tiles[11]
+cold._subPageBodies, cold._surfacePagesByPage = nil, nil
+cold._navigationCatalog = nil
+cold.config.subPages = { { name = "Skinning", featureId = "cold", sectionNav = true } }
+local pages = gui:GetTileNavigationPages(cold)
+assert(#pages == 1 and pages[1].sectionId == "Objective Tracker" and builds == 0)
+cold._navigationCatalog = nil
+cold.config.subPages = { { name = "Frame", featureId = "surface" } }
+pages = gui:GetTileNavigationPages(cold)
+assert(#pages == 2 and pages[2].key == "text" and builds == 0)
+-- The descriptor registered by the first selection, not a stale cold row, wins.
+local selectedCold
+local oldSelect = gui.SelectFeatureTile
+gui.SelectFeatureTile = function(self, f, index, opts)
+    oldSelect(self, f, index, opts)
+    cold._surfacePagesByPage = { [1] = { selectTab = function(key) selectedCold = key end } }
+end
+gui:OpenNavigationFlyout(frame, cold, true)
+frame._pageFlyout._buttons[2]:Fire("OnClick")
+assert(selectedCold == "text", "cold nested page must resolve the newly registered native descriptor")
+print("OK: options_compact_navigation_test")

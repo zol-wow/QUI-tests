@@ -31,6 +31,10 @@ assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Shared/G
 assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/FriendshipStatusBar.lua"))()
 local frame = env.NewFrame("Frame", "GossipFrame")
 _G.GossipFrame = frame
+frame.TitleContainer = {TitleText = frame:CreateFontString()}
+local title = frame.TitleContainer.TitleText
+function title:SetFontObject() self:SetTextColor(1, 0.82, 0, 1) end
+title:SetFontObject("GameFontNormal")
 frame.Background = frame:CreateTexture()
 local greeting = env.NewFrame("Frame", nil, frame)
 frame.GreetingPanel = greeting
@@ -104,6 +108,9 @@ skin.OnAddOnLoaded = function(name, fn) if name == "Blizzard_UIPanels_Game" then
 ns.Registry = {Register = function(_, key, entry) if key == "skinGossip" then refresh = entry.refresh end end}
 assert(loadfile(arg[1] or "modules/skinning/frames/interaction.lua"))("QUI", ns)
 callback()
+title:SetFontObject("GameFontNormal")
+assert(title.textColor[1] == 1 and title.textColor[2] == 1 and title.textColor[3] == 1,
+    "native title font reassignment must retain neutral gossip chrome")
 assert(skin.IsStyled(goodbye), "native Goodbye action must be styled")
 assert(skin.GetBackdrop(option)._quiRoundedSurface and skin.GetBackdrop(quest)._quiRoundedSurface,
     "native option and quest rows must have rounded interactive surfaces")

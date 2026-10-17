@@ -3,10 +3,10 @@
 This snapshot is reference material for porting QUI. Its presence and the TOC
 interface declaration do not establish runtime compatibility.
 
-- Client build: **1.60.1.70245**; interface **16001**.
-- Source: [Gethe/wow-ui-source, forever](https://github.com/Gethe/wow-ui-source/tree/15666a6e67938a1ab5caf041406464251db111ca).
-- Pinned commit: `15666a6e67938a1ab5caf041406464251db111ca`.
-- Vendored: 2026-10-07; 4,422 files in `framexml/Interface/` and 640 generated
+- Client build: **1.60.1.70425**; interface **16001**.
+- Source: [Gethe/wow-ui-source, forever](https://github.com/Gethe/wow-ui-source/tree/b401e0332adfbf0460d319b06d8ea29279a941f1).
+- Pinned commit: `b401e0332adfbf0460d319b06d8ea29279a941f1`.
+- Vendored: 2026-10-16; 4,489 files in `framexml/Interface/` and 642 generated
   documentation Lua files in `api-docs/blizzard/`.
 
 `framexml/Interface/` is an exact copy of the pinned upstream `Interface/` tree.

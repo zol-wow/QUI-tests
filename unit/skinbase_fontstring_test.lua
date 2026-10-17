@@ -98,6 +98,7 @@ local ns = {
         GetCore = function() return { GetPixelSize = function() return 0.5 end,
             db = { profile = { general = { applyGlobalFontToBlizzard = true } } } } end,
         SafeToNumber = function(v, d) return tonumber(v) or d end,
+        IsSecretValue = function() return false end,
         GetSkinBorderColor = function() return 0.6, 0.7, 0.8, 1 end,
         GetSkinBgColorWithOverride = function() return 0.1, 0.2, 0.3, 0.9 end,
         GetSkinBarColor = function() return 0.5, 0.5, 0.5, 1 end,
@@ -220,6 +221,7 @@ do
                     db = { profile = { general = { applyGlobalFontToBlizzard = false } } } }
             end,
             SafeToNumber = ns.Helpers.SafeToNumber,
+            IsSecretValue = ns.Helpers.IsSecretValue,
             GetSkinBorderColor = ns.Helpers.GetSkinBorderColor,
             GetSkinBgColorWithOverride = ns.Helpers.GetSkinBgColorWithOverride,
             GetSkinBarColor = ns.Helpers.GetSkinBarColor,

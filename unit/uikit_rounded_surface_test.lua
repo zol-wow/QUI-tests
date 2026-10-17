@@ -12,7 +12,7 @@ local kit = {
     RegisterScaleRefresh = function(_, _, fn) refreshCallbacks[#refreshCallbacks + 1] = fn end,
 }
 local loader = assert(compile("return function(UIKit, Helpers, GetPixelSize, Round, floor, unpack)\n" .. code .. "\nend"))
-loader()(kit, {AssetPath = "Interface\\AddOns\\QUI\\assets\\"}, function() return scale end,
+loader()(kit, {AssetPath = "Interface\\AddOns\\QUI\\assets\\", IsSecretValue = function() return false end}, function() return scale end,
     function(value) return math.floor(value + 0.5) end, math.floor, unpack or table.unpack)
 local frame = {width = 800, height = 600, textures = {}, hooks = {}}
 function frame:GetWidth() return self.width end

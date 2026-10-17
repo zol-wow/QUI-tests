@@ -231,7 +231,8 @@ function WorldMapTrackingOptionsButtonMixin:SetupMenu()
 		local mapID = self:GetParent():GetMapID();
 		local prof1, prof2, arch, fish, cook, firstAid = GetProfessions();
 
-		rootDescription:CreateTitle(WORLD_MAP_FILTER_LABEL_SHOW);
+		local title = self:GetParent():ShouldCombineMapAndQuestMenu() and WORLD_MAP_FILTER_TITLE_SHOW_MAP or WORLD_MAP_FILTER_LABEL_SHOW;
+		rootDescription:CreateTitle(title);
 
 		local function AddFilter(parent, cvarName)
 			local filter = self:GetWorldMapFilter(cvarName);
@@ -320,11 +321,32 @@ function WorldMapTrackingOptionsButtonMixin:SetupMenu()
 		if arch then
 			AddFilter(rootDescription, "digSites");
 		end
+
+		if self:GetParent():ShouldCombineMapAndQuestMenu() then
+			local function IsSelected()
+				return GetCVarBool("showQuestObjectivesInLog");
+			end
+
+			local function SetSelected()
+				SetCVar("showQuestObjectivesInLog", not IsSelected());
+				QuestLogQuests_Update();
+			end
+
+			rootDescription:QueueSpacer();
+			rootDescription:QueueDivider();
+			rootDescription:QueueSpacer();
+			rootDescription:CreateTitle(WORLD_MAP_FILTER_TITLE_SHOW_QUEST_LOG);
+			rootDescription:CreateCheckbox(QUEST_LOG_SHOW_OBJECTIVES, IsSelected, SetSelected);
+		end
 	end);
 end
 
 function WorldMapTrackingOptionsButtonMixin:BuildGameSpecificFilterTable(addFilter)
 	-- overriden for game specific implementations
+end
+
+function WorldMapTrackingOptionsButtonMixin:CanShowDungeonEntrancesOnMapFilterOption()
+	return true;
 end
 
 function WorldMapTrackingOptionsButtonMixin:BuildFilterTable()
@@ -339,7 +361,9 @@ function WorldMapTrackingOptionsButtonMixin:BuildFilterTable()
 	AddFilter(SHOW_WORLD_QUESTS_ON_MAP_TEXT, "questPOIWQ", WORLD_QUESTS_FILTER_DESCRIPTION);
 	AddFilter(SHOW_PRIMARY_PROFESSION_ON_MAP_TEXT, "primaryProfessionsFilter");
 	AddFilter(SHOW_SECONDARY_PROFESSION_ON_MAP_TEXT, "secondaryProfessionsFilter");
-	AddFilter(SHOW_INSTANCE_ENTRANCES_ON_MAP_TEXT, "showDungeonEntrancesOnMap", INSTANCE_ENTRANCES_FILTER_DESCRIPTION);
+	if self:CanShowDungeonEntrancesOnMapFilterOption() then
+		AddFilter(SHOW_INSTANCE_ENTRANCES_ON_MAP_TEXT, "showDungeonEntrancesOnMap", INSTANCE_ENTRANCES_FILTER_DESCRIPTION);
+	end
 	AddFilter(CONTENT_TRACKING_MAP_TOGGLE, "contentTrackingFilter", TRACKED_ITEMS_FILTER_DESCRIPTION);
 	AddFilter(MINIMAP_TRACKING_TRIVIAL_QUESTS, "trivialQuests", TRIVIAL_QUESTS_FILTER_DESCRIPTION, Enum.MinimapTrackingFilter.TrivialQuests, true);
 
@@ -374,8 +398,16 @@ function WorldMapTrackingOptionsButtonMixin:Refresh()
 	self:GetParent():RefreshAllDataProviders();
 end
 
+function WorldMapTrackingOptionsButtonMixin:CanShowRefreshAccountCompletedQuestFilterTutorial()
+	return true;
+end
+
 function WorldMapTrackingOptionsButtonMixin:RefreshAccountCompletedQuestFilterTutorial()
 	HelpTip:Hide(self, ACCOUNT_COMPLETED_QUESTS_FILTER_TUTORIAL);
+
+	if not self:CanShowRefreshAccountCompletedQuestFilterTutorial() then
+		return;
+	end
 
 	local tutorialAcknowledged = GetCVarBitfield("closedInfoFramesAccountWide", Enum.FrameTutorialAccount.CompletedQuestsFilter);
 	if tutorialAcknowledged then

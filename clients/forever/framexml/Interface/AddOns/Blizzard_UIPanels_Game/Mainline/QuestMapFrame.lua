@@ -1077,8 +1077,8 @@ function QuestMapFrame_ShowQuestDetails(questID)
 	QuestMapFrame.QuestsFrame.ScrollFrame:Hide();
 	detailsFrame:Show();
 
-	-- save current view
-	detailsFrame.returnMapID = QuestMapFrame:GetParent():GetMapID();
+	-- save current view; SetMapID below re-enters this function, so keep the first value
+	detailsFrame.returnMapID = detailsFrame.returnMapID or QuestMapFrame:GetParent():GetMapID();
 
 	-- destination/waypoint
 	local ignoreWaypoints = false;
@@ -1628,7 +1628,7 @@ local function QuestLogQuests_GetTitle(displayState, info)
 		end
 	end
 
-	local prefix = QuestMapFrameOverrides.GetQuestTitlePrefix(info);
+	local prefix = QuestUtilsOverrides.GetQuestTitlePrefix(info);
 	if prefix then
 		title = prefix .. title;
 	end
@@ -1830,7 +1830,7 @@ local function QuestLogQuests_AddQuestButton(displayState, info)
 	local difficultyColor = GetDifficultyColor(C_PlayerInfo.GetContentDifficultyQuestForPlayer(questID));
 	SetupQuestTitleTextColor(button, difficultyColor);
 
-	local tagText = QuestMapFrameOverrides.GetQuestTagText(info);
+	local tagText = QuestUtilsOverrides.GetQuestTagText(questID);
 	button.TagText:SetShown(tagText ~= nil);
 	if tagText then
 		button.TagText:SetText(tagText);

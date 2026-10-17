@@ -66,7 +66,7 @@ _G.GetAchievementInfo=function(category,index)
     return id,data.name,data.points,data.completed,10,9,26,data.description,data.flags,data.icon,data.reward or "",false,data.wasEarnedByMe,"Native earner"
 end
 _G.GetAchievementCategory=function() return 99 end
-local legacyFile=assert(io.open("tests/clients/forever/framexml/Interface/AddOns/Blizzard_LegacySystem/Blizzard_LegacyChallenges.lua"))
+local legacyFile=assert(io.open("tests/clients/forever/framexml/Interface/AddOns/Blizzard_LegacySystem/Blizzard_LegacyAchievementOverrides.lua"))
 local legacyOverrides=legacyFile:read("*a");legacyFile:close()
 _G.Constants.LegacyConsts={LEGACY_POINTS_TRAIT_CURRENCY_ID=7}
 _G.C_Traits={GetTraitCurrencyForAchievement=function(currency,id) assert(currency==7);return info[id].points end}

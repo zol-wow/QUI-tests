@@ -363,11 +363,6 @@ function PaperDollFrame_OnLoad(self)
 		verticalAnchorY = 0,
 	};
 
-	-- trial edition
-	if( GameLimitedMode_IsActive() ) then
-		CharacterTrialLevelErrorText:SetText(CAPPED_LEVEL_TRIAL);
-	end
-
 	PaperDollSidebarTab1.Icon:SetTexCoord(0.03125, 0.96875, 0.03125, 0.96875);
 	PaperDollSidebarTab1.Icon:SetSize(36, 33);
 	PaperDollSidebarTab1.Icon:SetPoint("CENTER", 0, 0);
@@ -517,25 +512,16 @@ function PaperDollFrame_SetLevel()
 		CharacterLevelText:SetFormattedText(PLAYER_LEVEL_NO_SPEC, level, classColorString, classDisplayName);
 	end
 
-	local showTrialCap = false;
-	if (GameLimitedMode_IsActive()) then
-		local rLevel = GetRestrictedAccountData();
-		if (UnitLevel("player") >= rLevel) then
-			showTrialCap = true;
-		end
-	end
+end
 
-	CharacterTrialLevelErrorText:SetShown(showTrialCap);
-
-	PetLoyaltyText:Hide();
+local function PaperDollFrame_SetLevelInfoMode(isPet)
+	PaperDollLevelInfo:SetShown(not isPet);
+	PaperDollPetLevelInfo:SetShown(isPet);
 end
 
 function PaperDollFrame_SetPetLevel()
 	if not HasPetUI() then
 		return;
-	end
-	if ( UnitCreatureFamily("pet") ) then
-		CharacterLevelText:SetFormattedText(UNIT_TYPE_LEVEL_TEMPLATE, UnitLevel("pet"), UnitCreatureFamily("pet"));
 	end
 
 	local exp, expNeeded = GetPetExperience();
@@ -546,15 +532,14 @@ function PaperDollFrame_SetPetLevel()
 		PetPaperDollFrameExpBar:Hide();
 	end
 
-	if C_PetInfo.GetPetLoyalty() then
-		CharacterLevelText:SetFormattedText(UNIT_TYPE_LEVEL_TEMPLATE, UnitLevel("pet"), UnitCreatureFamily("pet") or "");
-		PetLoyaltyText:SetText(C_PetInfo.GetPetLoyalty());
-		PetLoyaltyText:Show();
-		PaperDollLevelInfo:SetHeight(40);
-	else
-		PetLoyaltyText:Hide();
-		PaperDollLevelInfo:SetHeight(20);
+	local petText = UNIT_TYPE_LEVEL_TEMPLATE:format(UnitLevel("pet"), UnitCreatureFamily("pet") or "");
+	local petLoyaltyText = C_PetInfo.GetPetLoyalty();
+	if petLoyaltyText and petLoyaltyText ~= "" then
+		local loyaltyText = HIGHLIGHT_FONT_COLOR:WrapTextInColorCode(PARENS_TEMPLATE:format(petLoyaltyText));
+		petText = petText .. " " .. loyaltyText;
 	end
+
+	PetCharacterLevelText:SetText(petText);
 
 end
 
@@ -634,7 +619,12 @@ function PaperDollFrame_SetHealth(statFrame, unit)
 	if (unit == "player") then
 		statFrame.tooltip2 = STAT_HEALTH_TOOLTIP;
 	elseif (unit == "pet") then
-		statFrame.tooltip2 = STAT_HEALTH_PET_TOOLTIP;
+		local _className, classFilename = UnitClass("player");
+		if classFilename == "WARLOCK" then
+			statFrame.tooltip2 = STAT_WARLOCK_HEALTH_PET_TOOLTIP;
+		else
+			statFrame.tooltip2 = STAT_HEALTH_PET_TOOLTIP;
+		end
 	end
 	statFrame:Show();
 
@@ -651,7 +641,11 @@ function PaperDollFrame_SetPower(statFrame, unit)
 	if (powerToken and _G[powerToken]) then
 		PaperDollFrame_SetLabelAndText(statFrame, _G[powerToken], powerText, false, power);
 		statFrame.tooltip = HIGHLIGHT_FONT_COLOR_CODE..format(PAPERDOLLFRAME_TOOLTIP_FORMAT, _G[powerToken]).." "..powerText..FONT_COLOR_CODE_CLOSE;
-		statFrame.tooltip2 = _G["STAT_"..powerToken.."_TOOLTIP"];
+		if unit == "pet" and powerToken == "MANA" then
+			statFrame.tooltip2 = STAT_WARLOCK_PET_MANA_TOOLTIP;
+		else
+			statFrame.tooltip2 = _G["STAT_"..powerToken.."_TOOLTIP"];
+		end
 		statFrame:Show();
 	else
 		statFrame:Hide();
@@ -701,6 +695,8 @@ function PaperDollFrame_SetStat(statFrame, unit, statIndex)
 	-- positive buffs. Otherwise show in green.
 	if ( negBuff < 0 and not GetPVPGearStatRules() ) then
 		effectiveStatDisplay = RED_FONT_COLOR_CODE..effectiveStatDisplay..FONT_COLOR_CODE_CLOSE;
+	elseif ( posBuff > 0 ) then
+		effectiveStatDisplay = GREEN_FONT_COLOR:WrapTextInColorCode(effectiveStatDisplay);
 	end
 
 	PaperDollFrame_SetLabelAndText(statFrame, statName, effectiveStatDisplay, false, effectiveStat);
@@ -710,10 +706,20 @@ function PaperDollFrame_SetStat(statFrame, unit, statIndex)
 	return effectiveStat;
 end
 
+function PaperDollFrame_FormatBonusValue(valueText, bonus)
+	if bonus > 0 then
+		return GREEN_FONT_COLOR:WrapTextInColorCode(valueText);
+	end
+
+	return valueText;
+end
+
 function PaperDollFrame_SetResistance(statFrame, unit, damageClass)
 	local baseResistance, realResistance, effectiveResistance, bonusResistance = UnitResistance(unit, damageClass);
 	local nameToken =  _G["RESISTANCE"..(damageClass).."_NAME"];
-	PaperDollFrame_SetLabelAndText(statFrame, nameToken, BreakUpLargeNumbers(effectiveResistance), false, effectiveResistance);
+	local valueText = BreakUpLargeNumbers(effectiveResistance);
+	valueText = PaperDollFrame_FormatBonusValue(valueText, bonusResistance);
+	PaperDollFrame_SetLabelAndText(statFrame, nameToken, valueText, false, effectiveResistance);
 
 	PaperDollFrame_SetResistanceTooltips(statFrame, nameToken, effectiveResistance, unit, damageClass);
 
@@ -779,7 +785,14 @@ function PaperDollFrame_SetStagger(statFrame, unit)
 end
 
 function PaperDollFrame_SetDodge(statFrame, unit)
-	if (unit ~= "player") then
+	if unit == "pet" then
+		local petChance = GetPetDodgeChance();
+		PaperDollFrame_SetLabelAndText(statFrame, STAT_DODGE, format("%.1f%%", petChance), false, petChance);
+		PaperDollFrame_SetDodgeTooltip(statFrame, petChance);
+		statFrame.tooltip2 = format(CR_PET_DODGE_BASE_STAT_TOOLTIP, petChance);
+		statFrame:Show();
+		return petChance;
+	elseif (unit ~= "player") then
 		statFrame:Hide();
 		return;
 	end
@@ -1216,7 +1229,9 @@ function PaperDollFrame_SetRuneRegen(statFrame, unit)
 end
 
 function PaperDollFrame_SetManaRegen(statFrame, unit)
-	if ( unit ~= "player" ) then
+	if unit == "pet" then
+		return PaperDollFrame_SetWarlockPetManaRegen(statFrame);
+	elseif ( unit ~= "player" ) then
 		statFrame:Hide();
 		return;
 	end
@@ -1495,6 +1510,7 @@ end
 
 function PaperDollFrame_OnShow(self)
 	CharacterStatsPane.initialOffsetY = 0;
+	PaperDollFrame_SetLevelInfoMode(false);
 	PaperDollFrame_SetLevel();
 	PaperDollFrame_UpdateStats();
 
@@ -1700,7 +1716,6 @@ function PaperDollFrameMixin:SetupGamepad()
 	local resetCharacterViewer = GamepadSharedUtility.CreatePromptedBinding(GAMEPAD_FACE_TOP, nil, ACTION_LABEL_RESET_VIEW);
 
 	self.CharacterViewerFooter = GamepadSharedUtility.CreatePromptedBindingFooter(CharacterFrame, "CharacterViewerFooter");
-	self.CharacterViewerFooter:SetAnchorOffsets(0, -40);
 	self.CharacterViewerFooter:AddPromptedBinding(panCharacterViewer);
 	self.CharacterViewerFooter:AddPromptedBinding(zoomTurnCharacterViewer);
 	self.CharacterViewerFooter:AddPromptedBinding(resetCharacterViewer);
@@ -1769,6 +1784,22 @@ function PaperDollFrameMixin:CreateGamepadPromptedBindings()
 
 	local function IsToggleCompareCheckedFunc()
 		return C_CVar.GetCVarBool("alwaysCompareItems");
+	end
+
+	local function ShareInChatFunc()
+		GamepadMode.FrameControlsManager:UnsuspendAllFrames();
+		local focusedButton = SmartNavigation:GetCurrentButton();
+		local item = focusedButton and Item:CreateFromEquipmentSlot(focusedButton:GetID());
+		local itemLink = item and item:GetItemLink();
+		if itemLink and not ChatFrameUtil.InsertLink(itemLink) then
+			ChatFrameUtil.OpenChat(itemLink);
+		end
+	end
+
+	local function IsShareItemValidFunc()
+		local button = SmartNavigation:GetCurrentButton();
+		local item = button and Item:CreateFromEquipmentSlot(button:GetID());
+		return item and item:GetItemLink();
 	end
 
 	local function BindItemFunc()
@@ -1872,6 +1903,7 @@ function PaperDollFrameMixin:CreateGamepadPromptedBindings()
 	moreEquipmentActions:AddButtonContext("ButtonContext_PaperDollItemSlotButton");
 	moreEquipmentActions:AddMoreActionsEntry(FRAME_ACTION_TOGGLE_ITEM_COMPARE, ToggleCompareFunc, nil, IsToggleCompareCheckedFunc);
 	moreEquipmentActions:AddMoreActionsEntry(CONTEXT_ACTION_LABEL_BIND_TO_GAMEPAD_ACTION_BAR, BindItemFunc, IsBindItemValidFunc, nil);
+	moreEquipmentActions:AddMoreActionsEntry(SHARE_IN_CHAT, ShareInChatFunc, IsShareItemValidFunc, nil);
 	moreEquipmentActions:AddMoreActionsEntry(CONTEXT_ACTION_LABEL_USE, UseItemFunc, CanUseItemFunc, nil);
 
 	table.insert(promptedBindings, repairSingleItem);
@@ -2148,7 +2180,10 @@ function PaperDollItemSlotButton_Update(self)
 	local hasItem = textureName ~= nil;
 	if ( hasItem ) then
 		SetItemButtonTexture(self, textureName);
-		SetItemButtonCount(self, GetInventoryItemCount("player", self:GetID()));
+		-- The backpack shares ID 0 with the ammo slot but only the ammo slot should display the ammo count.
+		if not (self.IsBackpack and self:IsBackpack()) then
+			SetItemButtonCount(self, GetInventoryItemCount("player", self:GetID()));
+		end
 		if ( GetInventoryItemBroken("player", self:GetID())
 		  or GetInventoryItemEquippedUnusable("player", self:GetID()) ) then
 			SetItemButtonTextureVertexColor(self, 0.9, 0, 0);
@@ -2304,6 +2339,8 @@ function PaperDollFormatStat(name, base, posBuff, negBuff)
 		-- positive buffs. Otherwise show the number in green
 		if ( negBuff < 0 and not GetPVPGearStatRules() ) then
 			effectiveText = RED_FONT_COLOR_CODE..effectiveText..FONT_COLOR_CODE_CLOSE;
+		elseif ( posBuff > 0 ) then
+			effectiveText = GREEN_FONT_COLOR:WrapTextInColorCode(effectiveText);
 		end
 	end
 	return effectiveText, text;
@@ -2371,7 +2408,7 @@ function PaperDollFrame_UpdateStats()
 		PaperDollFrame_UpdateStatsInternal();
 	end
 
-	if HasPetUI() and CharacterStatsPanePetScrollBox then
+	if HasPetUI() and UnitExists("pet") and CharacterStatsPanePetScrollBox then
 		CharacterStatsPanePetScrollBox:UpdateStats();
 	end
 end
@@ -3411,12 +3448,6 @@ function PaperDollFrame_SetSidebar(self, index)
 			barFrame:Hide();
 		end
 
-		if index == 4 then
-			CharacterFrameRightPaneHostStoneBg:SetAtlas("UI-Character-Info-Stat-StoneBG2", true);
-		else
-			CharacterFrameRightPaneHostStoneBg:SetAtlas("UI-Character-Info-Stat-StoneBG", true);
-		end
-
 		frame:Show();
 		PaperDollFrame_ShowSidebar(frame);
 		PaperDollFrame.currentSideBar = frame;
@@ -3453,6 +3484,7 @@ end
 function PaperDollFrame_ShowSidebar(frame)
 	if frame == CharacterStatsPanePetScrollBox then
 		-- Show pet model and elements
+		PaperDollFrame_SetLevelInfoMode(true);
 		PaperDollItemsFrame:Hide();
 
 		PetPaperDollFrameExpBar:Show();
@@ -3462,6 +3494,7 @@ function PaperDollFrame_ShowSidebar(frame)
 		PaperDollFrame_SetPet();
 	else
 		-- Restore character elements when switching back
+		PaperDollFrame_SetLevelInfoMode(false);
 		PaperDollItemsFrame:Show();
 
 		PetPaperDollFrameExpBar:Hide();
@@ -3469,8 +3502,6 @@ function PaperDollFrame_ShowSidebar(frame)
 		PaperDollFrame_SetLevel();
 
 		PaperDollFrame_SetPlayer();
-
-		ModelSceneUtil.SetPlayerActor(CharacterModelScene);
 
 		-- The sidebar updates after the main PaperDollFrame is shown, so we need to wait for this before parsing gamepad focus.
 		if InputUtil.IsGamepadUIEnabled() then
@@ -3654,8 +3685,12 @@ function PetExpColoredProgressBarMixin:OnLoad()
 	self:SetFillTextureByColorType(ColoredProgressBarMixin.ColorType.Green);
 end
 
+function PetExpColoredProgressBarMixin:GetPetExperience()
+	return GetPetExperience();
+end
+
 function PetExpColoredProgressBarMixin:OnUpdate()
-	local currXP, nextXP = GetPetExperience();
+	local currXP, nextXP = self:GetPetExperience();
 	local percent = 0;
 	if nextXP ~= 0 then
 		percent = currXP / nextXP;

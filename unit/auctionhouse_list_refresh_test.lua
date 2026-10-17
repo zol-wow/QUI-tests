@@ -1,3 +1,4 @@
+local function test(pathKey)
 local env=dofile("tests/helpers/character_chrome_harness.lua").Build()
 local skin,ns=env.SkinBase,env.ns
 env.profile.general.skinAuctionHouse=true
@@ -16,11 +17,14 @@ local paths={
  all={"AuctionsFrame","AllAuctionsList"},
  ownedcommodity={"AuctionsFrame","CommoditiesList"},
  owneditem={"AuctionsFrame","ItemList"},
+ itemsell={"ItemSellList"},
+ commoditysell={"CommoditiesSellList"},
 }
-local path=assert(paths[arg[2] or "browse"])
+local path=assert(paths[pathKey])
 local panel=frame(nil,ah);ah[path[1]]=panel
 panel.BackButton=false;panel.CancelAuctionButton=false
-local list=frame(nil,panel);panel[path[2]]=list
+local list=path[2] and frame(nil,panel) or panel
+if path[2] then panel[path[2]]=list end
 local refresh=frame(nil,list);list.RefreshFrame=refresh
 local button=frame("Button",refresh);refresh.RefreshButton=button
 button.Icon=button:CreateTexture();button.Icon:SetAtlas("UI-RefreshButton")
@@ -130,3 +134,10 @@ list:SetState(1)
 assert(list.ResultsText.textColor[1]==.9 and list.ResultsText.textColor[4]==.8,
  "native normal-color reuse must restore neutral caption without changing opacity")
 print("auctionhouse_list_refresh_test: PASS")
+end
+
+for _, pathKey in ipairs(arg[2] and {arg[2]} or {
+ "browse", "commodity", "item", "summary", "bids", "all", "ownedcommodity", "owneditem", "itemsell", "commoditysell",
+}) do
+ test(pathKey)
+end

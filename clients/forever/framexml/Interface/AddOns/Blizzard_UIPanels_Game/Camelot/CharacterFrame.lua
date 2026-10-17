@@ -330,8 +330,10 @@ function CharacterFrameMixin:HidePaperDollRightPane()
 		GetPaperDollSideBarFrame(i):Hide();
 	end
 
+	local isPetPage = PaperDollFrame.currentSideBar == CharacterStatsPanePetScrollBox;
 	PaperDollSidebarTabs:Hide();
-	PaperDollLevelInfo:Hide();
+	PaperDollLevelInfo:SetShown(not isPetPage);
+	PaperDollPetLevelInfo:SetShown(isPetPage);
 end
 
 function CharacterFrameMixin:UpdateRightPaneToggleButton()
@@ -633,10 +635,7 @@ function CharacterFrameMixin:SetupGamepad()
 	end
 
 	local function SetUpLegend()
-		local LEGEND_VERTICAL_OFFSET = -12;
-
 		self.leftFooter = GamepadSharedUtility.CreatePromptedBindingFooter(self, "CharacterLeftFooter");
-		self.leftFooter:SetAnchorOffsets(0, LEGEND_VERTICAL_OFFSET);
 		self.leftFooter:AddPromptedBindings(PaperDollFrame:CreateGamepadPromptedBindings());
 		self.leftFooter:AddNonFallbackSelectPrompt();
 		self.leftFooter:AddStandardFrameControlManagerBindings(self);
@@ -644,7 +643,6 @@ function CharacterFrameMixin:SetupGamepad()
 		self.leftFooter:Finalize();
 
 		self.rightFooter = GamepadSharedUtility.CreatePromptedBindingFooter(self, "CharacterRightFooter");
-		self.rightFooter:SetAnchorOffsets(0, LEGEND_VERTICAL_OFFSET);
 		self.rightFooter:AddPromptedBindings(PaperDollFrame.EquipmentManagerPane:CreateGamepadPromptedBindings());
 		self.rightFooter:AddNonFallbackSelectPrompt();
 		self.rightFooter:AddStandardFrameControlManagerBindings(self);
@@ -815,11 +813,14 @@ end
 function CharacterFrameMixin:Expand()
 	self.Expanded = true;
 
+	local isPetPage = PaperDollFrame:IsShown() and PaperDollFrame.currentSideBar == CharacterStatsPanePetScrollBox;
+	PaperDollLevelInfo:SetShown(not isPetPage);
+	PaperDollPetLevelInfo:SetShown(isPetPage);
+
 	if self:IsRightPaneCollapsed() then
 		self:HidePaperDollRightPane();
 	else
 		PaperDollSidebarTabs:Show();
-		PaperDollLevelInfo:Show();
 
 		if (PaperDollFrame:IsShown() and PaperDollFrame.currentSideBar) then
 			PaperDollFrame.currentSideBar:Show();
@@ -1210,16 +1211,19 @@ function CharacterStatsPaneScrollBoxMixin:UpdateStats()
 		tinsert(self.elementData, headerData);
 
 		for statIndex, resistanceData in ipairs(RESISTANCE_STAT_ENTRIES) do
-			local _baseResistance, effectiveResistance = UnitResistance(unit, resistanceData.damageClass);
+			local _baseResistance, _realResistance, effectiveResistance, bonusResistance = UnitResistance(unit, resistanceData.damageClass);
 			local tooltipData = {};
 			PaperDollFrame_SetResistanceTooltips(tooltipData, resistanceData.name, effectiveResistance, unit, resistanceData.damageClass);
+
+			local valueText = BreakUpLargeNumbers(effectiveResistance);
+			valueText = PaperDollFrame_FormatBonusValue(valueText, bonusResistance);
 
 			local statData = {
 				isHeader = false,
 				statIndex = statIndex,
 				atlas = resistanceData.atlas,
 				labelText = resistanceData.name,
-				valueText = BreakUpLargeNumbers(effectiveResistance),
+				valueText = valueText,
 				numericValue = effectiveResistance,
 				tooltip = tooltipData.tooltip,
 				tooltip2 = tooltipData.tooltip2,

@@ -5,7 +5,13 @@ local function frame(parent)
  local f=env.NewFrame("Frame",nil,parent);f.RegisterForWidgetSet=false;f.DisabledTexture=false;return f
 end
 local root=frame();_G.ProfessionsCustomerOrdersFrame=root
+root.TitleContainer=frame(root);root.TitleContainer.TitleText=root.TitleContainer:CreateFontString()
+root.TitleContainer.TitleText:SetText("Place Crafting Order");root.TitleContainer.TitleText:SetTextColor(1,.82,0,1)
 local form=frame(root);root.Form=form;form.BackButton=false
+form.MinimumQuality=frame(form);form.MinimumQuality.Text=form.MinimumQuality:CreateFontString()
+form.MinimumQuality.Text:SetText("Minimum Quality:");form.MinimumQuality.Text:SetTextColor(1,.82,0,1)
+form.OrderRecipientTarget=frame(form);local to=form.OrderRecipientTarget:CreateFontString()
+to:SetText("To:");to:SetTextColor(1,.82,0,1)
 form.RecipeHeader=form:CreateTexture();form.RecipeHeader:SetAtlas("CraftingOrders-Header-Frame")
 form.RecipeHeader:SetSize(490,70);form.RecipeHeader:SetPoint("TOPLEFT",form,"TOPLEFT",8,-10)
 for _,key in ipairs({"RecipeName","RecraftRecipeName","ProfessionText","OrderStateText"}) do
@@ -101,6 +107,12 @@ assert(form.RecraftRecipeName:GetText()=="Recraft: |cffaa22ffNative quality item
 linked=false;form.order.isRecraft=false;form:InitSchematic();loaders[4]()
 assert(form.RecipeName:GetText()=="Native schematic" and form.RecipeName.textColor[2]==.82,
  "native no-link title must retain fallback name and normal color")
+assert(root.TitleContainer.TitleText.textColor[2]==1 and form.MinimumQuality.Text.textColor[2]==.9
+ and to.textColor[2]==.9,"static title and order labels must use neutral text")
+root.TitleContainer.TitleText:SetFontObject("GameFontNormal")
+form.MinimumQuality.Text:SetFontObject("GameFontNormal")
+assert(root.TitleContainer.TitleText.textColor[2]==1 and form.MinimumQuality.Text.textColor[2]==.9,
+ "native font assignment must retain neutral chrome colors")
 local before=updates
 _G.QUI_RefreshCraftingOrdersColors()
 assert(updates==before and #loaders==4 and form.OrderStateText:GetText()=="Native completed state"

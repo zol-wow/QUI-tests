@@ -7,6 +7,8 @@ dofile("tests/clients/forever/api-docs/blizzard/BagIndexConstantsDocumentation.l
 Enum.PlayerInteractionType = { Banker = 1, CharacterBanker = 2, AccountBanker = 3 }
 local ns = loader.LoadAll();
 (dofile("tests/helpers/locale.lua"))(ns)
+local forever = not arg or arg[1] ~= "retail"
+ns.Client = { isForever = forever }
 StaticPopupDialogs = {}
 CreateFromMixins = function(...) local result = {}; for i = 1, select("#", ...) do
     for key, value in pairs(select(i, ...)) do result[key] = value end
@@ -36,6 +38,8 @@ function methods:Hide() self.shown = false end
 function methods:IsShown() return self.shown end
 function methods:SetShown(value) self.shown = value end
 function methods:SetEnabled(value) self.enabled = value end
+function methods:SetAlpha(value) self.alpha = value end
+function methods:ClearNormalTexture() self.normalTexture = nil end
 function methods:SetAttribute(key, value) self.attributes[key] = value end
 function methods:GetAttribute(key) return self.attributes[key] end
 function methods:SetID(value) self.id = value end
@@ -54,15 +58,35 @@ CreateFrame = function(kind, _, parent, template)
         assert(kind == "ItemButton")
         for key, value in pairs(_G.BankItemButtonBagMixin) do f[key] = value end
         f.DisabledOverlay = node(f)
+        f.Background = node(f)
+        f.IconBorder = node(f)
+        f.icon = node(f)
+        f.normalTexture = "bank-frame-bag-slotframe"
+        f.DisabledOverlay.atlas = "bankslot-icon-lock"
+        f.icon.art = "native-bag-art"
         f:OnLoad()
         f.nativeBagButton = true
     end
     return f
 end
+local hooks = 0
+hooksecurefunc = function(object, key, callback)
+    hooks = hooks + 1
+    local original = object[key]
+    object[key] = function(self, ...)
+        original(self, ...)
+        callback(self, ...)
+    end
+end
 ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
 C_Container.PickupContainerItem = function(bag, slot) clicked = { bag, slot } end
+local bagQuality = 3
+C_Container.GetContainerItemInfo = function(_, slot)
+    if slot == 2 then return { quality = bagQuality } end
+end
 C_Bank.ShouldUsePlayerBagsInBank = function() return true end
-C_Bank.CanViewBank = function() return true end
+local unavailableBank
+C_Bank.CanViewBank = function(bankType) return bankType ~= unavailableBank end
 C_Bank.CanPurchaseBankTab = function() return true end
 C_Bank.FetchMaxNumBankTabs = function() return 9 end
 C_Bank.FetchPurchasedBankTabData = function(bankType)
@@ -80,8 +104,12 @@ ns.Helpers = {
     GetSkinColors = function() return 1, 1, 1 end,
         GetWindowColors = function() return 1, 1, 1, 1, 0.05, 0.05, 0.05, 0.95 end,
     GetCore = function() return {} end,
+    ApplyIconStyle = function(button, icon) button.styledIcon = icon end,
 }
-ns.UIKit = { CreateBorderLines = function() end, UpdateBorderLines = function() end }
+ns.UIKit = {
+    CreateBorderLines = function(button) button.borderCreated = true end,
+    UpdateBorderLines = function(button, width, r, g, b, a) button.border = { width, r, g, b, a } end,
+}
 local Bags = ns.Bags
 Bags.Chassis = {
     MakeScheduleRefresh = function(_, refresh) return refresh end,
@@ -102,6 +130,8 @@ Bags.Chassis = {
 Bags.OwnerSelect = { Attach = function() local f = node(); f.Update = function() end; return f end }
 local gridButtons = {}
 Bags.ItemButtons = {
+    AddSlotBackground = function(button) button.slotBackground = true end,
+    GetQualityColor = function(quality) return quality / 10, 0.4, 0.8 end,
     CreateHolder = function(parent, bagID) local f = node(parent); f.bagID = bagID; return f end,
     CreateLive = function(parent)
         local f = node(parent); gridButtons[#gridButtons + 1] = f; return f
@@ -130,6 +160,45 @@ for _, f in ipairs(nodes) do if f.nativeBagButton then slots[#slots + 1] = f end
 assert(#slots == 8, "custom Forever bank must expose every bank bag equipment slot except the base storage")
 assert(slots[1].location.bag == -2 and slots[1].location.slot == 2)
 assert(not slots[1].DisabledOverlay:IsShown() and slots[3].DisabledOverlay:IsShown())
+local first = slots[1]
+if forever then
+    assert(first.normalTexture == nil and first.Background.alpha == 0,
+        "Forever bank bag slots must replace native gold frames and backgrounds")
+    assert(first.borderCreated and first.slotBackground and first.styledIcon == first.icon)
+    assert(first.IconBorder.alpha == 0 and first.border[2] == 0.3 and first.border[5] == 1,
+        "equipped bag quality must color the QUI border")
+    assert(slots[3].border[5] == 0.35, "empty locked slots use the normal empty-slot border")
+    bagQuality = 4
+    first:SetItemLocation(first.location)
+    assert(first.border[2] == 0.4, "native item-location refresh must refresh the quality border")
+    local hooksBefore = hooks
+    bank.Refresh()
+    assert(hooks == hooksBefore, "refresh must not install duplicate item-location hooks")
+else
+    assert(first.normalTexture == "bank-frame-bag-slotframe" and not first.borderCreated,
+        "Forever styling must not affect Retail")
+    assert(hooks == 0)
+end
+assert(first.icon.art == "native-bag-art" and slots[3].DisabledOverlay.atlas == "bankslot-icon-lock",
+    "bag artwork and native lock overlays must survive styling")
+assert(first.point[1] == "TOPLEFT" and first.width == 36 and first.height == 36,
+    "native bag equipment targets must retain their geometry")
+assert(first.OnClickInternal == _G.BankItemButtonBagMixin.OnClickInternal
+    and first.Pickup == _G.BankItemButtonBagMixin.Pickup,
+    "native pickup and click handlers must remain unchanged")
+unavailableBank = Enum.BankType.Account
+bank.Refresh()
+if forever then
+    assert(win._charBankBtn.enabled and win._charBankBtn.alpha == 1)
+    assert(not win._warbandBankBtn.enabled and win._warbandBankBtn.alpha == 0.4,
+        "unavailable live banks must be visibly disabled")
+else
+    assert(win._warbandBankBtn.enabled == nil and win._warbandBankBtn.alpha == nil,
+        "Retail segment availability must remain unchanged")
+end
+unavailableBank = nil
+bank.Refresh()
+if forever then assert(win._warbandBankBtn.enabled and win._warbandBankBtn.alpha == 1) end
 slots[1]:OnClickInternal()
 assert(clicked[1] == -2 and clicked[2] == 2, "native bag drop/click path must use equipment container, not item grid")
 slots[1]:Pickup()
@@ -159,4 +228,8 @@ slots[1]:OnClickInternal()
 assert(clicked[1] == -3 and clicked[2] == 2)
 bank.ShowCached()
 for _, button in ipairs(slots) do assert(not button:IsShown(), "cached browsing must not offer live bag changes") end
+unavailableBank = Enum.BankType.Account
+bank.Refresh()
+if forever then assert(win._warbandBankBtn.enabled and win._warbandBankBtn.alpha == 1,
+    "cached bank browsing must remain available without live service access") end
 print("OK: Forever bank native bag controls, purchase template, pagination, cached view")

@@ -76,6 +76,13 @@ local function FocusFrame(self, index)
 		return false;
 	end
 
+	-- Double check that the frame is actually still showing. In the case of a panel getting
+	-- closed, SmartNav finds out first, which then tells FCM to focus the next visible frame.
+	-- So we may just not have gotten the memo yet (but will soon).
+	if not frame:IsShown() then
+		return false;
+	end
+
 	if self.focusedFrame == frame then
 		if not self.isUIFocused then
 			self:SetUIFocusState(true);
@@ -111,7 +118,11 @@ local function FocusFrame(self, index)
 end
 
 local function CheckForInputBinding(self)
-	if (#self.shownFrames > 0 and self.focusedFrame and (not self.focusedFrame.disableFrameFocusPagingWhenFocused)) then
+	if self.isUIFocused
+		and #self.shownFrames > 0
+		and self.focusedFrame
+		and (not self.focusedFrame.disableFrameFocusPagingWhenFocused)
+	then
 		GamepadMode.ActivateBindingGroup(self.gamepadBindings);
 	else
 		GamepadMode.DeactivateBindingGroup(self.gamepadBindings);
@@ -286,6 +297,11 @@ function GamepadFrameControlsManagerMixin:Init()
 	EventRegistry:RegisterCallback("MenuProxy.OnClose", function(_, menu)
 		if not InputUtil.IsGamepadUIEnabled() then
 			return;
+		end
+
+		-- Make sure we only return to the suspended frame if the menu didn't open another frame
+		if self.focusedFrame == menu then
+			self:UnsuspendFrame();
 		end
 
 		self:FrameHidden(menu);
@@ -504,9 +520,10 @@ function GamepadFrameControlsManagerMixin:FrameHidden(frame)
 		if (frame.FrameControlManagerGroup and #self.shownFrames >= 1) then
 			for shownFrameIndex, shownFrame in ipairs(self.shownFrames) do
 				if (shownFrame ~= nil and frame.FrameControlManagerGroup == shownFrame.FrameControlManagerGroup) then
-					FocusFrame(self, shownFrameIndex);
-					foundNewFrameInGroup = true;
-					break;
+					if FocusFrame(self, shownFrameIndex) then
+						foundNewFrameInGroup = true;
+						break;
+					end
 				end
 			end
 		end
@@ -522,7 +539,9 @@ function GamepadFrameControlsManagerMixin:FrameHidden(frame)
 			elseif (#self.shownFrames >= 1) then
 				-- If there are more frames, focus one
 				if self.isUIFocused then
-					FocusFrame(self, 1);
+					if not FocusFrame(self, 1) then
+						UnfocusFocusedFrame(self);
+					end
 				else
 					self.focusedFrame = self.shownFrames[1];
 				end
@@ -658,7 +677,7 @@ function GamepadFrameControlsManagerMixin:SetUIFocusState(shouldFocusUI)
 				currentActiveFrame:EndFocus();
 			end
 
-			GamepadMode.DeactivateBindingGroup(self.gamepadBindings);
+			CheckForInputBinding(self);
 
 			self:SetFallThroughCatcherActive(false);
 

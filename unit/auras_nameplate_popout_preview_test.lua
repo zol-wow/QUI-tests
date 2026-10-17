@@ -62,7 +62,7 @@ check("main Nameplates surface registers an inline preview",
     and surface:find("FullSurface.BuildDropdownPreviewBlock(pv, {", 1, true) ~= nil)
 
 check("surface follows measured preview extents",
-    surface:find("ns.QUI_SetNameplatePreviewObserver(function(w, h)", 1, true) ~= nil
+    surface:find("ns.QUI_SetNameplatePreviewObserver(function(w, h, naturalHeight)", 1, true) ~= nil
     and surface:find("ns.QUI_BuildNameplatePreview(contentHost)", 1, true) ~= nil
     and surface:find("p.frame:IsVisible() and p.contentHost:IsVisible()", 1, true) ~= nil)
 

@@ -1093,6 +1093,11 @@ function C_AuctionHouse.GetItemKeyInfo(itemKey, restrictQualityToFilter, ...) en
 ---@param ... any
 ---@return number requiredLevel
 function C_AuctionHouse.GetItemKeyRequiredLevel(itemKey, ...) end
+--- Returns a link for an item in this key's results with player-applied enchants, gems and reforges stripped
+---@param itemKey? any
+---@param ... any
+---@return string sampleItemLink
+function C_AuctionHouse.GetItemKeySampleLink(itemKey, ...) end
 ---@param itemKey? any
 ---@param itemSearchResultIndex? number
 ---@param ... any
@@ -1805,6 +1810,9 @@ function C_BattleNet.AreFriendTagsEnabled(...) end
 ---@return boolean installed
 function C_BattleNet.AreHighResTexturesInstalled(...) end
 ---@param ... any
+---@return boolean areRealIDFriendsEnabled
+function C_BattleNet.AreRealIDFriendsEnabled(...) end
+---@param ... any
 ---@return boolean areTitleFriendCustomNamesEnabled
 function C_BattleNet.AreTitleFriendCustomNamesEnabled(...) end
 ---@param ... any
@@ -1846,6 +1854,10 @@ function C_BattleNet.GetFriendGameAccountInfo(friendIndex, accountIndex, ...) en
 ---@param ... any
 ---@return any inviteInfo
 function C_BattleNet.GetFriendInviteInfo(inviteIndex, ...) end
+---@param inviteText? string
+---@param ... any
+---@return any friendLevel
+function C_BattleNet.GetFriendLevelFromInviteText(inviteText, ...) end
 ---@param friendIndex? number
 ---@param ... any
 ---@return number numGameAccounts
@@ -5611,6 +5623,9 @@ function C_Discord.IsGuildSettingSet(setting, ...) end
 ---@return boolean hasOAuth
 function C_Discord.IsUserOAuthed(...) end
 ---@param ... any
+---@return boolean enabled
+function C_Discord.IsVoiceEnabled(...) end
+---@param ... any
 function C_Discord.RefreshAuth(...) end
 ---@param setting? any
 ---@param set? boolean
@@ -6260,6 +6275,9 @@ function C_ExpansionTrial.OnTrialLevelUpDialogShown(...) end
 
 C_ExternalEventURL = {}
 ---@param ... any
+---@return boolean canShow
+function C_ExternalEventURL.CanShow(...) end
+---@param ... any
 ---@return boolean hasURL
 function C_ExternalEventURL.HasURL(...) end
 ---@param ... any
@@ -6613,8 +6631,9 @@ function C_GameRules.IsWoWHack(...) end
 ---@param ... any
 function C_GameRules.SetForeverExperiencePreset(preset, ...) end
 ---@param setToSD? boolean
+---@param usageLocation? any
 ---@param ... any
-function C_GameRules.SetSDHDToggleValue(setToSD, ...) end
+function C_GameRules.SetSDHDToggleValue(setToSD, usageLocation, ...) end
 
 C_GamepadTargeting = {}
 ---@param ... any
@@ -6622,9 +6641,6 @@ C_GamepadTargeting = {}
 function C_GamepadTargeting.Disable(...) end
 ---@param ... any
 function C_GamepadTargeting.Enable(...) end
----@param ... any
----@return boolean hasReticleHoverTarget
-function C_GamepadTargeting.HasReticleHoverTarget(...) end
 ---@param filter? any
 ---@param ... any
 function C_GamepadTargeting.SetFilter(filter, ...) end
@@ -13366,7 +13382,10 @@ function C_SecureTransfer.GetHousingPurchaseQuantity(...) end
 function C_SecureTransfer.GetHousingVCPurchaseProductID(...) end
 ---@param ... any
 ---@return any mailInfo
-function C_SecureTransfer.GetMailInfo(...) end
+function C_SecureTransfer.GetMailReceiveInfo(...) end
+---@param ... any
+---@return any mailInfo
+function C_SecureTransfer.GetMailSendInfo(...) end
 ---@param ... any
 ---@return string name
 function C_SecureTransfer.GetTradePartner(...) end
@@ -13375,6 +13394,11 @@ function C_SecureTransfer.SendMail(...) end
 ---@param ... any
 ---@return boolean shouldShow
 function C_SecureTransfer.ShouldShowTradeOfferWarning(...) end
+---@param ... any
+---@return boolean shouldShow
+function C_SecureTransfer.ShouldShowTradeRMTWarning(...) end
+---@param ... any
+function C_SecureTransfer.TakeMailMoney(...) end
 
 C_SettingsUtil = {}
 ---@param ... any
@@ -16848,6 +16872,9 @@ function C_Tutorial.AbandonTutorialArea(...) end
 function C_Tutorial.GetCombatEventInfo(...) end
 ---@param ... any
 function C_Tutorial.ReturnToTutorialArea(...) end
+---@param skipTutorial? boolean
+---@param ... any
+function C_Tutorial.SendTutorialStartButtonTelem(skipTutorial, ...) end
 
 C_UI = {}
 --- True if any display attached has a notch. This does not mean the current view intersects the notch.
@@ -17181,9 +17208,11 @@ function C_UnitAuras.GetCooldownAuraBySpellID(spellID, ...) end
 ---@param ... any
 ---@return any aura
 function C_UnitAuras.GetDebuffDataByIndex(unit, index, filter, ...) end
+--- Returns the alerts passed to SetGroupBuffVisualAlerts plus an entry for every linked rank spell of those group buffs.
 ---@param ... any
 ---@return table visualAlerts
 function C_UnitAuras.GetGroupBuffVisualAlerts(...) end
+--- Returns the spell IDs passed to SetHiddenGroupBuffs plus every linked rank spell of those group buffs.
 ---@param ... any
 ---@return table spellIDs
 function C_UnitAuras.GetHiddenGroupBuffs(...) end
@@ -17337,10 +17366,10 @@ function C_VignetteInfo.GetVignettePosition(vignetteGUID, uiMapID, ...) end
 function C_VignetteInfo.GetVignettes(...) end
 
 C_VoiceChat = {}
----@param channelID? number
+---@param channelID? any
 ---@param ... any
 function C_VoiceChat.ActivateChannel(channelID, ...) end
----@param channelID? number
+---@param channelID? any
 ---@param ... any
 function C_VoiceChat.ActivateChannelTranscription(channelID, ...) end
 ---@param listenToLocalUser? boolean
@@ -17356,27 +17385,30 @@ function C_VoiceChat.CanPlayerUseVoiceChat(...) end
 ---@param ... any
 ---@return any status
 function C_VoiceChat.CreateChannel(channelDisplayName, ...) end
----@param channelID? number
+---@param channelID? any
 ---@param ... any
 function C_VoiceChat.DeactivateChannel(channelID, ...) end
----@param channelID? number
+---@param channelID? any
 ---@param ... any
 function C_VoiceChat.DeactivateChannelTranscription(channelID, ...) end
 ---@param ... any
 function C_VoiceChat.EndLocalCapture(...) end
 ---@param ... any
----@return number channelID
+---@return any channelID
 function C_VoiceChat.GetActiveChannelID(...) end
 ---@param ... any
 ---@return any channelType
 function C_VoiceChat.GetActiveChannelType(...) end
+---@param ... any
+---@return any activeVoiceProviderID
+function C_VoiceChat.GetActiveVoiceProviderID(...) end
 ---@param ... any
 ---@return table inputDevices
 function C_VoiceChat.GetAvailableInputDevices(...) end
 ---@param ... any
 ---@return table outputDevices
 function C_VoiceChat.GetAvailableOutputDevices(...) end
----@param channelID? number
+---@param channelID? any
 ---@param ... any
 ---@return any channel
 function C_VoiceChat.GetChannel(channelID, ...) end
@@ -17405,30 +17437,30 @@ function C_VoiceChat.GetJoinClubVoiceChannelError(clubId, ...) end
 ---@param ... any
 ---@return any memberInfo
 function C_VoiceChat.GetLocalPlayerActiveChannelMemberInfo(...) end
----@param channelID? number
+---@param channelID? any
 ---@param ... any
----@return number memberID
+---@return any memberID
 function C_VoiceChat.GetLocalPlayerMemberID(channelID, ...) end
 ---@param ... any
 ---@return number scale
 function C_VoiceChat.GetMasterVolumeScale(...) end
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 ---@return string memberGUID
 function C_VoiceChat.GetMemberGUID(memberID, channelID, ...) end
----@param channelID? number
+---@param channelID? any
 ---@param memberGUID? string
 ---@param ... any
----@return number memberID
+---@return any memberID
 function C_VoiceChat.GetMemberID(channelID, memberGUID, ...) end
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 ---@return any memberInfo
 function C_VoiceChat.GetMemberInfo(memberID, channelID, ...) end
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 ---@return string memberName
 function C_VoiceChat.GetMemberName(memberID, channelID, ...) end
@@ -17472,8 +17504,8 @@ function C_VoiceChat.IsEnabled(...) end
 ---@param ... any
 ---@return boolean isLoggedIn
 function C_VoiceChat.IsLoggedIn(...) end
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 ---@return boolean isLocalPlayer
 function C_VoiceChat.IsMemberLocalPlayer(memberID, channelID, ...) end
@@ -17481,13 +17513,13 @@ function C_VoiceChat.IsMemberLocalPlayer(memberID, channelID, ...) end
 ---@param ... any
 ---@return boolean mutedForMe
 function C_VoiceChat.IsMemberMuted(playerLocation, ...) end
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 ---@return boolean mutedForAll
 function C_VoiceChat.IsMemberMutedForAll(memberID, channelID, ...) end
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 ---@return boolean silenced
 function C_VoiceChat.IsMemberSilenced(memberID, channelID, ...) end
@@ -17522,12 +17554,13 @@ function C_VoiceChat.IsTranscriptionAllowed(...) end
 ---@param ... any
 ---@return boolean connected
 function C_VoiceChat.IsVoiceChatConnected(...) end
----@param channelID? number
+---@param channelID? any
 ---@param ... any
 function C_VoiceChat.LeaveChannel(channelID, ...) end
+---@param channelType? any
 ---@param ... any
 ---@return any status
-function C_VoiceChat.Login(...) end
+function C_VoiceChat.Login(channelType, ...) end
 ---@param ... any
 ---@return any status
 function C_VoiceChat.Logout(...) end
@@ -17542,6 +17575,15 @@ function C_VoiceChat.RequestJoinAndActivateCommunityStreamChannel(clubId, stream
 ---@param autoActivate? boolean
 ---@param ... any
 function C_VoiceChat.RequestJoinChannelByChannelType(channelType, autoActivate, ...) end
+--- Changes the active voice provider to the party voice provider, or to the preferred voice provider when the party has none.
+---@param ... any
+---@return boolean changed
+function C_VoiceChat.RestoreActiveVoiceProvider(...) end
+--- Changes the active voice provider without changing the preferred voice provider.
+---@param voiceProviderID? any
+---@param ... any
+---@return boolean success
+function C_VoiceChat.SetActiveVoiceProvider(voiceProviderID, ...) end
 ---@param communicationMode? any
 ---@param ... any
 function C_VoiceChat.SetCommunicationMode(communicationMode, ...) end
@@ -17576,8 +17618,8 @@ function C_VoiceChat.SetOutputDevice(deviceID, ...) end
 ---@param ... any
 function C_VoiceChat.SetOutputVolume(volume, ...) end
 ---@param textureObject? any
----@param memberID? number
----@param channelID? number
+---@param memberID? any
+---@param channelID? any
 ---@param ... any
 function C_VoiceChat.SetPortraitTexture(textureObject, memberID, channelID, ...) end
 ---@param keys? table
@@ -18402,6 +18444,9 @@ function GetCorruption(...) end
 ---@return number result
 function GetCorruptionResistance(...) end
 ---@param ... any
+---@return table info
+function GetCreditsDisplayInfo(...) end
+---@param ... any
 ---@return number result
 function GetCritChance(...) end
 ---@param stat? number
@@ -18427,6 +18472,10 @@ function GetCurrentRegionName(...) end
 ---@param ... any
 ---@return number result
 function GetCurrentTitle(...) end
+---@param ... any
+---@return number posX
+---@return number posY
+function GetCursorCenterPosition(...) end
 ---@param ... any
 ---@return number deltaX
 ---@return number deltaY
@@ -18553,6 +18602,18 @@ function GetGameMessageInfo(gameErrorIndex, ...) end
 ---@return number hour
 ---@return number minute
 function GetGameTime(...) end
+--- If no playerWeaponSkill value is provided, uses the skill value for the player's main hand weapon/shapeshift form.
+---@param playerWeaponSkill? number
+---@param targetDefenseSkill? number
+---@param ... any
+---@return number result
+function GetGlancingBlowChance(playerWeaponSkill, targetDefenseSkill, ...) end
+--- If no playerWeaponSkill value is provided, uses the skill value for the player's main hand weapon/shapeshift form.
+---@param playerWeaponSkill? number
+---@param targetDefenseSkill? number
+---@param ... any
+---@return number result
+function GetGlancingBlowPenalty(playerWeaponSkill, targetDefenseSkill, ...) end
 ---@param ... any
 ---@return number result
 function GetHaste(...) end
@@ -18736,6 +18797,9 @@ function GetNumTotemSlots(...) end
 function GetOSLocale(...) end
 ---@param ... any
 ---@return number result
+function GetOffhandHitModifier(...) end
+---@param ... any
+---@return number result
 function GetOverrideAPBySpellPower(...) end
 ---@param ... any
 ---@return number result
@@ -18767,6 +18831,13 @@ function GetParryChance(...) end
 ---@param ... any
 ---@return number result
 function GetParryChanceFromAttribute(...) end
+---@param ... any
+---@return number meleeCrit
+---@return number spellCrit
+function GetPetCritChance(...) end
+---@param ... any
+---@return number result
+function GetPetDodgeChance(...) end
 ---@param ... any
 ---@return number result
 function GetPetHitChanceModifier(...) end
@@ -19208,6 +19279,9 @@ function IsControlKeyDown(...) end
 ---@param ... any
 ---@return boolean isCpuBound
 function IsCpuBound(...) end
+---@param ... any
+---@return boolean visible
+function IsCursorVisible(...) end
 ---@param ... any
 ---@return boolean isDebugBuild
 function IsDebugBuild(...) end

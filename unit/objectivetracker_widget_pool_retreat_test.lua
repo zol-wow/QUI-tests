@@ -24,8 +24,14 @@ assert(not src:find("editModeHeight", 1, true),
     "objectivetracker.lua must not write ObjectiveTrackerFrame.editModeHeight")
 assert(not src:find("ScenarioTrackerProgressBarMixin", 1, true),
     "objectivetracker.lua must not hook the scenario progress bar mixin")
-assert(not src:find("StageBlock", 1, true),
-    "objectivetracker.lua must not touch ScenarioObjectiveTracker.StageBlock")
+local scenarioStyle = assert(src:match("local function StyleScenarioTrackerDetails%(%)" ..
+    ".-local RefreshTrackerContent"))
+assert(not scenarioStyle:find(":SetHeight", 1, true)
+    and not scenarioStyle:find(":SetWidth", 1, true)
+    and not scenarioStyle:find(":SetPoint", 1, true)
+    and not scenarioStyle:find(".WidgetContainer", 1, true)
+    and not scenarioStyle:find("hooksecurefunc", 1, true),
+    "fixed scenario visuals must preserve native geometry, widget pools and lifecycle hooks")
 assert(src:find("local function IsWidgetPoolBlock", 1, true),
     "objectivetracker.lua must gate block styling on the widget-pool trackers")
 assert(src:find("ScenarioObjectiveTracker = true", 1, true)

@@ -2,6 +2,7 @@
 ----------Constants
 -------------------------------------------------------
 local LFGBROWSE_TOOLTIP_MIN_WIDTH = 200;
+local LFGVoiceChat = import(".Blizzard_LFGVanilla_VoiceChat");
 local LFGBROWSE_DELISTED_FONT_COLOR = {r=0.3, g=0.3, b=0.3};
 local LFGBROWSE_ACTIVITY_NOMATCH_FONT_COLOR = GRAY_FONT_COLOR;
 local LFGBROWSE_ACTIVITY_MATCH_FONT_COLOR = BRIGHTBLUE_FONT_COLOR;
@@ -93,11 +94,11 @@ function LFGBrowseMixin:OnLoad()
 			end);
 		elseif data.category then
 			factory("LFGBrowseNestedSearchEntryTemplate", function(frame, elementNode)
-				LFGBrowseSearchEntry_Init(frame, elementNode.data);
+				LFGBrowseSearchEntry_Init(frame, elementNode.data, self);
 			end);
 		else
 			factory("LFGBrowseSearchEntryTemplate", function(frame, elementNode)
-				LFGBrowseSearchEntry_Init(frame, elementNode.data);
+				LFGBrowseSearchEntry_Init(frame, elementNode.data, self);
 			end);
 		end
 	end);
@@ -353,9 +354,10 @@ end
 -------------------------------------------------------
 ----------Search Entry
 -------------------------------------------------------
-function LFGBrowseSearchEntry_Init(self, elementData)
+function LFGBrowseSearchEntry_Init(self, elementData, browseFrame)
 	self.resultID = elementData.resultID;
 	self.isDelisted = false;
+	LFGBrowseSearchEntry_SetSelection(self, browseFrame.selectionBehavior:IsSelected(self));
 	LFGBrowseSearchEntry_Update(self);
 end
 
@@ -394,7 +396,7 @@ function LFGBrowseSearchEntry_Update(self)
 		self.Level:Hide();
 		self.ClassIcon:Hide();
 		self.Name:SetPoint("TOPLEFT", self.PartyIcon, "TOPRIGHT", self.NameGroupOffsetX, self.NameGroupOffsetY);
-		self.NewPlayerFriendlyIcon:SetPoint("LEFT", self.Name, "RIGHT", 2, 0);
+		self.NewPlayerFriendlyIcon:SetPoint("LEFT", self.DiscordIcon or self.Name, "RIGHT", 2, 0);
 	end
 
 	self.isDelisted = searchResultInfo.isDelisted;
@@ -454,8 +456,17 @@ function LFGBrowseSearchEntry_Update(self)
 	self.Name:SetWidth(0);
 	self.Name:SetText(searchResultInfo.leaderName);
 	self.Name:SetTextColor(nameColor.r, nameColor.g, nameColor.b);
-	if ( self.Name:GetWidth() > self.NameMaxWidth ) then
-		self.Name:SetWidth(self.NameMaxWidth);
+	local nameMaxWidth = self.NameMaxWidth;
+	if self.DiscordIcon then
+		local usesDiscord = searchResultInfo.voiceMode == Enum.LFGEntryVoiceMode.Discord;
+		self.DiscordIcon:SetShown(usesDiscord);
+		self.DiscordIcon:SetDesaturated(searchResultInfo.isDelisted);
+		if usesDiscord then
+			nameMaxWidth = nameMaxWidth - self.DiscordIcon:GetWidth() - 4;
+		end
+	end
+	if ( self.Name:GetWidth() > nameMaxWidth ) then
+		self.Name:SetWidth(nameMaxWidth);
 	end
 	self.Level:SetTextColor(levelColor.r, levelColor.g, levelColor.b);
 	self.ClassIcon:SetDesaturated(searchResultInfo.isDelisted);
@@ -548,6 +559,16 @@ function LFGBrowseSearchEntryTooltip_Load(self)
 	self.completedEncounterPool = CreateFontStringPool(self, "ARTWORK", 0, "LFGBrowseSearchEntryTooltipCompletedEncounterTemplate")
 end
 
+local function LFGBrowseSearchEntryTooltip_GetMemberRowLevelAndRoleWidth(frame)
+	local roleIconsWidth = 0;
+	for _, icon in ipairs(frame.Roles) do
+		if (icon:IsShown()) then
+			roleIconsWidth = roleIconsWidth + icon:GetWidth();
+		end
+	end
+	return frame.Level:GetWidth() + 4 + roleIconsWidth;
+end
+
 function LFGBrowseSearchEntryTooltip_UpdateAndShow(self, resultID)
 	local searchResultInfo = C_LFGList.GetSearchResultInfo(resultID);
 	local numMembers = searchResultInfo.numMembers;
@@ -581,6 +602,7 @@ function LFGBrowseSearchEntryTooltip_UpdateAndShow(self, resultID)
 	end
 	local lastMemberFrame = self.Leader;
 	local maxNameWidth = 0;
+	local maxMemberLevelAndRoleWidth = 0;		-- Maximum width of the lines that contain the leader or members
 	if (numMembers > 1) then
 		self.LeaderIcon:Show();
 		self.Leader:SetPoint("TOPLEFT", self.LeaderIcon, "TOPRIGHT", 0, -2)
@@ -606,6 +628,7 @@ function LFGBrowseSearchEntryTooltip_UpdateAndShow(self, resultID)
 			self.Leader:Show();
 
 			maxNameWidth = math.max(maxNameWidth, self.Leader.Name:GetWidth());
+			maxMemberLevelAndRoleWidth = math.max(maxMemberLevelAndRoleWidth, LFGBrowseSearchEntryTooltip_GetMemberRowLevelAndRoleWidth(self.Leader));
 		else
 			self.Leader:Hide();
 			self.LeaderIcon:Hide();
@@ -631,16 +654,24 @@ function LFGBrowseSearchEntryTooltip_UpdateAndShow(self, resultID)
 				frame:Show();
 
 				maxNameWidth = math.max(maxNameWidth, frame.Name:GetWidth());
+				maxMemberLevelAndRoleWidth = math.max(maxMemberLevelAndRoleWidth, LFGBrowseSearchEntryTooltip_GetMemberRowLevelAndRoleWidth(frame));
 			end
 		end
 	end
 
-	-- Standardize name width to whatever our max is.
 	if (maxNameWidth > 0) then
+		-- Standardize name width to whatever our max is.
 		self.Leader.Name:SetWidth(maxNameWidth);
 		for frame in self.memberPool:EnumerateActive() do
 			frame.Name:SetWidth(maxNameWidth);
 		end
+
+		-- Add the standardized name width and leader icon to the existing longest row calculation, and update maxContentWidth used to resize the tooltip background if necessary.
+		local maxMemberRowContentWidth = maxNameWidth + 4 + maxMemberLevelAndRoleWidth;
+		if (self.LeaderIcon:IsShown()) then
+			maxMemberRowContentWidth = maxMemberRowContentWidth + self.LeaderIcon:GetWidth();
+		end
+		maxContentWidth = math.max(maxContentWidth, maxMemberRowContentWidth);
 	end
 
 	-- Comment
@@ -659,6 +690,16 @@ function LFGBrowseSearchEntryTooltip_UpdateAndShow(self, resultID)
 		self.MemberCount:SetText(string.format(LFG_LIST_TOOLTIP_MEMBERS_SIMPLE, numMembers));
 	elseif (memberCounts) then
 		self.MemberCount:SetText(string.format(LFG_LIST_TOOLTIP_MEMBERS, numMembers, memberCounts.TANK, memberCounts.HEALER, memberCounts.DAMAGER));
+	end
+
+	local activityAnchor = self.VoiceChat or self.MemberCount;
+	if self.VoiceChat then
+		local voiceModeLabel = LFGVoiceChat.VoiceModeLabels[searchResultInfo.voiceMode or Enum.LFGEntryVoiceMode.None];
+		self.VoiceChat:SetShown(voiceModeLabel ~= nil);
+		if voiceModeLabel then
+			self.VoiceChat:SetText(string.format(VOICE_CHAT_MODE_FORMAT, voiceModeLabel));
+			maxContentWidth = math.max(maxContentWidth, self.VoiceChat:GetWidth());
+		end
 	end
 
 	-- Activities
@@ -696,7 +737,7 @@ function LFGBrowseSearchEntryTooltip_UpdateAndShow(self, resultID)
 						if (lastActivityString) then
 							fontString:SetPoint("TOPLEFT", lastActivityString, "BOTTOMLEFT", 0, 0);
 						else
-							fontString:SetPoint("TOPLEFT", self.MemberCount, "BOTTOMLEFT", 0, -8);
+							fontString:SetPoint("TOPLEFT", activityAnchor, "BOTTOMLEFT", 0, -8);
 						end
 						maxContentWidth = math.max(maxContentWidth, fontString:GetWidth());
 						fontString:SetPoint("RIGHT", self, "RIGHT", -11, 0);
@@ -717,7 +758,7 @@ function LFGBrowseSearchEntryTooltip_UpdateAndShow(self, resultID)
 						groupFontString:SetPoint("TOPLEFT", lastActivityString, "BOTTOMLEFT", 0, 0);
 					end
 				else
-					groupFontString:SetPoint("TOPLEFT", self.MemberCount, "BOTTOMLEFT", 0, -8);
+					groupFontString:SetPoint("TOPLEFT", activityAnchor, "BOTTOMLEFT", 0, -8);
 				end
 				maxContentWidth = math.max(maxContentWidth, groupFontString:GetWidth());
 				lastActivityString = groupFontString;
@@ -742,7 +783,7 @@ function LFGBrowseSearchEntryTooltip_UpdateAndShow(self, resultID)
 						if (lastActivityString) then
 							fontString:SetPoint("TOPLEFT", lastActivityString, "BOTTOMLEFT", 0, 0);
 						else
-							fontString:SetPoint("TOPLEFT", self.MemberCount, "BOTTOMLEFT", 0, -8);
+							fontString:SetPoint("TOPLEFT", activityAnchor, "BOTTOMLEFT", 0, -8);
 						end
 						maxContentWidth = math.max(maxContentWidth, fontString:GetWidth());
 						fontString:SetPoint("RIGHT", self, "RIGHT", -11, 0);
@@ -810,6 +851,9 @@ function LFGBrowseSearchEntryTooltip_UpdateAndShow(self, resultID)
 		contentHeight = contentHeight + 8;
 	end
 	contentHeight = contentHeight + self.MemberCount:GetHeight();
+	if self.VoiceChat and self.VoiceChat:IsShown() then
+		contentHeight = contentHeight + self.VoiceChat:GetHeight() + 8;
+	end
 	for fontString in self.activityPool:EnumerateActive() do
 		contentHeight = contentHeight + fontString:GetHeight();
 	end

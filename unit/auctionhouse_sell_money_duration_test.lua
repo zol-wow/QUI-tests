@@ -29,6 +29,12 @@ local ah=frame();_G.AuctionHouseFrame=ah
 local panels={}
 for _,name in ipairs({"CommoditiesSellFrame","ItemSellFrame"}) do
  local panel=frame(nil,ah);ah[name]=panel;panels[#panels+1]=panel
+ panel.Background=panel:CreateTexture();panel.Background:SetAtlas("native-sell-background")
+ panel.NineSlice=frame(nil,panel)
+ panel.CreateAuctionLabel=panel:CreateFontString();panel.CreateAuctionLabel:SetText("Create Auction");panel.CreateAuctionLabel:SetTextColor(1,.82,0,1)
+ for _,key in ipairs({"CreateAuctionTabLeft","CreateAuctionTabMiddle","CreateAuctionTabRight"}) do
+  panel[key]=panel:CreateTexture();panel[key]:SetAtlas("native-tab")
+ end
  local keys={"PriceInput","QuantityInput","Duration","Deposit","TotalPrice"}
  if name=="ItemSellFrame" then keys[#keys+1]="SecondaryPriceInput" end
  for _,key in ipairs(keys) do
@@ -90,6 +96,13 @@ _G.AUCTION_HOUSE_SELL_FRAME_ERROR_QUANTITY="Native zero quantity"
 ns.SafeCall=function(_,fn) fn() end;skin.OnAddOnLoaded=function(_,fn) fn() end
 assert(loadfile(arg[1] or "modules/skinning/frames/auctionhouse.lua"))("QUI",ns)
 for _,panel in ipairs(panels) do
+ assert(panel.Background:GetAlpha()==0 and panel.NineSlice:GetAlpha()==0
+  and panel.CreateAuctionTabLeft:GetAlpha()==0 and panel.CreateAuctionTabMiddle:GetAlpha()==0
+  and panel.CreateAuctionTabRight:GetAlpha()==0 and skin.GetBackdrop(panel),
+  "sell panel must replace native backgrounds and tab chrome")
+ assert(panel.CreateAuctionLabel.textColor[1]==.9,"create auction heading must use neutral text")
+ panel.CreateAuctionLabel:SetFontObject("GameFontNormal")
+ assert(panel.CreateAuctionLabel.textColor[1]==.9,"create heading must survive native font resets")
  for _,key in ipairs(panel==panels[1] and {"PriceInput"} or {"PriceInput","SecondaryPriceInput"}) do
   local input=panel[key].MoneyInputFrame
   for _,fieldKey in ipairs({"GoldBox","SilverBox","CopperBox"}) do

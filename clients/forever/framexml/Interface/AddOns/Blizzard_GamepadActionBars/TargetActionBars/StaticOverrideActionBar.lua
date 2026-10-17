@@ -1,4 +1,4 @@
-local Shared = require(".Shared");
+local Shared = import(".Shared");
 
 ---------------------------------------------------------------------------------------------------
 
@@ -165,6 +165,11 @@ function StaticOverrideActionBarMixin:RefreshActionBarVisibility()
 	else
 		self:Hide();
 	end
+end
+
+function StaticOverrideActionBarMixin:IsBarEmpty()
+	-- These bars hold hardcoded actions rather than stored ones, so the bar is never empty
+	return false;
 end
 
 function StaticOverrideActionBarMixin:IsBarActivelyOverridingActionBar(actionBar)

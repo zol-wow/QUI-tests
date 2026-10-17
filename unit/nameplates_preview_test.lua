@@ -1168,3 +1168,53 @@ test("preview follows live dimensions independently of panel zoom and current ow
 end)
 
 print("OK: nameplates_preview_test")
+
+test("fixed preview shrinks oversized composition including side icons", function()
+    local host = NewFrame(UIParent)
+    host._left, host._top, host._w, host._h = 100, 500, 300, 160
+    host._npPreviewFit = true
+    host.GetEffectiveScale = function() return 1 end
+    local plate, callbacks = MeasureOn(host)
+    plate:SetScale(1)
+    Paint(plate.healthBar, 0, 800, 500, 100, 1)
+    local scale = plate:GetScale()
+    callbacks[1]()
+    if plate:GetScale() >= scale then fail("oversized composition must shrink to viewport") end
+    if math.abs(plate:GetScale() / scale - 0.355) > 0.001 then
+        fail("fit must reserve padding and respect both dimensions: " .. tostring(plate:GetScale() / scale))
+    end
+end)
+
+test("fixed preview centers content without changing viewport extent", function()
+    local host = NewFrame(UIParent)
+    host._left, host._top, host._w, host._h = 100, 500, 300, 160
+    host._npPreviewFit = true
+    host.GetEffectiveScale = function() return 1 end
+    local plate, callbacks, GetPoint = MeasureOn(host)
+    plate:SetScale(1)
+    Paint(plate.healthBar, 100, 300, 500, 400, 1)
+    callbacks[1]()
+    local point = GetPoint()
+    if not point or point[4] ~= 50 or point[5] ~= -30 then fail("composition must center inside fixed host") end
+    if host:GetWidth() ~= 300 or host:GetHeight() ~= 160 then fail("measurement must never grow the viewport") end
+end)
+
+
+test("zoom refitting cannot paint an oversized intermediate frame", function()
+    local host = NewFrame(UIParent)
+    host._left, host._top, host._w, host._h = 100, 500, 300, 160
+    host._npPreviewFit = true
+    host.GetEffectiveScale = function() return 1 end
+    local plate, callbacks = MeasureOn(host)
+    if host:GetAlpha() ~= 0 then fail("requested zoom must remain unpainted until fitting completes") end
+    local region = Paint(plate.healthBar, 0, 800, 500, 100, 1)
+    C_Timer.After = function(_, fn) callbacks[#callbacks + 1] = fn end
+    callbacks[1]()
+    if host:GetAlpha() ~= 0 then fail("a scale retry must not reveal oversized bounds") end
+    region._left, region._right, region._top, region._bottom = 100, 380, 500, 400
+    assert(callbacks[2], "fitting must schedule a settled measurement")()
+    if host:GetAlpha() ~= 1 then fail("settled fitting must reveal the contained specimen") end
+    PreviewDriver.SetZoom(2)
+    if host:GetAlpha() ~= 0 then fail("later zoom changes must use the same rendering barrier") end
+    C_Timer.After = function() end
+end)

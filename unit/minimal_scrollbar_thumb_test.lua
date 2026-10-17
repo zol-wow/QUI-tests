@@ -9,6 +9,17 @@ end
 local drag = function() end
 thumb:SetScript("OnMouseDown", drag)
 env.SkinBase.SkinTrimScrollBar(bar)
+local function CheckThumbColor()
+    local surface = env.SkinBase.GetBackdrop(thumb)._quiRoundedSurface
+    local color = surface.fill.center.vertex
+    local expected = QUI.GUI.Colors.scrollThumb
+    for i = 1, 4 do
+        assert(color[i] == expected[i], "native thumb must retain shared color after scale refresh")
+    end
+end
+CheckThumbColor()
+env.UIKit.RefreshScaleBoundWidgets()
+CheckThumbColor()
 assert(bar.Track:GetAlpha() == 1, "native thumb parent must stay visible")
 assert(env.SkinBase.GetBackdrop(thumb), "nested native thumb must have visible skin")
 assert(thumb:GetScript("OnMouseDown") == drag, "native drag handler must be retained")

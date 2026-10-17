@@ -10,7 +10,7 @@ local FOCUS_STATES = { COLLAPSED = 1, EXPANDED = 2 };
 local LEFTSQUARE_RIGHTCIRCLE_STYLE = 0;
 local ACTION_BAR_BUTTON_PRESSED_SIZE_OFFSET = -4;
 local ACTION_BAR_BUTTON_PRESSED_ANCHOR_OFFSET = { x=0, y=math.round(ACTION_BAR_BUTTON_PRESSED_SIZE_OFFSET * 0.5) };
-local FocusFX = require('.ActionBarFocusFX');
+local FocusFX = import('.ActionBarFocusFX');
 
 GamepadActionBarStyleUtil = {};
 
@@ -122,6 +122,14 @@ function GamepadActionBarStyleUtil.ApplyExtraButtonStyles(
 	local anchorParent = anchorInfo.relativeTo or button:GetParent();
 	local anchorOffsetX = anchorInfo.x or 0;
 	local anchorOffsetY = anchorInfo.y or 0;
+
+	-- Buttons that have a flyout open should always remain expanded, and be anchored to its popup
+	if button:IsPopupOpen() then
+		focusState = FOCUS_STATES.EXPANDED;
+		anchorParent = button:GetPopup();
+		anchorOffsetX = 0;
+		anchorOffsetY = 0;
+	end
 
 	if actionState == ACTION_STATES.PUSHED then
 		anchorOffsetX = anchorOffsetX + GamepadActionBarStyleUtil.PUSHED_BUTTON_ANCHOR_OFFSET.x;

@@ -79,7 +79,7 @@ assertContains(mail, "SkinBase.SkinTabGroup(SkinBase.CollectNumberedTabs(\"MailF
     "Mail tabs must remeasure after the QUI font is applied")
 assertContains(journals, "SkinBase.SkinTabGroup(tabs, frame, { resizeToText = true, dockBottom = true })",
     "Collections tabs must remeasure after the QUI font is applied")
-assertContains(inspect, "SkinBase.SkinTabGroup(SkinBase.CollectNumberedTabs(\"InspectFrame\", 3), InspectFrame, { font = true, resizeToText = true, dockBottom = true })",
+assertContains(inspect, "SkinBase.SkinTabGroup(SkinBase.CollectNumberedTabs(\"InspectFrame\", 3), InspectFrame, { font = true, resizeToText = true, dockBottom = true, dockOwner = customBg })",
     "Inspect tabs must remeasure after the QUI font is applied")
 assertContains(base, "SkinBase.SkinTabGroup(opts.tabs, opts.tabOwner or frame, { resizeToText = true })",
     "SkinWindow tabs must remeasure after the QUI font is applied")

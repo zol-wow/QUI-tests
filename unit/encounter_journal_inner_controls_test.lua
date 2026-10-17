@@ -42,6 +42,20 @@ instance.GetNormalTexture = function(self) return self.NormalTexture end
 frame.encounter = env.NewFrame("Frame", nil, frame)
 frame.encounter.info = env.NewFrame("Frame", nil, frame.encounter)
 local info = frame.encounter.info
+
+info.instanceButton = env.NewFrame("Button", nil, info)
+local overviewButton = info.instanceButton
+overviewButton.DisabledTexture = false
+overviewButton:SetSize(64, 61)
+overviewButton.icon = overviewButton:CreateTexture()
+overviewButton.icon:SetTexture("native-circular-instance-icon")
+overviewButton.NormalTexture = overviewButton:CreateTexture()
+overviewButton.HighlightTexture = overviewButton:CreateTexture()
+overviewButton.HighlightTexture:SetTexture("native-circular-hover-ring")
+function overviewButton:GetNormalTexture() return self.NormalTexture end
+function overviewButton:GetHighlightTexture() return self.HighlightTexture end
+local overviewAction = function() end
+overviewButton:SetScript("OnClick", overviewAction)
 info.model = env.NewFrame("ModelScene", nil, info)
 info.model.dungeonBG = info.model:CreateTexture()
 info.model.dungeonBG:SetTexture("native-dungeon-background")
@@ -169,6 +183,10 @@ suggested.button.DisabledTexture = false
 suggested.button:SetText("Accept Quest")
 local suggestedClick = function() end
 suggested.button:SetScript("OnClick", suggestedClick)
+suggested.prevButton = env.NewFrame("Button", nil, suggested)
+suggested.prevButton.DisabledTexture = false
+suggested.nextButton = env.NewFrame("Button", nil, suggested)
+suggested.nextButton.DisabledTexture = false
 frame.TutorialsFrame = env.NewFrame("Frame", nil, frame)
 local tutorial = env.NewFrame("Frame", nil, frame.TutorialsFrame)
 frame.TutorialsFrame.Contents = tutorial
@@ -307,6 +325,44 @@ overview.Highlights.DisplayHighlights = function()
     highlightCard.Background:SetAlpha(1)
 end
 
+frame.searchBox = env.NewFrame("EditBox", nil, frame)
+local search = frame.searchBox
+search.searchPreviewContainer = env.NewFrame("Frame", nil, search)
+local preview = search.searchPreviewContainer
+preview.botLeftCorner = preview:CreateTexture()
+preview.botRightCorner = preview:CreateTexture()
+search.searchButtons = {}
+for i = 1, 5 do
+    local row = env.NewFrame("Button", nil, search)
+    row.DisabledTexture = false
+    row.iconFrame = row:CreateTexture()
+    row.icon = row:CreateTexture()
+    row.icon:SetTexture("native-search-item-" .. i)
+    row.name = row:CreateFontString()
+    row.name:SetText("|cffa335eeIronsoul|r")
+    row.selectedTexture = row:CreateTexture()
+    row.selectedTexture:SetShown(i == 1)
+    row.link = "native-item-link-" .. i
+    row:SetID(i)
+    row:SetScript("OnClick", vaultAction)
+    search.searchButtons[i] = row
+end
+function search:GetButtons() return self.searchButtons end
+search.showAllResults = env.NewFrame("Button", nil, search)
+search.showAllResults.DisabledTexture = false
+search.showAllResults.text = search.showAllResults:CreateFontString()
+search.showAllResults.selectedTexture = search.showAllResults:CreateTexture()
+search.showAllResults:Hide()
+frame.searchResults = env.NewFrame("Frame", "EncounterJournalSearchResults", frame)
+_G.EncounterJournalSearchResultsCloseButton = env.NewFrame("Button", nil, frame.searchResults)
+_G.EncounterJournalSearchResultsCloseButton:SetScript("OnClick", vaultAction)
+frame.searchResults.Background = frame.searchResults:CreateTexture()
+frame.searchResults.TitleText = frame.searchResults:CreateFontString()
+_G.EncounterJournal_UpdateSearchPreview = function(count)
+    for i, row in ipairs(search.searchButtons) do row:SetShown(i <= count) end
+    search.showAllResults:SetShown(count > 5)
+end
+
 assert(loadfile(os.getenv("QUI_JOURNALS_SOURCE") or "modules/skinning/frames/journals.lua"))("QUI", env.ns)
 assert(select.bg:GetAlpha() == 0, "Journeys native page background must stay suppressed")
 assert(info.parchment:GetAlpha() == 0, "encounter parchment must be removed")
@@ -363,6 +419,8 @@ assert(suggested.bg:GetAlpha() == 0 and suggested.iconRing:GetAlpha() == 0, "Sug
 assert(suggested.icon:GetAlpha() == 1, "Suggested Content must retain semantic activity icons")
 assert(env.SkinBase.GetBackdrop(suggested)._quiRoundedSurface.radius == 6, "Suggested Content must use QUI panels")
 assert(suggested.button:GetScript("OnClick") == suggestedClick, "suggested quest action must remain native")
+assert(suggested.prevButton:GetText() == "‹" and suggested.nextButton:GetText() == "›",
+    "Suggested Content paging must show readable previous and next arrows")
 assert(tutorial.parchment:GetAlpha() == 0, "Tutorials must suppress baked parchment")
 assert(tutorial.Header:GetPoint(1) == "TOPLEFT", "Tutorials text must use the integrated content area")
 assert(env.SkinBase.GetBackdrop(tutorial.StartButton)._quiRoundedSurface, "Tutorials action must use QUI chrome")
@@ -469,3 +527,43 @@ for scroll, count in pairs(registered) do
 end
 assert(env.SkinBase.GetBackdrop(card)._quiRoundedSurface,
     "existing journey cards must still refresh with guarded acquired callbacks")
+
+assert(preview.botLeftCorner:GetAlpha() == 0 and preview.botRightCorner:GetAlpha() == 0,
+    "search preview must replace native ornamental corners")
+local result = search.searchButtons[1]
+assert(result.icon.texture == "native-search-item-1" and result.iconFrame:GetAlpha() == 0,
+    "search must retain item art while suppressing ornamental icon border")
+assert(result.name:GetText() == "|cffa335eeIronsoul|r" and result.link == "native-item-link-1"
+    and result:GetScript("OnClick") == vaultAction and result:GetID() == 1,
+    "search must retain quality color codes, item link, result ID and click handler")
+assert(result.selectedTexture:IsShown() and not search.searchButtons[2].selectedTexture:IsShown(),
+    "native keyboard selection visibility must remain intact")
+_G.EncounterJournal_UpdateSearchPreview(2)
+local bd = env.SkinBase.GetBackdrop(preview)
+assert(bd.points[2][2] == search.searchButtons[2], "preview backdrop must follow visible result count")
+_G.EncounterJournal_UpdateSearchPreview(10)
+assert(bd.points[2][2] == search.showAllResults, "preview must contain native Show All action")
+assert(env.SkinBase.GetFrameData(_G.EncounterJournalSearchResultsCloseButton, "closeStyled"),
+    "named search result close button must be styled without a parentKey")
+assert(_G.EncounterJournalSearchResultsCloseButton:GetScript("OnClick") == vaultAction,
+    "search result close handler must remain native")
+assert(frame.searchResults.Background:GetAlpha() == 0 and env.SkinBase.GetBackdrop(frame.searchResults),
+    "full search results must replace native popup chrome")
+_G.QUI_RefreshEncounterJournalColors()
+assert(result.name:GetText() == "|cffa335eeIronsoul|r" and result.selectedTexture:IsShown(),
+    "theme refresh must preserve native quality and selection")
+
+assert(not env.SkinBase.GetBackdrop(overviewButton),
+    "overview icon must not create an opaque rectangular surface over the first boss")
+assert(overviewButton.icon:GetAlpha() == 1 and overviewButton.icon.texture == "native-circular-instance-icon",
+    "overview shortcut must retain native circular instance art")
+assert(overviewButton.NormalTexture:GetAlpha() == 0 and overviewButton.HighlightTexture:GetAlpha() == 1
+    and overviewButton.HighlightTexture.texture == [[Interface\AddOns\QUI\assets\cursor\qui_ring_thin.png]],
+    "overview hover must replace Blizzard artwork with a plain QUI ring")
+local hp, ho, hr = overviewButton.HighlightTexture:GetPoint()
+assert(hp == "CENTER" and ho == overviewButton.icon and hr == "CENTER"
+    and overviewButton.HighlightTexture:GetWidth() == 44 and overviewButton.HighlightTexture:GetHeight() == 44,
+    "overview hover ring must surround the icon rather than the larger hit area")
+assert(overviewButton:GetWidth() == 64 and overviewButton:GetHeight() == 61
+    and overviewButton:GetScript("OnClick") == overviewAction,
+    "overview shortcut must preserve native hit area and click ownership")

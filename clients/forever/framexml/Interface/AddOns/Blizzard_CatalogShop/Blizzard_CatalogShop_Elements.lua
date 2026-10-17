@@ -215,11 +215,12 @@ function NavigationBarMixin:SetupNavigationData(buttonInfos)
 
 	dataProvider:SetSortComparator(SectionSortComparator);
 	self.NavButtonScrollBox:SetDataProvider(dataProvider);
+	local leftmostButton, rightmostButton;
 
 	local leftmostElement = dataProvider:Find(1);
 	if leftmostElement then
 		leftmostElement.isFirstButton = true;
-		local leftmostButton = self.NavButtonScrollBox:FindFrame(leftmostElement);
+		leftmostButton = self.NavButtonScrollBox:FindFrame(leftmostElement);
 		if leftmostButton then
 			leftmostButton:UpdateVisuals();
 		end
@@ -229,10 +230,14 @@ function NavigationBarMixin:SetupNavigationData(buttonInfos)
 	local rightmostElement = dataProvider:Find(numButtons);
 	if rightmostElement then
 		rightmostElement.isLastButton = true;
-		local rightmostButton = self.NavButtonScrollBox:FindFrame(rightmostElement);
+		rightmostButton = self.NavButtonScrollBox:FindFrame(rightmostElement);
 		if rightmostButton then
 			rightmostButton:UpdateVisuals();
 		end
+	end
+
+	if leftmostButton and rightmostButton then
+		self:UpdateGamepadTabIconAnchors(leftmostButton, rightmostButton);
 	end
 end
 
@@ -311,6 +316,27 @@ function NavigationBarMixin:OnCategorySelected(sectionInfo)
 	local categoryID = sectionInfo.ID;
 	EventRegistry:TriggerEvent("CatalogShop.OnCategorySelected", categoryID);
 	self:UpdateNotifications();
+	self:UpdateGamepadTabIconState(sectionInfo);
+end
+
+function NavigationBarMixin:UpdateGamepadTabIconAnchors(leftmostButton, rightmostButton)
+	if not InputUtil.IsGamepadUIEnabled() then
+		return;
+	end
+
+	self.GamepadPreviousCategoryIcon:SetPoint("RIGHT", leftmostButton, "LEFT", 15, -2);
+	self.GamepadNextCategoryIcon:SetPoint("LEFT", rightmostButton, "RIGHT", -15, -2);
+end
+
+function NavigationBarMixin:UpdateGamepadTabIconState(sectionInfo)
+	if not InputUtil.IsGamepadUIEnabled() then
+		return;
+	end
+
+	local isFirstButtonSelected = sectionInfo.isFirstButton or false;
+	local isLastButtonSelected = sectionInfo.isLastButton or false;
+	self.GamepadPreviousCategoryIcon:SetEnabled(not isFirstButtonSelected);
+	self.GamepadNextCategoryIcon:SetEnabled(not isLastButtonSelected);
 end
 
 
@@ -808,6 +834,81 @@ function CarouselControlMixin:SetCarouselItems(modelScene, actor, itemModifiedAp
 		self:UpdateCarousel();
 	end
 	self:SetShown(showCarousel);	
+end
+
+function CarouselControlMixin:OnHide()
+	self:ExitGamepadFocus();
+end
+
+function CarouselControlMixin:SelectPrevious()
+	self.CarouselLeftButton:Click();
+end
+
+function CarouselControlMixin:SelectNext()
+	self.CarouselRightButton:Click();
+end
+
+function CarouselControlMixin:HasGamepadFocus()
+	return self.hasGamepadFocus;
+end
+
+function CarouselControlMixin:EnterGamepadFocus()
+	if self.hasGamepadFocus then
+		return;
+	end
+
+	if self.needsFrameControlsManagerCleanup then
+		self.needsFrameControlsManagerCleanup = nil;
+		CatalogShopOutbound.HandleGamepadFrameHidden(self);
+	end
+
+	self.hasGamepadFocus = true;
+	CatalogShopOutbound.EnterCarouselGamepadFocus(self);
+end
+
+function CarouselControlMixin:ExitGamepadFocus()
+	if not self.hasGamepadFocus then
+		return;
+	end
+
+	self.hasGamepadFocus = false;
+	CatalogShopOutbound.ExitCarouselGamepadFocus(self);
+end
+
+function CarouselControlMixin:ToggleGamepadFocus()
+	if self.hasGamepadFocus then
+		self:ExitGamepadFocus();
+	else
+		self:EnterGamepadFocus();
+	end
+end
+
+-- Called instead of HideUIPanel when the UI loses focus, since the carousel must stay visible.
+function CarouselControlMixin:SmartNavigationCloseHandler()
+	self:ExitGamepadFocus();
+	return true;
+end
+
+function CarouselControlMixin:FocusGamepad()
+	CatalogShopOutbound.FocusCarouselGamepad(self);
+end
+
+function CarouselControlMixin:UnfocusGamepad()
+	if self.hasGamepadFocus then
+		self.hasGamepadFocus = false;
+		self.needsFrameControlsManagerCleanup = true;
+		CatalogShopOutbound.DeferGamepadFrameHidden(self);
+	end
+
+	CatalogShopOutbound.UnfocusCarouselGamepad(self);
+end
+
+function CarouselControlMixin:StartFocus()
+	self.CarouselLabelContainer.FrameGlow:Show();
+end
+
+function CarouselControlMixin:EndFocus()
+	self.CarouselLabelContainer.FrameGlow:Hide();
 end
 
 ----------------------------------------------------------------------------------

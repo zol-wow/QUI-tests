@@ -1,6 +1,22 @@
 local env = dofile("tests/helpers/character_chrome_harness.lua").Build()
 local file = assert(io.open(os.getenv("QUI_DELVES_SOURCE") or "modules/skinning/frames/delves.lua"))
 local source = file:read("*a"); file:close()
+local frameFirst = assert(source:find("local function SkinDelvesFrame(", 1, true))
+local frameLast = assert(source:find("local function StyleDelvesAbilities(", frameFirst, true))
+local frameChunk = assert(loadstring(source:sub(frameFirst, frameLast - 1) .. "\nreturn SkinDelvesFrame"))
+setfenv(frameChunk, setmetatable({ SkinBase = env.SkinBase }, { __index = _G }))
+local config = env.NewFrame("Frame")
+config.Dropdown, config.EnterDelveButton = nil, nil
+config.CompanionConfigShowAbilitiesButton = env.NewFrame("Button", nil, config)
+config.CompanionConfigShowAbilitiesButton.DisabledTexture = false
+local caption = config.CompanionConfigShowAbilitiesButton:CreateFontString()
+caption:SetText("View Abilities")
+caption:SetTextColor(1, .82, 0)
+local click = function() end
+config.CompanionConfigShowAbilitiesButton:SetScript("OnClick", click)
+frameChunk()(config)
+assert(select(1, caption:GetTextColor()) == .95, "anonymous abilities caption must match neutral action text")
+assert(config.CompanionConfigShowAbilitiesButton:GetScript("OnClick") == click, "native abilities action must remain intact")
 local first = assert(source:find("local function StyleDelvesAbilities(", 1, true))
 local last = assert(source:find("local function SkinDelvesCompanion(", first, true))
 local chunk = assert(loadstring(source:sub(first, last - 1) .. "\nreturn StyleDelvesAbilities"))

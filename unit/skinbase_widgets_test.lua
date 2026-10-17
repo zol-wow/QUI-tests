@@ -136,6 +136,7 @@ local ns = {
             }
         end,
         SafeToNumber = function(v, d) return tonumber(v) or d end,
+        IsSecretValue = function() return false end,
         GetSkinBorderColor = function() return skinColors[1], skinColors[2], skinColors[3], skinColors[4] end,
         GetSkinBgColorWithOverride = function() return skinColors[5], skinColors[6], skinColors[7], skinColors[8] end,
         GetSkinBarColor = function() return 0.5, 0.5, 0.5, 1 end,

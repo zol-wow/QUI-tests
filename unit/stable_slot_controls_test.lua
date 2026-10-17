@@ -5,6 +5,24 @@ ns.Client = { isForever = true }
 local root = env.NewFrame("Frame")
 root.CloseButton = false
 _G.PetStableFrame = root
+local function artwork(parent, atlas)
+    local texture = parent:CreateTexture()
+    texture:SetAtlas(atlas)
+    function texture:GetAtlas() return self.atlas end
+    return texture
+end
+local topBackground = artwork(root, "ui-stables-subheader-bg")
+local bottomBackground = artwork(root, "ui-stables-footer-bg")
+root.Background = topBackground
+root.insideFrameBottom = artwork(root, "common-insideframe")
+for _, key in ipairs({ "TopDividerFrame", "BottomDividerFrame" }) do
+    root[key] = env.NewFrame("Frame", nil, root)
+    root[key].horzDivider = artwork(root[key], "ui-stables-horz-divider")
+end
+root.modelScene = env.NewFrame("Frame", nil, root)
+root.modelScene.Background = artwork(root.modelScene, "ui-stables-pet-model-bg")
+local decorations = { topBackground, bottomBackground, root.insideFrameBottom,
+    root.TopDividerFrame.horzDivider, root.BottomDividerFrame.horzDivider }
 local records = { [1] = { icon = 123, name = "Wolf", level = 20, familyName = "Wolf" } }
 local unlocked, pickups, clears, events = 0, {}, 0, {}
 _G.C_StableInfo = {
@@ -29,10 +47,10 @@ local slots, masks = {}, 0
 for id, name in ipairs(names) do
     local b = env.NewFrame("CheckButton", name, root)
     b:SetID(id); b:SetSize(37, 37)
-    b.background = b:CreateTexture()
-    b.background:SetTexture("Interface/Buttons/UI-EmptySlot")
-    function b.background:GetVertexColor() return unpack(self.vertex or {1, 1, 1}) end
-    b.normalTexture = b:CreateTexture()
+    for _, key in ipairs({ "lockedBackground", "unlockedBackground", "currentBackground", "lockIcon", "genericPetIcon", "currentGlow" }) do
+        b[key] = b:CreateTexture()
+        b[key]:Hide()
+    end
     b.highlightTexture = b:CreateTexture()
     b.checkedTexture = b:CreateTexture()
     b.pushedTexture = b:CreateTexture()
@@ -59,16 +77,41 @@ skin.OnAddOnLoaded = function(addon, fn) callbacks[addon] = fn end
 ns.Registry = { Register = function(_, key, entry) registry[key] = entry end }
 local click = slots[1]:GetScript("OnClick")
 assert(loadfile(arg[1] or "modules/skinning/frames/misc_frames.lua"))("QUI", ns)
+env.profile.general.skinStable = false
 callbacks.Blizzard_StableUI()
+for _, texture in ipairs(decorations) do
+    assert(texture:GetAlpha() == 1, "disabled skin must retain native stable artwork")
+end
+env.profile.general.skinStable = true
+ns.Client.isForever = false
+callbacks.Blizzard_StableUI()
+assert(not skin.IsSkinned(root) and bottomBackground:GetAlpha() == 1, "stable artwork styling must not touch Retail")
+ns.Client.isForever = true
+root.IsForbidden = function() return true end
+callbacks.Blizzard_StableUI()
+assert(not skin.IsSkinned(root) and bottomBackground:GetAlpha() == 1, "forbidden stable frames must remain untouched")
+root.IsForbidden = function() return false end
+callbacks.Blizzard_StableUI()
+for _, texture in ipairs(decorations) do
+    assert(texture:GetAlpha() == 0, "stable shell decorations must be hidden")
+    texture:Show(); texture:SetAlpha(1)
+    assert(texture:GetAlpha() == 0, "native artwork resets must not restore stable shell decorations")
+end
+assert(root.modelScene.Background:GetAlpha() == 1, "pet model artwork must remain native")
 local function border(id) return skin.GetFrameData(_G[names[id] .. "IconTexture"], "iconBorder") end
 assert(border(1) and border(1)._quiRoundedSurface, "Stable slots must receive shared rounded borders")
-assert(border(1)._quiBorderR == env.colors[1] and border(2)._quiBorderR == 1 and border(2)._quiBorderG == .1,
-    "native locked red and unlocked neutral borders must remain distinct")
+assert(border(1)._quiBorderR == env.colors[1] and border(2)._quiBorderR == env.colors[1]
+    and border(2)._quiBorderG == env.colors[2], "stable borders must use the shared neutral theme")
 assert(_G.PetStableCurrentPetIconTexture.texture == 123 and _G.PetStableCurrentPetIconTexture.texCoord[1] == 0,
     "pet artwork and native UVs must remain")
-for _, b in ipairs(slots) do
-    assert(b.background:GetAlpha() == 0 and b:GetNormalTexture():GetAlpha() == 0 and b:GetWidth() == 37,
-        "native decoration must be suppressed without changing slot geometry")
+for id, b in ipairs(slots) do
+    local current = id == 1
+    assert(b.lockedBackground:IsShown() == not current and b.lockIcon:IsShown() == not current
+        and not b.unlockedBackground:IsShown() and b.currentBackground:IsShown() == current
+        and b.genericPetIcon:IsShown() == current and b.currentGlow:IsShown() == current,
+        "native locked and current slot indicators must survive styling")
+    assert(b:GetNormalTexture() == nil and b:GetWidth() == 37,
+        "current native slot structure and geometry must remain")
     assert(b.checkedTexture.mask and b.highlightTexture.mask and b.pushedTexture.mask,
         "checked, hover and pressed surfaces must retain rounded native state textures")
 end
@@ -90,13 +133,27 @@ for _, b in ipairs(slots) do b:Update() end
 assert(border(2)._quiBorderG == env.colors[2] and border(3)._quiBorderG == env.colors[2]
     and _G.PetStableCurrentPetIconTexture.texture == 0 and slots[1].tooltip == "Empty",
     "native update must reset unlocked/empty presentation")
+for id, b in ipairs(slots) do
+    assert(not b.lockedBackground:IsShown() and not b.lockIcon:IsShown()
+        and b.unlockedBackground:IsShown() == (id ~= 1) and b.currentBackground:IsShown() == (id == 1)
+        and b.genericPetIcon:IsShown() and b.currentGlow:IsShown() == (id == 1),
+        "native updates must retain unlocked and current slot indicators")
+end
 local oldBorder = border(1)
+local replacementDivider = artwork(root.TopDividerFrame, "ui-stables-horz-divider")
+root.TopDividerFrame.horzDivider = replacementDivider
+decorations[#decorations + 1] = replacementDivider
 registry.skinStable.refresh()
+for _, texture in ipairs(decorations) do
+    assert(texture:GetAlpha() == 0, "theme refresh must retain hidden stable shell decorations")
+end
 assert(border(1) == oldBorder and masks == 12 and slots[1]:GetScript("OnClick") == click,
     "theme/update must retain masks and native handlers")
 env.profile.general.skinStable = false; unlocked = 0
 slots[2]:Update()
-assert(border(2)._quiBorderG == env.colors[2], "disabled skin must stop slot refresh")
+assert(border(2)._quiBorderG == env.colors[2] and slots[2].lockIcon:IsShown()
+    and slots[2].lockedBackground:IsShown() and not slots[2].unlockedBackground:IsShown(),
+    "disabled skin must retain native lock updates without changing the border")
 env.profile.general.skinStable = true
 slots[2].IsForbidden = function() return true end
 slots[2]:Update()

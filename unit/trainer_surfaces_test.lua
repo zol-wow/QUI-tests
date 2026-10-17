@@ -14,7 +14,12 @@ end
 local trainer=frame()
 _G.ClassTrainerFrame=trainer
 trainer.selectedService=1
+trainer.TitleContainer={TitleText=trainer:CreateFontString()}
+trainer.TitleContainer.TitleText:SetTextColor(1,.82,0,1)
+_G.ClassTrainerFrameMoneyBg=trainer:CreateTexture()
 trainer.FilterDropdown=frame("DropdownButton",trainer)
+trainer.FilterDropdown.Caption=trainer.FilterDropdown:CreateFontString()
+trainer.FilterDropdown.Caption:SetTextColor(1,.82,0,1)
 trainer.ScrollBox=frame(nil,trainer)
 trainer.ScrollBar=frame("Slider",trainer)
 trainer.ScrollBar.ThumbTexture=trainer.ScrollBar:CreateTexture()
@@ -66,6 +71,8 @@ skin.OnAddOnLoaded=function(name,fn) if name=="Blizzard_TrainerUI" then callback
 ns.Registry={Register=function(_,key,entry) if key=="skinTrainer" then refresh=entry.refresh end end}
 assert(loadfile(arg[1] or "modules/skinning/frames/interaction.lua"))("QUI",ns)
 callback()
+assert(select(2,trainer.TitleContainer.TitleText:GetTextColor())==1 and select(2,trainer.FilterDropdown.Caption:GetTextColor())==.95,"trainer title and filter must use neutral chrome")
+assert(_G.ClassTrainerFrameMoneyBg:GetAlpha()==0,"trainer native money decoration must stay hidden")
 _G.ClassTrainerFrame_InitServiceButton(first,{skillIndex=1,playerMoney=50,isTradeSkill=true})
 assert(first.money.digits:GetFont()~="native-money-font","trainer row cost must receive QUI typography")
 assert(not action.enabled and first.money.nativeColor=="red" and first.money.digits.textColor[2]==.1

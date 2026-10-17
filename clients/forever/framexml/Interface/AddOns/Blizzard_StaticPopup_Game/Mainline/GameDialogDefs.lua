@@ -1,5 +1,5 @@
 StaticPopupDialogs["CONFIRM_OVERWRITE_EQUIPMENT_SET"].OnAccept = function(dialog, data)
-	 C_EquipmentSet.SaveEquipmentSet(data, dialog.selectedIcon); 
+	 C_EquipmentSet.SaveEquipmentSet(data, dialog.selectedIcon);
 	 GearManagerPopupFrame:Hide();
 end;
 
@@ -325,6 +325,7 @@ StaticPopupDialogs["DEATH"] = {
 	hideOnEscape = false,
 	noCloseOnAlt = true,
 	cancels = "RECOVER_CORPSE",
+	skipGamepadAutoFocus = 1,
 };
 
 StaticPopupDialogs["GROUP_INVITE_CONFIRMATION"] = {
@@ -402,6 +403,7 @@ StaticPopupDialogs["GROUP_INVITE_CONFIRMATION"] = {
 	end,
 	timeout = StaticPopupTimeoutSec,
 	whileDead = 1,
+	skipGamepadAutoFocus = 1,
 };
 
 StaticPopupDialogs["PLUNDERSTORM_LEAVE"] = {
@@ -904,37 +906,23 @@ StaticPopupDialogs["CONFIRM_DESTROY_COMMUNITY"] = {
 	exclusive = 1,
 	whileDead = 1,
 	hideOnEscape = 1,
-	hasEditBox = 1,
 	maxLetters = 32,
+	requiresConfirmation = true,
+	confirmationString = COMMUNITIES_DELETE_CONFIRM_STRING,
 	OnShow = function(dialog, clubInfo)
 		if clubInfo.clubType == Enum.ClubType.BattleNet then
-			dialog:SetText(CONFIRM_DESTROY_COMMUNITY:format(clubInfo.name));
+			dialog:SetText(CONFIRM_DESTROY_COMMUNITY_UNPROMPTED:format(clubInfo.name));
 		else
-			dialog:SetText(CONFIRM_DESTROY_CHARACTER_COMMUNITY:format(clubInfo.name));
+			dialog:SetText(CONFIRM_DESTROY_CHARACTER_COMMUNITY_UNPROMPTED:format(clubInfo.name));
 		end
 
 		dialog:GetButton1():Disable();
 		dialog:GetButton2():Enable();
-		dialog:GetEditBox():SetFocus();
 	end,
 	OnHide = function(dialog, data)
 		ChatFrameUtil.FocusActiveWindow();
-		dialog:GetEditBox():SetText("");
 		MerchantFrame_ResetRefundItem();
 	end,
-	EditBoxOnEnterPressed = function(editBox, data)
-		if ( editBox:GetParent():GetButton1():IsEnabled() ) then
-			editBox:GetParent():GetButton1():Click();
-			editBox:GetParent():Hide();
-		end
-	end,
-	EditBoxOnTextChanged = function(editBox, data)
-		StaticPopup_StandardConfirmationTextHandler(editBox, COMMUNITIES_DELETE_CONFIRM_STRING);
-	end,
-	EditBoxOnEscapePressed = function(editBox, data)
-		StaticPopup_StandardEditBoxOnEscapePressed(editBox);
-		ClearCursor();
-	end
 };
 
 local function ClubInviteDisabledOnEnter(dialog)
@@ -1110,13 +1098,17 @@ StaticPopupDialogs["RENAME_PET"] = {
 	hideOnEscape = 1
 };
 
+local function AbandonSkill(skillLine)
+	C_SkillInfo.AbandonSkill(skillLine);
+	EventRegistry:TriggerEvent("Professions.SkillAbandoned", skillLine);
+end
+
 StaticPopupDialogs["UNLEARN_SKILL"] = {
 	text = UNLEARN_SKILL,
 	button1 = UNLEARN,
 	button2 = CANCEL,
 	OnAccept = function(dialog, skillLine)
-		C_SkillInfo.AbandonSkill(skillLine);
-		HideUIPanel(ProfessionsFrame);
+		AbandonSkill(skillLine);
 	end,
 	OnShow = function(dialog, data)
 		dialog:GetButton1():Disable();
@@ -1129,8 +1121,7 @@ StaticPopupDialogs["UNLEARN_SKILL"] = {
 	EditBoxOnEnterPressed = function(editBox, skillLine)
 		local dialog = editBox:GetParent();
 		if dialog:GetButton1():IsEnabled() then
-			C_SkillInfo.AbandonSkill(skillLine);
-			HideUIPanel(ProfessionsFrame);
+			AbandonSkill(skillLine);
 			dialog:Hide();
 		end
 	end,
@@ -1155,8 +1146,7 @@ StaticPopupDialogs["UNLEARN_SKILL_GAMEPAD"] = {
 	button1 = UNLEARN,
 	button2 = CANCEL,
 	OnAccept = function(dialog, skillLine)
-		C_SkillInfo.AbandonSkill(skillLine);
-		HideUIPanel(ProfessionsFrame);
+		AbandonSkill(skillLine);
 	end,
 	OnShow = function(dialog, data)
 		dialog:GetButton1():Disable();
@@ -1340,6 +1330,7 @@ StaticPopupDialogs["LEAVING_TUTORIAL_AREA"] = {
 		end
 	end,
 	selectCallbackByIndex = true,
+	skipGamepadAutoFocus = 1,
 };
 
 StaticPopupDialogs["CLUB_FINDER_ENABLED_DISABLED"] = {
@@ -1564,4 +1555,29 @@ StaticPopupDialogs["SET_CUSTOM_TITLE_FRIEND_NAME"] = {
 		dialog:Hide();
 	end,
 	EditBoxOnEscapePressed = StaticPopup_StandardEditBoxOnEscapePressed,
+};
+
+StaticPopupDialogs["VOICE_CHAT_JOIN_GROUP"] = {
+	text = "",
+	button1 = VOICE_CHAT_JOIN_GROUP_BUTTON,
+	button2 = CANCEL,
+	OnShow = function(dialog)
+		local isDiscord = C_VoiceChat.GetActiveVoiceProviderID() == Enum.VoiceProviderID.Discord;
+		local hasUnsupportedFeatures = GetCVarBool("remoteTextToSpeech") or GetCVarBool("speechToText");
+		local dialogText = VOICE_CHAT_JOIN_GROUP_TEXT;
+		if isDiscord and hasUnsupportedFeatures then
+			dialogText = dialogText .. "\n\n" .. VOICE_CHAT_JOIN_GROUP_DISCORD_TEXT;
+		end
+		dialog:SetText(dialogText);
+	end,
+	OnAccept = function(dialog)
+		-- The leader can change the party voice mode while this popup is open.
+		local isDiscord = C_VoiceChat.GetActiveVoiceProviderID() == Enum.VoiceProviderID.Discord;
+		ChannelFrame:TryJoinVoiceChannelByType(isDiscord and Enum.ChatChannelType.DiscordParty or Enum.ChatChannelType.PrivateParty, true);
+	end,
+	timeout = 0,
+	showAlert = 1,
+	hideOnEscape = 1,
+	whileDead = 1,
+	skipGamepadAutoFocus = 1,
 };
