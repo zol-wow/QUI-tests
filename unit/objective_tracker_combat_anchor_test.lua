@@ -94,8 +94,11 @@ setfenv(producer,setmetatable({ns=producerNS,blizzardTrackerHeight=650,
 producer()
 local w,h=producerNS.GetObjectiveTrackerAnchorSize()
 assert(w==260 and h==600,"anchor extent must use configured size rather than native combat root size")
-settings.objectiveTrackerHeight=800
-w,h=producerNS.GetObjectiveTrackerAnchorSize();assert(h==650,"configured height must retain native maximum")
+settings.objectiveTrackerHeight=1000
+w,h=producerNS.GetObjectiveTrackerAnchorSize();assert(h==1000,"configured height must expand beyond native maximum")
+ns.GetObjectiveTrackerAnchorSize=producerNS.GetObjectiveTrackerAnchorSize
+repair("objectiveTracker")
+assert(holder.height==1000,"managed holder must reserve the full expanded tracker height")
 settings.skinObjectiveTracker=false;assert(producerNS.GetObjectiveTrackerAnchorSize()==nil)
 settings.skinObjectiveTracker=true;scenario=true;assert(producerNS.GetObjectiveTrackerAnchorSize()==nil)
 print("OK: objective_tracker_combat_anchor_test")
