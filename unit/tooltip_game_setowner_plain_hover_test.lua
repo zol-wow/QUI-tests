@@ -9,6 +9,7 @@
 
 local capturedSetOwnerHook
 local updateBorderCalls = 0
+local roundedChrome
 
 local function makeFrame(name, objectType)
     local frame = {
@@ -118,6 +119,7 @@ local ns = {
             }
         end,
         CreateStateTable = function() return setmetatable({}, { __mode = "k" }) end,
+        GetWindowColors = function() return 0.4, 0.7, 1, 1, 0.02, 0.02, 0.02, 0.9 end,
         GetSkinBorderColor = function() return 0.4, 0.7, 1, 1 end,
         GetSkinBgColor = function() return 0.02, 0.02, 0.02, 0.9 end,
         GetGeneralFont = function() return "Fonts\\FRIZQT__.TTF" end,
@@ -127,6 +129,10 @@ local ns = {
     },
     SkinBase = {
         CHROME = { BG_FALLBACK = { 0.02, 0.02, 0.02, 0.9 } },
+        ApplyChromeBackdrop = function(_, opts)
+            roundedChrome = opts
+            updateBorderCalls = updateBorderCalls + 1
+        end,
     },
     UIKit = {
         CreateBackground = function()
@@ -145,7 +151,7 @@ local ns = {
     SafeCallMethodIfPresent = function(_policy, obj, name, ...) if obj == nil then return nil end local okP, m = pcall(function() return obj[name] end) if not okP then return false end if m == nil then return nil end return pcall(m, obj, ...) end,
 }
 
-assert(loadfile("modules/skinning/system/tooltips.lua"))("QUI", ns)
+assert(loadfile(os.getenv("QUI_TOOLTIP_SOURCE") or "modules/skinning/system/tooltips.lua"))("QUI", ns)
 
 assert(type(capturedSetOwnerHook) == "function",
     "GameTooltip plain SetOwner hovers must install a narrow skinning trigger")
@@ -178,3 +184,8 @@ assert(updateBorderCalls > 0,
     "safe combat GameTooltip:SetOwner hovers must refresh QUI tooltip chrome")
 
 print("OK: tooltip_game_setowner_plain_hover_test")
+
+assert(roundedChrome and roundedChrome.radius == 6 and roundedChrome.background,
+    "plain hover tooltips must use rounded QUI chrome")
+assert(roundedChrome.bgColor[4] == 0.9 and roundedChrome.borderPixels == 1,
+    "rounded tooltip chrome must preserve configured opacity and border thickness")

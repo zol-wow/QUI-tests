@@ -209,7 +209,7 @@ local UIKit = ns.UIKit
 -- Extract the framework blocks and run them with the module-local helpers
 -- they close over supplied as parameters.
 ---------------------------------------------------------------------------
-local fw = readAll("QUI_Options/framework.lua")
+local fw = readAll(os.getenv("QUI_TOGGLE_SOURCE") or "QUI_Options/framework.lua")
 local muteBlock = extract(fw, "-- BEGIN widget disabled mute", "-- END widget disabled mute")
 local pillBlock = extract(fw, "-- BEGIN pill toggle", "-- END pill toggle")
 local squareBlock = extract(fw, "-- BEGIN square checkbox", "-- END square checkbox")
@@ -255,6 +255,13 @@ local function knobX(toggle) return toggle.knob.points[#toggle.knob.points][4] e
 local db = { on = false }
 local pill = BuildPillToggle(panel, "Enable thing", "on", db, nil, nil, false)
 local toggle = pill.track
+local toggleAnchor = toggle.points[#toggle.points]
+check("labeled toggles align with the end of their setting cell",
+    toggleAnchor[1] == "RIGHT" and toggleAnchor[2] == pill and toggleAnchor[3] == "RIGHT" and toggleAnchor[4] == 0)
+local labelAnchor = pill.label.points[#pill.label.points]
+check("toggle labels use the available width and leave room for the pin",
+    labelAnchor[1] == "RIGHT" and labelAnchor[2] == toggle and labelAnchor[3] == "LEFT" and labelAnchor[4] == -24)
+
 check("pill starts painted at the OFF endpoint (knob at LEFT+2, toggleOff track)",
     near(knobX(toggle), 2) and near(toggle.track.color[4], 0.12) and pill.GetToggleProgress() == 0,
     tostring(knobX(toggle)))

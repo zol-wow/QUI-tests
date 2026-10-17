@@ -7,6 +7,7 @@
 local ns = {}
 ns.L = setmetatable({}, { __index = function(_, k) return k end })
 ns.Helpers = {
+    ApplyIconStyle = function() end,
     GetGeneralFont        = function() return "Fonts\\FRIZQT__.TTF" end,
     GetGeneralFontOutline = function() return "" end,
 }

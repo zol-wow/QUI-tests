@@ -97,7 +97,7 @@ local Registry, Nav, Pins = ns.Settings.Registry, ns.Settings.Nav, ns.Settings.P
 local feature = Registry:GetFeatureByLookupKey("deathAlert")
 assert(feature and feature.id == "notifications", "deathAlert lookup key must map to the notifications feature")
 local route = Nav:GetLookupTarget("deathAlert")
-assert(route and route.tileId == "qol" and route.subPageIndex == 15, "lookup route must point at the QoL Notifications subpage")
+assert(route and route.tileId == "qol" and route.subPageIndex == 13, "lookup route must point at the QoL Notifications subpage")
 
 local stalePin = {
     kind = "checkbox", label = "Group Death Alert", value = true, pinnedAt = 1,
@@ -110,10 +110,10 @@ local db = {
 }
 local nav = Pins:GetNavigationEntry("general.deathAlert.enabled", db)
 assert(nav, "stale pin must still navigate")
-assert(nav.tileId == "qol" and nav.subPageIndex == 15, "stale Automation pin must open the Notifications subpage, got subPageIndex " .. tostring(nav.subPageIndex))
+assert(nav.tileId == "qol" and nav.subPageIndex == 13, "stale Automation pin must open the Notifications subpage, got subPageIndex " .. tostring(nav.subPageIndex))
 assert(nav.featureId == "notifications", "stale pin must scroll to the notifications feature")
 local listed = Pins:List(db)
-assert(#listed == 1 and listed[1].subPageIndex == 15 and listed[1].featureId == "notifications",
+assert(#listed == 1 and listed[1].subPageIndex == 13 and listed[1].featureId == "notifications",
     "pin list must show the Notifications route for the stale pin")
 
 -- 3. Unrelated general.* pins keep their stored route (no accidental capture).

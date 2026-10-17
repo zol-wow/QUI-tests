@@ -32,7 +32,7 @@ local petRow = { name = "petRow" }
 local heirloomEntry = { name = "heirloomEntry" }
 local heirloomHeader = { name = "heirloomHeader" }
 
-_G.CollectionsJournal = { name = "CollectionsJournal" }
+_G.CollectionsJournal = { name = "CollectionsJournal", HookScript = function() end }
 _G.MountJournal = {
     ScrollBox = {
         name = "MountJournalScrollBox",
@@ -75,6 +75,20 @@ local ns = {
 }
 
 ns.SkinBase = {
+    ClampTextureHidden = function() end,
+    SkinIcon = function() end,
+    ApplyChromeBackdrop = function() end,
+    StripTextures = function() end,
+    GetWindowColors = function() return 0.2, 0.2, 0.2, 1 end,
+    GetDepthColor = function() return 0.1, 0.1, 0.1, 1 end,
+    CreateBackdrop = function() end,
+    SkinFontString = function() end,
+    RoundIconTexture = function() end,
+    SkinEditBox = function() end,
+    SkinDropdown = function() end,
+    SkinButton = function() end,
+    RefreshWidget = function() end,
+    CollectNumberedTabs = function() return {} end,
     RefreshFrameBackdropColors = function() end,
     IsSkinned = function() return false end,
     SkinButtonFrameTemplate = function(frame)
@@ -93,7 +107,12 @@ ns.SkinBase = {
         calls["btnfont:" .. tostring(frame.name)] = depth
     end,
     HookScrollBoxAcquired = function(scrollBox, callback)
-        scrollHooks[scrollBox] = callback
+        if not scrollBox then return end
+        local previous = scrollHooks[scrollBox]
+        scrollHooks[scrollBox] = function(row)
+            if previous then previous(row) end
+            callback(row)
+        end
     end,
     -- Mirror the real SkinBase.HookScrollBoxRowFonts (core/uikit.lua): a guarded
     -- per-row font lock that runs the recursive pass ONCE per row, plus the
@@ -139,8 +158,8 @@ assert(calls["lock:petRow"] == 3, "visible pet rows must be locked")
 -- Heirloom frames: the whole lock path is gone. LockFrameTextObjects had
 -- already been dropped in favour of the global font-object override, leaving
 -- three permanent hooks that only stamped a marker nothing read.
-assert(not tableHooks[_G.HeirloomsJournal],
-    "HeirloomsJournal must not be hooked for a marker nothing reads")
+assert(tableHooks[_G.HeirloomsJournal],
+    "HeirloomsJournal must restyle entries after native refresh")
 assert(scrollHooks[_G.MountJournal.ScrollBox], "MountJournal ScrollBox must lock acquired rows")
 assert(scrollHooks[_G.PetJournal.ScrollBox], "PetJournal ScrollBox must lock acquired rows")
 

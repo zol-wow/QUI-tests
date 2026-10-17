@@ -209,4 +209,73 @@ assert(not source:find("state.previewHost = nil", teardownStart, true),
 assert(source:find("previewHost:SetParent(host)", 1, true),
     "Build must reparent the pooled previewHost instead of creating a new one")
 
+local function Node()
+    local node = { shown = true }
+    setmetatable(node, { __index = function(_, key)
+        if key:match("^%u") then return function() end end
+    end })
+    function node:GetWidth() return 40 end
+    function node:GetText() return self.text end
+    function node:SetText(value) self.text = value end
+    function node:Show() self.shown = true end
+    function node:Hide() self.shown = false end
+    return node
+end
+local secret = setmetatable({}, { __index = function() error("secret text must remain opaque") end })
+local profile = { actionBars = { global = { showKeybinds = true }, bars = {
+    bar1 = { ownedLayout = { iconCount = 2 } },
+    bar2 = { ownedLayout = { iconCount = 2 } },
+} } }
+local native = { { HotKey = Node() }, { HotKey = Node() } }
+local bindings = {}
+_G.RANGE_INDICATOR = "●"
+_G.GetBindingKey = function(key) return bindings[key] end
+_G.GetActionTexture = function() return 123 end
+_G.QUI = {}
+local ns = {
+    Helpers = { IsSecretValue = function(value) return value == secret end },
+    QUI_Options = { GetDB = function() return profile end },
+    ActionBarsOwned = { nativeButtons = { bar1 = native } },
+}
+assert(loadfile("QUI_ActionBars/actionbars/settings/action_bars_preview_driver.lua"))("QUI", ns)
+local driver = ns.QUI_ActionBarsPreviewDriver
+local state
+for i = 1, math.huge do
+    local key, value = debug.getupvalue(driver.Refresh, i)
+    if not key then break end
+    if key == "state" then state = value; break end
+end
+assert(state)
+state.host, state.previewHost = Node(), Node()
+for i = 1, 2 do
+    state.previewButtons[i] = {
+        frame = Node(), icon = Node(), backdrop = Node(), normal = Node(), gloss = Node(),
+        hotkey = Node(), name = Node(), count = Node(),
+    }
+end
+local first, second = state.previewButtons[1].hotkey, state.previewButtons[2].hotkey
+native[1].HotKey:SetText(RANGE_INDICATOR)
+native[1].HotKey:Hide()
+native[2].HotKey:SetText("C2")
+driver.Refresh()
+assert(first.text == "" and not first.shown,
+    "an unassigned native range marker must remain empty beside a real binding")
+assert(second.text == "C2" and second.shown, "real displayed bindings must remain visible")
+native[2].HotKey:SetText("")
+driver.Refresh()
+assert(first.text == "" and second.text == "" and not first.shown and not second.shown,
+    "an entirely unbound bar must not receive fabricated sample bindings")
+bindings.ACTIONBUTTON1 = "SHIFT-1"
+driver.Refresh()
+assert(first.text == "S1" and first.shown, "the native marker must allow real API binding fallback")
+native[1].HotKey:SetText(".")
+driver.Refresh()
+assert(first.text == "." and first.shown, "a real period key must not be mistaken for the native marker")
+native[1].HotKey:SetText(secret)
+driver.Refresh()
+assert(first.text == secret and first.shown, "secret displayed text must pass through to its font sink")
+driver.SetSelectedBar("bar2")
+assert(first.text == "" and second.text == "" and not first.shown and not second.shown,
+    "pooled text must clear when changing to an unbound bar")
+
 print("OK: actionbars_preview_driver_test")

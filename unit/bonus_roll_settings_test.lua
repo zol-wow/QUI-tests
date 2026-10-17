@@ -169,7 +169,7 @@ function ns.QUI_Options.BuildSettingRow(parent, label, widget, ...)
 end
 assert(loadfile("core/settings_layout_shared.lua"))("QUI", ns)
 assert(loadfile("modules/layout/settings/bonus_roll_provider.lua"))("QUI", ns)
-assert(feature.nav.tileId == "qol" and feature.nav.subPageIndex == 16)
+assert(feature.nav.tileId == "qol" and feature.nav.subPageIndex == 14)
 assert(feature.getDB(profile) == profile.general.bonusRoll)
 local content = Frame()
 content._quiProviderSync = { providerKey = "bonusRollFrame", surfaceId = "bonusRollTest" }

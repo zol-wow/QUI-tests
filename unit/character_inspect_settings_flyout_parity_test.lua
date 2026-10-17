@@ -35,6 +35,7 @@ local function Provider(tag)
         built[tag] = ctx
         local y = ctx.y
         local row = env.NewFrame("Frame", nil, ctx.scrollChild)
+        row:SetHeight(28)
         y = ctx.PlaceRow(row, y)
         ctx.ResetRows()
         y = y - 250
@@ -66,8 +67,8 @@ check("panels published under their globals",
 -- 1. Shared geometry
 ---------------------------------------------------------------------------
 local ct, it = charFlyout.trigger, inspectFlyout.trigger
-check("trigger width identical (118)", ct.width == 118 and it.width == 118, ("%s vs %s"):format(ct.width, it.width))
-check("trigger height identical (20)", ct.height == 20 and it.height == 20)
+check("trigger width fits its label", ct.width == 76 and it.width == 76, ("%s vs %s"):format(ct.width, it.width))
+check("trigger height fits the control (24)", ct.height == 24 and it.height == 24)
 check("trigger label text", charFlyout.triggerLabel.text == "Settings" and inspectFlyout.triggerLabel.text == "Settings")
 check("trigger label font 12", charFlyout.triggerLabel.fontSize == 12 and inspectFlyout.triggerLabel.fontSize == 12)
 check("trigger label idle white .85",
@@ -173,6 +174,14 @@ check("inspect pane dropped the custom-field glow", inspect:find("_accentGlow", 
 check("character pane has no bespoke settings wheel handler", pane:find("current - delta * 30", 1, true) == nil)
 check("character stats panel uses the shared scroll contract", pane:find("chrome.AttachScroll(scrollFrame", 1, true) ~= nil)
 check("character stats panel dropped the 20 px jump", pane:find("current - delta * 20", 1, true) == nil)
+
+local originalPixelSize = env.ns.Addon.SetPixelPerfectSize
+function env.ns.Addon:SetPixelPerfectSize(frame, w, h) frame:SetSize(w / 1.3, h / 1.3) end
+local scaled = Chrome.CreateSettingsFlyout(inspectFrame, { title = "Scaled Inspect" })
+check("scaled trigger contains logical font width and icon padding",
+    scaled.trigger:GetWidth() >= scaled.triggerLabel:GetStringWidth() + 36)
+check("scaled trigger keeps physical height", approx(scaled.trigger:GetHeight() * 1.3, 24))
+env.ns.Addon.SetPixelPerfectSize = originalPixelSize
 
 if failures > 0 then
     print(("FAIL: character_inspect_settings_flyout_parity_test (%d)"):format(failures))

@@ -24,7 +24,7 @@ end
 ---------------------------------------------------------------------------
 local ah = readFile("modules/skinning/frames/auctionhouse.lua")
 
-assertContains(ah, "SkinTabGroup(AuctionHouseFrame.Tabs, AuctionHouseFrame, { font = true, resizeToText = true })",
+assertContains(ah, "SkinTabGroup(AuctionHouseFrame.Tabs, AuctionHouseFrame, { font = true, resizeToText = true, dockBottom = true })",
     "AH tabs must opt in to the global QUI font")
 assertContains(ah, "SkinEditBox(searchBar.SearchBox, { font = true })",
     "AH search box must use the global QUI font")
@@ -67,7 +67,7 @@ assertContains(ah, "SkinBase.RefreshWidget(quantityInput.MaxButton)",
 ---------------------------------------------------------------------------
 local co = readFile("modules/skinning/frames/craftingorders.lua")
 
-assertContains(co, "SkinTabGroup(tabs, frame, { font = true, resizeToText = true })",
+assertContains(co, "SkinTabGroup(tabs, frame, { font = true, resizeToText = true, dockBottom = true })",
     "CO tabs must opt in to the global QUI font")
 assertContains(co, "SkinEditBox(searchBar.SearchBox, { font = true })",
     "CO search box must use the global QUI font")

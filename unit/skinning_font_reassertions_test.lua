@@ -58,26 +58,25 @@ local entitlement = blockBetween(alerts, "local function SkinEntitlementAlert(fr
     "local function SkinDigsiteCompleteAlert(frame)")
 assertAbsent(entitlement, "if not frame or SkinBase.IsSkinned(frame) then return end",
     "entitlement alerts must not skip text restyle on already-skinned pooled frames")
-assertOrdered(entitlement, "RestyleEntitlementAlertText(frame)",
-    "if SkinBase.IsSkinned(frame) then return end",
-    "entitlement alert text must be reasserted before the already-skinned return")
+assertAbsent(entitlement, "if SkinBase.IsSkinned(frame) then return end",
+    "entitlement pooled frames must reapply text, chrome and icon layout after native setup")
 
 ---------------------------------------------------------------------------
 -- Professions/crafting/PVP/dropdown/interaction frames: lock text rebinds.
 ---------------------------------------------------------------------------
 local crafting = readFile("modules/skinning/frames/craftingorders.lua")
-local durationBlock = blockBetween(crafting, "if pc.DurationDropdown then", "if pc.NoteEditBox then")
+local durationBlock = blockBetween(crafting, "if pc.DurationDropdown then", "StyleOrderNotes(form)")
 -- SkinDropdown owns the dropdown text durability: it faces the visible text in the QUI
 -- font (SkinFontString{fontOnly}) AND locks it against Blizzard SetFontObject
 -- (LockFontObject + LockFrameTextObjects(dropdown, 2)) — see SkinBase.SkinDropdown ->
 -- LockDropdownText in core/uikit.lua. So routing through it is the single source of truth.
-assertContains(durationBlock, "SkinBase.SkinDropdown(pc.DurationDropdown)",
+assertContains(durationBlock, "SkinBase.SkinDropdown(pc.DurationDropdown, { skinArrow = true })",
     "customer order duration dropdown must route through SkinDropdown (QUI font + survives Blizzard SetFontObject)")
 -- SkinDropdown calls LockDropdownText internally, so routing the form dropdowns through it
 -- guarantees their visible text is faced + locked (no separate post-lock call needed).
-assertContains(crafting, "SkinBase.SkinDropdown(form.MinimumQuality.Dropdown)",
+assertContains(crafting, "SkinBase.SkinDropdown(form.MinimumQuality.Dropdown, { skinArrow = true })",
     "customer order minimum quality dropdown must route through SkinDropdown (faces + locks its text)")
-assertContains(crafting, "SkinBase.SkinDropdown(form.OrderRecipientDropdown)",
+assertContains(crafting, "SkinBase.SkinDropdown(form.OrderRecipientDropdown, { skinArrow = true })",
     "customer order recipient dropdown must route through SkinDropdown (faces + locks its text)")
 
 local professions = readFile("modules/skinning/frames/professions.lua")
@@ -98,7 +97,7 @@ assertContains(orderView, "SkinBase.LockFontObject(noteTitle, { fontOnly = true 
 local instanceFrames = readFile("modules/skinning/frames/instanceframes.lua")
 local pveGroupButtons = blockBetween(instanceFrames, "local function StyleGroupFinderButton(button",
     "local function SkinPVEFrame()")
-assertContains(pveGroupButtons, "SkinBase.SkinFontString(button.name, { fontOnly = true })",
+assertContains(pveGroupButtons, "SkinBase.SkinFontString(name, { color = { 0.9, 0.9, 0.9, 1 } })",
     "PVE group finder labels must reapply the QUI font")
 -- LockFrameTextObjects(button, 2) was removed from StyleGroupFinderButton;
 -- static text durability from global object override; interactive reverts accepted.
@@ -133,8 +132,8 @@ assertContains(journals, "local function GetEncounterJournalBottomTabs(frame)",
     "Adventure Guide bottom content tabs must be collected explicitly")
 local encounterBottomTabs = blockBetween(journals, "local function SkinEncounterJournalBottomTabs(frame)",
     "local function SkinEncounterJournalTutorialsButton(frame)")
-assertContains(encounterBottomTabs, "SkinBase.ApplyButtonFontObjects(tab)",
-    "Adventure Guide bottom content tabs must apply the QUI font without replacing their native tab art")
+assertContains(encounterBottomTabs, "SkinBase.SkinTabGroup(tabs, frame, { resizeToText = true, hover = true, dockBottom = true })",
+    "Adventure Guide content tabs must use QUI fonts and join the window footer")
 -- LockFrameTextObjects(tab, 2) was removed from the bottom-tabs loop; interactive
 -- font-object reverts on bare-root tab surfaces are accepted under the global override.
 assertContains(journals, "LockCollectionsScrollBox(_G.MountJournal and _G.MountJournal.ScrollBox)",
@@ -182,9 +181,9 @@ local columnDisplayButtonShort = blockBetween(sharedPanelTemplates, "<Button nam
     "	</Button>")
 assertContains(columnDisplayButtonShort, "<NormalFont style=\"GameFontHighlightSmall\"/>",
     "Auction House sort headers inherit a stock button font object that can reappear on button state changes")
-local auctionHeaderSkin = blockBetween(auctionhouse, "local function HookAuctionHeaderSkin()",
-    "local function SkinBrowsePanel()")
-assertContains(auctionHeaderSkin, "SkinBase.ApplyButtonFontObjects(self)",
+local auctionHeaderSkin = blockBetween(auctionhouse, "local function StyleAuctionHeader(header)",
+    "local function StyleAuctionListHeaders(list)")
+assertContains(auctionHeaderSkin, "SkinBase.ApplyButtonFontObjects(header)",
     "Auction House sort headers must drive normal/highlight/disabled font objects")
 -- LockFrameTextObjects(self, 2) was removed from HookAuctionHeaderSkin; ApplyButtonFontObjects
 -- drives the font objects directly so hover/disable swaps carry the QUI face. Global override

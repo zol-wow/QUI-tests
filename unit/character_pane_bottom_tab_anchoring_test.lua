@@ -25,12 +25,12 @@ assertContains(
 
 assertContains(
     source,
-    "CharacterFrameTab2:SetPoint(\"TOPLEFT\", CharacterFrameTab1, \"TOPRIGHT\", -5, 0)",
+    "CharacterFrameTab2:SetPoint(\"TOPLEFT\", CharacterFrameTab1, \"TOPRIGHT\", 0, 0)",
     "CharacterFrameTab2 must be reattached to CharacterFrameTab1 after the first tab moves")
 
 assertContains(
     source,
-    "CharacterFrameTab3:SetPoint(\"TOPLEFT\", CharacterFrameTab2, \"TOPRIGHT\", -5, 0)",
+    "CharacterFrameTab3:SetPoint(\"TOPLEFT\", CharacterFrameTab2, \"TOPRIGHT\", 0, 0)",
     "CharacterFrameTab3 must be reattached to CharacterFrameTab2 after the first tab moves")
 
 local adjustStart = assert(
@@ -42,8 +42,8 @@ local adjustEnd = assert(
 local adjustBlock = source:sub(adjustStart, adjustEnd)
 assertContains(
     adjustBlock,
-    "AnchorCharacterFrameBottomTabs(2)",
-    "Non-character tabs must move the whole bottom tab chain up")
+    "AnchorCharacterFrameBottomTabs(-50)",
+    "Non-character tabs must preserve the extended bottom tab position")
 
 local restoreEnd = assert(
     source:find("local function HideCustomElements()", adjustEnd, true),
@@ -51,7 +51,7 @@ local restoreEnd = assert(
 local restoreBlock = source:sub(adjustEnd, restoreEnd)
 assertContains(
     restoreBlock,
-    "AnchorCharacterFrameBottomTabs(-48)",
+    "AnchorCharacterFrameBottomTabs(-50)",
     "Character tab must move the whole bottom tab chain to the extended pane position")
 
 assertAbsent(

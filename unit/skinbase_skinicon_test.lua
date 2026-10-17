@@ -35,8 +35,12 @@ C_Timer = { After = function(_, fn) fn() end }
 function hooksecurefunc() end
 
 local skinBorder = { 0.6, 0.7, 0.8, 1 }
+local finishCalls = {}
+local windowBorder = { 0.2, 0.25, 0.3, 0.8 }
 local ns = {
     Helpers = {
+        GetWindowColors = function() return windowBorder[1], windowBorder[2], windowBorder[3], windowBorder[4], 0.07, 0.10, 0.12, 0.9 end,
+        ApplyIconStyle = function(host, icon) finishCalls[#finishCalls + 1] = { host = host, icon = icon } end,
         CHROME = { BORDER_PX = 1, BG_FALLBACK = { 0.05, 0.05, 0.05, 0.95 }, BORDER_FALLBACK = { 0, 0, 0, 1 }, BUTTON_BOOST = 0.07, SCROLLROW_BOOST = 0.03, DEPTH = { PANEL = { boost = 0, alpha = 0.95 }, SUBPANEL = { boost = 0.04, alpha = 0.85 }, ROW = { boost = 0.07, alpha = 0.75 } } },
         CreateStateTable = function()
             local tbl = setmetatable({}, { __mode = "k" })
@@ -78,8 +82,8 @@ do
     assert(SkinBase.GetFrameData(icon, "iconBorder") == border, "SkinIcon must cache the border per icon")
     assert(#applied == 1 and applied[1].frame == border and applied[1].withBg == false,
         "SkinIcon must apply a hollow (no-bg) pixel backdrop to the border")
-    assert(applied[1].border[1] == skinBorder[1] and applied[1].border[4] == skinBorder[4],
-        "SkinIcon must default the border color to the skin border color")
+    assert(applied[1].border[1] == windowBorder[1] and applied[1].border[4] == windowBorder[4],
+        "SkinIcon must default to the neutral window border")
 end
 
 -- ── idempotent: second call reuses the cached border, no new frame ─────────
@@ -88,7 +92,9 @@ do
     local icon = NewIcon(host)
     local b1 = SkinBase.SkinIcon(icon)
     local n = #createdFrames
+    local finishesBefore = #finishCalls
     local b2 = SkinBase.SkinIcon(icon)
+    assert(#finishCalls == finishesBefore + 1 and finishCalls[#finishCalls].icon == icon, "cached borders must still refresh icon material")
     assert(b1 == b2, "SkinIcon must return the cached border on re-call")
     assert(#createdFrames == n, "SkinIcon must NOT create a second border frame on re-call")
 end

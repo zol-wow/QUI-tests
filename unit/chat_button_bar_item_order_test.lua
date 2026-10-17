@@ -119,7 +119,7 @@ local ns = {
         SafeToNumber = function(v, d) return tonumber(v) or d end,
         IsSecretValue = function() return false end,
         GetGeneralFont = function() return "Interface\\QUIFont.ttf" end,
-        GetSkinColors = function() return 0.1, 0.2, 0.3, 1, 0.4, 0.5, 0.6, 0.9 end,
+        GetWindowColors = function() return 0.1, 0.2, 0.3, 1, 0.4, 0.5, 0.6, 0.9 end,
     },
     QUI = { Chat = {
         _afterRefresh = {},

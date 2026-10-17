@@ -267,4 +267,15 @@ waiter.scripts.OnEvent(waiter)
 assert(driver._executed == 5, "secure re-apply heals the insecure show at regen")
 CL.Deactivate(1)
 
+ns.Client = { restrictedExecutionUnavailable = true }
+createdFrames = {}
+assert(loadfile("QUI_Chat/chat/combat_log_tab.lua"))("QUI", ns)
+CL = ns.QUI.Chat.CombatLogTab
+_G.ChatFrame2:Hide()
+CL.Activate(1)
+assert(_G.ChatFrame2:IsShown(), "affected Forever build retains ordinary combat-log Show fallback")
+assert(not FindFrame(function(f) return f._refs ~= nil end),
+    "affected Forever build must not create a secure show driver")
+CL.Deactivate(1)
+
 print("OK chat_combat_log_tab_test")

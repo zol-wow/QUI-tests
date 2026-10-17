@@ -88,7 +88,10 @@ GetTime = function() return 12345 end
 
 local ns = {
     LSM = { Fetch = function(_, kind, name) return kind .. ":" .. tostring(name) end },
-    Helpers = {
+   Helpers = {
+        ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end,
+        ApplyTextureStyle = function(_, texture, path) texture:SetTexture(path) end,
+        ApplyIconStyle = function() end,
         GetSkinBorderColor = function() return 0.1, 0.2, 0.3, 1 end,
         ApplyFontWithFallback = function(fs, path, size, flags) fs.font = { path, size, flags } end,
     },

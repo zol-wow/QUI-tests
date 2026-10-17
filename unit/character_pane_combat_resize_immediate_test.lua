@@ -113,6 +113,7 @@ end
 
 local showNativeDecorations = assert(loadSource([[
 local shown = 0
+local ns = { Client = { isForever = false } }
 local function nativeDecoration()
     return { Show = function() shown = shown + 1 end }
 end
@@ -128,6 +129,7 @@ local slotOverlays, frameState, EMPTY = {}, {}, {}
 local RestoreCharacterPanePopouts = function() end
 local IsSkinningHandlingBackground = function() return false end
 local SetCharacterFrameScale = function() end
+local GetSettings = function() return {} end
 local AdjustForNonCharacterTab = function() end
 ]] .. slice(
     "    local function HideCustomElements()",
@@ -142,6 +144,7 @@ assert(showNativeDecorations() == 4, "Native character decorations must be shown
 
 local hideNativeDecorations = assert(loadSource([[
 local hidden = 0
+local ns = { Client = { isForever = false } }
 local onShow
 local function nativeDecoration()
     return { Hide = function() hidden = hidden + 1 end }

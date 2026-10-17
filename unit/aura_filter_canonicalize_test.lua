@@ -45,9 +45,16 @@ end
 -- stock Lua 5.1) — luacheck flags the field as undefined on both the
 -- global-lib and the vendored AuraUtil.lua source that calls it; both are
 -- correct-as-written, so silence the two resulting warnings by name.
--- luacheck: ignore 142/string 143/string
+-- luacheck: ignore 142/string 143/string 142/table
 string.split = function(delimiters, str)
     return (table.unpack or unpack)(wowSplit(delimiters, str))
+end
+
+table.contains = function(tbl, item)
+    for _, value in pairs(tbl) do
+        if value == item then return true end
+    end
+    return false
 end
 
 -- Self-check the split stub against the exact case AuraUtil.lua's own

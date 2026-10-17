@@ -59,6 +59,7 @@ local settings = {}
 local ns = {
     __test = true,
     Helpers = {
+        ApplyIconStyle = function() end,
         CreateDBGetter = function() return function() return settings end end,
         IsSecretValue = function() return false end,
         SafeValue = function(v) return v end,

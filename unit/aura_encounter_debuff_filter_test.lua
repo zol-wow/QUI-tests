@@ -4,6 +4,7 @@ _G.AuraContainerSortMethod = { Default = 0, BigDefensive = 1, UnitFrameDebuff = 
 _G.AuraContainerSortDirection = { Normal = 0, Reverse = 1 }
 _G.AuraContainerItemEnchantmentSortMethod = { Slot = 0, Duration = 1 }
 _G.CreateSecureDelegate = function(fn) return fn end
+_G.TimerUtil = { CreateTimedSignalCallbackMap = function() return {} end }
 _G.Enum = { SecrecyLevel = { NeverSecret = 0, ContextuallySecret = 1 } }
 
 local ns = dofile("tools/_addon_env.lua").LoadCore()

@@ -167,6 +167,9 @@ local pixelScale = 1
 -- because they don't exercise the secret path).
 ns.Helpers.IsSecretValue = function(value) return issecretvalue and issecretvalue(value) or false end
 ns.Helpers.SafeValue = function(value) return value end
+ns.Helpers.ApplyBarStyle = function(bar, path) bar:SetStatusBarTexture(path) end
+ns.Helpers.ApplyTextureStyle = function(_, texture, path) texture:SetTexture(path) end
+ns.Helpers.ApplyIconStyle = function() end
 ns.Helpers.EnsureDefaults = function(tbl, defaults)
     for key, value in pairs(defaults) do
         if tbl[key] == nil then tbl[key] = value end

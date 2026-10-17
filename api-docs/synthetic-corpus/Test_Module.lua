@@ -7,6 +7,19 @@ local TestSpell =
     Functions =
     {
         {
+            Name = "TestGlobalOverride",
+            Namespace = "",
+            Type = "Function",
+            SecretReturns = true,
+            Returns = { { Name = "value", Type = "number" } },
+        },
+        {
+            Name = "TestNamespaceOverride",
+            Namespace = "C_Override",
+            Type = "Function",
+            SecretReturns = true,
+        },
+        {
             Name = "GetSecretValue",
             Type = "Function",
             SecretWhenCooldownsRestricted = true,

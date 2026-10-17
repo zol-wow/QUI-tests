@@ -40,6 +40,18 @@ local seed = assert(ns.GetNewProfileSeed and ns.GetNewProfileSeed(),
     "ns.GetNewProfileSeed() returned nothing")
 assert(seed._quiBundledGlobals == nil,
     "seed must not leak _quiBundledGlobals into profiles")
+assert(seed.general.visualStyle == "Satin", "starter seed must use Satin finishes")
+assert(seed.general.themePreset == "Satin Gold" and seed.themePreset == "Satin Gold",
+    "starter seed must use the Satin Gold accent")
+assert(seed.general.addonAccentColor[1] == 0.8353
+    and seed.general.addonAccentColor[2] == 0.7412
+    and seed.general.addonAccentColor[3] == 0.5529,
+    "starter seed must carry the Satin Gold accent color")
+assert(seed.general.skinBgColor[1] == 0.0745
+    and seed.general.skinBgColor[2] == 0.1059
+    and seed.general.skinBgColor[3] == 0.1176
+    and seed.general.skinBgColor[4] == 1,
+    "starter seed must carry the Satin charcoal window background")
 assert(seed.mplusTimer and seed.mplusTimer.forcesTextFormat == "both",
     "seed must default forces text to percentage and count")
 

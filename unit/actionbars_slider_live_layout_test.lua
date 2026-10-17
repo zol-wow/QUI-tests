@@ -54,7 +54,7 @@ local bars = {
 }
 local owned = {
     containers = {}, nativeButtons = {}, cachedLayouts = {},
-    _activeButtons = {}, _activeStandardButtons = {},
+    _activeButtons = {}, _activeStandardButtons = {}, _visibleButtonCounts = {},
 }
 for key in pairs(bars) do
     local container = CreateFrame("Frame")
@@ -105,7 +105,7 @@ env.BUTTON_COUNTS = { bar1 = 6, bar2 = 6, pet = 6, stance = 6, microbar = 6 }
 ns.SafeCall = function(_, callback, ...) return callback(...) end
 
 local secureSource = read("QUI_ActionBars/actionbars/actionbars.lua")
-local start = assert(secureSource:find('layoutHandler = CreateFrame("Frame", "QUI_ActionBarLayoutHandler"', 1, true))
+local start = assert(secureSource:find("if not ActionBarsOwned.restrictedExecutionUnavailable then", 1, true))
 local finish = assert(secureSource:find("env.__declared.SkinButton = true", start, true))
 local secureChunk = assert(loadstring(secureSource:sub(start, finish - 1), "@production-secure-layout"))
 setfenv(secureChunk, env)

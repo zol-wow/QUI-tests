@@ -2,13 +2,14 @@
 -- Run: lua tests/unit/options_keyboard_combat_taint_test.lua
 
 local inCombat = true
+local focused
 
 function InCombatLockdown()
     return inCombat
 end
 
 function GetCurrentKeyBoardFocus()
-    return nil
+    return focused
 end
 
 function IsControlKeyDown()
@@ -63,5 +64,21 @@ local ok, err = pcall(frame.scripts.OnKeyDown, frame, "ESCAPE")
 assert(ok, "combat ESC path must not call SetPropagateKeyboardInput: " .. tostring(err))
 assert(frame.hidden, "ESC should still hide the options panel in combat")
 assert(frame.propagateCalls == 0, "combat key path must skip restricted keyboard propagation")
+
+focused = {}
+local flyoutOpen = true
+QUI.GUI.HandleNavigationKey = function(_, _, key)
+    if key == "ESCAPE" and flyoutOpen then
+        flyoutOpen = false
+        return true
+    end
+    return false
+end
+frame.hidden = false
+frame.scripts.OnKeyDown(frame, "ESCAPE")
+assert(not flyoutOpen and not frame.hidden, "focused search Escape closes the flyout before the window")
+assert(frame.propagateCalls == 0, "focused flyout Escape skips restricted propagation in combat")
+frame.scripts.OnKeyDown(frame, "ESCAPE")
+assert(frame.hidden, "the next Escape closes the window")
 
 print("OK: options_keyboard_combat_taint_test")

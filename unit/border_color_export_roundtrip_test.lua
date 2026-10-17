@@ -48,6 +48,10 @@ h.db.profile.general = h.db.profile.general or {}
 h.db.profile.general.skinBorderColorSource = "class"
 h.db.profile.general.skinBorderColor = { GLOBAL_COLOR[1], GLOBAL_COLOR[2], GLOBAL_COLOR[3], GLOBAL_COLOR[4] }
 
+h.db.profile.general.objectiveTrackerBorderColorSource = "custom"
+h.db.profile.general.objectiveTrackerBorderColor = CUSTOM_COLOR
+h.db.profile.general.hideObjectiveTrackerBorder = false
+
 -- Categories that own the keys under test:
 --   minimapDatatexts/minimapSubtab -> topLevelKeys includes "minimap"
 --   skinning                        -> generalKeys = PROFILE_SKINNING_GENERAL_KEYS
@@ -88,6 +92,13 @@ check("general.skinBorderColor round-trips unchanged",
       colorEq(h.db.profile.general.skinBorderColor, GLOBAL_COLOR),
       "got " .. (h.db.profile.general.skinBorderColor
                  and table.concat(h.db.profile.general.skinBorderColor, ",") or "nil"))
+
+check("Objective Tracker source survives selective import",
+    h.db.profile.general.objectiveTrackerBorderColorSource == "custom")
+check("Objective Tracker custom color survives selective import",
+    colorEq(h.db.profile.general.objectiveTrackerBorderColor, CUSTOM_COLOR))
+check("Objective Tracker existing hide preference survives selective import",
+    h.db.profile.general.hideObjectiveTrackerBorder == false)
 
 print(("\n%d failure(s)"):format(failures))
 os.exit(failures == 0 and 0 or 1)

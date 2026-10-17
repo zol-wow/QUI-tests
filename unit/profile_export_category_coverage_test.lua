@@ -168,6 +168,30 @@ check("fresh profiles default to a fifteen-second reroll reminder",
       h.defaults.profile.general.keystoneRerollReminderDuration == 15
       and h.db.profile.general.keystoneRerollReminderDuration == 15)
 
+for _, enabled in ipairs({ false, true }) do
+    h.db:SetProfile("Options preferences source " .. tostring(enabled))
+    h.db.profile.general.optionsMotion = enabled
+    h.db.profile.general.optionsNavigationDocked = enabled
+    local exported, exportErr = h.QUICore:ExportProfileSelectionToString({ "qol" })
+    local payload, decodeErr = decode(exported)
+    for _, key in ipairs({ "optionsMotion", "optionsNavigationDocked" }) do
+        check("QoL export preserves " .. key .. "=" .. tostring(enabled),
+              payload and payload.general and payload.general[key] == enabled, exportErr or decodeErr)
+    end
+    h.db:SetProfile("Options preferences destination " .. tostring(enabled))
+    h.db.profile.general.optionsMotion = not enabled
+    h.db.profile.general.optionsNavigationDocked = not enabled
+    h.db.profile.general.skinReadyCheck = false
+    local imported, importErr = h.QUICore:ImportProfileSelectionFromString(exported, { "qol" })
+    check("QoL options preferences import succeeds " .. tostring(enabled), imported, importErr)
+    for _, key in ipairs({ "optionsMotion", "optionsNavigationDocked" }) do
+        check("QoL import restores " .. key .. "=" .. tostring(enabled),
+              h.db.profile.general[key] == enabled)
+    end
+    check("QoL options preferences import preserves unrelated skin settings " .. tostring(enabled),
+          h.db.profile.general.skinReadyCheck == false)
+end
+
 local resurrectionModes = { dungeon = "outOfCombat", raid = "always", pvp = "off", world = "always" }
 h.db.profile.general.autoAcceptResurrection = DeepCopy(resurrectionModes)
 h.db.profile.general.autoRemoveAppearanceChanges.enabled = true

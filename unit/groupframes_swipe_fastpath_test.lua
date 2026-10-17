@@ -28,6 +28,7 @@ local fnSource = source:sub(fnStart, nl - 1)
 -- / SetTimerDuration calls through ns.SafeCall("sink-forward", ...)) as upvalues
 local factory = assert(loadstring(
     "return function(_R, _STATE_KEY, _GetFrameUnit, _CUA, _ns)\nlocal R = _R\nlocal STATE_KEY = _STATE_KEY\nlocal GetFrameUnit = _GetFrameUnit\nlocal C_UnitAuras = _CUA\nlocal ns = _ns\n"
+        .. "local CanMutateCooldown = function() return true end\n"
         .. fnSource .. "\nreturn R.RefreshUpdatedIcons\nend",
     "refreshUpdatedIcons"))()
 

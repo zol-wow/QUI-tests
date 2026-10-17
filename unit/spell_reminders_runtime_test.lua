@@ -1,3 +1,28 @@
+do
+    local deferred = (dofile("tests/helpers/spell_reminders.lua"))()
+    deferred.secretAuras = true
+    assert(not deferred.combat)
+    assert(deferred.R.Add(10060))
+    assert(deferred.R.pending and not deferred.R.hosts[10060] and #deferred.timers == 0,
+        "the first reminder must defer its host and timers while auras are secret")
+    for _ = 1, 2 do
+        deferred.emit("ADDON_RESTRICTION_STATE_CHANGED")
+        assert(deferred.R.pending and not deferred.R.hosts[10060] and #deferred.timers == 0,
+            "restriction events must preserve deferred initialization while auras remain secret")
+    end
+    deferred.secretAuras = false
+    deferred.emit("ADDON_RESTRICTION_STATE_CHANGED")
+    assert(not deferred.R.pending and deferred.R.hosts[10060],
+        "lifting aura restrictions must initialize the first reminder without an unrelated event")
+    assert(#deferred.timers == 2, "lifting restrictions must start update and maintenance timers")
+    for _, timer in ipairs(deferred.timers) do
+        assert(not timer.cancelled, "deferred initialization must leave both timers active")
+        timer.callback()
+    end
+    assert(not deferred.R.pending and deferred.R.hosts[10060].shown,
+        "the recovered reminder must remain active after its timers run")
+end
+
 local H = (dofile("tests/helpers/spell_reminders.lua"))()
 local R, T = H.R, H.T
 H.profile.frameAnchoring["spellReminder:10060"] = { offsetX = 40, offsetY = 80 }

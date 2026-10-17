@@ -44,6 +44,7 @@ local settings = { enabled = true }
 local ns = {
     __test = true,
     Helpers = {
+        GetWindowColors = function() return 0, 0, 0, 1, 0, 0, 0, 0.6 end,
         CreateDBGetter = function() return function() return settings end end,
         GetSkinBgColor = function() return 0, 0, 0 end,
         -- nil CreateOnUpdateThrottle is fine: the module falls back internally.
