@@ -12,6 +12,7 @@ function npcTitle:SetFontObject() self:SetTextColor(1, 0.82, 0, 1) end
 npcTitle:SetFontObject("GameFontNormal")
 frame.FriendshipStatusBar = false
 _G.QuestTextContrast = {GetDefaultBackgroundAtlas = function() return "QuestBG-Parchment" end}
+_G.GetCVar = function(name) assert(name == "instantQuestText"); return "1" end
 local panels, scrolls = {}, {}
 for _, name in ipairs({"QuestFrameRewardPanel", "QuestFrameProgressPanel", "QuestFrameDetailPanel", "QuestFrameGreetingPanel"}) do
     local panel = env.NewFrame("Frame", name, frame)
@@ -128,7 +129,7 @@ _G.C_QuestOffer = {
     GetHideRequiredItems = function() return false end,
     GetQuestRequiredCurrencyInfo = function() return {requiredAmount = 10, texture = "currency-art", name = "Native currency"} end,
 }
-_G.IsQuestItemHidden = function(index) return index == 2 and 1 or 0 end
+_G.IsQuestItemHidden = function(index) return index == 2 end
 _G.GetQuestItemInfo = function() return "Required item", "required-art", 4 end
 _G.SetItemButtonCount = function(widget, value) widget.nativeCount = value end
 _G.SetItemButtonTexture = function(widget, value) widget.Icon:SetTexture(value) end
@@ -206,11 +207,13 @@ assert(skin.IsStyled(greetRows[1]) and skin.IsStyled(greetRows[2]), "pooled gree
 assert(greetRows[1].isActive == 1 and greetRows[2].isActive == 0 and greetRows[1]:GetID() == 1
     and greetRows[2]:GetID() == 1 and greetRows[1].Icon.texture == "completed" and greetRows[2].Icon.texture == "available",
     "native active/available identity and completion icons must survive")
-assert(greetRows[2]:GetText() == "|cFF7b8489Available quest|r" and greetRows[2].Icon.vertex[1] == 0.5,
-    "trivial greeting rows must retain distinct text and native icon tint")
+assert(greetRows[1]:GetText() == "Active quest" and greetRows[1].Icon.vertex[1] == 0.75
+    and greetRows[2]:GetText() == "Available quest" and greetRows[2].Icon.vertex[1] == 0.5,
+    "native greeting titles and distinct trivial icon tints must survive")
 completed, trivial = false, false
 _G.QuestFrameGreetingPanel_OnShow()
-assert(greetRows[1].Icon.texture == "active" and greetRows[2]:GetText() == "|cFFffffffAvailable quest|r",
+assert(greetRows[1].Icon.texture == "active" and greetRows[2]:GetText() == "Available quest"
+    and greetRows[1].Icon.vertex[1] == 1 and greetRows[2].Icon.vertex[1] == 1,
     "recycled greeting rows must follow current native quest data")
 _G.QuestFrameProgressItems_Update()
 assert(skin.IsStyled(_G.QuestProgressItem1) and skin.IsStyled(_G.QuestProgressItem6),

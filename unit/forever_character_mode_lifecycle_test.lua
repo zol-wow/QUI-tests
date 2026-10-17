@@ -40,9 +40,8 @@ local backgroundExtended, scale, restoreCalls = true, 1.3, 0
 env.statsPanel, env.slotOverlays = stats, { overlay }
 env.frameState, env.EMPTY = { [character] = states }, {}
 env.RestoreCharacterPanePopouts = function() restoreCalls = restoreCalls + 1 end
-env.IsSkinningHandlingBackground = function() return true end
-env.QUI_CharacterFrameSkinning = { SetExtended = function(value) backgroundExtended = value end }
-local settings = { panelScale = 1.15 }
+env.chrome = { SetExtended = function(value) backgroundExtended = value end }
+local settings = { enabled = true, panelScale = 1.15 }
 env.GetSettings = function() return settings end
 env.SetCharacterFrameScale = function(value) scale = value end
 env.AnchorCharacterFrameBottomTabs = function() end

@@ -272,12 +272,24 @@ function ScenarioObjectiveTrackerMixin:LayoutContents()
 		return;
 	end
 
-	if C_ScenarioInfo.IsTieredEntranceScenario() then
+	-- Tales don't use the regular TieredEntranceActiveSpells which are based on the trait tree
+	if C_ScenarioInfo.IsTieredEntranceScenario() and not C_DelvesUI.HasActiveTale() then
 		local spells = C_ScenarioInfo.GetTieredEntranceActiveSpells();
 		if spells then
 			self.TieredEntranceTraitsBlock.Container:SetSpells(spells);
 			self:LayoutBlock(self.TieredEntranceTraitsBlock);
 		end
+	elseif shouldShowMawBuffs and not IsInJailersTower() then
+		-- Active maw auras granted by the scenario use a different header
+		-- if they are not in the jailer's tower. So update them to be more generic.
+
+		local tieredBlock = self.TieredEntranceTraitsBlock;
+		tieredBlock.Container:SetTextureKit(textureKit);
+		tieredBlock.CharacterStatsBlock:SetTextureKit(textureKit);
+		local mawAuraCount = tieredBlock.Container:SetMawAuras();
+		tieredBlock.Container.Text:SetText(SCENARIO_ACTIVE_POWERS:format(mawAuraCount));
+
+		self:LayoutBlock(tieredBlock);
 	end
 
 	if isInScenario then
@@ -299,7 +311,7 @@ function ScenarioObjectiveTrackerMixin:LayoutContents()
 		self:LayoutWidgetBlock(self.TopWidgetContainerBlock);
 	end
 
-	if shouldShowMawBuffs then
+	if shouldShowMawBuffs and IsInJailersTower() then
 		self:LayoutBlock(self.MawBuffsBlock);
 		self.MawBuffsBlock.Container:UpdateAlignment();
 	end
@@ -504,6 +516,7 @@ local textureKitOffsets = {
 	["delves-scenario"] = {normalBGX = -2, normalBGY = 1, finalBGX = -2, finalBGY = 1},
 	["midnight-scenario"] = {normalBGX = -6, normalBGY = 0, finalBGX = -22, finalBGY = 0},
 	["legioninvasion"] = {normalBGX = 0, normalBGY = 0, finalBGX = -10, finalBGY = 3},
+	["talebound-scenario"] = {normalBGX = -2, normalBGY = 1, finalBGX = -2, finalBGY = 1},
 };
 
 local defaultOffsets = {normalBGX = 0, normalBGY = 0, finalBGX = -10, finalBGY = 3};

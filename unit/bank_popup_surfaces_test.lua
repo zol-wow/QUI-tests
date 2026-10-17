@@ -13,7 +13,7 @@ _G.Enum.BagSlotFlags={ExpansionCurrent=1,ExpansionLegacy=2}
 _G.StaticPopupDialogs = {}
 _G.RegisterPlayerInteraction = function() end
 _G.TextureKitConstants = {IgnoreAtlasSize=false}
-assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/BankFrame.lua"))()
+assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/BankFrameTemplates.lua"))()
 assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_SharedXML/Shared/Selector/Blizzard_SelectorUI.lua"))()
 local file = assert(io.open("tests/framexml/Interface/AddOns/Blizzard_SharedXML/Mainline/SharedUIPanelTemplates.lua"))
 local source = file:read("*a"); file:close()

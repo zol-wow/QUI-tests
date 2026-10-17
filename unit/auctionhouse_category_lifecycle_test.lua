@@ -19,6 +19,7 @@ local function read(path)
 end
 _G.CreateFromMixins=function() return {} end
 _G.AuctionHouseSystemMixin={}
+_G.C_WowTokenUI={ShouldDisplayInAuctionHouse=function() return true end}
 _G.ScrollBoxConstants={RetainScrollPosition=1,AlignBegin=2}
 _G.CreateDataProvider=function(data) return data end
 _G.tinsert=table.insert

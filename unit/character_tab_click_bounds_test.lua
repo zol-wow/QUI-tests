@@ -8,6 +8,8 @@ local function Read(path)
 end
 local native = Read("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/CharacterFrame.lua")
 local bounds = assert(native:match("(function CharacterFrameMixin:UpdateTabBounds%(%)%s.-)\nfunction CharacterFrameMixin:OnShow"))
+assert(loadstring(assert(native:match("(CHARACTER_FRAME_TAB = %b{})"))))()
+dofile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Shared/CharacterFrameTabAPI.lua")
 _G.CharacterFrameMixin = {}
 _G.min = math.min
 assert(loadstring("local function CompareFrameSize(a,b) return a:GetWidth() > b:GetWidth() end\n" .. bounds))()

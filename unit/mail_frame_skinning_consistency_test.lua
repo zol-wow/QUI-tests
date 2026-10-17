@@ -35,13 +35,13 @@ assertContains(mailXml, "<Size x=\"305\" y=\"45\"/>",
     "local FrameXML must keep mail rows at the audited height")
 assertContains(mailXml, "<Anchor point=\"TOPLEFT\" x=\"13\" y=\"-70\"/>",
     "local FrameXML must keep the first inbox row at the audited offset")
-assertContains(mailXml, "<Anchor point=\"CENTER\" relativePoint=\"BOTTOMLEFT\" x=\"30\" y=\"114\"/>",
+assertContains(mailXml, "<Anchor point=\"BOTTOMLEFT\" x=\"14\" y=\"10\"/>",
     "local FrameXML must keep the previous-page button at the audited offset")
-assertContains(mailXml, "<Anchor point=\"CENTER\" relativePoint=\"BOTTOMLEFT\" x=\"305\" y=\"114\"/>",
+assertContains(mailXml, "<Anchor point=\"BOTTOMRIGHT\" x=\"-14\" y=\"10\"/>",
     "local FrameXML must keep the next-page button at the audited offset")
 assertContains(mailXml, "<Size x=\"32\" y=\"32\"/>",
     "local FrameXML must keep inbox page buttons at the audited hitbox size")
-assertContains(mailXml, "<Button name=\"OpenAllMail\" text=\"OPEN_ALL_MAIL_BUTTON\"",
+assertContains(mailXml, "<Button name=\"OpenAllMail\" parentKey=\"OpenAllMail\" text=\"OPEN_ALL_MAIL_BUTTON\"",
     "local FrameXML must expose the inbox Open All button")
 assertContains(mailXml, "<EditBox name=\"SendMailBodyEditBox\"",
     "local FrameXML must expose the send body editbox")
@@ -51,11 +51,11 @@ assertContains(mailXml, "<EditBox name=\"SendMailSubjectEditBox\"",
     "local FrameXML must expose the subject editbox")
 assertContains(mailXml, "<Frame name=\"OpenMailFrame\" toplevel=\"true\" hidden=\"true\" parent=\"UIParent\"",
     "local FrameXML must expose OpenMailFrame as a separate top-level frame")
-assertContains(mailLua, "function InboxFrame_Update()",
+assertContains(mailLua, "function InboxMixin:Update()",
     "local FrameXML must expose inbox refresh")
 assertContains(mailLua, "function SendMailFrame_Update()",
     "local FrameXML must expose send-mail refresh")
-assertContains(mailLua, "function OpenMail_Update()",
+assertContains(mailLua, "function OpenMailMixin:Update()",
     "local FrameXML must expose open-mail refresh")
 
 local toc = readFile("QUI.toc")
@@ -103,6 +103,8 @@ for _, needle in ipairs({
     "hooksecurefunc(\"InboxFrame_Update\", SkinMailItems)",
     "hooksecurefunc(\"SendMailFrame_Update\", SkinSendMailControls)",
     "hooksecurefunc(\"OpenMail_Update\", SkinOpenMailFrame)",
+    "hooksecurefunc(_G.InboxFrame, \"Update\", SkinMailItems)",
+    "hooksecurefunc(_G.OpenMailFrame, \"Update\", SkinOpenMailFrame)",
     "SkinBase.OnAddOnLoaded(\"Blizzard_MailFrame\", SkinMail, 0)",
 }) do
     assertContains(mail, needle, "Mail skinning must include: " .. needle)
@@ -119,12 +121,12 @@ for _, needle in ipairs({
     "HideFrameTexturesExcept(_G.SendMailFrame",
     "_G.SendMailErrorCoin",
     "_G.InboxFrameBg",
-    "_G.InboxPrevPageButton",
-    "_G.InboxNextPageButton",
+    "inbox and inbox.PrevPageButton or _G.InboxPrevPageButton",
+    "inbox and inbox.NextPageButton or _G.InboxNextPageButton",
     -- Inbox page arrows route through the canonical chevron verb (byte-identical
     -- to the merchant arrows), NOT the former bespoke InsetButtonBackdrop stack.
-    "SkinBase.SkinNextPrevButton(_G.InboxPrevPageButton, \"prev\")",
-    "SkinBase.SkinNextPrevButton(_G.InboxNextPageButton, \"next\")",
+    "SkinBase.SkinNextPrevButton(previous, \"prev\")",
+    "SkinBase.SkinNextPrevButton(nextPage, \"next\")",
     "_G.SendMailHorizontalBarLeft",
     "_G.SendMailHorizontalBarLeft2",
     "_G.SendStationeryBackgroundLeft",

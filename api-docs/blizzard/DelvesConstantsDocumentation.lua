@@ -45,12 +45,14 @@ local DelvesConstants =
 		{
 			Name = "TieredEntranceTierFlag",
 			Type = "Enumeration",
-			NumValues = 1,
-			MinValue = 1,
-			MaxValue = 1,
+			NumValues = 3,
+			MinValue = 0,
+			MaxValue = 2,
 			Fields =
 			{
+				{ Name = "None", Type = "TieredEntranceTierFlag", EnumValue = 0 },
 				{ Name = "IsLFG", Type = "TieredEntranceTierFlag", EnumValue = 1 },
+				{ Name = "DisableTraitSystem", Type = "TieredEntranceTierFlag", EnumValue = 2 },
 			},
 		},
 		{
@@ -67,7 +69,7 @@ local DelvesConstants =
 				{ Name = "WorldTier", Type = "TieredEntranceType", EnumValue = 3 },
 				{ Name = "Lairs", Type = "TieredEntranceType", EnumValue = 4 },
 				{ Name = "Placeholder_5", Type = "TieredEntranceType", EnumValue = 5 },
-				{ Name = "Placeholder_6", Type = "TieredEntranceType", EnumValue = 6 },
+				{ Name = "Tale", Type = "TieredEntranceType", EnumValue = 6 },
 			},
 		},
 		{

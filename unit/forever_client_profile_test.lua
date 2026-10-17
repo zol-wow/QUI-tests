@@ -15,7 +15,7 @@ local ok, err = h.QUICore:ImportProfileFromString(foreverExport, "Forever")
 assert(ok, tostring(err))
 assert(h.db.profile._quiClient == nil, "export metadata must not become a saved setting")
 
-client("12.1.5", 120105)
+client("12.1.7", 120107)
 assert(not ns.Client.isForever and ns.Client.flavor == "retail")
 local before = h.db:GetCurrentProfile()
 ok, err = h.QUICore:ImportProfileFromString(foreverExport, "WrongClient")
@@ -37,7 +37,7 @@ assert(not ok, "selected payload import must enforce the client boundary")
 ok = h.QUICore:ImportProfileFromValidatedPayload({ _quiClient = {} }, "InvalidClient")
 assert(not ok, "malformed client metadata must not bypass validation")
 
-client("12.1.5", 120105)
+client("12.1.7", 120107)
 h.db.global.nameplateProfiles = { Retail = { simplified = { scale = 1.25 } } }
 local plates = assert(h.QUICore:ExportNameplateProfileToString("Retail"))
 ok, err = h.QUICore:ImportNameplateProfileFromString(plates, "RetailCopy")
@@ -50,7 +50,7 @@ assert(h.db.global.nameplateProfiles.WrongPlates == nil, "rejected nameplate imp
 
 ns.Client = nil
 local legacyExport = h.QUICore:ExportProfileToString()
-client("12.1.5", 120105)
+client("12.1.7", 120107)
 ok, err = h.QUICore:ImportProfileFromString(legacyExport, "LegacyRetail")
 assert(ok, "existing untagged Retail exports must still import: " .. tostring(err))
 client("1.15.9", 11509)

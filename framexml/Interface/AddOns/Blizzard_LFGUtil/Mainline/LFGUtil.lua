@@ -311,3 +311,16 @@ end
 function OverrideLFGSetRoleRestriction()
 	return C_DelvesUI.HasActiveLFGLair();
 end
+
+function GetGeneralPlaystyleString(enumValue)
+	if enumValue == Enum.LFGEntryGeneralPlaystyle.Learning then
+		return GROUP_FINDER_GENERAL_PLAYSTYLE1;
+	elseif enumValue == Enum.LFGEntryGeneralPlaystyle.FunRelaxed then
+		return GROUP_FINDER_GENERAL_PLAYSTYLE2;
+	elseif enumValue == Enum.LFGEntryGeneralPlaystyle.FunSerious then
+		return GROUP_FINDER_GENERAL_PLAYSTYLE3;
+	elseif enumValue == Enum.LFGEntryGeneralPlaystyle.Expert then
+		return GROUP_FINDER_GENERAL_PLAYSTYLE4;
+	end
+	return "";
+end

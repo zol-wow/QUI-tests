@@ -1,3 +1,6 @@
+local BYOB_CARD_ALPHA_NORMAL = 1.0;
+local BYOB_CARD_ALPHA_DIMMED = 0.5;
+
 --------------------------------------------------
 -- CATALOG SHOP SECTION HEADER MIXIN
 CatalogShopSectionHeaderMixin = {};
@@ -352,6 +355,106 @@ end
 
 
 --------------------------------------------------
+-- SMALL CATALOG SHOP BYOB CARD MIXIN
+local function HidePriceElements(container)
+	container.Price:Hide();
+	container.DiscountSaleTag:Hide();
+	container.DiscountAmount:Hide();
+	container.DiscountPrice:Hide();
+	container.OriginalPrice:Hide();
+	container.Strikethrough:Hide();
+end
+
+SmallCatalogShopBYOBCardMixin = {};
+function SmallCatalogShopBYOBCardMixin:OnLoad()
+	SmallCatalogShopProductCardMixin.OnLoad(self);
+end
+
+function SmallCatalogShopBYOBCardMixin:Init()
+	self.selectedForBYOB:SetChecked(false);
+end
+
+-- Dims the card's child frames but not the checkbox; the card itself stays at full alpha.
+function SmallCatalogShopBYOBCardMixin:SetContentAlpha(alpha)
+	self:SetAlpha(BYOB_CARD_ALPHA_NORMAL);
+	for _, child in ipairs({self:GetChildren()}) do
+		if child ~= self.selectedForBYOB then
+			child:SetAlpha(alpha);
+		end
+	end
+end
+
+
+function SmallCatalogShopBYOBCardMixin:Layout()
+	SmallCatalogShopProductCardMixin.Layout(self);
+	AccessCardLayout(self);
+	HidePriceElements(self.ForegroundContainer);
+
+	local isFullyOwned = self.productInfo.isFullyOwned
+
+	if isFullyOwned then
+		self.selectedForBYOB:Hide();
+		self:SetContentAlpha(BYOB_CARD_ALPHA_DIMMED);
+	else
+		self.selectedForBYOB:Show();
+		self:SetContentAlpha(BYOB_CARD_ALPHA_NORMAL);
+
+		local selectionGroupIndex = self.productInfo.selectionGroupIndex;
+		local productID = self.productInfo.catalogShopProductID
+
+		local isChecked = BYOBInterface.IsProductChecked(selectionGroupIndex, productID);
+		self.selectedForBYOB:SetChecked(isChecked);
+
+		self:UpdateChoiceState();
+	end
+end
+
+function SmallCatalogShopBYOBCardMixin:UpdateChoiceState()
+	if self.productInfo.isFullyOwned then
+		return;
+	end
+
+	local selectionGroupIndex = self.productInfo.selectionGroupIndex;
+	local productID = self.productInfo.catalogShopProductID;
+	local isEnabled = BYOBInterface.IsProductChoiceEnabled(selectionGroupIndex, productID);
+	self.selectedForBYOB:SetEnabled(isEnabled);
+	self:SetContentAlpha(isEnabled and BYOB_CARD_ALPHA_NORMAL or BYOB_CARD_ALPHA_DIMMED);
+end
+
+function SmallCatalogShopBYOBCardMixin:UpdateBYOBSelection(isChecked)
+	local productID = self.productInfo.catalogShopProductID;
+	local selectionGroupIndex = self.productInfo.selectionGroupIndex;
+	EventRegistry:TriggerEvent("BYOBSelectionGroup.UpdateProductChecked", selectionGroupIndex, productID, isChecked );
+end
+
+BYOBCheckboxMixin = {};
+function BYOBCheckboxMixin:OnEnter()
+	if self:IsEnabled() then
+		return;
+	end
+
+	local tooltip = CatalogShopFrame:GetAppropriateTooltip();
+	tooltip:SetOwner(self, "ANCHOR_RIGHT");
+	GameTooltip_AddErrorLine(tooltip, CATALOG_SHOP_BYOB_MAX_SELECTED);
+	tooltip:Show();
+end
+
+function BYOBCheckboxMixin:OnLeave()
+	CatalogShopFrame:HideTooltip();
+end
+
+function BYOBCheckboxMixin:OnClick()
+	local isChecked = self:GetChecked();
+	if isChecked then
+		PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON);
+	else
+		PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF);
+	end
+	self:GetParent():UpdateBYOBSelection(isChecked);
+end
+
+
+--------------------------------------------------
 -- DETAILS DEFAULT CATALOG SHOP PRODUCT CARD MIXIN
 DetailsCatalogShopProductCardMixin = {};
 function DetailsCatalogShopProductCardMixin:OnLoad()
@@ -379,12 +482,7 @@ function DetailsCatalogShopProductCardMixin:Layout()
 	nameElement:SetPoint("RIGHT", -15, 0);
 	nameElement:SetPoint("BOTTOM", 0, 25);
 
-	container.Price:Hide();
-	container.DiscountSaleTag:Hide();
-	container.DiscountAmount:Hide();
-	container.DiscountPrice:Hide();
-	container.OriginalPrice:Hide();
-	container.Strikethrough:Hide();
+	HidePriceElements(container);
 
 	local timeRemaining = container.TimeRemaining;
 	timeRemaining:Hide();

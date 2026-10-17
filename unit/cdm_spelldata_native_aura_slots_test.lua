@@ -60,6 +60,12 @@ assert(loadfile("QUI_CDM/cdm/cdm_catalog.lua"))("QUI", ns)
 assert(loadfile("QUI_CDM/cdm/cdm_spelldata.lua"))("QUI", ns)
 assert(loadfile("QUI_CDM/cdm/cdm_reanchor_wiring.lua"))("QUI", ns)
 assert(loadfile("QUI_CDM/cdm/cdm_managed_aura_mirrors.lua"))("QUI", ns)
+_G.tInvert = function(values)
+    local inverted = {}
+    for key, value in pairs(values) do inverted[value] = key end
+    return inverted
+end
+dofile("tests/framexml/Interface/AddOns/Blizzard_SharedXMLBase/EnumUtil.lua")
 dofile("tests/framexml/Interface/AddOns/Blizzard_CooldownViewer/CooldownViewerItemData.lua")
 local sd = ns.CDMSpellData
 local function frame(id)

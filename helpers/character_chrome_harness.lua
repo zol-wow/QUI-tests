@@ -119,6 +119,7 @@ function Harness.Build(opts)
         function f:SetShown(v) if v then self:Show() else self:Hide() end end
         function f:SetAlpha(a) self.alpha = a end
         function f:GetAlpha() return self.alpha end
+        function f:GetEffectiveAlpha() return self.alpha end
         function f:EnableMouse(v) self.mouse = v end
         function f:EnableMouseWheel(v) self.wheel = v end
         function f:SetMovable(v) self.movable = v end

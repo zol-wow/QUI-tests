@@ -103,6 +103,30 @@ local SimpleScriptRegionAPI =
 			},
 		},
 		{
+			Name = "FocusEnter",
+			Type = "Function",
+			IsProtectedFunction = true,
+			SecretArguments = "NotAllowed",
+			ChecksForbiddenAspects = { { Argument = "self", Aspect = Enum.ForbiddenAspect.ScriptedInput } },
+
+			Arguments =
+			{
+				{ Name = "fromMouseMotion", Type = "bool", Nilable = false, Default = true },
+			},
+		},
+		{
+			Name = "FocusExit",
+			Type = "Function",
+			IsProtectedFunction = true,
+			SecretArguments = "NotAllowed",
+			ChecksForbiddenAspects = { { Argument = "self", Aspect = Enum.ForbiddenAspect.ScriptedInput } },
+
+			Arguments =
+			{
+				{ Name = "fromMouseMotion", Type = "bool", Nilable = false, Default = true },
+			},
+		},
+		{
 			Name = "GetBottom",
 			Type = "Function",
 			MayReturnNothing = true,
@@ -566,6 +590,30 @@ local SimpleScriptRegionAPI =
 			Returns =
 			{
 				{ Name = "isVisible", Type = "bool", Nilable = false },
+			},
+		},
+		{
+			Name = "MouseDown",
+			Type = "Function",
+			IsProtectedFunction = true,
+			SecretArguments = "NotAllowed",
+			ChecksForbiddenAspects = { { Argument = "self", Aspect = Enum.ForbiddenAspect.ScriptedInput } },
+
+			Arguments =
+			{
+				{ Name = "button", Type = "cstring", Nilable = false, Default = "LeftButton" },
+			},
+		},
+		{
+			Name = "MouseUp",
+			Type = "Function",
+			IsProtectedFunction = true,
+			SecretArguments = "NotAllowed",
+			ChecksForbiddenAspects = { { Argument = "self", Aspect = Enum.ForbiddenAspect.ScriptedInput } },
+
+			Arguments =
+			{
+				{ Name = "button", Type = "cstring", Nilable = false, Default = "LeftButton" },
 			},
 		},
 		{

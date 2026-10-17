@@ -10,7 +10,7 @@ _G.Enum.BagSlotFlags={ExpansionCurrent=1,ExpansionLegacy=2}
 _G.StaticPopupDialogs = {}
 _G.RegisterPlayerInteraction = function() end
 _G.TextureKitConstants = {IgnoreAtlasSize=false}
-assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/BankFrame.lua"))()
+assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/BankFrameTemplates.lua"))()
 local function frame(kind, parent)
     local f=env.NewFrame(kind or "Frame",nil,parent)
     f.RegisterForWidgetSet=false; f.DisabledTexture=false

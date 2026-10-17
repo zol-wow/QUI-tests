@@ -266,6 +266,10 @@ local LFGInfo =
 				{ Name = "enabled", Type = "bool", Nilable = false },
 			},
 		},
+		{
+			Name = "LeaveInstanceBySpell",
+			Type = "Function",
+		},
 	},
 
 	Events =

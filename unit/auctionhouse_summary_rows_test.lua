@@ -45,7 +45,7 @@ _G.C_AuctionHouse={
  GetOwnedAuctionType=function(i) return {itemID=100+i} end,
  GetBidType=function(i) return {itemID=200+i} end,
  GetItemKeyInfo=function(key) if cached then return {iconFileID="native-art-"..key.itemID,itemName="native-item-"..key.itemID,quality=key.itemID<200 and 4 or 2} end end}
-_G.AuctionHouseUtil={GetItemDisplayText=function(name) return name end}
+_G.AuctionHouseUtil={GetItemDisplayText=function(name) return name end,GetItemKeyDisplayLevel=function(key) return key.itemLevel end}
 _G.ColorManager={GetColorDataForItemQuality=function(q)
  return {color={WrapTextInColorCode=function(_,text) return "quality:"..q..":"..text end}}
 end}

@@ -4,6 +4,9 @@ env.profile.general.skinTrainer=true
 ns.Helpers.GetSkinBarColor=function() return .2,.8,.6,1 end
 _G.UIPanelWindows,_G.StaticPopupDialogs={},{}
 _G.EnumUtil={MakeEnum=function(...) local t={}; for i,v in ipairs({...}) do t[v]=i end; return t end}
+_G.Enum={TrainerType={General=0,Tradeskills=2,Pet=3}}
+_G.C_Trainer={GetTrainerType=function() return Enum.TrainerType.Tradeskills end}
+_G.InputUtil={IsMKBUIEnabled=function() return true end,IsGamepadUIEnabled=function() return false end}
 _G.format=string.format
 _G.PROFESSION_CONFIRMATION1="%s"
 assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_TrainerUI/Mainline/Blizzard_TrainerUI.lua"))()
@@ -23,6 +26,7 @@ trainer.bottomInset=frame(nil,trainer)
 trainer.BG=trainer:CreateTexture()
 local action=frame("Button",trainer)
 _G.ClassTrainerTrainButton=action
+trainer.TrainButton=action
 action.Text=action:CreateFontString()
 function action:SetEnabled(value) self.enabled=value end
 local writes=0
@@ -33,6 +37,8 @@ local function row()
  local r=frame("Button",trainer)
  r.icon,r.lock,r.disabledBG,r.selectedTex,r.art=r:CreateTexture(),r:CreateTexture(),r:CreateTexture(),r:CreateTexture(),r:CreateTexture()
  r.name,r.subText=r:CreateFontString(),r:CreateFontString()
+ r.nameSubText,r.alternateCost=r:CreateFontString(),r:CreateFontString()
+ r.UpdateNameWidth=_G.ClassTrainerSkillButtonMixin.UpdateNameWidth
  r.money=frame(nil,r); r.money.digits=r.money:CreateFontString()
  r.money.digits:SetFont("native-money-font",10,"")
  r.lock:Hide(); r.disabledBG:Hide(); r.selectedTex:Hide()
@@ -45,8 +51,10 @@ end
 local first,second,step=row(),row(),row()
 trainer.skillStepButton=step
 function trainer.ScrollBox:ForEachFrame(fn) fn(first); fn(second) end
-_G.ClassTrainerFrameMoneyFrame=frame(nil,trainer)
-_G.ClassTrainerFrameMoneyFrame.digits=_G.ClassTrainerFrameMoneyFrame:CreateFontString()
+trainer.money=frame(nil,trainer)
+trainer.money.digits=trainer.money:CreateFontString()
+trainer.money.digits:SetFont("native-bottom-money-font",10,"")
+trainer.trainingPoints=frame(nil,trainer)
 local serviceType,cost,isProfession,fullSlots="available",100,false,false
 _G.GetTrainerServiceInfo=function(index) return "Native service "..index,serviceType,"native-icon-"..index,20 end
 _G.UnitLevel=function() return 10 end
@@ -85,21 +93,29 @@ end
 _G.TRADESKILL_RANK_WITH_MODIFIER="%d (+%d) / %d"
 _G.TRADESKILL_RANK="%d / %d"
 _G.PANEL_INSET_RIGHT_OFFSET,_G.PANEL_INSET_ATTIC_OFFSET,_G.PANEL_INSET_BOTTOM_BUTTON_OFFSET=-4,-24,26
-local stepIndex,rank,maxRank,modifier=3,40,75,5
+local stepIndex,rank,maxRank,modifier=2,40,75,5
 local providers=0
 _G.GetNumTrainerServices=function() return 3 end
 _G.GetMoney=function() return 500 end
 _G.IsTradeskillTrainer=function() return true end
 _G.GetTrainerServiceStepIndex=function() return stepIndex end
 _G.GetTrainerTradeskillRankValues=function() return rank,maxRank,modifier end
-_G.CreateDataProvider=function()
+_G.SetPortraitTexture=function(_,unit) assert(unit=="npc") end
+_G.UnitName=function(unit) assert(unit=="npc"); return "Native trainer" end
+_G.CreateTreeDataProvider=function()
  providers=providers+1
- return {data={},Insert=function(self,item) self.data[#self.data+1]=item end}
+ return {data={},SetSortComparator=function(self,compare) self.compare=compare end,
+  Insert=function(self,item)
+   local node={data=item}; self.data[#self.data+1]=node
+   table.sort(self.data,self.compare)
+   return node
+  end,
+  EnumerateEntireRange=function(self) return ipairs(self.data) end}
 end
 function trainer.ScrollBox:SetDataProvider(provider,retain)
  self.provider,self.retain=provider,retain
- _G.ClassTrainerFrame_InitServiceButton(first,provider.data[1])
- _G.ClassTrainerFrame_InitServiceButton(second,provider.data[2])
+ _G.ClassTrainerFrame_InitServiceButton(first,provider.data[1].data)
+ _G.ClassTrainerFrame_InitServiceButton(second,provider.data[2].data)
 end
 local callback,refresh
 skin.OnAddOnLoaded=function(name,fn) if name=="Blizzard_TrainerUI" then callback=fn end end
@@ -115,14 +131,19 @@ for _,suffix in ipairs({"Left","Right","Middle","Background"}) do
 end
 _G.ClassTrainerFrame_Update(true)
 assert(trainer.ScrollBox:GetHeight()==278 and trainer.bottomInset:IsShown() and step:IsShown()
- and trainer.ScrollBox.retain and #trainer.ScrollBox.provider.data==3,
+ and trainer.ScrollBox.retain and #trainer.ScrollBox.provider.data==2,
  "native profession-step layout and retained provider scroll state must survive")
+assert(trainer.displayIndexToSkillIndex[0]==2 and trainer.skillIndexToDisplayIndex[2]==0
+ and trainer.displayIndexToSkillIndex[2]==3 and second.displayIndex==2 and second:GetID()==3,
+ "native profession-step service must stay outside the list with its own display index")
+assert(trainer.money:IsShown() and not trainer.trainingPoints:IsShown(),
+ "non-pet trainer must retain the native money display")
 assert(bar:IsShown() and bar.minimum==1 and bar.maximum==75 and bar.value==40 and bar.rankText:GetText()=="40 (+5) / 75",
  "native rank values modifier caption and visibility must survive")
 stepIndex=nil; modifier=0; rank=55
 _G.ClassTrainerFrame_Update(false)
 assert(trainer.ScrollBox:GetHeight()==330 and not trainer.bottomInset:IsShown() and not step:IsShown()
- and not trainer.ScrollBox.retain and providers==2,"native ordinary-list layout must replace provider and hide step row")
+ and not trainer.ScrollBox.retain and providers==2 and #trainer.ScrollBox.provider.data==3,"native ordinary-list layout must replace provider and hide step row")
 assert(bar.rankText:GetText()=="55 / 75" and bar.value==55,"native rank reuse must clear modifier caption")
 rank=0
 _G.ClassTrainerFrame_Update(true)
@@ -130,7 +151,7 @@ assert(not bar:IsShown() and barMasks==1,"native zero-rank state must hide bar w
 rank=nil
 _G.ClassTrainerFrame_Update(true)
 assert(not bar:IsShown(),"native missing rank must retain hidden bar")
-rank,maxRank,modifier,stepIndex=70,100,2,3
+rank,maxRank,modifier,stepIndex=70,100,2,2
 _G.ClassTrainerFrame_Update(true)
 assert(bar:IsShown() and bar.value==70 and bar.maximum==100 and bar.rankText:GetText()=="70 (+2) / 100"
  and step:IsShown() and trainer.ScrollBox:GetHeight()==278,"returning profession rank must restore native layout and text")

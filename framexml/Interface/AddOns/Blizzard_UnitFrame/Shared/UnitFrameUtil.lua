@@ -1,7 +1,19 @@
 -- Utility functions focused on providing secret-safe access to unit frame data and updating unit frame elements.
 -- These functions are designed to be usable by both secure and non-secure code
 
+local _addonName, addonTable = ...;
+
 UnitFrameUtil = UnitFrameUtil or {};
+
+-- The PvP indicator's atlas set is game-type specific. Flattened into individual upvalues so no table read happens
+-- inside the secure delegates below. These stay nil on Classic, where PvPIndicatorStyle is never set; the PvP
+-- indicator delegates are left undefined there.
+local HordeIconAtlas;
+local AllianceIconAtlas;
+local FFAIconAtlas;
+local NeutralPrestigePortraitAtlas;
+local FactionPrestigePortraitAtlasPrefix;
+local SupportsPrestige;
 
 local function GetRawField(tbl, key)
 	return securecallfunction(rawget, tbl, key);
@@ -42,10 +54,11 @@ local pvpIndicatorTextureMapKeys =
 
 -- Returns unwrapped values, so it must stay internal. Callers are responsible for wrapping anything handed back out.
 local function GetPvPIndicatorValues(unitToken, checkMercenary, textureMap)
+	-- IMPORTANT: This key set is part of the addon-facing contract and must stay identical across all game types
 	local info = {
-		prestigePortraitTexture = "",
-		prestigeBadgeTexture = 0,
-		pvpIconTexture = "",
+		prestigePortraitAtlas = "",
+		prestigeBadgeFileDataID = 0,
+		pvpIconAtlas = "",
 		showPrestigePortrait = false,
 		showPrestigeBadge = false,
 		showPvPIcon = false,
@@ -60,16 +73,15 @@ local function GetPvPIndicatorValues(unitToken, checkMercenary, textureMap)
 
 		if (UnitIsPVPFreeForAll(unitToken)) then
 			info.isFreeForAll = true;
-			local honorRewardInfo = C_PvP.GetHonorRewardInfo(UnitHonorLevel(unitToken));
+			info.pvpIconAtlas = (textureMap and textureMap.pvpIconFreeForAll) or FFAIconAtlas;
+			info.showPvPIcon = true;
 
+			local honorRewardInfo = SupportsPrestige and C_PvP.GetHonorRewardInfo(UnitHonorLevel(unitToken)) or nil;
 			if (honorRewardInfo) then
-				info.prestigePortraitTexture = (textureMap and textureMap.prestigePortraitNeutral) or "honorsystem-portrait-neutral";
-				info.prestigeBadgeTexture = (textureMap and textureMap.prestigeBadge) or honorRewardInfo.badgeFileDataID;
+				info.prestigePortraitAtlas = (textureMap and textureMap.prestigePortraitNeutral) or NeutralPrestigePortraitAtlas;
+				info.prestigeBadgeFileDataID = (textureMap and textureMap.prestigeBadge) or honorRewardInfo.badgeFileDataID;
 				info.showPrestigePortrait = true;
 				info.showPrestigeBadge = true;
-			else
-				info.pvpIconTexture = (textureMap and textureMap.pvpIconFreeForAll) or "UI-HUD-UnitFrame-Player-PVP-FFAIcon";
-				info.showPvPIcon = true;
 			end
 		elseif (factionGroup and factionGroup ~= "Neutral" and UnitIsPVP(unitToken)) then
 			if (checkMercenary and UnitIsMercenary(unitToken)) then
@@ -80,21 +92,19 @@ local function GetPvPIndicatorValues(unitToken, checkMercenary, textureMap)
 				end
 			end
 
-			local honorRewardInfo = C_PvP.GetHonorRewardInfo(UnitHonorLevel(unitToken));
+			if (factionGroup == "Horde") then
+				info.pvpIconAtlas = (textureMap and textureMap.pvpIconHorde) or HordeIconAtlas;
+			elseif (factionGroup == "Alliance") then
+				info.pvpIconAtlas = (textureMap and textureMap.pvpIconAlliance) or AllianceIconAtlas;
+			end
+			info.showPvPIcon = true;
 
+			local honorRewardInfo = SupportsPrestige and C_PvP.GetHonorRewardInfo(UnitHonorLevel(unitToken)) or nil;
 			if (honorRewardInfo) then
-				info.prestigePortraitTexture = (textureMap and textureMap["prestigePortrait"..factionGroup]) or ("honorsystem-portrait-"..factionGroup);
-				info.prestigeBadgeTexture = (textureMap and textureMap.prestigeBadge) or honorRewardInfo.badgeFileDataID;
+				info.prestigePortraitAtlas = (textureMap and textureMap["prestigePortrait"..factionGroup]) or (FactionPrestigePortraitAtlasPrefix..factionGroup);
+				info.prestigeBadgeFileDataID = (textureMap and textureMap.prestigeBadge) or honorRewardInfo.badgeFileDataID;
 				info.showPrestigePortrait = true;
 				info.showPrestigeBadge = true;
-			else
-				if (factionGroup == "Horde") then
-					info.pvpIconTexture = (textureMap and textureMap.pvpIconHorde) or "UI-HUD-UnitFrame-Player-PVP-HordeIcon";
-				elseif (factionGroup == "Alliance") then
-					info.pvpIconTexture = (textureMap and textureMap.pvpIconAlliance) or "UI-HUD-UnitFrame-Player-PVP-AllianceIcon";
-				end
-
-				info.showPvPIcon = true;
 			end
 		end
 	end
@@ -140,9 +150,29 @@ local function SetTextureOrAtlas(texture, value, isSecret, useAtlasSize)
 	return false;
 end
 
+local function ResolveAtlasSize(useAtlasSize, elementKey, default)
+	if (type(useAtlasSize) == "table") then
+		local perElementValue = GetRawField(useAtlasSize, elementKey);
+		if (perElementValue ~= nil) then
+			return perElementValue;
+		end
+
+		return default;
+	end
+
+	if (useAtlasSize ~= nil) then
+		return useAtlasSize;
+	end
+
+	return default;
+end
+
 -- Sets the textures in the elements table, using the info returned by GetUnitPvPIndicatorDisplayInfo.
 -- The elements table can contain the following keys: prestigePortrait, prestigeBadge, pvpIcon.
-local function UpdateUnitPvPIndicator(elements, unitToken, checkMercenary, textureMap)
+-- Prestige art only overrules the plain icon when this caller actually supplied a prestige element to show it on.
+-- useAtlasSize overrides the useAtlasSize passed to every :SetAtlas call below, or per-element if given as a table
+-- keyed by prestigePortrait/prestigeBadge/pvpIcon
+local function UpdateUnitPvPIndicator(elements, unitToken, checkMercenary, textureMap, useAtlasSize)
 	local prestigePortrait = GetRawField(elements, "prestigePortrait");
 	local prestigeBadge = GetRawField(elements, "prestigeBadge");
 	local pvpIcon = GetRawField(elements, "pvpIcon");
@@ -150,9 +180,13 @@ local function UpdateUnitPvPIndicator(elements, unitToken, checkMercenary, textu
 	local info = GetPvPIndicatorValues(unitToken, checkMercenary, textureMap);
 	local isSecret = C_Secrets.ShouldUnitIdentityBeSecret(unitToken);
 
+	local prestigePortraitAtlasSize = ResolveAtlasSize(useAtlasSize, "prestigePortrait", TextureKitConstants.IgnoreAtlasSize);
+	local prestigeBadgeAtlasSize = ResolveAtlasSize(useAtlasSize, "prestigeBadge", TextureKitConstants.IgnoreAtlasSize);
+	local pvpIconAtlasSize = ResolveAtlasSize(useAtlasSize, "pvpIcon", TextureKitConstants.UseAtlasSize);
+
 	if (IsTextureObject(prestigePortrait)) then
 		if (info.showPrestigePortrait) then
-			SetTextureOrAtlas(prestigePortrait, info.prestigePortraitTexture, isSecret, TextureKitConstants.IgnoreAtlasSize);
+			SetTextureOrAtlas(prestigePortrait, info.prestigePortraitAtlas, isSecret, prestigePortraitAtlasSize);
 		end
 
 		TextureMetatable.SetShown(prestigePortrait, WrapIfSecret(info.showPrestigePortrait, isSecret));
@@ -160,18 +194,22 @@ local function UpdateUnitPvPIndicator(elements, unitToken, checkMercenary, textu
 
 	if (IsTextureObject(prestigeBadge)) then
 		if (info.showPrestigeBadge) then
-			SetTextureOrAtlas(prestigeBadge, info.prestigeBadgeTexture, isSecret, TextureKitConstants.IgnoreAtlasSize);
+			SetTextureOrAtlas(prestigeBadge, info.prestigeBadgeFileDataID, isSecret, prestigeBadgeAtlasSize);
 		end
 
 		TextureMetatable.SetShown(prestigeBadge, WrapIfSecret(info.showPrestigeBadge, isSecret));
 	end
 
 	if (IsTextureObject(pvpIcon)) then
-		if (info.showPvPIcon) then
-			SetTextureOrAtlas(pvpIcon, info.pvpIconTexture, isSecret, TextureKitConstants.UseAtlasSize);
+		local hasPrestigeElement = IsTextureObject(prestigePortrait) or IsTextureObject(prestigeBadge);
+		local isPrestigeElementShowing = hasPrestigeElement and (info.showPrestigePortrait or info.showPrestigeBadge);
+		local showPvPIcon = info.showPvPIcon and not isPrestigeElementShowing;
+
+		if (showPvPIcon) then
+			SetTextureOrAtlas(pvpIcon, info.pvpIconAtlas, isSecret, pvpIconAtlasSize);
 		end
 
-		TextureMetatable.SetShown(pvpIcon, WrapIfSecret(info.showPvPIcon, isSecret));
+		TextureMetatable.SetShown(pvpIcon, WrapIfSecret(showPvPIcon, isSecret));
 	end
 end
 
@@ -218,7 +256,7 @@ local function GetRoleIconValues(unitToken, optionTable, roleCacheKey, iconSize)
 	local textureMap = CopyTextureMap(GetRawField(optionTable, "textureMap"), roleIconTextureMapKeys);
 
 	local roleIconTexture;
-	if (UnitInVehicle(unitToken) and UnitHasVehicleUI(unitToken)) then
+	if (GetRawField(optionTable, "displayVehicleRoleIcon") and UnitInVehicle(unitToken) and UnitHasVehicleUI(unitToken)) then
 		roleIconTexture = (textureMap and textureMap.VEHICLE) or "RaidFrame-Icon-Vehicle";
 	else
 		if GetRawField(optionTable, "displayRaidRoleIcon") then
@@ -423,12 +461,20 @@ end
 
 -- The PvP indicator depends on mainline-only honor/prestige APIs and atlases, so it is left undefined on Classic rather than failing inside the delegate.
 if (C_PvP and C_PvP.GetHonorRewardInfo) then
+	local style = addonTable.PvPIndicatorStyle;
+	HordeIconAtlas = style.hordeIconAtlas;
+	AllianceIconAtlas = style.allianceIconAtlas;
+	FFAIconAtlas = style.ffaIconAtlas;
+	NeutralPrestigePortraitAtlas = style.neutralPrestigePortraitAtlas;
+	FactionPrestigePortraitAtlasPrefix = style.factionPrestigePortraitAtlasPrefix;
+	SupportsPrestige = style.supportsPrestige;
+
 	-- Used by UnitFrameUtil.UpdateUnitPvPIndicator, but can also be called separately (values returned will be secret if the unit's identity is secret).
 	-- textureMap may replace any of prestigePortraitNeutral/prestigePortraitHorde/prestigePortraitAlliance/prestigeBadge/pvpIconFreeForAll/pvpIconHorde/pvpIconAlliance,
 	-- with either an atlas name or a plain texture path/file ID.
 	UnitFrameUtil.GetUnitPvPIndicatorDisplayInfo = CreateSecureDelegate(GetUnitPvPIndicatorDisplayInfo);
 
-	-- Secret-safe API for setting PvP icon/prestige badge textures, accepting the same optional textureMap. Used by TargetFrame.lua/PlayerFrame.lua and also safe for addons to use
+	-- Secret-safe API for setting PvP icon/prestige badge/prestige background textures, accepting the same optional textureMap. Used by TargetFrame.lua/PlayerFrame.lua and also safe for addons to use
 	UnitFrameUtil.UpdateUnitPvPIndicator = CreateSecureDelegate(UpdateUnitPvPIndicator);
 end
 
@@ -436,8 +482,8 @@ end
 UnitFrameUtil.UpdateUnitFrameRoleIcon = CreateSecureDelegate(UpdateUnitFrameRoleIcon);
 
 -- Returns possibly-secret roleIconTexture/showRoleIcon for callers that draw the role icon themselves. options may set
--- displayRoleIcon, displayRaidRoleIcon, iconSize, and a textureMap keyed by VEHICLE/MAINTANK/MAINASSIST/TANK/HEALER/DAMAGER,
--- whose values may be either an atlas name or a plain texture path/file ID.
+-- displayRoleIcon, displayRaidRoleIcon, displayVehicleRoleIcon, iconSize, and a textureMap keyed by
+-- VEHICLE/MAINTANK/MAINASSIST/TANK/HEALER/DAMAGER, whose values may be either an atlas name or a plain texture path/file ID.
 -- Tainted callers must apply showRoleIcon with SetAlphaFromBoolean; SetShown does not accept secret arguments from tainted execution.
 UnitFrameUtil.GetUnitRoleIconDisplayInfo = CreateSecureDelegate(GetUnitRoleIconDisplayInfo);
 
