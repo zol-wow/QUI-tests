@@ -242,6 +242,25 @@ local refreshedX, refreshedY = host:GetCenter()
 assert(layout._handles[key] == handle and layout._pendingPositions[key] == pendingPosition
     and refreshedX == pendingX and refreshedY == pendingY,
     "an unchanged enabled refresh must preserve the active handle and its pending position")
+for _, size in ipairs({250, 100}) do
+    currentConfig.size = size
+    R.Refresh()
+    Flush()
+    refreshedX, refreshedY = host:GetCenter()
+    assert(handle:GetWidth() == (size == 250 and 250 or 140) and handle:GetRight() >= host.icon:GetRight(),
+        "editing icon size in Layout Mode must grow or shrink its mover around the icon and PI recipient sample")
+    assert(layout._handles[key] == handle and layout._pendingPositions[key] == pendingPosition
+        and refreshedX == pendingX and refreshedY == pendingY,
+        "resizing a reminder must preserve its existing handle, pending position and host center")
+end
+addedHandle = layout._handles["spellReminder:29166"]
+for _, size in ipairs({96, 32}) do
+    R.Get(29166).size = size
+    R.Refresh()
+    Flush()
+    assert(layout._handles["spellReminder:29166"] == addedHandle and addedHandle:GetWidth() == size,
+        "ordinary reminder movers must follow icon size edits without replacing their handles")
+end
 currentConfig.enabled = false
 R.Refresh()
 Flush()

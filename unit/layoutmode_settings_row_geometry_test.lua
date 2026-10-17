@@ -276,3 +276,32 @@ retired:SetParent(nil)
 Flush()
 assert(retiredCalls == 0, "a retired mover's queued layout must not resize the current panel")
 print("OK: retired layout callbacks ignored")
+
+local reopenKey = "reopenMover"
+local reopenDB = {parent = "screen", offsetX = 10, offsetY = 20}
+db.frameAnchoring[reopenKey] = reopenDB
+local reopenWidgets
+ns.Settings = {
+    Registry = {GetFeatureByLookupKey = function() return {id = reopenKey} end},
+    Renderer = {RenderFeature = function(_, _, host)
+        local height
+        height, reopenWidgets = ns.QUI_Anchoring_Options:BuildAnchoringSection(host, reopenKey,
+            {noHeader = true}, 0)
+        return -height
+    end},
+}
+settings:Show(reopenKey)
+Flush()
+assert(tonumber(reopenWidgets.sliderX.editBox:GetText()) == 10, "initial X field must display the saved offset")
+assert(tonumber(reopenWidgets.sliderY.editBox:GetText()) == 20, "initial Y field must display the saved offset")
+assert(reopenWidgets.anchorDropdown.selectedValue == "screen", "initial anchor must select the saved parent")
+settings:Hide(true)
+assert(not settings:IsShown() and settings._currentKey == reopenKey, "closing settings must retain the selected mover")
+reopenDB.offsetX, reopenDB.offsetY, reopenDB.parent = 75, -35, "disabled"
+assert(tonumber(reopenWidgets.sliderX.editBox:GetText()) == 10, "a hidden field may retain its old display until reopened")
+settings:Show(reopenKey)
+Flush()
+assert(tonumber(reopenWidgets.sliderX.editBox:GetText()) == 75, "reopening the same mover must refresh its displayed X offset")
+assert(tonumber(reopenWidgets.sliderY.editBox:GetText()) == -35, "reopening the same mover must refresh its displayed Y offset")
+assert(reopenWidgets.anchorDropdown.selectedValue == "disabled", "reopening the same mover must refresh its selected anchor")
+print("OK: reopening mover settings refreshes offsets and anchor selection")
