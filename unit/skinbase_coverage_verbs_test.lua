@@ -99,12 +99,19 @@ do
     local call = skinButtonCalls[#skinButtonCalls]
     assert(call.button == prev and call.opts and call.opts.strip == true, "SkinNextPrevButton must SkinButton{strip=true}")
     local glyph = SkinBase.GetFrameData(prev, "nextPrevGlyph")
-    assert(glyph and glyph.text == "\226\151\132", "prev button must get the ◄ glyph")
-    assert(glyph.font == "Interface\\QUIFont.ttf", "glyph must use the QUI font")
+    assert(glyph and glyph.text == "|A:common-icon-backarrow:14:14|a", "prev arrows must use native images so fonts without triangle glyphs cannot show missing-character boxes")
+    assert(glyph.font == "Interface\\QUIFont.ttf", "arrow markup must preserve the selected UI font")
 
     local nxt = NewButton()
     SkinBase.SkinNextPrevButton(nxt, "right")
-    assert(SkinBase.GetFrameData(nxt, "nextPrevGlyph").text == "\226\150\186", "next button must get the ► glyph")
+    assert(SkinBase.GetFrameData(nxt, "nextPrevGlyph").text == "|A:common-icon-forwardarrow:14:14|a", "next arrows must use native images independently of font glyph coverage")
+
+    local left, nextButton = NewButton(), NewButton()
+    SkinBase.SkinNextPrevButton(left, "left", { size = 12 })
+    SkinBase.SkinNextPrevButton(nextButton, "next", { size = 12 })
+    assert(SkinBase.GetFrameData(left, "nextPrevGlyph").text == "|A:common-icon-backarrow:12:12|a"
+        and SkinBase.GetFrameData(nextButton, "nextPrevGlyph").text == "|A:common-icon-forwardarrow:12:12|a",
+        "direction aliases and smaller arrows must retain their requested direction and dimensions")
 
     -- idempotent
     local n = #skinButtonCalls
