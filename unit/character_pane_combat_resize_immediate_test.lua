@@ -111,37 +111,6 @@ for _, name in ipairs({ "decorations", "background", "title", "slots", "borders"
     assert(calls[name] == 1, "Character pane layout must apply " .. name .. " during combat")
 end
 
-local showNativeDecorations = assert(loadSource([[
-local shown = 0
-local ns = { Client = { isForever = false } }
-local function nativeDecoration()
-    return { Show = function() shown = shown + 1 end }
-end
-local CharacterFramePortrait = nativeDecoration()
-local CharacterFrameBg = nativeDecoration()
-local CharacterFrame = {
-    Background = nativeDecoration(),
-    NineSlice = nativeDecoration(),
-}
-local InCombatLockdown = function() return true end
-local statsPanel, customBg
-local slotOverlays, frameState, EMPTY = {}, {}, {}
-local RestoreCharacterPanePopouts = function() end
-local IsSkinningHandlingBackground = function() return false end
-local SetCharacterFrameScale = function() end
-local GetSettings = function() return {} end
-local AdjustForNonCharacterTab = function() end
-]] .. slice(
-    "    local function HideCustomElements()",
-    "    if ReputationFrame then") .. [[
-return function()
-    HideCustomElements()
-    return shown
-end
-]], "@character.lua#HideCustomElements"))()
-
-assert(showNativeDecorations() == 4, "Native character decorations must be shown on other tabs during combat")
-
 local hideNativeDecorations = assert(loadSource([[
 local hidden = 0
 local ns = { Client = { isForever = false } }

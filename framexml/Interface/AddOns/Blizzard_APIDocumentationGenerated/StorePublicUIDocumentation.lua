@@ -42,6 +42,24 @@ local StorePublicUI =
 				{ Name = "enabled", Type = "bool", Nilable = false },
 			},
 		},
+		{
+			Name = "IsRewardsShopEnabled",
+			Type = "Function",
+
+			Returns =
+			{
+				{ Name = "enabled", Type = "bool", Nilable = false },
+			},
+		},
+		{
+			Name = "IsRewardsShopOverrideEnabled",
+			Type = "Function",
+
+			Returns =
+			{
+				{ Name = "enabled", Type = "bool", Nilable = false },
+			},
+		},
 	},
 
 	Events =

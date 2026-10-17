@@ -1,7 +1,7 @@
 local loader = dofile("tests/helpers/load_bags_data.lua")
 
 for _, client in ipairs({
-    { path = "tests/api-docs/blizzard", charLast = 11, accountFirst = 12, accountLast = 16 },
+    { path = "tests/api-docs/blizzard", charLast = 14, accountFirst = 15, accountLast = 23 },
     { path = "tests/clients/forever/api-docs/blizzard", charLast = 14, accountFirst = 15, accountLast = 23 },
 }) do
     local bagIndex = {}

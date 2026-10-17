@@ -53,6 +53,8 @@ local function chatFrame(id)
     f.id = id
     frame(name .. "Tab", _G.GeneralDockManager)
     frame(name .. "ButtonFrame", f)
+    f.clickAnywhereButton = frame(nil, f)
+    f.clickAnywhereButton.UpdateState = noop
     f.editBox = frame(name .. "EditBox", UIParent)
     f.editBox.chatFrame = f
     f.editBox.header = frame(nil, f.editBox)

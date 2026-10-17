@@ -285,36 +285,46 @@ local function Register()
 	category:SetOrder(CUSTOM_GAMEPLAY_SETTINGS_ORDER[SETTINGS_KEYBINDINGS_LABEL]);
 
 	-- Binding set
-	KeybindingsOverrides.RunSettingsCallback(function()
-		local function GetValue()
-			return GetCurrentBindingSet() == Enum.BindingSet.Character;
-		end
+	if C_GameRules.IsAccountKeyBindingsEnabled() then
+		KeybindingsOverrides.RunSettingsCallback(function()
 
-		local function SetValue(value)
-			if value then
-				Settings.SelectCharacterBindings();
-			else
-				Settings.SelectAccountBindings();
+			local function GetValue()
+				return GetCurrentBindingSet() == Enum.BindingSet.Character;
 			end
-		end
 
-		local defaultValue = Settings.CannotDefault;
-		local setting = Settings.RegisterProxySetting(category, "PROXY_CHARACTER_SPECIFIC_BINDINGS",
-			Settings.VarType.Boolean, CHARACTER_SPECIFIC_KEYBINDINGS, defaultValue, GetValue, SetValue);
-		local initializer = Settings.CreateCheckbox(category, setting, CHARACTER_SPECIFIC_KEYBINDING_TOOLTIP);
-
-		-- Changing from character to account bindings requires confirmation since it overwrites
-		-- character with account bindings.
-		local function CanChangeSetting(value)
-			if value then
-				return false;
+			local function SetValue(value)
+				if value then
+					Settings.SelectCharacterBindings();
+				else
+					Settings.SelectAccountBindings();
+				end
 			end
-			StaticPopup_Show("CONFIRM_DELETING_CHARACTER_SPECIFIC_BINDINGS");
-			return true;
-		end
 
-		initializer:SetSettingIntercept(CanChangeSetting);
-	end);
+			local defaultValue = Settings.CannotDefault;
+			local setting = Settings.RegisterProxySetting(category, "PROXY_CHARACTER_SPECIFIC_BINDINGS",
+				Settings.VarType.Boolean, CHARACTER_SPECIFIC_KEYBINDINGS, defaultValue, GetValue, SetValue);
+			local initializer = Settings.CreateCheckbox(category, setting, CHARACTER_SPECIFIC_KEYBINDING_TOOLTIP);
+
+			-- Changing from character to account bindings requires confirmation since it overwrites
+			-- character with account bindings.
+			local function CanChangeSetting(value)
+				if value then
+					return false;
+				end
+				StaticPopup_Show("CONFIRM_DELETING_CHARACTER_SPECIFIC_BINDINGS");
+				return true;
+			end
+
+			initializer:SetSettingIntercept(CanChangeSetting);
+		end);
+	else
+		Settings.SelectCharacterBindings();
+	end
+
+	if (C_GameRules.IsGameRuleActive(Enum.GameRule.AllowSimpleKeybindOption)) then
+		local simpleKeybindsSetting = Settings.RegisterCVarSetting(category, "simpleKeybinds", Settings.VarType.Boolean, SETTINGS_SIMPLE_KEYBINDS);
+		Settings.CreateCheckbox(category, simpleKeybindsSetting, SETTINGS_SIMPLE_KEYBINDS_TOOLTIP);
+	end
 
 	KeybindingsOverrides.CreateBindingButtonSettings(layout);
 

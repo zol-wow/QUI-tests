@@ -41,6 +41,11 @@ local Camera =
 				{ Name = "useModelCenter", Type = "bool", Nilable = false },
 			},
 		},
+		{
+			Name = "TurnOrActionToggle",
+			Type = "Function",
+			HasRestrictions = true,
+		},
 	},
 
 	Events =

@@ -41,6 +41,7 @@ local env = setmetatable({
     time = function() return now end,
     GetTimePreciseSec = function() return now + 0.25 end,
     max = math.max,
+    InputUtil = { IsGamepadUIEnabled = function() return false end },
     CreateFrame = Frame,
     EJ_GetEncounterInfo = function() return "Test Boss" end,
     GetDifficultyInfo = function() return "Heroic" end,

@@ -37,6 +37,14 @@ R.Refresh()
 assert(not host.shown and not R.previews[10060], "Layout Mode's gameplay hide remains hidden after refresh")
 mover.setGameplayHidden(false)
 assert(host.shown)
+local previousHiddenByAnchor = _G.QUI_IsFrameHiddenByAnchor
+_G.QUI_IsFrameHiddenByAnchor = function(key) return key == "spellReminder:10060" end
+host:Hide()
+R.Update()
+assert(_G.QUI_IsFrameHiddenByAnchor("spellReminder:10060") and not host.shown,
+    "normal runtime updates must preserve hide-with-parent anchoring visibility")
+_G.QUI_IsFrameHiddenByAnchor = previousHiddenByAnchor
+host:Show()
 local pi = piConfig.pi
 pi.glowStyle = "proc"
 H.cell:SetSize(140, 75)

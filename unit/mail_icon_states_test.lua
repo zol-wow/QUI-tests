@@ -33,16 +33,33 @@ end
 local click=function() error("mail action invoked") end
 for _,b in ipairs({inbox,send,open}) do b:SetScript("OnClick",click);b:SetScript("OnDragStart",click) end
 local f=assert(io.open("tests/framexml/Interface/AddOns/Blizzard_MailFrame/MailFrame.lua"));local native=f:read("*a");f:close()
-local start=assert(native:find("if ( InboxFrame.openMailID == index ) then",1,true))
+local start=assert(native:find("if ( self.openMailID == index ) then",1,true))
 local stop=assert(native:find("\n\t\telse\n\t\t\t-- Clear everything",start,true))
-local selected=assert(loadstring("return function(button,index,stationeryIcon)\n"..native:sub(start,stop-1).."\nend"))()
+local selected=assert(loadstring("return function(self,button,index,stationeryIcon)\n"..native:sub(start,stop-1).."\nend"))()
 _G.InboxFrame={openMailID=1};_G.OpenMailFrame=env.NewFrame("Frame")
 function _G.OpenMailFrame:SetPortraitToAsset(art) self.portrait=art end
 skin.MarkSkinned(_G.OpenMailFrame)
-selected(inbox,1,"native-letter")
+local pageLabels={}
+for _,key in ipairs({"PrevPageButton","NextPageButton"}) do
+ local page=button();_G.InboxFrame[key]=page
+ page:SetScript("OnClick",click)
+ local label=page:CreateFontString();label:SetTextColor(1,.82,0,1)
+ pageLabels[#pageLabels+1]=label
+end
+local refreshed={0,0}
+function _G.InboxFrame:Update() refreshed[1]=refreshed[1]+1 end
+function _G.OpenMailFrame:Update() refreshed[2]=refreshed[2]+1 end
+selected(_G.InboxFrame,inbox,1,"native-letter")
 _G.C_Timer.After=function(_,fn) fn() end
 skin.OnAddOnLoaded=function(_,fn) fn() end
 assert(loadfile(arg[1] or "modules/skinning/frames/mail.lua"))("QUI",ns)
+for i,label in ipairs(pageLabels) do
+ local r,g,b=label:GetTextColor()
+ assert(r==g and g==b,"native child page buttons must receive neutral QUI label styling "..i)
+end
+for _,key in ipairs({"PrevPageButton","NextPageButton"}) do
+ assert(_G.InboxFrame[key]:GetScript("OnClick")==click,"native paging handler must remain owned by Blizzard")
+end
 assert(inbox.Checked:GetAlpha()==1 and inbox.Checked:IsShown(),"mail selection must survive decorative texture suppression")
 assert(masks==7,"inbox and attachments need one mask per item/hover/selection texture")
 for _,b in ipairs({inbox,send,open}) do
@@ -53,7 +70,7 @@ for _,b in ipairs({inbox,send,open}) do
   and b:GetScript("OnClick")==click and b:GetScript("OnDragStart")==click,"quality, overlays, count colors and action scripts must remain")
  assert(not b.Highlight:IsShown() and b:GetWidth()==37,"native hover state and hitbox size must remain")
 end
-selected(inbox,2,"native-letter")
+selected(_G.InboxFrame,inbox,2,"native-letter")
 assert(not inbox.Checked:IsShown() and not inbox.checked,"native letter switching must deselect icon")
 local populated=true
 _G.ATTACHMENTS_MAX_SEND=1
@@ -70,6 +87,22 @@ assert(send.Normal.texture=="new-art" and send.nativeQuality==4 and send.Count:G
 populated=false;update();_G.QUI_RefreshMailColors()
 assert(send.Normal.texture==nil and send.nativeQuality==nil and not send.IconBorder:IsShown(),
  "native cleared attachment must retain empty art and hidden quality")
+local freshInbox,freshOpen=button("CheckButton"),button()
+freshInbox.Icon=freshInbox:CreateTexture();freshOpen.Icon=freshOpen:CreateTexture()
+_G.MailItem2=env.NewFrame("Frame");_G.MailItem2Button=freshInbox
+_G.OpenMailAttachmentButton2=freshOpen
+_G.InboxFrame:Update();_G.OpenMailFrame:Update()
+assert(refreshed[1]==1 and refreshed[2]==1,"native instance refreshes must run exactly once")
+assert(skin.GetBackdrop(freshInbox),"native inbox instance refresh must skin newly populated rows")
+assert(skin.GetBackdrop(freshOpen),"native open-mail instance refresh must skin newly populated attachments")
+env.profile.general.skinMail=false
+local disabledInbox,disabledOpen=button(),button()
+_G.MailItem3=env.NewFrame("Frame");_G.MailItem3Button=disabledInbox
+_G.OpenMailAttachmentButton3=disabledOpen
+_G.InboxFrame:Update();_G.OpenMailFrame:Update()
+assert(refreshed[1]==2 and refreshed[2]==2 and not skin.GetBackdrop(disabledInbox)
+ and not skin.GetBackdrop(disabledOpen),"disabled skin must preserve native instance refreshes without styling")
+env.profile.general.skinMail=true
 inbox.IsForbidden=function() return true end
 inbox.Checked:SetColorTexture(.3,.4,.5,1);_G.QUI_RefreshMailColors()
 assert(inbox.Checked.color[1]==.3,"forbidden button must stop state styling")

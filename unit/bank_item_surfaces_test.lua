@@ -10,7 +10,7 @@ _G.Enum.BagSlotFlags={ExpansionCurrent=1,ExpansionLegacy=2}
 _G.StaticPopupDialogs = {}
 _G.RegisterPlayerInteraction = function() end
 _G.TextureKitConstants = {IgnoreAtlasSize=false}
-assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/BankFrame.lua"))()
+assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/BankFrameTemplates.lua"))()
 local function frame(kind, parent)
     local f=env.NewFrame(kind or "Frame",nil,parent)
     f.RegisterForWidgetSet=false; f.DisabledTexture=false
@@ -45,6 +45,10 @@ local function item()
 end
 local info={iconFileID=123,stackCount=7,quality=4,itemID=22,isBound=true,isLocked=true,isFiltered=true}
 local quest={questID=91,isActive=false}
+_G.C_Bank={ShouldUsePlayerBagsInBank=function() return false end}
+_G.EventRegistry={TriggerEvent=function(_,event,page)
+ assert(event=="BankPanelMixin.PageInfoChanged" and page==1)
+end}
 _G.C_Container={
  GetContainerItemInfo=function() return info end,
  GetContainerItemQuestInfo=function() return quest end,
@@ -62,7 +66,10 @@ end
 _G.SetItemButtonDesaturated=function(f,value) f.icon:SetDesaturated(value) end
 _G.CooldownFrame_Set=function(f,s,d,e) f.nativeCooldown={s,d,e} end
 _G.SetItemButtonTextureVertexColor=function(f,r,g,b) f.icon:SetVertexColor(r,g,b) end
-panel.bankType=Enum.BankType.Account; panel.selectedTabID=13
+panel.bankType=Enum.BankType.Account; panel.selectedTabID=15
+panel.currentPage=1
+panel.GetMaximumTotalSlotsPerPage=_G.BankPanelMixin.GetMaximumTotalSlotsPerPage
+panel.GenerateAndPlaceOnePageOfItemButtons=_G.BankPanelMixin.GenerateAndPlaceOnePageOfItemButtons
 panel.GenerateItemSlotsForSelectedTab=_G.BankPanelMixin.GenerateItemSlotsForSelectedTab
 panel.RefreshAllItemsForSelectedTab=_G.BankPanelMixin.RefreshAllItemsForSelectedTab
 panel.EnumerateValidItems=_G.BankPanelMixin.EnumerateValidItems

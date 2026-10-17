@@ -7,7 +7,7 @@ end
 local root=frame();_G.ProfessionsCustomerOrdersFrame=root
 local form=frame(nil,root);root.Form=form;form.BackButton=false
 local check=frame("CheckButton",form);form.AllocateBestQualityCheckbox=check
-check:SetSize(26,26);check.text=check:CreateFontString()
+check:SetSize(26,26);check.Text=check:CreateFontString()
 local textures={}
 for _,key in ipairs({"Normal","Pushed","Highlight","Checked","DisabledChecked"}) do
  textures[key]=check:CreateTexture();textures[key]:SetTexture("native-"..key)
@@ -17,7 +17,7 @@ function check:GetChecked() return self.checked end
 function check:SetChecked(value) self.checked=value end
 local file=assert(io.open("tests/framexml/Interface/AddOns/Blizzard_ProfessionsCustomerOrders/Blizzard_ProfessionsCustomerOrdersForm.lua"))
 local native=file:read("*a");file:close()
-local start=assert(native:find("self.AllocateBestQualityCheckbox.text:SetText",1,true))
+local start=assert(native:find("self.AllocateBestQualityCheckbox.Text:SetText",1,true))
 local stop=assert(native:find('SquareButton_SetIcon(self.OrderRecipientDisplay.SocialDropdown',start,true))
 local setup=native:sub(start,stop-1)
 _G.LIGHTGRAY_FONT_COLOR={WrapTextInColorCode=function(_,text) return "|cffaaaaaa"..text.."|r" end}
@@ -45,14 +45,14 @@ assert(loadstring("return function(self)\n"..setup.."\nend","@native-order-alloc
 check:SetChecked(true)
 local handlers={}
 for _,key in ipairs({"OnClick","OnEnter","OnLeave"}) do handlers[key]=check:GetScript(key) end
-local nativeText=check.text:GetText()
+local nativeText=check.Text:GetText()
 _G.C_Timer.After=function(_,fn) fn() end
 skin.OnAddOnLoaded=function(_,fn) fn() end
 assert(loadfile(arg[1] or "modules/skinning/frames/craftingorders.lua"))("QUI",ns)
 local bd=assert(skin.GetBackdrop(check),"allocation checkbox must receive QUI chrome")
 assert(textures.Normal:GetAlpha()==0 and bd._quiRoundedSurface,"native checkbox art must yield to rounded QUI chrome")
 assert(check:GetWidth()==26 and check:GetHeight()==26 and check:GetChecked()
- and check.text:GetText()==nativeText,"native geometry, allocation state and inline label color must remain")
+ and check.Text:GetText()==nativeText,"native geometry, allocation state and inline label color must remain")
 handlers.OnEnter(check)
 assert(GameTooltip.owner==check and GameTooltip.anchor=="ANCHOR_RIGHT"
  and GameTooltip.text==_G.PROFESSIONS_USE_LOWEST_QUALITY_REAGENTS,"checked tooltip must remain native")

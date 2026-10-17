@@ -132,6 +132,9 @@ local containerClick = assert(containerSource:match("(function ContainerFrameIte
 local usedBag, usedSlot
 local containerEnvironment = setmetatable({
     MerchantFrame_ResetRefundItem = noop,
+    EventRegistry = { TriggerEvent = noop },
+    ItemButtonUtil = { MarkItemSelectionFromBag = noop, ClearPendingItemSelectionSource = noop },
+    C_Spell = { TargetSpellIsEnchanting = function() return false end },
     ContainerFrame_GetExtendedPriceString = function() return false end,
     ItemLocation = { CreateFromBagAndSlot = function() return {} end },
     BankUtil_IsAccountBankDepositRefundable = function() return false end,

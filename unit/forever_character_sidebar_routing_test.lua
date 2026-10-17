@@ -73,8 +73,7 @@ for _, forever in ipairs({ true, false }) do
         or "tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/PaperDollFrame.lua"
     local nativeSource = read(path)
     local nativeLoader = assert(loadstring(slice(nativeSource, "function GetPaperDollSideBarFrame(", "PAPERDOLL_STATINFO =")
-        .. slice(nativeSource, "function PaperDollFrame_SetSidebar(", forever
-            and "function PaperDollFrame_OnModelLoaded(" or "function PaperDollFrame_SidebarTab_OnEnter(")))
+        .. slice(nativeSource, "function PaperDollFrame_SetSidebar(", "function PaperDollFrame_OnModelLoaded(")))
     setfenv(nativeLoader, world)
     nativeLoader()
     local nativeUpdates = 0

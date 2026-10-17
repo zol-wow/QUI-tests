@@ -391,6 +391,16 @@ local CurrencyInfo =
 			},
 		},
 		{
+			Name = "GetVcBalanceForTalebound",
+			Type = "Function",
+			HasRestrictions = true,
+
+			Returns =
+			{
+				{ Name = "balance", Type = "number", Nilable = false },
+			},
+		},
+		{
 			Name = "GetWarResourcesCurrencyID",
 			Type = "Function",
 

@@ -1,7 +1,7 @@
 # Vendored FrameXML Source
 
 This directory holds Blizzard's FrameXML — the XML frame templates and Lua
-behavior for the live World of Warcraft client UI. Together with the
+behavior for the World of Warcraft 12.1.7 PTR client UI. Together with the
 `C_*` API doc corpus at `tests/api-docs/blizzard/`, it gives QUI's
 skinning gap audits, taint analyzer, and template-aware tools the
 information needed to reason about Blizzard frames without a WoW install.
@@ -31,10 +31,10 @@ branch has the intended patch, rather than assuming `live` or `ptr` is newer.
 
 ## Current snapshot
 
-- **Patch:** 12.1.5.70391 (Midnight 12.1.5 live)
-- **Source branch:** `live` (Gethe/wow-ui-source)
-- **Source commit:** `18c6d677b605b312f3d813d498404631fb941977`
-- **Vendored on:** 2026-10-16
+- **Patch:** 12.1.7.70424 (Midnight 12.1.7 PTR)
+- **Source branch:** `ptr` (Gethe/wow-ui-source)
+- **Source commit:** `b87363e0770c2f15b1e2f154de8ad3b0cf3ea90a`
+- **Vendored on:** 2026-10-17
 
 The exact patch version is recorded in `version.txt` at the root of this
 directory and should always match the snapshot.
@@ -46,7 +46,7 @@ When WoW patches, FrameXML files change. To refresh:
 ```sh
 # From repo root; choose the branch after comparing its version.txt values.
 stage_dir=$(mktemp -d /tmp/qui-wow-ui-source.XXXXXX)
-git clone --depth 1 --branch live https://github.com/Gethe/wow-ui-source.git "$stage_dir"
+git clone --depth 1 --branch ptr https://github.com/Gethe/wow-ui-source.git "$stage_dir"
 rsync -a --delete "$stage_dir/Interface/" tests/framexml/Interface/
 rsync -a --delete --exclude='README.md' --exclude='*.toc' \
   "$stage_dir/Interface/AddOns/Blizzard_APIDocumentationGenerated/" \

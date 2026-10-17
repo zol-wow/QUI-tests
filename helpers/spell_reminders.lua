@@ -27,6 +27,7 @@ return function(options)
     function methods:GetCenter() return 500, 400 end
     function methods:GetObjectType() return self.kind end
     function methods:GetFrameLevel() return self.level end
+    function methods:GetEffectiveScale() return 1 end
     function methods:GetChildren() return unpack(self.children) end
     function methods:GetAttribute(key) return self[key] end
     function methods:IsForbidden() return false end

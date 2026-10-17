@@ -5,9 +5,9 @@ local GossipConstants =
 		{
 			Name = "GossipNpcOption",
 			Type = "Enumeration",
-			NumValues = 68,
+			NumValues = 71,
 			MinValue = 0,
-			MaxValue = 67,
+			MaxValue = 70,
 			Fields =
 			{
 				{ Name = "None", Type = "GossipNpcOption", EnumValue = 0 },
@@ -77,7 +77,10 @@ local GossipConstants =
 				{ Name = "ItemUpgrade", Type = "GossipNpcOption", EnumValue = 64 },
 				{ Name = "HouseFinder", Type = "GossipNpcOption", EnumValue = 65 },
 				{ Name = "TieredEntrance", Type = "GossipNpcOption", EnumValue = 66 },
-				{ Name = "RewardsShop", Type = "GossipNpcOption", EnumValue = 67 },
+				{ Name = "PetUntrainer", Type = "GossipNpcOption", EnumValue = 67 },
+				{ Name = "TransmogOptIn", Type = "GossipNpcOption", EnumValue = 68 },
+				{ Name = "TransmogOptOut", Type = "GossipNpcOption", EnumValue = 69 },
+				{ Name = "RewardsShop", Type = "GossipNpcOption", EnumValue = 70 },
 			},
 		},
 		{

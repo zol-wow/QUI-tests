@@ -10,7 +10,7 @@ _G.Enum.BagSlotFlags={ExpansionCurrent=1,ExpansionLegacy=2}
 _G.StaticPopupDialogs = {}
 _G.RegisterPlayerInteraction = function() end
 _G.TextureKitConstants = {IgnoreAtlasSize=false}
-assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/BankFrame.lua"))()
+assert(loadfile("tests/framexml/Interface/AddOns/Blizzard_UIPanels_Game/Mainline/BankFrameTemplates.lua"))()
 local function frame(kind, parent)
     local f=env.NewFrame(kind or "Frame",nil,parent)
     f.RegisterForWidgetSet=false; f.DisabledTexture=false
@@ -62,7 +62,7 @@ function panel:GetSelectedTabID() return self.selectedTabID end
 panel.RefreshBankTabs=_G.BankPanelMixin.RefreshBankTabs
 local locked,maxTabs,canPurchase=false,false,false
 function panel:IsBankTypeLocked() return locked end
-_G.C_Bank={HasMaxBankTabs=function() return maxTabs end,CanPurchaseBankTab=function() return canPurchase end}
+_G.C_Bank={ShouldUsePlayerBagsInBank=function() return false end,HasMaxBankTabs=function() return maxTabs end,CanPurchaseBankTab=function() return canPurchase end}
 _G.C_Container={IsContainerFiltered=function(id) return id==2 end}
 _G.TextureKitConstants.UseAtlasSize=true
 _G.QUESTION_MARK_ICON="question"

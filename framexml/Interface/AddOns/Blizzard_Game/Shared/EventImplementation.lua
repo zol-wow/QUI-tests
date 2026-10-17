@@ -161,6 +161,10 @@ function GameEvent.HandlePlayerCamping(_dispatcher, _event)
 	StaticPopup_Show("CAMP");
 end
 
+function GameEvent.HandleShardTransferEvent(_dispatcher, _event)
+	StaticPopup_Hide("SHARD_TRANSFER_IMMINENT_EVENT");
+end
+
 function GameEvent.HandlePlayerControlLost(_dispatcher, _event)
 	if UnitOnTaxi("player") then
 		return true;
@@ -313,7 +317,7 @@ function GameEvent.HandlePlayerEnteringWorld(_dispatcher, _event, isInitialLogin
 	end
 
 	if Kiosk.IsEnabled() then
-		KioskFrame_HandlePlayerEnteringWorld(isInitialLogin, isUIReload);
+		Kiosk_HandlePlayerEnteringWorld(isInitialLogin, isUIReload);
 	end
 end
 
