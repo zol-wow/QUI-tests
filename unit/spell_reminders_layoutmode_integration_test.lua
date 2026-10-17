@@ -291,3 +291,23 @@ assert(handle:IsVisible() and host.layoutPreview and host.icon:IsShown() and hos
     "re-enabling the master switch must restore each enabled reminder preview")
 layout:DiscardAndClose()
 print("OK: settings and master toggles reconcile existing reminder movers without resetting unchanged positions")
+
+local disabledConfig = R.Get(29166)
+disabledConfig.enabled = false
+H.db.enabled = false
+R.Refresh()
+layout:Open()
+Flush()
+assert(not layout._handles[key] and not layout._handles["spellReminder:29166"],
+    "the disabled master switch must suppress individually enabled and disabled reminder movers")
+layout:DiscardAndClose()
+assert(currentConfig.enabled == true and disabledConfig.enabled == false and H.db.enabled == false,
+    "closing Layout Mode with the master switch off must preserve each reminder's saved enable flag")
+H.db.enabled = true
+R.Refresh()
+layout:Open()
+Flush()
+assert(layout._handles[key] and host.layoutPreview and not layout._handles["spellReminder:29166"],
+    "turning the master switch back on must restore only the individually enabled reminder movers")
+layout:DiscardAndClose()
+print("OK: closing Layout Mode with the master switch off preserves individual reminder preferences")
