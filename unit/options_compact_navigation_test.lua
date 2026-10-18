@@ -23,7 +23,19 @@ local function Node(kind, parent)
     function node:SetWidth(value) self.width = value end
     function node:SetHeight(value) self.height = value end
     function node:GetWidth() return self.width or 240 end
-    function node:GetHeight() return self.height or 120 end
+    function node:GetHeight()
+        if self.kind == "ScrollFrame" then
+            local top, bottom
+            for _, point in ipairs(self.points) do
+                if point[1] == "TOPLEFT" then top = point[3] end
+                if point[1] == "BOTTOMRIGHT" then bottom = point[3] end
+            end
+            if type(top) == "number" and type(bottom) == "number" then
+                return self.parent:GetHeight() + top - bottom
+            end
+        end
+        return self.height or 120
+    end
     function node:GetTop() return self.top or 800 end
     function node:GetFrameLevel() return 1 end
     function node:SetAlpha(value) self.alpha = value end
@@ -302,6 +314,11 @@ for _, key in ipairs({ "CreateScrollBar", "AttachSmoothScroll", "AnimateValue", 
 end
 gui.Colors.scrollThumb, gui.Colors.scrollTrack = { 1, 1, 1, 0.6 }, { 1, 1, 1, 0.02 }
 QUI.db.profile.general.optionsMotion = true
+tile._pageFrame:SetAlpha(0.35)
+gui:AnimateOptionsPage(tile._pageFrame)
+assert(tile._pageFrame.alpha == 1, "settings content must appear fully opaque immediately when navigating with motion enabled")
+gui:AnimateOptionsPage(tile._pageFrame)
+assert(tile._pageFrame.alpha == 1, "reselecting a cached settings page must not restart a content fade")
 frame._pageFlyout = nil
 gui:OpenNavigationFlyout(frame, tile, true)
 flyout = frame._pageFlyout
@@ -314,6 +331,7 @@ for _, node in ipairs(nodes) do
 end
 assert(driver, "native UIKit supplies the animation driver")
 driver:Fire("OnUpdate", 0.065)
+assert(tile._pageFrame.alpha == 1, "settings content must remain opaque while flyout motion advances")
 assert(math.abs(flyout.alpha - 0.90625) < 0.0001, "the entrance eases out rather than fading linearly")
 QUI.db.profile.general.optionsMotion = false
 gui:RefreshOptionsMotion()
@@ -556,3 +574,18 @@ gui:OpenNavigationFlyout(frame, cold, true)
 frame._pageFlyout._buttons[2]:Fire("OnClick")
 assert(selectedCold == "text", "cold nested page must resolve the newly registered native descriptor")
 print("OK: options_compact_navigation_test")
+
+-- The parent may report zero while the resize path clears/rebuilds anchors.
+-- Once resolved, the viewport must follow the panel without another refresh.
+frame:SetWidth(1200)
+frame.contentArea:SetHeight(0)
+gui:RefreshNavigationDock(frame)
+local resizeDock=frame._pageDock
+frame.contentArea:SetHeight(680)
+resizeDock:SetHeight(680)
+assert(resizeDock._scroll:GetHeight()==617, "navigation viewport must recover from transient zero height")
+resizeDock:SetHeight(450)
+assert(resizeDock._scroll:GetHeight()==387, "viewport must follow shrinking dock height without rebuilding rows")
+resizeDock:SetHeight(760)
+assert(resizeDock._scroll:GetHeight()==697, "viewport must follow growing dock height without rebuilding rows")
+print("options navigation resize viewport: ok")
