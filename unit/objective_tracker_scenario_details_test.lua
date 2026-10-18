@@ -23,7 +23,7 @@ local sandbox=setmetatable({_G={ScenarioObjectiveTracker=scenario},
  GetSettings=function()return settings end,GetFontPath=function()return "QUIFont.ttf"end,GetFontFlags=function()return ""end,
  CJKFont=function(t,p,z,flags)t:SetFont(p,z,flags)end,
  SafeSetTextColor=function(t,c)t:SetTextColor(unpack(c))end,
- StyleLine=function(l,p,z,c,skipHeight)assert(l==line and skipHeight);styled=styled+1;l.Text:SetFont(p,z,"")end,
+ StyleLine=function(l,p,z,c)assert(l==line);styled=styled+1;l.Text:SetFont(p,z,"")end,
  StyleLineIcon=function(l,fixed)assert(l==line and fixed);icons=icons+1 end}, {__index=_G})
 local chunk=assert(loadstring(s:sub(a,b-1).."\nreturn StyleScenarioTrackerDetails"));setfenv(chunk,sandbox)
 local style=chunk();style()
