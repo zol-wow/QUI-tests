@@ -12,8 +12,11 @@ local first = source:find("local function ApplyTrackerTextFont(", 1, true)
 local last = assert(source:find("local LCG", first, true))
 local applyFirst = assert(source:find("local function ApplyFontStyles(", last, true))
 local applyLast = assert(source:find("RefreshTrackerContent = function()", applyFirst, true))
+local blockFirst = assert(source:find("local function ApplyBlockSkinning(", last, true))
+local blockLast = assert(source:find("local trackerModules", blockFirst, true))
 local code = source:sub(first, last - 1) .. source:sub(applyFirst, applyLast - 1)
-    .. "\nreturn ApplyFontStyles, EnsureTrackerTextHooks"
+    .. source:sub(blockFirst, blockLast - 1)
+    .. "\nreturn ApplyFontStyles, EnsureTrackerTextHooks, ApplyBlockSkinning"
 
 local function mix(...)
     local result = {}
@@ -45,10 +48,11 @@ local function run(corpus)
         objectiveTrackerTitleFontSize = 18,
         objectiveTrackerTextFontSize = 18,
     }
-    local data, hooks, errors = {}, {}, {}
+    local data, hooks, errors, dirtyCallbacks = {}, {}, {}, {}
     local names = { "ProfessionsRecipeTracker", "QuestObjectiveTracker", "ScenarioObjectiveTracker", "UIWidgetObjectiveTracker" }
     local sandbox = setmetatable({
         CreateFromMixins = mix,
+        RunNextFrame = function(callback) dirtyCallbacks[#dirtyCallbacks + 1] = callback end,
         ObjectiveTrackerSlidingMixin = {},
         EnumUtil = { MakeEnum = function(...)
             local result = {}
@@ -104,7 +108,13 @@ local function run(corpus)
     local path = corpus .. "/Interface/AddOns/Blizzard_ObjectiveTracker/"
     execute(read(path .. "Blizzard_ObjectiveTrackerBlock.lua"))
     execute(read(path .. "Blizzard_ObjectiveTrackerModule.lua"))
-    local apply, ensure = execute(code)
+    local mixins = read(corpus .. "/Interface/AddOns/Blizzard_SharedXML/MixinUtil.lua")
+    execute("DirtiableMixin = {}\n"
+        .. assert(mixins:match("function DirtiableMixin:SetDirtyMethod%(method%).-\nend")) .. "\n"
+        .. assert(mixins:match("function DirtiableMixin:MarkDirty%(%).-\nend")))
+    local container = mix(sandbox.DirtiableMixin, { IsCollapsed = function() return false end })
+    container:SetDirtyMethod(function() error("cosmetic refresh must not dispatch native scenario layout") end)
+    local apply, ensure, skinBlock = execute(code)
     sandbox.ObjectiveTrackerManager = {
         AcquireFrame = function(_, owner, template)
             local frame = harness.NewFrame("Frame", nil, owner, template)
@@ -122,15 +132,12 @@ local function run(corpus)
         local module = harness.NewFrame("Frame")
         for key, value in pairs(sandbox.ObjectiveTrackerModuleMixin) do module[key] = value end
         module.ContentsFrame = harness.NewFrame("Frame", nil, module)
-        module.parentContainer = {
-            MarkDirty = function() end,
-            IsCollapsed = function() return false end,
-        }
+        module.parentContainer = container
         module:OnLoad()
         sandbox[name] = module
     end
     local function style()
-        apply(0, settings.objectiveTrackerTitleFontSize, settings.objectiveTrackerTextFontSize)
+        apply(0)
     end
     local function layout(module, limit, extraLine)
         module:BeginLayout()
@@ -163,8 +170,11 @@ local function run(corpus)
     layout(recipes)
     layout(quests)
     style()
+    assert(#dirtyCallbacks == 0 and not container.dirty,
+        "font refresh must not queue the shared native update that reaches ShouldShowMawBuffs from QUI")
     for _, module in ipairs({ recipes, quests }) do
-        if module:IsDirty() then layout(module) end
+        assert(module.firstBlock.HeaderText.fontSize == 10,
+            "existing typography must keep its measured size until native layout runs")
         assertMeasured(module.firstBlock)
     end
     assert(ensure, "tracker acquisition styling hook is required")
@@ -187,7 +197,11 @@ local function run(corpus)
         local oldHeight = firstBlock:GetHeight()
         settings.objectiveTrackerTitleFontSize, settings.objectiveTrackerTextFontSize = 9, 9
         style()
-        assert(module:IsDirty(), "font reduction must invalidate existing native layout")
+        firstBlock:Show()
+        skinBlock(module, firstBlock)
+        assert(not module:IsDirty() and #dirtyCallbacks == 0, "font reduction must wait for native layout")
+        assert(firstBlock.HeaderText.fontSize == 18 and firstBlock:GetHeight() == oldHeight,
+            "settings refresh must preserve typography and geometry together until native layout")
         firstBlock = layout(module, nil, true)
         assertMeasured(firstBlock)
         assert(firstBlock:GetHeight() < oldHeight, "smaller typography must shrink native block geometry")
@@ -231,9 +245,11 @@ local function run(corpus)
     local nextFontObject = {}
     sandbox.CJKFont = function(text) text.fontObject = nextFontObject end
     style()
-    assert(recipes:IsDirty() and recipes.firstBlock.HeaderText:GetFont() == "ResolvedFallback.ttf",
-        "font-object changes must invalidate layout even when the primary alphabet font tuple is unchanged")
+    assert(not recipes:IsDirty() and #dirtyCallbacks == 0,
+        "font-object changes must not force native layout from QUI")
     layout(recipes)
+    assert(recipes.firstBlock.HeaderText:GetFontObject() == nextFontObject,
+        "native layout must apply font-object changes even when the primary alphabet font tuple is unchanged")
     style()
     assert(not recipes:IsDirty(), "stable fallback font object must not perpetually invalidate native layout")
 end
