@@ -1,4 +1,7 @@
 local env = dofile("tests/helpers/character_chrome_harness.lua").Build()
+_G.InCombatLockdown = function() return true end
+assert(loadfile("core/uikit.lua"))("QUI", env.ns)
+env.SkinBase = env.ns.SkinBase
 env.profile.general.skinProfessions = true
 env.ns.Helpers.GetSkinBarColor = function() return 0.8, 0.1, 0.2, 1 end
 local function Frame(kind, name, parent)
@@ -43,6 +46,13 @@ _G.ProfessionsBookFrame_Update = function()
     _G.ProfessionsBookPage1:SetAlpha(1)
 end
 env.SkinBase.OnAddOnLoaded = function(_, callback) callback() end
+for _, protected in ipairs({ book, row, spell }) do
+    protected.IsProtected = function() return true end
+    for _, method in ipairs({ "SetSize", "SetWidth", "SetHeight", "ClearAllPoints", "SetPoint", "SetAllPoints",
+        "SetParent", "Show", "Hide", "SetAttribute" }) do
+        protected[method] = function() error("profession skin must not mutate protected geometry or actions in combat") end
+    end
+end
 assert(loadfile(os.getenv("QUI_PROFESSIONS_SOURCE") or "modules/skinning/frames/professions.lua"))("QUI", env.ns)
 assert(env.SkinBase.GetBackdrop(book), "Profession Book must share the QUI window shell")
 assert(env.SkinBase.GetBackdrop(row)._quiRoundedSurface, "profession cards must render rounded inner surfaces")

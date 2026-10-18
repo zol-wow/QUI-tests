@@ -1,5 +1,7 @@
 local env=dofile("tests/helpers/character_chrome_harness.lua").Build()
-local skin,ns=env.SkinBase,env.ns
+_G.InCombatLockdown=function() return true end
+assert(loadfile("core/uikit.lua"))("QUI",env.ns)
+local skin,ns=env.ns.SkinBase,env.ns
 env.profile.general.skinMail=true
 local function frame(name) local f=env.NewFrame(name:find("PageButton") and "Button" or "Frame",name);_G[name]=f;f.DisabledTexture=false;f.RegisterForWidgetSet=false;return f end
 local function label(f) local t=f:CreateFontString();t:SetFont("Native",12,"");t:SetTextColor(1,.82,0,1);return t end

@@ -1,5 +1,6 @@
 local env=dofile("tests/helpers/character_chrome_harness.lua").Build()
 local skin,ns=env.SkinBase,env.ns
+_G.MailFrame=env.NewFrame("Frame","MailFrame")
 env.profile.general.skinMail=true
 local function button()
  local b=env.NewFrame("Button");b.RegisterForWidgetSet=false;b.DisabledTexture=false

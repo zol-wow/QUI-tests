@@ -1,7 +1,11 @@
 local env = dofile("tests/helpers/character_chrome_harness.lua").Build()
+_G.InCombatLockdown = function() return true end
+assert(loadfile("core/uikit.lua"))("QUI", env.ns)
+env.SkinBase = env.ns.SkinBase
 env.profile.general.skinCommunities = true
 _G.CommunitiesFrame = env.NewFrame("Frame")
 local frame = _G.CommunitiesFrame
+frame:Hide()
 frame.TitleText = frame:CreateFontString()
 frame.GetTitleText = function(owner) return owner.TitleText end
 frame.SetTitle = function(owner, title)
@@ -188,8 +192,25 @@ for index = 1, 3 do
     guildCards.Cards[index] = card
 end
 function guildCards:RefreshLayout() end
-env.SkinBase.OnAddOnLoaded = function(_, callback) callback() end
+local callbacks = {}
+env.SkinBase.OnAddOnLoaded = function(addon, callback) callbacks[addon] = callback end
 assert(loadfile(os.getenv("QUI_SOCIAL_SOURCE") or "modules/skinning/frames/social.lua"))("QUI", env.ns)
+callbacks.Blizzard_Communities()
+callbacks.Blizzard_Communities()
+_G.QUI_RefreshCommunitiesColors()
+env.RunTimers()
+assert(not env.SkinBase.IsSkinned(frame) and not env.SkinBase.GetBackdrop(tab),
+    "hidden Communities must defer addon and theme refresh work until first show")
+env.profile.general.skinCommunities = false
+frame:Show()
+_G.QUI_RefreshCommunitiesColors()
+assert(not env.SkinBase.IsSkinned(frame), "deferred Communities must honor a disabled skin")
+frame:Hide()
+env.profile.general.skinCommunities = true
+_G.QUI_RefreshCommunitiesColors()
+assert(not env.SkinBase.IsSkinned(frame), "enabling a hidden Communities skin must remain deferred")
+frame:Show()
+assert(env.SkinBase.IsSkinned(frame), "Communities must initialize on first enabled show")
 env.RunTimers()
 assert(navigationRow.Selection:IsShown(), "styling must preserve Blizzard's selected community row")
 local selectedBorder = env.BorderColor(env.SkinBase.GetBackdrop(navigationRow))
@@ -300,4 +321,28 @@ for _ = 1, 2 do
     assert(env.SkinBase.GetBackdrop(row.Checkbox), "newly acquired specialization checks must be styled")
     assert(row.Checkbox:GetChecked() and row.specID == 253, "styling must preserve native specialization state")
 end
+env.profile.general.skinCommunities = false
+frame.TitleText:SetTextColor(0.3, 0.4, 0.5)
+frame:Hide()
+frame:Show()
+_G.QUI_RefreshCommunitiesColors()
+local disabledR, disabledG, disabledB = frame.TitleText:GetTextColor()
+assert(disabledR == 0.3 and disabledG == 0.4 and disabledB == 0.5,
+    "disabled Communities must skip existing show and theme refresh styling")
+env.profile.general.skinCommunities = true
+_G.CommunitiesFrame = env.NewFrame("Frame")
+local reloaded = _G.CommunitiesFrame
+reloaded.CloseButton = env.NewFrame("Button", nil, reloaded)
+reloaded.CloseButton.DisabledTexture = false
+reloaded.CloseButton:SetScript("OnClick", function() error("skinning must not invoke native close actions") end)
+reloaded.IsProtected = function() return true end
+for _, method in ipairs({ "SetSize", "SetWidth", "SetHeight", "SetScale", "ClearAllPoints", "SetPoint",
+    "SetAllPoints", "SetParent", "SetAttribute", "Show", "Hide", "SetShown" }) do
+    reloaded[method] = function() error("combat skinning must preserve native root " .. method) end
+end
+callbacks.Blizzard_Communities()
+assert(env.SkinBase.IsSkinned(reloaded) and env.SkinBase.GetBackdrop(reloaded),
+    "visible Communities must initialize its shell on combat reload")
+assert(env.SkinBase.GetFrameData(reloaded.CloseButton, "closeStyled"),
+    "visible Communities must initialize close control on combat reload")
 print("OK: communities_inner_controls_test")

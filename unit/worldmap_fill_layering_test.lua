@@ -49,6 +49,7 @@ function backdrop:SetBackdropBorderColor(r, g, b, a)
 end
 
 local worldMapFrame = {
+    IsShown = function() return true end,
     textures = {},
     ScrollContainer = NewLayeredFrame(),
     NavBar = NewLayeredFrame(),
@@ -103,6 +104,10 @@ local ns = {
 }
 
 ns.SkinBase = {
+    DeferUntilShown = function(frame)
+        assert(frame:IsShown(), "world map layering fixture must start visible")
+        return false
+    end,
     GetFrameData = function(frame, key)
         local data = frameState[frame]
         return data and data[key]

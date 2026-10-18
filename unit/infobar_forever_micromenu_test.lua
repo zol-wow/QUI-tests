@@ -6,10 +6,7 @@ for _, isForever in ipairs({ false, true }) do
     local world = setmetatable({}, { __index = _G })
     world._G = world
     world.CreateFrame = function() return { SetAllPoints = noop } end
-    world.PlayerSpellsUtil = {
-        ToggleSpellBookFrame = function() calls.spellbook = true end,
-        ToggleClassTalentOrSpecFrame = function() calls.talents = true end,
-    }
+    world.PlayerSpellsMicroButton, world.SpellbookMicroButton, world.TalentMicroButton = {}, {}, {}
     world.Enum = { GameRule = setmetatable({}, { __index = function(_, key) return key end }) }
     world.C_GameRules = { IsGameRuleActive = function(rule) return disabledRules[rule] end }
     world.GameRulesUtil = { EJIsDisabled = function() return ejDisabled end }
@@ -55,11 +52,12 @@ for _, isForever in ipairs({ false, true }) do
     local slot = { GetHeight = function() return 24 end }
     registered.OnEnable(slot)
     assert(buttons.Character and buttons.Spellbook and buttons.Talents)
-    buttons.Spellbook.onClick()
-    buttons.Talents.onClick()
+    assert(buttons.Spellbook.clickButton == (isForever and world.SpellbookMicroButton or world.PlayerSpellsMicroButton))
+    assert(buttons.Talents.clickButton == (isForever and world.TalentMicroButton or world.PlayerSpellsMicroButton))
+    assert(not buttons.Spellbook.onClick and not buttons.Talents.onClick,
+        "Player Spells must not fall back to insecure Lua toggles")
     buttons["Group Finder"].onClick()
     assert(calls.lfg, "group finder uses the client-aware native dispatcher")
-    assert(calls.spellbook and calls.talents, "both clients retain modern spellbook and talent routes")
     if isForever then
         assert(buttons.Legacy and not buttons.Achievements, "Forever exposes Legacy in place of the Retail achievement entry")
         assert(buttons.Legacy.atlasTriplet == "UI-HUD-MicroMenu-Legacy" and buttons.Legacy.combatGuard)

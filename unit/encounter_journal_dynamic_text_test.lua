@@ -35,6 +35,7 @@ end
 
 _G.EncounterJournal = {
     name = "EncounterJournal",
+    IsShown = function() return true end,
     JourneysTab = { name = "JourneysTab" },
     MonthlyActivitiesTab = { name = "MonthlyActivitiesTab" },
     suggestTab = { name = "suggestTab" },
@@ -86,6 +87,10 @@ local ns = {
 }
 
 ns.SkinBase = {
+    DeferUntilShown = function(frame)
+        assert(frame:IsShown(), "dynamic text fixture must start visible")
+        return false
+    end,
     ClampTextureHidden = function() end,
     SkinButton = function() end,
     ApplyChromeBackdrop = function() end,

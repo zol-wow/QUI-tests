@@ -1,6 +1,13 @@
 local callbacks, registry, state = {}, {}, {}
 local settings = { skinStable = false, skinGuildRegistrar = false }
+local frameData = {}
 local SkinBase = {
+    DeferUntilShown = function() return false end,
+    GetFrameData = function(frame, key) return frameData[frame] and frameData[frame][key] end,
+    SetFrameData = function(frame, key, value)
+        frameData[frame] = frameData[frame] or {}
+        frameData[frame][key] = value
+    end,
     OnAddOnLoaded = function(addon, callback) callbacks[addon] = callback end,
     IsSkinned = function(frame) return state[frame] end,
     MarkSkinned = function(frame) state[frame] = true end,

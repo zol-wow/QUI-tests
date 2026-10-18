@@ -15,6 +15,17 @@ local function NewFrame()
         self.points[#self.points + 1] = { ... }
     end
     function frame:GetParent() return self.parent end
+    function frame:SetParent(parent) self.parent = parent end
+    function frame:ClearAllPoints() self.points = {} end
+    function frame:SetWidth(width) self.width = width end
+    function frame:GetWidth() return self.width or 780 end
+    function frame:GetTop() return self.top or 800 end
+    function frame:GetVerticalScrollRange() return self.scrollRange or 700 end
+    function frame:GetVerticalScroll() return self.scroll or 0 end
+    function frame:SetVerticalScroll(value) self.scroll = value end
+    function frame:GetScrollChild() return self.children[1] end
+    function frame:IsVisible() return self.shown end
+    function frame:IsShown() return self.shown end
     function frame:SetAllPoints() end
     function frame:SetHeight(height)
         local changed = self.height ~= height
@@ -371,5 +382,113 @@ assert(simplePreview.height == 1)
 FullSurface.SetInlinePreviewCollapsed(simplePreview, false)
 assert(simplePreview.height == 150 and simplePreview.shown,
     "a preview without selector chrome must hide and restore its entire reservation")
+
+assert(loadfile("QUI_Options/navigation.lua"))("QUI", ns)
+_G.C_Timer = { After = function() end }
+assert(loadfile("core/settings/model_kit.lua"))("QUI", ns)
+assert(loadfile("QUI_GroupFrames/groupframes/settings/group_frames_model.lua"))("QUI", ns)
+local sectionStrips, groupRenders = 0, {}
+function _G.QUI.GUI:RenderSectionNav()
+    sectionStrips = sectionStrips + 1
+    return { destroy = function() end }
+end
+ns.QUI_Options = {
+    CreateScrollableContent = function(parent)
+        local scroll = CreateFrame("ScrollFrame", nil, parent)
+        scroll:SetHeight(100)
+        return scroll, CreateFrame("Frame", nil, scroll)
+    end,
+}
+ns.QUI_GroupFramesSettingsSchema = {}
+for _, name in ipairs({ "General", "Appearance", "Layout", "Health", "Indicators", "Auras" }) do
+    ns.QUI_GroupFramesSettingsSchema["Render" .. name .. "Tab"] = function(host, context)
+        local key = name .. "/" .. context
+        groupRenders[key] = (groupRenders[key] or 0) + 1
+        host:SetHeight(800)
+        if host.RegisterSection then
+            host:RegisterSection("first", "First", CreateFrame("Frame", nil, host))
+            host:RegisterSection("second", "Second", CreateFrame("Frame", nil, host))
+            host:RegisterSection("third", "Third", CreateFrame("Frame", nil, host))
+        end
+        return true
+    end
+end
+assert(loadfile(os.getenv("QUI_GROUP_SURFACE_SOURCE")
+    or "QUI_GroupFrames/groupframes/settings/group_frames_surface.lua"))("QUI", ns)
+local groupSurface = ns.QUI_GroupFramesSettingsSurface
+local groupTile = { config = { featureId = "groupFramesPage" } }
+local groupPage = NewFrame()
+groupPage._quiOptionsTile = groupTile
+local groupBody = CreateFrame("Frame", nil, groupPage)
+local groupResult = groupSurface.RenderPage(groupBody)
+local groupNavigation = assert(groupTile._surfacePagesByPage[1])
+assert(groupResult.tabStrip == nil, "Group Frames must use sidebar subpages")
+local groupPages = _G.QUI.GUI:GetTileNavigationPages(groupTile)
+assert(#groupPages == 8 and groupPages[1].key == "general" and groupPages[8].key == "auras"
+    and groupPages[1].sectionId == "first" and groupPages[2].sectionId == "second",
+    "Group Frames must keep all six sidebar destinations")
+for _, context in ipairs({ "party", "raid" }) do
+    groupSurface.SetContextMode(context)
+    for _, key in ipairs({ "appearance", "layout", "indicators", "health", "auras", "general" }) do
+        assert(groupNavigation.selectTab(key), "sidebar selection must switch Group Frames pages")
+        assert(groupSurface.GetSearchRoot():GetHeight() == 800, "selected settings must remain scrollable")
+    end
+end
+assert(sectionStrips == 0,
+    "Group Frames must not add horizontal section tabs beneath its sidebar navigation")
+assert(groupRenders["Appearance/party"] == 1 and groupRenders["Appearance/raid"] == 1,
+    "Party and Raid must retain separate cached settings bodies")
+assert(groupSurface.NavigateSearchEntry({ providerKey = "partyFrames", surfaceTabKey = "layout" }))
+assert(groupSurface.GetContextMode() == "party" and groupNavigation.getActiveTab() == "layout",
+    "search must still select the requested context and subpage")
+local partyLayout = groupNavigation.getPage("layout")
+assert(#partyLayout._contentBody._sections == 3 and partyLayout._scrollFrame,
+    "surface shortcuts must own their inner scrolling body and must not accumulate on refresh")
+groupSurface.SetContextMode("raid")
+local raidLayout = groupNavigation.getPage("layout")
+assert(raidLayout ~= partyLayout and raidLayout._scrollFrame ~= partyLayout._scrollFrame,
+    "Party/Raid shortcuts must resolve the current variant's scrolling body")
+groupSurface.SetContextMode("party")
+assert(groupNavigation.getPage("layout") == partyLayout,
+    "returning to Party must restore its cached section destinations")
+
+for _, builder in ipairs({ FullSurface.BuildScrollTabBody, FullSurface.BuildMultiHostTabBody }) do
+    for _, cached in ipairs({ true, false }) do
+        local root = NewFrame()
+        local mountedTile = { config = {} }
+        root._quiOptionsTile = mountedTile
+        local mountedBody = CreateFrame("Frame", nil, root)
+        local active = "general"
+        local result = builder(mountedBody, {
+            cacheTabBodies = cached,
+            getTabs = function() return { { key = "general" }, { key = "text" } } end,
+            getActiveTab = function() return active end,
+            setActiveTab = function(key) active = key end,
+            hosts = { scroll = { kind = "scroll" } }, defaultHostKey = "scroll",
+            render = function(host)
+                host:RegisterSection(active, active, CreateFrame("Frame", nil, host))
+                host:SetHeight(800)
+            end,
+        })
+        local nav = mountedTile._surfacePagesByPage[1]
+        local firstPage = assert(nav.getPage("general"))
+        assert(firstPage._scrollFrame and firstPage._contentBody._sections[1].id == "general",
+            "both surface builders must expose actual scrolling section owners")
+        assert(not nav.getPage("text"), "reading an unvisited page must not build it")
+        assert(nav.selectTab("text"))
+        local textPage = assert(nav.getPage("text"))
+        assert(textPage._scrollFrame and textPage._contentBody._sections[1].id == "text",
+            "newly selected tabs must register their own section targets")
+        if cached then
+            assert(firstPage ~= textPage and nav.getPage("general") == firstPage,
+                "cached tabs must retain distinct section owners")
+        else
+            assert(not nav.getPage("general"), "a reused body must not expose the previous tab's sections")
+        end
+        result.RenderActive(true)
+        assert(#nav.getPage("text")._contentBody._sections == 1,
+            "rebuilding a page must replace its old section targets")
+    end
+end
 
 print("OK: options_full_surface_cached_tabs_test")

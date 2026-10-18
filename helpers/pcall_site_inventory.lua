@@ -99,7 +99,7 @@ return {
     "core/settings/sync.lua::1",
     "core/settings_builders.lua::4",
     "core/storage/collector.lua::2",
-    "core/uikit.lua::9",
+    "core/uikit.lua::10",
     "core/utils.lua::35",
     "modules/alts/views/window.lua::1",
     "modules/combat/rotationassist.lua::9",

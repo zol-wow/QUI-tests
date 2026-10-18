@@ -91,8 +91,8 @@ assert(
     "microbar defaults must seed the ticketIcon settings table")
 
 local ticketOptionsBlock = blockBetween(perBarSource,
-    'if dbKey == "microbar" then\n                barDB.ticketIcon',
-    "if SKINNABLE_BAR_KEYS[dbKey] then")
+    'if headings.ticket then\n                barDB.ticketIcon',
+    "if headings.visual then")
 assert(
     ticketOptionsBlock:find('"position", ticketDB', 1, true)
         and ticketOptionsBlock:find('"offsetX", ticketDB', 1, true)
