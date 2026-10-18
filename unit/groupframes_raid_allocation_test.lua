@@ -116,6 +116,7 @@ local function IsFrameHandle() return false end
     local function reveal(frame)
         if not frame:IsVisible() then return end
         if frame.secure then env.SecureGroupHeader_Update(frame) end
+        if frame.scripts.OnShow then frame.scripts.OnShow(frame) end
         for _, child in ipairs(frame.children) do reveal(child) end
     end
     function Frame:Show()
@@ -123,7 +124,18 @@ local function IsFrameHandle() return false end
         self.shown = true
         reveal(self)
     end
-    function Frame:Hide() self.shown = false end
+    local function conceal(frame)
+        if frame.scripts.OnHide then frame.scripts.OnHide(frame) end
+        for _, child in ipairs(frame.children) do
+            if child:IsShown() then conceal(child) end
+        end
+    end
+    function Frame:Hide()
+        if not self.shown then return end
+        local visible = self:IsVisible()
+        self.shown = false
+        if visible then conceal(self) end
+    end
     function Frame:SetShown(shown) if shown then self:Show() else self:Hide() end end
     function Frame:SetSize(w, h) self.width, self.height = w, h end
     function Frame:SetWidth(w) self.width = w end
@@ -149,7 +161,7 @@ local function IsFrameHandle() return false end
     Frame.RegisterUnitEvent = Frame.RegisterEvent
     function Frame:UnregisterEvent(event) self.events[event] = nil end
     function Frame:UnregisterAllEvents() wipe(self.events) end
-    for _, method in ipairs({ "EnableMouse", "SetMovable", "SetClampedToScreen", "SetAllPoints", "SetOrientation", "SetScale", "SetText", "SetFont", "SetTextColor", "SetJustifyH", "SetDrawLayer" }) do
+    for _, method in ipairs({ "EnableMouse", "SetMovable", "SetClampedToScreen", "SetAllPoints", "SetOrientation", "SetScale", "SetText", "SetFont", "SetTextColor", "SetJustifyH", "SetDrawLayer", "SetWordWrap" }) do
         Frame[method] = function() end
     end
     env.CreateFrame = function(kind, name, parent, template)
@@ -176,6 +188,7 @@ local function IsFrameHandle() return false end
         Addon = { GetHUDFrameLevel = function(_, level) return level * 10 end },
         QUI_GroupFrameIconLayout = {},
         Helpers = {
+            ApplyFontWithFallback = function() end,
             IsSecretValue = env.issecretvalue,
             SafeValue = function(value, default) if value == nil then return default end; return value end,
             SafeToNumber = tonumber,
@@ -535,6 +548,119 @@ do
     h:event("PLAYER_ENTERING_WORLD", true, false)
     h:flushTimers()
     check("world entry respects disabled solo display", next(h:visibleUnits()) == nil)
+end
+
+for _, forever in ipairs({ false, true }) do
+    local client = forever and "Forever" or "Retail"
+    local h = harness("GROUP", forever)
+    h.db.raid.groupNumber = { showGroupNumber = true }
+    h.api.create()
+    h:raid(5)
+    h:refresh()
+    local first, second = h.gf.raidGroupHeaders[1], h.gf.raidGroupHeaders[2]
+    local root = h.gf.anchorFrames.raid
+    check(client .. " empty subgroups do not enlarge occupied raid bounds", root:GetWidth() == 100 and root:GetHeight() == 208)
+    check(client .. " empty subgroup label starts invisible", not (second._quiGroupLabel and second._quiGroupLabel:IsVisible()))
+    local count = h:count()
+    h.combat = true
+    h:raid(6)
+    h:event("GROUP_ROSTER_UPDATE")
+    h:refresh()
+    local newcomer = h:visibleUnits().raid6
+    check(client .. " sixth raid member appears during combat", newcomer and newcomer:GetParent() == second)
+    check(client .. " newcomer retains secure target and menu actions", newcomer and newcomer:GetAttribute("*type1") == "target" and newcomer:GetAttribute("*type2") == "togglemenu")
+    check(client .. " combat newcomer uses existing decorated button", newcomer and newcomer._quiDecorated and h:count() == count)
+    check(client .. " subgroup label follows combat newcomer", second._quiGroupLabel and second._quiGroupLabel:IsVisible())
+    local _, relative = second:GetPoint()
+    check(client .. " newcomer group has a prepared position after group one", relative == first)
+    h:raid(5)
+    h:event("GROUP_ROSTER_UPDATE")
+    check(client .. " emptied subgroup loses its units and label during combat", h:visibleUnits().raid6 == nil and not (second._quiGroupLabel and second._quiGroupLabel:IsVisible()))
+    h.combat = false
+    h:refresh()
+    check(client .. " empty subgroup collapses out of occupied bounds after combat", root:GetWidth() == 100 and root:GetHeight() == 208)
+    check(client .. " group labels retain header alpha inheritance", second._quiGroupLabel:GetParent() == second)
+    h.db.raid.groupNumber.showGroupNumber = false
+    h:refresh()
+    h.combat = true
+    h:raid(6)
+    h:event("GROUP_ROSTER_UPDATE")
+    check(client .. " disabled group labels stay hidden on combat joins", not second._quiGroupLabel:IsVisible())
+
+    for _, grow in ipairs({ "DOWN", "UP", "LEFT", "RIGHT" }) do
+        local horizontal = grow == "LEFT" or grow == "RIGHT"
+        for _, groupGrow in ipairs(horizontal and { "UP", "DOWN" } or { "LEFT", "RIGHT" }) do
+            local sparse = harness("GROUP", forever)
+            sparse.db.raid.layout.growDirection = grow
+            sparse.db.raid.layout.groupGrowDirection = groupGrow
+            sparse.api.create()
+            sparse:raid(2)
+            sparse.roster[2].group = 3
+            sparse:refresh()
+            local headers = sparse.gf.raidGroupHeaders
+            local _, previous = headers[3]:GetPoint()
+            local _, reservePrevious = headers[2]:GetPoint()
+            local label = client .. " " .. grow .. "/" .. groupGrow
+            check(label .. " populated sparse groups stay compact", previous == headers[1])
+            check(label .. " empty group reserves a trailing position", reservePrevious == headers[3])
+            check(label .. " reserved group keeps one frame of space", headers[2]:GetWidth() == 100 and headers[2]:GetHeight() == 40)
+            sparse.combat = true
+            sparse:raid(4)
+            sparse.roster[2].group = 3
+            sparse.roster[3].group = 2
+            sparse.roster[4].group = 4
+            sparse:event("GROUP_ROSTER_UPDATE")
+            sparse:refresh()
+            local units = sparse:visibleUnits()
+            check(label .. " two new subgroups populate in combat", units.raid3 and units.raid4)
+            local _, fourthPrevious, _, x, y = headers[4]:GetPoint()
+            check(label .. " new subgroups keep distinct prepared positions", fourthPrevious == headers[2]
+                and (groupGrow == "UP" and y == 10 or groupGrow == "DOWN" and y == -10
+                    or groupGrow == "LEFT" and x == -10 or groupGrow == "RIGHT" and x == 10))
+            sparse.combat = false
+            sparse:refresh()
+            local _, secondPrevious = headers[2]:GetPoint()
+            local _, thirdPrevious = headers[3]:GetPoint()
+            check(label .. " post-combat layout restores subgroup order", secondPrevious == headers[1] and thirdPrevious == headers[2])
+        end
+    end
+
+    local limited = harness("GROUP", forever)
+    limited.db.raid.layout.limitGroupsByRaidSize = true
+    limited.api.create()
+    limited:raid(1)
+    limited:refresh()
+    limited.combat = true
+    limited:raid(3)
+    limited.roster[2].group = 6
+    limited.roster[3].group = 7
+    limited:event("GROUP_ROSTER_UPDATE")
+    limited:refresh()
+    check(client .. " allowed empty subgroup populates at configured limit", limited:visibleUnits().raid2 ~= nil)
+    check(client .. " excluded subgroup stays hidden in combat", limited:visibleUnits().raid3 == nil and not limited.gf.raidGroupHeaders[7]:IsShown())
+
+    local excluded = harness("GROUP", forever)
+    excluded.db.raid.layout.limitGroupsByRaidSize = true
+    excluded.api.create()
+    excluded:raid(1)
+    excluded.roster[1].group = 7
+    excluded:refresh()
+    excluded.combat = true
+    excluded:raid(2)
+    excluded.roster[1].group = 7
+    excluded:event("GROUP_ROSTER_UPDATE")
+    check(client .. " allowed combat newcomer appears when prior raid members were excluded", excluded:visibleUnits().raid2 ~= nil)
+
+    local cold = harness("GROUP", forever)
+    cold:raid(1)
+    cold.namesReady = false
+    cold.api.create()
+    cold:refresh()
+    check(client .. " unresolved names leave native raid root available", cold.gf.anchorFrames.raid:IsVisible())
+    cold.combat = true
+    cold.namesReady = true
+    cold:event("UNIT_NAME_UPDATE", "raid1")
+    check(client .. " native name event can populate raid during combat", cold:visibleUnits().raid1 ~= nil)
 end
 
 if failures > 0 then error(failures .. " allocation/layout/login regression(s)") end

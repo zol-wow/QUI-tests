@@ -15,6 +15,10 @@ assert(Read(corpus .. "Blizzard_LegacySystem/Blizzard_LegacySystem.toc"):find("#
 local callbacks, registry, data, calls = {}, {}, {}, {}
 local settings = { skinInstanceFrames = true, skinProfessions = true, skinCollections = true, skinLegacySystem = true }
 local SkinBase = {}
+SkinBase.DeferUntilShown = function(frame)
+    assert(frame:IsShown(), "native panel fixture must start visible")
+    return false
+end
 local function Record(method, frame)
     if frame then
         calls[frame] = calls[frame] or {}
@@ -111,6 +115,7 @@ _G.ProfessionsMixin = {}
 assert(loadfile(corpus .. "Blizzard_Professions/Camelot/Blizzard_ProfessionsFrame.lua"))()
 _G.InputUtil = { IsGamepadUIEnabled = function() return false end }
 _G.ProfessionsFrame = { ProfessionsOverviewTab = Tab(1), rightProfessionTabs = { Tab(2), Tab(3) }, BookPage = Page() }
+_G.ProfessionsFrame.IsShown = function() return true end
 Load("professions")
 callbacks.Blizzard_Professions()
 assert(Called(_G.ProfessionsFrame.ProfessionsOverviewTab, "SkinTab") == 1, "Forever overview side tab must skin")

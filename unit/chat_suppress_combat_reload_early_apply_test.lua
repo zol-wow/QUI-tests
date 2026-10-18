@@ -141,4 +141,13 @@ local p = _G.ChatFrame1.parent
 SP.Apply()
 assert(_G.ChatFrame1.parent == p, "post-PEW Apply latched to no-op")
 
+local channelFrame
+for _, f in ipairs(createdFrames) do
+    if f.events.CHANNEL_UI_UPDATE then channelFrame = f end
+end
+assert(channelFrame, "channel refresh watcher remains registered")
+channelFrame._OnEvent(channelFrame, "CHANNEL_UI_UPDATE")
+assert(_G.ChatFrame1.channelList and _G.ChatFrame1.zoneChannelList,
+    "channel refresh preserves native channel tables")
+
 print("OK: chat_suppress_combat_reload_early_apply_test")

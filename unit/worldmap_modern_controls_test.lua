@@ -1,4 +1,7 @@
 local env = dofile("tests/helpers/character_chrome_harness.lua").Build()
+_G.InCombatLockdown = function() return true end
+assert(loadfile("core/uikit.lua"))("QUI", env.ns)
+env.SkinBase = env.ns.SkinBase
 local ns, Skin = env.ns, env.SkinBase
 env.profile.general.skinWorldMap = true
 local callbacks, acquiredRows = {}, {}
@@ -168,6 +171,8 @@ local clicked = 0
 crumb:SetScript("OnClick", function() clicked = clicked + 1 end)
 assert(loadfile(os.getenv("QUI_MAP_SOURCE") or "modules/skinning/frames/worldmap.lua"))("QUI", ns)
 callbacks.Blizzard_WorldMap()
+assert(Skin.IsSkinned(map) and Skin.GetBackdrop(map.BorderFrame) and Skin.GetBackdrop(scroll),
+    "first combat load must immediately skin both the map shell and quest-log contents")
 assert(home.xoffset == -18 and crumb.xoffset == -15 and map.NavBar.overflowButton.xoffset == -18,
     "map skinning must preserve native offsets read during secure map navigation")
 _G.NavBar_CheckLength(map.NavBar)

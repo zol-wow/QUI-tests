@@ -10,7 +10,7 @@ local function check(name, ok, detail)
     else fails = fails + 1; print("FAIL  " .. name .. (detail and ("  " .. detail) or "")) end
 end
 
-local fnStart = assert(source:find("local function GetPopulatedRaidGroups", 1, true))
+local fnStart = assert(source:find("_state.GetPopulatedRaidGroups = function()", 1, true))
 local fnEnd = assert(source:find("local function NormalizeRaidRole", fnStart, true))
 local fnSrc = source:sub(fnStart, fnEnd - 1)
 
@@ -20,7 +20,7 @@ local allowed = { [1] = true, [3] = true, [8] = true }
 
 local chunk = assert((loadstring or load)([[
 local _state, GetLayoutSettings, GetNumGroupMembers, GetRaidRosterInfo = ...
-]] .. fnSrc .. "\nreturn GetPopulatedRaidGroups\n"))
+]] .. fnSrc .. "\nreturn _state.GetPopulatedRaidGroups\n"))
 
 local GetPopulatedRaidGroups = chunk(
     { IsRaidSubgroupAllowed = function(subgroup) return allowed[subgroup] == true end },
