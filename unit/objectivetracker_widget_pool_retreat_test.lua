@@ -129,14 +129,20 @@ applyHeight({ objectiveTrackerHeight = 400 })
 assert(tracker.height == 400,
     "configured max height must resume after the Scenario layout ends")
 
-local shortTracker = { height = 300 }
+local shortTracker = { height = 300, topModulePadding = 38 }
 function shortTracker:SetHeight(height) self.height = height end
 function shortTracker:GetHeight() return self.height end
-local applyShortHeight = assert(loadstring(heightChunk, "tracker_short_height"))(
+local applyShortHeight, _, restoreShortHeight = assert(loadstring(heightChunk, "tracker_short_height"))(
     { ObjectiveTrackerFrame = shortTracker }, fakeHelpers, function() return false end)
+applyShortHeight({ objectiveTrackerHeight = 1000 })
+assert(getAvailableHeight(shortTracker) == 962,
+    "raising Max Height to 1000 must give native quest and recipe layout the expanded space")
 applyShortHeight({ objectiveTrackerHeight = 600 })
+assert(getAvailableHeight(shortTracker) == 562,
+    "lowering Max Height after expansion must reduce native content space")
+restoreShortHeight()
 assert(shortTracker.height == 300,
-    "configured max height must not enlarge a tracker beyond Blizzard's available height")
+    "Scenario entry after expansion must still restore the captured Blizzard height")
 
 fakeGlobals.ObjectiveTrackerFrame = nil
 assert(pcall(applyHeight, { objectiveTrackerHeight = 300 }),

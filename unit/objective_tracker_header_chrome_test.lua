@@ -2,7 +2,7 @@ local env = dofile("tests/helpers/character_chrome_harness.lua").Build()
 local file = assert(io.open(os.getenv("QUI_OBJECTIVE_SOURCE") or "modules/skinning/gameplay/objectivetracker.lua"))
 local source = file:read("*a"); file:close()
 local first = assert(source:find("local function SkinTrackerHeader(", 1, true))
-local last = assert(source:find("local function UpdateMinimizeButtonAtlas", first, true))
+local last = assert(source:find("local function UpdateMinimizeButtonGlyph", first, true))
 local combat = false
 local chunk = assert(loadstring("local pendingProtectedLayoutUpdate = false\n"
     .. source:sub(first, last - 1)
@@ -104,3 +104,13 @@ assert(not env.SkinBase.GetFrameData(unstyledHeader.MinimizeButton, "qTrackerCol
 assert(#env.frames == frameCount and #env.textures == textureCount and hasPendingLayout(),
     "combat styling must defer geometry without creating frames or regions")
 print("OK: objective_tracker_header_chrome_test")
+
+combat=false
+style(header)
+button.normalTexture:SetAtlas("ui-questtrackerbutton-secondary-expand",true)
+button.normalTexture:SetAlpha(1)
+button.pushedTexture:SetAtlas("ui-questtrackerbutton-secondary-expand-pressed",true)
+button.pushedTexture:SetAlpha(1)
+button.highlightTexture:SetAlpha(1)
+assert(button.normalTexture:GetAlpha()==0 and button.pushedTexture:GetAlpha()==0
+ and button.highlightTexture:GetAlpha()==0, "native refresh must never restore art behind the QUI glyph")
