@@ -139,6 +139,7 @@ local ns = {
         visualRefreshes = visualRefreshes + 1
     end,
 }
+ns.RefreshCDMVisibilityForClick = ns.RefreshCDMVisibilityInstant
 
 local container = NewFrame()
 container.alpha = 0
@@ -352,5 +353,97 @@ for _, formID in ipairs({ 3, 4, 27, 29 }) do
 end
 GetShapeshiftFormID = function() return 1 end
 assert(not helpers.IsPlayerMounted(), "non-travel shapeshift must not be treated as mounted")
+
+do
+    local hudSource = ReadSource("QUI_CDM/cdm/hud_visibility.lua")
+    local cacheStart = assert(hudSource:find("local _cdmFramesCache =", 1, true))
+    local cacheFinish = assert(hudSource:find("local function GetCustomTrackerFrames", cacheStart, true))
+    local snapStart = assert(hudSource:find("function VisibilityController:Snap()", 1, true))
+    local snapFinish = assert(hudSource:find("function VisibilityController:MouseoverEnabled()", snapStart, true))
+    local refreshStart = assert(hudSource:find("ns.RefreshCDMVisibilityInstant =", 1, true))
+    local refreshFinish = assert(hudSource:find("_G.QUI_RefreshCustomTrackersVisibility =", refreshStart, true))
+    local refreshes, rebuilds = 0, 0
+    local targetAlpha = 1
+    local host = NewFrame()
+    host.alpha = 0
+    local clickNS = {
+        Addon = ns.Addon,
+        Helpers = ns.Helpers,
+        CDMProvider = {
+            GetViewerFrames = function()
+                rebuilds = rebuilds + 1
+                return { host }
+            end,
+        },
+    }
+    local controller = {
+        isFading = false,
+        currentlyHidden = true,
+        fadeTargetAlpha = 0,
+        applyAlpha = function(targets, alpha)
+            for _, frame in ipairs(targets) do frame.alpha = alpha end
+        end,
+    }
+    local invalidate = assert(loadstring("return function(ns, CDMVisibility, UpdateCDMVisibility)\n"
+        .. "local QUICore = ns.Addon\n"
+        .. "local function wipe(t) for k in pairs(t) do t[k] = nil end end\n"
+        .. "local function ReadNumber(value, fallback) return value or fallback end\n"
+        .. "local VisibilityController = CDMVisibility\n"
+        .. hudSource:sub(cacheStart, cacheFinish - 1)
+        .. hudSource:sub(snapStart, snapFinish - 1)
+        .. "CDMVisibility.getFrames = GetCDMFrames\n"
+        .. "local function SnapCDMFadeToTarget() CDMVisibility:Snap() end\n"
+        .. hudSource:sub(refreshStart, refreshFinish - 1)
+        .. "return InvalidateCDMFrameCache end"))()(clickNS, controller, function()
+            assert(not secure, "global visibility work must run outside restricted execution")
+            refreshes = refreshes + 1
+            controller.fadeTargetAlpha = targetAlpha
+        end)
+    assert(loadfile(sourceRoot .. "/QUI_CDM/cdm/cdm_click_visibility.lua"))("QUI_CDM", clickNS)
+    registrations = {}
+    local buttons = {}
+    for i = 1, 20 do
+        local hostIcon = NewFrame()
+        hostIcon._spellEntry = { viewerType = "utility" }
+        hostIcon.parent = host
+        local button = NewFrame()
+        button.parent = hostIcon
+        hostIcon.clickButton = button
+        clickNS.SyncCDMClickVisibility(hostIcon, true)
+        local enableMouse = button.EnableMouse
+        function button:EnableMouse(enabled)
+            if enabled then
+                assert(host.alpha > 0.001, "CDM must be visible before any secure button enables clicks")
+            end
+            enableMouse(self, enabled)
+        end
+        buttons[i] = button
+    end
+    local function ShowAll()
+        combat, secure = true, true
+        for _, button in ipairs(buttons) do
+            local snippet = button:GetAttribute("_onstate-quiclick")
+            assert(loadstring("return function(self, newstate) " .. snippet .. " end"))()(button, "shown")
+        end
+        combat, secure = false, false
+    end
+    ShowAll()
+    assert(refreshes == 1 and rebuilds == 1, "twenty secure buttons must share one global visibility refresh and frame-cache rebuild")
+    host.alpha, controller.fadeTargetAlpha, controller.currentlyHidden = 0, 0, true
+    ShowAll()
+    assert(refreshes == 2 and rebuilds == 2, "a later hidden-to-shown transition must refresh once again")
+    invalidate()
+    ShowAll()
+    assert(refreshes == 3 and rebuilds == 3, "dirty visible frame cache must refresh exactly once")
+    controller.isFading = true
+    ShowAll()
+    assert(refreshes == 4 and rebuilds == 4 and not controller.isFading, "an active fade must snap once before clicks")
+    targetAlpha, host.alpha, controller.fadeTargetAlpha, controller.currentlyHidden = 0.25, 0.25, 0.25, true
+    ShowAll()
+    assert(refreshes == 4 and rebuilds == 4, "stable partially visible CDM must not trigger repeated refreshes")
+    clickNS.RefreshCDMVisibilityInstant()
+    clickNS.RefreshCDMVisibilityInstant()
+    assert(refreshes == 6 and rebuilds == 6, "ordinary instant-refresh callers must remain unconditional")
+end
 
 print("PASS: cdm_secure_click_visibility_test")
