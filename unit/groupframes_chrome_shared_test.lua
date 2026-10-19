@@ -182,6 +182,42 @@ check("dispel overlay carries its 4 borders + fill",
     frame.dispelOverlay.borderTop and frame.dispelOverlay.borderBottom
     and frame.dispelOverlay.borderLeft and frame.dispelOverlay.borderRight
     and frame.dispelOverlay.fill ~= nil)
+-- Full-length side strips paint the corners twice at partial opacity.
+check("dispel corners have exactly one owner",
+    frame.dispelOverlay.borderLeft.points[1].y == -3
+    and frame.dispelOverlay.borderLeft.points[2].y == 3
+    and frame.dispelOverlay.borderRight.points[1].y == -3
+    and frame.dispelOverlay.borderRight.points[2].y == 3)
+-- Resolve actual helper anchors into rectangles and sample physical pixels.
+-- Every outline pixel gets one translucent coat; interiors get none.
+for _, scale in ipairs({0.64, 1, 2}) do
+    for _, pixels in ipairs({1, 3, 8}) do
+        local thickness = pixels / scale
+        local rects = {}
+        for _, edge in ipairs({"top", "bottom", "left", "right"}) do
+            local region = NewRegion()
+            Chrome.LayoutDispelBorderEdge(region, frame, edge, thickness)
+            local p, q = region.points[1], region.points[2]
+            if edge == "top" then rects[#rects + 1] = {p.x, -p.y, 100 + q.x, -p.y + region.h}
+            elseif edge == "bottom" then rects[#rects + 1] = {p.x, 40 - p.y - region.h, 100 + q.x, 40 - q.y}
+            elseif edge == "left" then rects[#rects + 1] = {p.x, -p.y, p.x + region.w, 40 - q.y}
+            else rects[#rects + 1] = {100 + p.x - region.w, -p.y, 100 + q.x, 40 - q.y} end
+        end
+        local correct = true
+        for ix = 0, math.floor(100 * scale) - 1 do
+            for iy = 0, math.floor(40 * scale) - 1 do
+                local x, y = (ix + 0.5) / scale, (iy + 0.5) / scale
+                local coats = 0
+                for _, rect in ipairs(rects) do
+                    if x >= rect[1] and x < rect[3] and y >= rect[2] and y < rect[4] then coats = coats + 1 end
+                end
+                local expected = (x < thickness or x >= 100 - thickness or y < thickness or y >= 40 - thickness) and 1 or 0
+                if coats ~= expected then correct = false end
+            end
+        end
+        check("continuous single-coat outline at scale " .. scale .. "/" .. pixels .. "px", correct)
+    end
+end
 check("dispel type icon builds all five native atlases with shared geometry",
     frame.dispelTypeIcons.Magic:GetStatusBarTexture().atlas == "RaidFrame-Icon-DebuffMagic"
     and frame.dispelTypeIcons.Curse:GetStatusBarTexture().atlas == "RaidFrame-Icon-DebuffCurse"
