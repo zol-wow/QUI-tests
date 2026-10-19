@@ -57,6 +57,12 @@ row.IsSelected = function(owner)
     assert(type(owner.GetElementData) == "function", "released rows cannot query intrusive selection")
     return owner:GetElementData().selected
 end
+row.Highlight = Frame("Frame", nil, row)
+row.Highlight:Hide()
+for _, key in ipairs({"TopLeft", "TopRight", "BottomLeft", "BottomRight", "Top", "Bottom", "Left", "Right"}) do
+    row.Highlight[key] = row.Highlight:CreateTexture()
+    row.Highlight[key]:SetTexture("Interface/PaperDollInfoFrame/UI-Character-ReputationBar-Highlight")
+end
 row.Background = row:CreateTexture()
 row.Description = row:CreateFontString()
 row.Label = row:CreateFontString()
@@ -113,6 +119,12 @@ _G.AchievementStatTemplateMixin = {Init = function(owner, header)
     owner.Title:SetTextColor(1, 0.8, 0, 1)
     owner.Value:SetTextColor(1, 0.8, 0, 1)
 end}
+statRow.highlight = statRow:CreateTexture()
+statRow.highlight:SetTexture("Interface/FriendsFrame/UI-FriendsFrame-HighlightBar")
+function statRow:GetHighlightTexture() return self.highlight end
+statRow.CreateMaskTexture = statRow.CreateTexture
+local maskCount = 0
+function statRow.highlight:AddMaskTexture() maskCount = maskCount + 1 end
 local comparison = Frame("Frame", "AchievementFrameComparison", frame)
 _G.AchievementFrameComparison = comparison
 comparison.Watermark = comparison:CreateTexture()
@@ -158,8 +170,54 @@ _G.AchievementFrameComparisonHeaderBG = _G.AchievementFrameComparisonHeader:Crea
 _G.AchievementFrameComparisonHeaderPortrait = _G.AchievementFrameComparisonHeader:CreateTexture()
 _G.AchievementFrameComparisonHeaderPortrait:SetTexture("native-portrait")
 _G.AchievementFrameComparisonHeaderName = _G.AchievementFrameComparisonHeader:CreateFontString()
+-- Match the summary category's named child hierarchy and native XML scripts.
+local xmlFile = assert(io.open("tests/framexml/Interface/AddOns/Blizzard_AchievementUI/Mainline/Blizzard_AchievementUI.xml"))
+local xml = xmlFile:read("*a"); xmlFile:close()
+local buttonStart = assert(xml:find('<Button name="$parentButton">', 1, true))
+local buttonXML = xml:sub(buttonStart, assert(xml:find("</Button>", buttonStart, true)))
+local onEnter = assert(loadstring("return function(self) " .. assert(buttonXML:match("<OnEnter>(.-)</OnEnter>")) .. " end"))()
+local onLeave = assert(loadstring("return function(self) " .. assert(buttonXML:match("<OnLeave>(.-)</OnLeave>")) .. " end"))()
+env.ns.Helpers.GetSkinBarColor = function() return 0.7, 0.1, 0.2, 1 end
+local progress = {}
+for index = 1, 12 do
+    local name = "AchievementFrameSummaryCategoriesCategory" .. index
+    local bar = Frame("StatusBar", name, summary)
+    _G[name] = bar
+    bar:SetSize(225, 20)
+    bar.fill = bar:CreateTexture()
+    function bar:GetStatusBarTexture() return self.fill end
+    local button = Frame("Button", name .. "Button", bar)
+    _G[name .. "Button"] = button
+    local highlight = Frame("Frame", name .. "ButtonHighlight", button)
+    _G[name .. "ButtonHighlight"] = highlight
+    highlight:Hide()
+    for _, suffix in ipairs({"Left", "Right", "Middle"}) do
+        highlight[suffix] = highlight:CreateTexture()
+        highlight[suffix]:SetTexture("Interface/AchievementFrame/UI-Achievement-StatusBar-Highlight")
+    end
+    button:SetScript("OnEnter", onEnter)
+    button:SetScript("OnLeave", onLeave)
+    local click = function(owner) owner.clicked = index end
+    button:SetScript("OnClick", click)
+    progress[index] = {bar = bar, button = button, highlight = highlight, click = click}
+end
 assert(loadfile(os.getenv("QUI_ACHIEVEMENT_SOURCE") or "modules/skinning/frames/achievement.lua"))("QUI", env.ns)
 callback()
+for index, entry in ipairs(progress) do
+    entry.button:Fire("OnEnter")
+    local hover = Skin.GetBackdrop(entry.highlight)
+    assert(hover and hover._quiRoundedSurface.radius == 4 and entry.highlight:IsShown(),
+        "Progress Overview native category hover must show rounded QUI chrome")
+    for _, texture in ipairs({entry.highlight:GetRegions()}) do
+        texture:SetAlpha(1)
+        assert(texture:GetAlpha() == 0, "gold progress highlight must stay hidden after native alpha refresh")
+    end
+    entry.button:Fire("OnLeave")
+    assert(not entry.highlight:IsShown(), "native progress category hover dismissal must survive")
+    assert(entry.button:GetScript("OnClick") == entry.click, "progress category navigation handler must remain native")
+    entry.button:Fire("OnClick")
+    assert(entry.button.clicked == index, "category click must retain its original target")
+end
 assert(preview.Background:GetAlpha() == 0 and preview.BorderAnchor:GetAlpha() == 0, "search popup must suppress native background and corners")
 local first = preview.searchPreviews[1]
 assert(first.IconFrame:GetAlpha() == 0 and first.Icon.texture == "native-result-icon-1", "search must suppress ornamental icon frame and preserve native art")
@@ -178,6 +236,36 @@ assert(summary.Background:GetAlpha() == 0, "summary parchment must be replaced b
 assert(Skin.GetBackdrop(summary), "summary must have a rounded inner surface")
 assert(row.Background:GetAlpha() == 0, "recent achievements must not retain parchment")
 assert(Skin.GetBackdrop(row), "recent achievement rows must have QUI surfaces")
+-- Use the actual native hover/leave implementations, including selected-row behavior.
+local nativeFile = assert(io.open("tests/framexml/Interface/AddOns/Blizzard_AchievementUI/Mainline/Blizzard_AchievementUI.lua"))
+local nativeSource = nativeFile:read("*a"); nativeFile:close()
+local start = assert(nativeSource:find("function AchievementTemplateMixin:OnEnter()", 1, true))
+local stop = assert(nativeSource:find("function AchievementTemplateMixin:UpdatePlusMinusTexture()", start, true))
+assert(loadstring(nativeSource:sub(start, stop - 1)))()
+local events = 0
+_G.EventRegistry = {TriggerEvent = function() events = events + 1 end}
+row.id = 123
+local selected = false
+row.GetElementData = function() return {selected = selected} end
+row:SetScript("OnEnter", _G.AchievementTemplateMixin.OnEnter)
+row:SetScript("OnLeave", _G.AchievementTemplateMixin.OnLeave)
+row:Fire("OnEnter")
+local hover = Skin.GetBackdrop(row.Highlight)
+assert(hover and hover._quiRoundedSurface.radius == 5 and row.Highlight:IsShown(),
+    "native achievement hover must show a rounded QUI highlight")
+for _, texture in ipairs({row.Highlight:GetRegions()}) do
+    texture:SetAlpha(1)
+    assert(texture:GetAlpha() == 0, "native hover artwork must stay suppressed after refresh")
+end
+row:Fire("OnLeave")
+assert(not row.Highlight:IsShown() and events == 2, "native hover events and unselected dismissal must survive")
+selected = true
+row:Fire("OnEnter"); row:Fire("OnLeave")
+assert(row.Highlight:IsShown(), "selected achievement must retain its native highlight visibility")
+_G.AchievementTemplateMixin.Saturate(row)
+assert(Skin.GetBackdrop(row.Highlight) == hover, "pooled refresh must reuse the QUI hover surface")
+row.GetElementData = false
+
 assert(Skin.GetBackdrop(filters.SearchBox) and Skin.GetBackdrop(filters.FilterDropdown), "search and filter must share QUI control styling")
 local fr, fg, fb = filters.FilterDropdown.Text:GetTextColor()
 assert(fr == 0.95 and fg == 0.95 and fb == 0.95, "filter chrome label must be neutral")
@@ -194,6 +282,11 @@ _G.AchievementStatTemplateMixin.Init(statRow, true)
 assert(parchment:GetAlpha() == 0, "named Statistics background must suppress its native parchment")
 assert(statRow.Left:GetAlpha() == 0 and statRow.Background:GetAlpha() == 0, "statistic headers must suppress native parchment after Init")
 assert(Skin.GetBackdrop(statRow), "statistic rows need QUI rounded surfaces")
+local ar, ag, ab = Skin.GetSkinColors()
+assert(statRow.highlight.color and statRow.highlight.color[1] == ar and statRow.highlight.color[2] == ag
+    and statRow.highlight.color[3] == ab and statRow.highlight.color[4] == 0.12 and maskCount == 1,
+    "Statistics hover must replace the Blizzard gradient with one rounded QUI accent fill")
+
 local r, g, b = statRow.Title:GetTextColor()
 assert(r == 1 and g == 1 and b == 1, "statistic header text must be neutral")
 _G.AchievementStatTemplateMixin.Init(statRow, false)
