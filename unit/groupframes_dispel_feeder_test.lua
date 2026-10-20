@@ -38,7 +38,7 @@ local function MakeTexture()
     function t:SetTexture(path) self._texture = path end
     function t:SetTexCoord(...) self._texCoord = { ... } end
     function t:SetBlendMode(mode) self._blend = mode end
-    function t:SetVertexColor(r, g, b, a) self._vertex = { r, g, b, a } end
+    function t:SetVertexColor(r, g, b, a) self._vertex = { r, g, b, a or 1 }; self._alpha = a or 1 end
     function t:SetGradient(orientation, minColor, maxColor)
         self._gradient = { orientation, minColor, maxColor }
     end
@@ -48,7 +48,7 @@ local function MakeTexture()
     function t:SetHeight(h) self._h = h end
     function t:SetWidth(w) self._w = w end
     function t:SetSize(w, h) self._w, self._h = w, h end
-    function t:SetAlpha(a) self._alpha = a end
+    function t:SetAlpha(a) self._alpha = a; if self._vertex then self._vertex[4] = a end end
     function t:SetShown(v) self._shown = v end
     function t:Show() self._shown = true end
     function t:Hide() self._shown = false end

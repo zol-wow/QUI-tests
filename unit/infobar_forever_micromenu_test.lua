@@ -52,8 +52,8 @@ for _, isForever in ipairs({ false, true }) do
     local slot = { GetHeight = function() return 24 end }
     registered.OnEnable(slot)
     assert(buttons.Character and buttons.Spellbook and buttons.Talents)
-    assert(buttons.Spellbook.clickButton == (isForever and world.SpellbookMicroButton or world.PlayerSpellsMicroButton))
-    assert(buttons.Talents.clickButton == (isForever and world.TalentMicroButton or world.PlayerSpellsMicroButton))
+    assert(buttons.Spellbook.clickButton == world.SpellbookMicroButton)
+    assert(buttons.Talents.clickButton == world.TalentMicroButton)
     assert(not buttons.Spellbook.onClick and not buttons.Talents.onClick,
         "Player Spells must not fall back to insecure Lua toggles")
     buttons["Group Finder"].onClick()
