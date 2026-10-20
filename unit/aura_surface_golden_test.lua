@@ -126,6 +126,7 @@ end
 
 _G.CreateFrame = function(kind) return NewStub(kind) end
 _G.InCombatLockdown = function() return false end
+_G.UnitIsConnected = function() return true end
 _G.AuraContainerSortMethod = { Default = 1 }
 _G.AuraContainerSortDirection = { Normal = 1, Reverse = 2 }
 _G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end

@@ -1,4 +1,4 @@
-local file = assert(io.open("modules/ui/uihider.lua", "rb"))
+local file = assert(io.open(os.getenv("QUI_UIHIDER_SOURCE") or "modules/ui/uihider.lua", "rb"))
 local source = file:read("*a")
 file:close()
 local first = assert(source:find("    if StatusTrackingBarManager then", 1, true))
@@ -27,7 +27,7 @@ local function run(hideXP, hideRep, editMode)
     local chunk = assert(loadstring(block, "status hider"))
     setfenv(chunk, env)
     chunk()
-    return manager, rep, xp
+    return manager, rep, xp, settings, chunk
 end
 local manager, rep, xp = run(true, false, false)
 assert(manager.shown and rep.alpha == 1 and xp.alpha == 0)
@@ -41,4 +41,18 @@ manager = run(true, true, false)
 assert(not manager.shown)
 manager, rep, xp = run(true, false, true)
 assert(manager.shown and rep.alpha == nil and xp.alpha == nil, "Edit Mode must retain native visibility ownership")
+local settings, apply
+manager, rep, xp, settings, apply = run(true, true, false)
+assert(not manager.shown)
+settings.hideExperienceBar, settings.hideReputationBar = false, false
+apply()
+assert(manager.shown and rep.alpha == 1 and xp.alpha == 1,
+    "clearing both hide options must show the previously hidden manager and both containers")
+assert(not rep.mouseEnabled and not xp.mouseEnabled, "restored containers must preserve child hover ownership")
+settings.hideExperienceBar, settings.hideReputationBar = true, false
+apply()
+settings.hideExperienceBar = false
+apply()
+assert(manager.shown and rep.alpha == 1 and xp.alpha == 1,
+    "clearing a partial hide must restore the transparent container")
 print("PASS uihider_status_tracking_hover_test")

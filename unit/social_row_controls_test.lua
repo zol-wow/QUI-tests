@@ -80,6 +80,35 @@ assert(quickRow.Icon.texture == "native-quickjoin-icon" and quickRow:GetScript("
 acquired(quickRow)
 assert(quickRow.Highlight.maskCount == 1 and quickRow.Selected.maskCount == 1,
     "Quick Join reuse must not duplicate rounded masks")
+local allyRow = env.NewFrame("Button", nil, _G.FriendsListFrame.ScrollBox)
+allyRow.PartyButton = env.NewFrame("Button", nil, allyRow)
+local party = allyRow.PartyButton
+party:SetSize(24, 32)
+party.DisabledTexture = false
+party.normalTexture = party:CreateTexture()
+party.normalTexture:SetTexture("Interface\\FriendsFrame\\TravelPass-Invite")
+function party:SetFontString(label) self.Text = label end
+local tooltipCalls = 0
+party:SetScript("OnClick", click)
+party:SetScript("OnEnter", function() tooltipCalls = tooltipCalls + 1 end)
+acquired(allyRow)
+local partyBackdrop = env.SkinBase.GetBackdrop(party)
+assert(partyBackdrop and partyBackdrop:GetWidth() == 20 and partyBackdrop:GetHeight() == 20,
+    "Recent Allies party button must receive the compact QUI treatment")
+assert(party:GetWidth() == 24 and party:GetHeight() == 32 and party:GetScript("OnClick") == click,
+    "Recent Allies party skin must preserve native geometry and invite ownership")
+party:Fire("OnEnter")
+assert(tooltipCalls == 1 and actions == 0, "native party tooltip must survive styling without an invite")
+acquired(allyRow)
+assert(env.SkinBase.GetBackdrop(party) == partyBackdrop and partyBackdrop:GetWidth() == 20,
+    "recycled Recent Allies rows must reuse compact controls")
+local card = env.NewFrame("Button", nil, _G.FriendsListFrame.ScrollBox)
+card.PartyButton = env.NewFrame("Button", nil, card)
+card.PartyButton.Icon = card.PartyButton:CreateTexture()
+card.PartyButton.Icon:SetTexture("native-modern-party-icon")
+acquired(card)
+assert(card.PartyButton.Icon.texture == "native-modern-party-icon" and not card.PartyButton:GetFontString(),
+    "modern social-card icon buttons must not be replaced by legacy plus labels")
 local recruit = env.NewFrame("Frame", nil, _G.FriendsFrame)
 _G.RecruitAFriendFrame = recruit
 recruit.RewardClaiming = env.NewFrame("Frame", nil, recruit)

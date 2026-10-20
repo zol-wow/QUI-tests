@@ -62,6 +62,7 @@ _G.UIParent = NewStub(nil)
 _G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 _G.InCombatLockdown = function() return inCombat end
 _G.UnitExists = function() return true end
+_G.UnitIsConnected = function() return true end
 _G.AuraContainerSortMethod = { Default = 0, AuraInstanceIDOnly = 8 }
 _G.AuraContainerSortDirection = { Normal = 0, Reverse = 1 }
 _G.C_Timer = { After = noop, NewTicker = function() return { Cancel = noop } end }

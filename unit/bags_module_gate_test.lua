@@ -328,8 +328,27 @@ assert(bagCooldownRefreshes == 1 and bankCooldownRefreshes == 1
        and ns.Bags.cooldownRefreshPending == nil,
        "combat exit must repaint deferred bag and bank cooldowns once")
 guildWindowShown = false
+ns.Bags.itemButtonRefreshPending = true
+scripts.OnEvent(frame, "PLAYER_REGEN_ENABLED")
+assert(bagCooldownRefreshes == 2 and bankCooldownRefreshes == 2
+       and ns.Bags.itemButtonRefreshPending == nil,
+       "combat exit must retry deferred live buttons without a pending cooldown")
+ns.Bags.itemButtonRefreshPending = true
+ns.Bags.cooldownRefreshPending = true
+scripts.OnEvent(frame, "PLAYER_REGEN_ENABLED")
+assert(bagCooldownRefreshes == 3 and bankCooldownRefreshes == 3
+       and ns.Bags.itemButtonRefreshPending == nil and ns.Bags.cooldownRefreshPending == nil,
+       "combat exit must coalesce button and cooldown refreshes")
+scripts.OnEvent(frame, "PLAYER_REGEN_ENABLED")
+assert(bagCooldownRefreshes == 3 and bankCooldownRefreshes == 3,
+       "combat exit must not repeat a completed deferred refresh")
 ns.Bags.BagWindow.IsShown = function() return false end
 ns.Bags.BankWindow.IsShown = function() return false end
+ns.Bags.itemButtonRefreshPending = true
+scripts.OnEvent(frame, "PLAYER_REGEN_ENABLED")
+assert(bagCooldownRefreshes == 3 and bankCooldownRefreshes == 3
+       and ns.Bags.itemButtonRefreshPending == nil,
+       "combat exit must clear deferred creation without refreshing hidden windows")
 ns.Bags.SortExecutor, ns.Bags.Transfers, ns.Bags.Junk = nil, nil, nil
 
 -- Test 9: refresh while already enabled + active (profile switch between two

@@ -6,6 +6,8 @@ local function sink()
 end
 
 local created = {}
+local inCombat = false
+_G.InCombatLockdown = function() return inCombat end
 _G.CreateFrame = function(_, _, _, template)
     local f = { _scripts = {}, _template = template }
     function f.SetScript(self, which, fn) self._scripts[which] = fn end
@@ -89,7 +91,18 @@ end
 local function reset() for i = #overlayLog, 1, -1 do overlayLog[i] = nil end end
 local function last() return overlayLog[#overlayLog] end
 
+inCombat = true
+local createdBeforeCombat = #created
+local deferredButton = ItemButtons.CreateLive({}, 0)
+check("combat defers live button creation without constructing a native template",
+    deferredButton == nil and #created == createdBeforeCombat)
+check("combat button creation requests a refresh after combat",
+    ns.Bags.itemButtonRefreshPending == true)
+inCombat = false
 local button = ItemButtons.CreateLive({}, 0)
+check("live button creation resumes outside combat",
+    button ~= nil and #created == createdBeforeCombat + 1
+        and button._template == "ContainerFrameItemButtonTemplate")
 
 check("live buttons opt out of Blizzard's profession quality overlay",
     button.noProfessionQualityOverlay == true)

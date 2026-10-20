@@ -21,6 +21,10 @@ local masks=0
 function row:CreateMaskTexture() local m=self:CreateTexture();m.kind="MaskTexture";return m end
 for _,texture in ipairs({row.SelectedHighlight,row.HighlightTexture}) do
  function texture:AddMaskTexture() masks=masks+1 end
+ -- WoW texture opacity and vertex alpha share storage.
+ function texture:SetAlpha(a) self.alpha=a; if self.vertex then self.vertex[4]=a end end
+ function texture:SetVertexColor(r,g,b,a) self.vertex={r,g,b,a or 1}; self.alpha=a or 1 end
+ function texture:SetBlendMode(mode) self.blend=mode end
 end
 row.Name=row:CreateFontString();row.Name:SetText("Native result")
 row.Price=row:CreateFontString();row.Price:SetTextColor(1,.1,.1,1);row.Price:SetText("Native price")
@@ -69,6 +73,16 @@ assert(row.SelectedHighlight.texture==[[Interface\Buttons\WHITE8x8]] and masks==
  "result selected and hover surfaces must receive rounded QUI tints")
 assert(row.SelectedHighlight:IsShown() and row.SelectedHighlight:GetAlpha()==.6
  and not row.HighlightTexture:IsShown(),"styling must preserve native selection and hover state")
+local function assertFaintTint()
+ local r,g,b=skin.GetSkinColors()
+ for _,pair in ipairs({{row.SelectedHighlight,.15},{row.HighlightTexture,.08}}) do
+  local t,strength=pair[1],pair[2]
+  assert(t.blend=="ADD" and math.abs(t.vertex[1]-r*strength)<.00001
+   and math.abs(t.vertex[2]-g*strength)<.00001 and math.abs(t.vertex[3]-b*strength)<.00001,
+   "native alpha updates must not turn the QUI hover/selection into an opaque strip")
+ end
+end
+assertFaintTint()
 assert(skin.GetBackdrop(row):GetFrameLevel()<row:GetFrameLevel(),"row chrome must stay below native content")
 assert(row.Price:GetText()=="Native price" and row.Price.textColor[1]==1 and row.Price.textColor[2]==.1,
  "native price caption and semantic red must remain")
@@ -87,6 +101,7 @@ alternate(row,false)
 _G.QUI_RefreshAuctionHouseColors()
 assert(row.SelectedHighlight:IsShown() and row.SelectedHighlight:GetAlpha()==.6 and masks==2
  and dirty==3 and row:GetScript("OnClick")==click,"reuse/theme must retain selection handlers and single mask attachments")
+assertFaintTint()
 row.rowData=nil
 alternate(row,true)
 assert(not row.SelectedHighlight:IsShown(),"native incomplete row must remain unselected")
