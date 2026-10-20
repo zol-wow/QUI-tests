@@ -34,6 +34,15 @@ local function item()
     f.IconQuestTexture=f:CreateTexture()
     f.Cooldown=frame(nil,f); f.Count=f:CreateFontString()
     function f.IconBorder:GetVertexColor() return unpack(self.vertex or {1,1,1,1}) end
+    function f.IconBorder:SetAlpha(a)
+        self.alpha=a
+        self.vertex=self.vertex or {1,1,1,1}
+        self.vertex[4]=a
+    end
+    function f.IconBorder:SetVertexColor(r,g,b,a)
+        self.vertex={r,g,b,a or 1}
+        self.alpha=a or 1
+    end
     function f:CreateMaskTexture() local m=self:CreateTexture(); m.kind="MaskTexture"; return m end
     function f.icon:SetDesaturated(value) self.nativeDesaturated=value end
     function f.icon:AddMaskTexture() masks=masks+1 end
@@ -81,8 +90,10 @@ for _,f in ipairs(active) do
  assert(f.icon:IsShown() and f.icon.texture==123 and f.Count:GetText()=="7","native artwork and stack count must remain")
  assert(f.IconQuestTexture:IsShown() and f.IconQuestTexture.texture=="quest-bang","native quest marker must remain")
  assert(skin.GetBackdrop(f)._quiBorderR==.7,"native rarity must color the rounded icon border")
+ assert(skin.GetBackdrop(f)._quiBorderA==1,"native border suppression must not hide the single rarity edge")
  f:Fire("OnEnter"); f:Fire("OnLeave")
  assert(skin.GetBackdrop(f)._quiBorderR==.7,"leaving hover must restore native item quality on the single edge")
+ assert(skin.GetBackdrop(f)._quiBorderA==1,"leaving hover must restore a visible rarity edge")
  assert(f.nativeQuality[1]==4 and f.nativeQuality[4] and not f.searchMatches and f.contextUpdated,"quality bound state search and item context must remain")
  assert(f.icon.nativeDesaturated and f.icon.vertex[1]==.4,"native lock and unavailable cooldown feedback must remain")
  assert(f.Cooldown.nativeCooldown[2]==8 and f:GetScript("OnClick")==f.nativeClick,"native cooldown and click handler must remain")
