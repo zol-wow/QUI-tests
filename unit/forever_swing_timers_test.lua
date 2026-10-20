@@ -91,7 +91,14 @@ local function build(forever, delayed)
         function frame:SetTextColor(...) self.textColor = { ... } end
         function frame:SetFont(path, size, flags) self.font, self.fontSize, self.fontFlags = path, size, flags end
         function frame:CreateTexture() return widget(self) end
-        function frame:CreateFontString() return widget(self) end
+        function frame:CreateFontString()
+            local label = widget(self)
+            function label:SetText(value)
+                assert(self.font, "preview labels need a font before SetText")
+                self.text = value
+            end
+            return label
+        end
         function frame:SetBackdrop(value) self.backdrop = value end
         function frame:SetBackdropColor(...) self.backdropColor = { ... } end
         function frame:SetBackdropBorderColor(...) self.borderColor = { ... } end
