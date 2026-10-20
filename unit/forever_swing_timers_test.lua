@@ -10,7 +10,36 @@ local function noop() end
 local function build(forever, delayed)
     local frames, timers, movers, resolvers = {}, {}, {}, {}
     local logins = {}
-    local state = { enabled = true, combat = false, range = true, offhand = 2, ranged = 3, time = 100, anchorChanges = 0 }
+    local state = { enabled = true, combat = false, range = true, offhand = 2, ranged = 3, time = 100,
+        anchorChanges = 0, addonStateWrites = {}, executionTainted = false }
+    local function hasAddonCaller()
+        local level = 2
+        while true do
+            local info = debug.getinfo(level, "S")
+            if not info then return false end
+            if info.source == "@" .. modulePath then return true end
+            level = level + 1
+        end
+    end
+    local function guardNativeState(frame)
+        local fields = { visibility = true, isInEditMode = true, isOutOfRange = true,
+            isRangeCheckEnabled = true, swingDuration = true, swingEndTime = true }
+        local values, tainted = {}, {}
+        for key in pairs(fields) do values[key] = rawget(frame, key); rawset(frame, key, nil) end
+        setmetatable(frame, {
+            __index = function(_, key)
+                if tainted[key] then state.executionTainted = true end
+                return values[key]
+            end,
+            __newindex = function(target, key, value)
+                if not fields[key] then rawset(target, key, value); return end
+                local addon = hasAddonCaller()
+                if addon then state.addonStateWrites[#state.addonStateWrites + 1] = target.name .. "." .. key end
+                tainted[key] = addon or state.executionTainted
+                values[key] = value
+            end,
+        })
+    end
     local world = setmetatable({}, { __index = _G })
     world._G = world
     local function widget(parent)
@@ -90,7 +119,13 @@ local function build(forever, delayed)
     world.IsLoggedIn = function() return false end
     world.GetTime = function() return state.time end
     world.UnitAffectingCombat = function() return state.combat end
-    world.UnitAttackSpeed = function() return 2, state.offhand, state.ranged end
+    local simulatedSecret = {}
+    world.UnitAttackSpeed = function()
+        if state.secretSpeeds and (state.executionTainted or hasAddonCaller()) then
+            return simulatedSecret, state.offhand and simulatedSecret, state.ranged and simulatedSecret
+        end
+        return 2, state.offhand, state.ranged
+    end
     world.RED_FONT_COLOR = { GetRGB = function() return 1, 0, 0 end }
     world.HIGHLIGHT_FONT_COLOR = { GetRGB = function() return 1, 1, 1 end }
     world.C_SwingTimer = { EnableRangeCheck = noop, IsTargetWithinSwingRange = function() return state.range end }
@@ -101,7 +136,12 @@ local function build(forever, delayed)
         GetCVarBool = function() return state.enabled end,
         SetCVar = function(_, value)
             state.enabled = value == true or value == "1" or value == 1
-            for _, callback in ipairs(world.CVarCallbackRegistry.callbacks) do callback[1](callback[2]) end
+            for _, callback in ipairs(world.CVarCallbackRegistry.callbacks) do
+                timers[#timers + 1] = function()
+                    state.executionTainted = false
+                    callback[1](callback[2])
+                end
+            end
         end,
     }
     world.GetCVarBool, world.SetCVar = world.C_CVar.GetCVarBool, world.C_CVar.SetCVar
@@ -112,7 +152,12 @@ local function build(forever, delayed)
     world.hooksecurefunc = function(target, method, callback)
         if type(target) == "string" then target, method, callback = world, target, method end
         local original = assert(target[method], method)
-        target[method] = function(...) original(...); callback(...) end
+        target[method] = function(...)
+            original(...)
+            local tainted = state.executionTainted
+            callback(...)
+            state.executionTainted = tainted
+        end
     end
     world.Enum = { EditModePresetLayouts = { Modern = 0 } }
     world.APIDocumentation = { AddDocumentationTable = function(_, doc)
@@ -219,6 +264,7 @@ local function build(forever, delayed)
         frame.SetSnappedToFrame = noop
         frame:SetScript("OnHide", frame.OnHide)
         frame:SetScript("OnShow", frame.OnShow)
+        guardNativeState(frame)
         frame:OnLoad()
         world.BottomManagedFrameContainer:AddManagedFrame(frame)
         frame:SetScaleBase(1.4)
@@ -243,7 +289,10 @@ local function build(forever, delayed)
     local function event(name, ...)
         if name == "PLAYER_LOGIN" then for _, callback in ipairs(logins) do callback() end end
         local recipients = {}; for _, frame in ipairs(frames) do if frame.events[name] then recipients[#recipients + 1] = frame end end
-        for _, frame in ipairs(recipients) do frame:Fire("OnEvent", name, ...) end
+        for _, frame in ipairs(recipients) do
+            state.executionTainted = false
+            frame:Fire("OnEvent", name, ...)
+        end
         flush()
     end
     return { world = world, ns = ns, state = state, frames = frames, core = core, movers = movers,
@@ -252,6 +301,16 @@ end
 local retail = build(false)
 retail.event("PLAYER_LOGIN")
 assert(next(retail.movers) == nil and next(retail.resolvers) == nil, "Retail must not register Forever swing elements")
+for _, speeds in ipairs({ { ranged = 3 }, { offhand = 2, ranged = 3 } }) do
+    local regression = build(true)
+    regression.event("PLAYER_LOGIN")
+    regression.state.offhand, regression.state.ranged = speeds.offhand, speeds.ranged
+    regression.state.secretSpeeds, regression.state.combat = true, true
+    local ok, failure = pcall(regression.event, "PLAYER_IN_COMBAT_CHANGED")
+    assert(ok, "native combat dispatch must stay clean with simulated secret attack speeds: " .. tostring(failure))
+    assert(#regression.state.addonStateWrites == 0,
+        "QUI must not write native swing gameplay state: " .. table.concat(regression.state.addonStateWrites, ", "))
+end
 local delayed = build(true, true)
 delayed.event("PLAYER_LOGIN")
 assert(next(delayed.movers) == nil, "login must tolerate native addon not loaded yet")
@@ -294,13 +353,15 @@ local manager = world.SwingTimerManagerFrame
 local settings = api.GetSettings("swingTimerMainHand")
 settings.visibility = world.Enum.EditModeSwingTimerVisibility.InCombat
 api.Refresh(); test.flush()
-assert(not main:IsShown() and main:ShouldHandleSwing() and manager:IsEventRegistered("PLAYER_SWING"),
-    "combat visibility must register before the first swing")
+assert(main:IsShown() and api.entries[1].holder:GetAlpha() == 0
+    and main:ShouldHandleSwing() and manager:IsEventRegistered("PLAYER_SWING"),
+    "QUI combat visibility must hide its holder while preserving native first-swing registration")
 test.event("PLAYER_SWING", 2, world.Enum.PlayerSwingType.MainHand)
 assert(main.swingEndTime == 102 and main:GetScript("OnUpdate") == world.SwingTimerMixin.OnUpdate, "native swing event must start native timer")
 state.combat = true
 test.event("PLAYER_IN_COMBAT_CHANGED")
-assert(main:IsShown() and main.swingEndTime == 102, "entering combat must retain the first swing")
+assert(main:IsShown() and api.entries[1].holder:GetAlpha() == 1 and main.swingEndTime == 102,
+    "entering combat must show the QUI holder and retain the first swing")
 state.time = 101
 main:Fire("OnUpdate", 1)
 assert(main.StatusBar:GetValue() == 0.5 and main.StatusBar.TimeLabel.text == "1.0", "native timing must advance untouched")
@@ -349,6 +410,27 @@ world.OverrideActionBar:Show()
 assert(holder:GetAlpha() == 0, "override action bar must retain native swing-bar suppression")
 world.OverrideActionBar:Hide()
 assert(holder:GetAlpha() == 1, "leaving override action bar must restore swing-bar visibility")
+settings.visibility = world.Enum.EditModeSwingTimerVisibility.Hidden
+api.Refresh(); test.flush()
+assert(holder:GetAlpha() == 0 and main.visibility == world.Enum.EditModeSwingTimerVisibility.Always
+    and main:IsShown(), "QUI hidden visibility must affect only its holder")
+settings.visibility = world.Enum.EditModeSwingTimerVisibility.Always
+main.visibility = world.Enum.EditModeSwingTimerVisibility.Hidden
+main:UpdateShownStateAndRegistration()
+api.Refresh(); test.flush()
+assert(main.visibility == world.Enum.EditModeSwingTimerVisibility.Hidden and not main:IsShown(),
+    "QUI must preserve a native Hidden setting")
+main.visibility = world.Enum.EditModeSwingTimerVisibility.InCombat
+main:UpdateShownStateAndRegistration()
+api.Refresh(); test.flush()
+assert(main.visibility == world.Enum.EditModeSwingTimerVisibility.InCombat and not main:IsShown()
+    and main:ShouldHandleSwing(), "QUI must preserve native InCombat visibility and first-swing handling")
+state.combat = true
+test.event("PLAYER_IN_COMBAT_CHANGED")
+assert(main:IsShown(), "native InCombat setting must still respond to its combat event")
+state.combat = false
+main.visibility = world.Enum.EditModeSwingTimerVisibility.Always
+main:UpdateShownStateAndRegistration()
 local replacement = { swingTimers = {}, general = {} }
 for _, entry in ipairs(api.entries) do
     replacement.swingTimers[entry.key] = { width = 333, height = 28, texture = "Flat", fontSize = 13,
@@ -363,17 +445,31 @@ assert(not api.IsEnabled() and not main:IsShown() and not manager:IsEventRegiste
     "enable option must use native visibility and registration")
 for _, mover in pairs(test.movers) do assert(mover.onOpen and mover.onClose); mover.onOpen() end
 test.flush()
-assert(main:IsShown() and offhand:IsShown() and ranged:IsShown(), "layout previews must expose all three weapon bars")
+assert(not main:IsShown() and not offhand:IsShown() and not ranged:IsShown(),
+    "QUI previews must leave disabled native bars hidden")
+for _, entry in ipairs(api.entries) do
+    local preview = assert(entry.previewBar, "QUI must own each layout preview")
+    assert(preview:GetParent() == entry.holder and preview:IsShown() and preview:GetValue() > 0,
+        "independent previews must expose all three weapon bars even when disabled or unequipped")
+    assert(preview.TypeLabel and preview.TimeLabel and not entry.frame.isInEditMode,
+        "preview labels must belong to QUI without changing native edit-mode state")
+end
 main:SetIsInEditMode(false)
-assert(main.isInEditMode and main:IsShown(), "native edit-mode exit must not clear an active QUI preview")
+assert(not main.isInEditMode and not main:IsShown() and api.entries[1].previewBar:IsShown(),
+    "native edit-mode exit must leave an independent QUI preview visible")
 for _, mover in pairs(test.movers) do mover.onClose() end
 test.flush()
 assert(not main:IsShown() and not offhand:IsShown() and not ranged:IsShown() and not main.isInEditMode,
     "leaving layout must restore disabled native visibility")
+for _, entry in ipairs(api.entries) do
+    assert(not entry.previewBar:IsShown(), "leaving layout must hide every QUI preview")
+end
 state.nativeEdit = true
 main:SetIsInEditMode(true)
 for _, mover in pairs(test.movers) do mover.onOpen() end
 for _, mover in pairs(test.movers) do mover.onClose() end
 test.flush()
 assert(api.entries[1].chrome:GetAlpha() == 1 and main.isInEditMode and main:IsShown(), "QUI preview cleanup must preserve active native edit mode")
+assert(#state.addonStateWrites == 0,
+    "all refresh, settings, and layout callbacks must preserve native gameplay state: " .. table.concat(state.addonStateWrites, ", "))
 print("OK forever_swing_timers_test")
