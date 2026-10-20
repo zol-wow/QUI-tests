@@ -10,9 +10,10 @@ for _, name in ipairs({
 }) do
     methods[name] = noop
 end
-local function widget()
-    return setmetatable({ scripts = {}, events = {} }, { __index = methods })
+local function widget(parent)
+    return setmetatable({ scripts = {}, events = {}, parent = parent }, { __index = methods })
 end
+function methods:GetParent() return self.parent end
 function methods:RegisterEvent(event) self.events[event] = true end
 function methods:CreateTexture() return widget() end
 function methods:CreateFontString() return widget() end
@@ -21,6 +22,10 @@ function methods:SetScript(name, callback) self.scripts[name] = callback end
 function methods:SetText(text) self.text = text end
 function methods:SetTextColor(...) self.color = { ... } end
 function methods:SetValue(value) self.value = value end
+function methods:Enable() self.enabled = true end
+function methods:SetEnabled(enabled) self.enabled = not not enabled end
+function methods:SetAlpha(alpha) self.alpha = alpha end
+function methods:SetDesaturated(desaturated) self.desaturated = desaturated end
 function methods:SetPoint(...) self.points = { ... } end
 function methods:ClearAllPoints() self.points = nil end
 function methods:GetHeight() return self.height or 1080 end
@@ -28,6 +33,7 @@ function methods:GetEffectiveScale() return 1 end
 function methods:SetScrollChild(child) self.scrollChild = child end
 function methods:SetVerticalScroll(offset) self.scrollOffset = offset end
 function methods:SetTexture(texture) self.texture = texture end
+function methods:SetFont(font) self.font = font end
 function methods:SetHeight(height) self.height = height end
 function methods:Show() self.shown = true end
 function methods:Hide() self.shown = false end
@@ -47,6 +53,8 @@ local items = {
 }
 local qualityCalls = {}
 local pendingTimers = {}
+local rollClicks = {}
+local lootContext, nativeCloseCalls = false, 0
 local createdFrames = {}
 local nativeRollIDs, remainingTimes = { 88, 99 }, { [88] = 6000 }
 local cursor, modified, clicks, itemLootedEvents, hiddenDialogs = 200, false, {}, {}, {}
@@ -64,21 +72,23 @@ local env = setmetatable({
     IsModifiedClick = function() return modified end,
     GetLootSlotLink = function(index) return "item:" .. index end,
     HandleModifiedItemClick = function(link) clicks[#clicks + 1] = link end,
+    CloseLoot = function() nativeCloseCalls = nativeCloseCalls + 1 end,
     LootSlot = function(index) clicks[#clicks + 1] = index end,
+    RollOnLoot = function(id, choice) rollClicks[#rollClicks + 1] = { id, choice } end,
     StaticPopup_Hide = function(dialog) hiddenDialogs[#hiddenDialogs + 1] = dialog end,
     EventRegistry = { TriggerEvent = function(_, event) itemLootedEvents[#itemLootedEvents + 1] = event end },
     GetActiveLootRollIDs = function() return nativeRollIDs end,
     GetLootRollTimeLeft = function(rollID) return remainingTimes[rollID] or 30000 end,
     C_Loot = { GetLootRollDuration = function(rollID) return rollID ~= 99 and 60000 or nil end },
     C_Timer = { After = function(_, callback) pendingTimers[#pendingTimers + 1] = callback end },
-    GetNumLootItems = function() return #items end,
+    GetNumLootItems = function() return lootContext and #items or 0 end,
     LootSlotHasItem = function() return true end,
     GetLootSlotInfo = function(index)
         local item = items[index]
         return item.texture, item.name, item.quantity, nil, item.quality, false, false
     end,
     GetLootRollItemInfo = function(rollID)
-        return 134400, "Roll Item", 1, rollID == 1 and 4 or nil, false, true, true, false
+        return 134400, "Roll Item", 1, rollID == 1 and 4 or nil, false, rollID ~= 2, true, false, nil, nil, nil, nil, rollID == 2
     end,
     C_Item = {
         GetItemQualityColor = function(quality)
@@ -88,8 +98,8 @@ local env = setmetatable({
     },
 }, { __index = _G })
 env._G = env
-env.CreateFrame = function(_, name)
-    local frame = widget()
+env.CreateFrame = function(_, name, parent)
+    local frame = widget(parent)
     createdFrames[#createdFrames + 1] = frame
     if name then env[name] = frame end
     return frame
@@ -111,10 +121,18 @@ local ns = {
         ApplyChromeBackdrop = function(frame, opts) frame.chrome = opts end,
         RoundIconTexture = function(_, texture) texture.rounded = true end,
         SetPixelPoint = noop,
-        CreateCloseButton = widget,
+        CreateCloseButton = function(parent, opts)
+            local button = widget(parent)
+            button:SetScript("OnClick", opts.onClick)
+            return button
+        end,
         SkinTrimScrollBar = noop,
     },
     LSM = { Fetch = function() return "test-font" end },
+    UIKit = { CreateBorderLines = noop, UpdateBorderLines = function(frame, ...)
+        local values = { ... }
+        frame.editHidden = values[#values]
+    end },
     L = { Loot = "Loot" },
 }
 local chunk = assert(loadfile(arg[1] or "modules/skinning/notifications/loot.lua", "t", env))
@@ -123,6 +141,8 @@ chunk("QUI", ns)
 local loot = ns.Addon.Loot
 loot:Initialize()
 local function event(name, ...)
+    if name == "LOOT_OPENED" then lootContext = true end
+    if name == "LOOT_CLOSED" then lootContext = false end
     loot.eventFrame.scripts.OnEvent(loot.eventFrame, name, ...)
 end
 local function checkColor(frame, quality)
@@ -148,7 +168,11 @@ assert(env.QUI_LootFrame.height == 142, "all three loot slots should be laid out
 assert(env.QUI_LootFrame.chrome.radius == 8, "loot shell must use rounded window chrome")
 assert(env.QUI_LootSlot1.iconBorder.chrome.radius == 4 and env.QUI_LootSlot1.icon.rounded, "loot icon and quality border must share rounded corners")
 assert(restoredRoll.chrome.radius == 8 and restoredRoll.icon.rounded, "restored roll must keep rounded shell and item artwork")
-assert(restoredRoll.needBtn.chrome.radius == 5 and restoredRoll.needBtn.icon.rounded, "roll actions must use rounded controls without losing their icons")
+for _, button in ipairs({ restoredRoll.needBtn, restoredRoll.greedBtn, restoredRoll.disenchantBtn,
+    restoredRoll.passBtn, restoredRoll.transmogBtn }) do
+    assert(button.chrome == nil and button.bg == nil and not button.icon.rounded,
+        "roll choices must keep their original icon artwork without a border, background or crop mask")
+end
 for index, item in ipairs(items) do
     local slot = env.QUI_LootFrame.slots[index]
     checkColor(slot, item.quality or 1)
@@ -163,16 +187,56 @@ event("START_LOOT_ROLL", 1, 60)
 checkColor(env.QUI_LootRollFrame1, 4)
 event("START_LOOT_ROLL", 2, 60)
 checkColor(env.QUI_LootRollFrame2, 1)
+assert(env.QUI_LootRollFrame2.needBtn.enabled == false and env.QUI_LootRollFrame2.needBtn.alpha == 0.4
+    and env.QUI_LootRollFrame2.needBtn.icon.desaturated, "real ineligible Need must remain disabled and dimmed")
+assert(env.QUI_LootRollFrame2.transmogBtn.shown and not env.QUI_LootRollFrame2.greedBtn.shown
+    and not env.QUI_LootRollFrame2.disenchantBtn.shown, "real roll capability visibility must remain intact")
 
-loot:ShowLootPreview()
+assert(loot:ShowLootPreview() == false, "loot preview must refuse an active native loot context")
+assert(env.QUI_LootSlot2.name.text == items[2].name and env.QUI_LootSlot2.slotIndex == 2,
+    "blocked preview must preserve actual loot data and interaction")
+loot:HideLootPreview()
+assert(env.QUI_LootFrame:IsShown(), "preview hide must not hide actual loot")
+event("LOOT_CLOSED")
+assert(loot:ShowLootPreview() == true, "loot preview should open outside native looting")
 for index, quality in ipairs({ 4, 1, 2 }) do
     checkColor(env.QUI_LootFrame.slots[index], quality)
 end
-loot:ShowRollPreview()
+assert(loot:ShowRollPreview() == false, "active rolls must take priority over preview opening")
+assert(env.QUI_LootRollFrame1.rollID == 1 and env.QUI_LootRollFrame2.rollID == 2,
+    "blocked preview must preserve native roll identities")
+loot:HideRollPreview()
+assert(env.QUI_LootRollFrame1:IsShown() and env.QUI_LootRollFrame2:IsShown(),
+    "closing a preview must never hide live roll choices")
+event("CANCEL_ALL_LOOT_ROLLS")
+assert(loot:ShowRollPreview() == true, "preview should open once real rolls finish")
 for index, quality in ipairs({ 4, 4, 3, 3 }) do
-    checkColor(env["QUI_LootRollFrame" .. index], quality)
+    checkColor(env["QUI_LootRollPreviewFrame" .. index], quality)
+end
+for index = 1, 4 do
+    local frame = env["QUI_LootRollPreviewFrame" .. index]
+    assert(frame.rollID == nil, "preview must never retain a native roll ID")
+    for _, button in ipairs({ frame.needBtn, frame.greedBtn, frame.disenchantBtn, frame.passBtn }) do
+        assert(button.enabled and button.shown and button.alpha == 1 and button.icon.desaturated == false,
+            "preview must reset disabled/hidden/desaturated choices left by real rolls")
+    end
+    assert(not frame.transmogBtn.shown, "preview must clear the alternative transmog-only choice")
+    assert(frame.needBtn.points[2] == frame.greedBtn, "preview must restore Need next to Greed")
 end
 assert(#qualityCalls == 12, "live loot, live rolls, and both previews must use C_Item colors")
+local preview = env.QUI_LootRollPreviewFrame1
+assert(preview ~= env.QUI_LootRollFrame1, "preview and gameplay must have separate frame ownership")
+preview.needBtn:SetEnabled(false)
+preview.needBtn:SetAlpha(0.4)
+preview.needBtn.icon:SetDesaturated(true)
+preview.greedBtn:Hide()
+preview.disenchantBtn:Hide()
+preview.transmogBtn:Show()
+loot:ShowRollPreview()
+assert(preview.needBtn.enabled and preview.needBtn.alpha == 1 and not preview.needBtn.icon.desaturated
+    and preview.greedBtn.shown and preview.disenchantBtn.shown and not preview.transmogBtn.shown,
+    "reopening must reset stale preview choice states")
+
 assert(loot.eventFrame.events.LOOT_SLOT_CHANGED, "replacement must subscribe to native slot changes")
 assert(loot.eventFrame.events.CANCEL_ALL_LOOT_ROLLS, "replacement must subscribe to native mass cancellation")
 ns.Addon.db.profile.loot.lootUnderMouse = true
@@ -330,5 +394,69 @@ checkMarker(false, "missing loot links must not prevent loot refresh")
 itemID, itemLink, sourceID = 123, "item:123", 123
 env.C_TransmogCollection = nil
 checkMarker(false, "clients without transmog collection must still refresh loot")
+
+-- A gameplay roll arriving while a preview is open must retain its timer/click lifecycle.
+event("CANCEL_ALL_LOOT_ROLLS")
+loot:ShowRollPreview()
+local previewFrame = env.QUI_LootRollPreviewFrame1
+assert(loot:IsRollPreviewActive() and previewFrame:IsShown(), "preview should be visible before native start")
+event("START_LOOT_ROLL", 41, 60000)
+local liveFrame = env.QUI_LootRollFrame1
+assert(not loot:IsRollPreviewActive() and not previewFrame:IsShown(), "native start must dismiss the overlapping preview")
+assert(liveFrame:IsShown() and liveFrame.rollID == 41, "preview frames must not occupy native roll slots")
+assert(loot:ShowRollPreview() == false, "preview cannot obscure an active native roll")
+loot:HideRollPreview()
+assert(liveFrame:IsShown() and liveFrame.rollID == 41, "preview hide must not mutate native state")
+remainingTimes[41] = 12000
+timerManager.scripts.OnUpdate(timerManager, 0.01)
+assert(liveFrame.timer.value == 0.2, "native timer must keep updating after preview dismissal")
+liveFrame.name.font, previewFrame.name.font = "stale", "stale"
+loot:ApplyRollTheme()
+assert(liveFrame.name.font == "test-font" and previewFrame.name.font == "test-font", "theme refresh must reach both pools")
+liveFrame.needBtn.scripts.OnClick(liveFrame.needBtn)
+assert(#rollClicks == 1 and rollClicks[1][1] == 41 and rollClicks[1][2] == 1,
+    "native Need click must retain its original roll ID and choice")
+assert(not liveFrame:IsShown() and liveFrame.rollID == nil, "native response should release its frame")
+assert(loot:ShowRollPreview() == true, "preview should reopen after the native response")
+previewFrame.needBtn.scripts.OnClick(previewFrame.needBtn)
+assert(#rollClicks == 1, "preview choice must never send a gameplay roll response")
+loot:EnableEditMode()
+assert(previewFrame.editLabel:IsShown() and previewFrame.scripts.OnDragStart,
+    "edit controls belong to the preview pool")
+assert(previewFrame.editBorderOverlay and previewFrame.editBorderOverlay:GetParent() == previewFrame
+    and previewFrame.editBorderOverlay.chrome.radius == 8 and previewFrame.editBorderOverlay.chrome.background == false,
+    "edit outline must use its own rounded overlay without repurposing normal chrome")
+assert(liveFrame.scripts.OnDragStart == nil, "edit mode must not make native rolls draggable")
+loot:DisableEditMode()
+assert(not loot:IsRollPreviewActive() and not previewFrame:IsShown() and not previewFrame.editLabel:IsShown(),
+    "leaving edit mode must clear only preview chrome")
+
+-- The loot display has exclusive native/preview ownership, including close actions.
+assert(env.QUI_LootFrame:IsShown() and env.QUI_LootSlot1.slotIndex == 1,
+    "leaving edit mode must not close an existing real loot window")
+event("LOOT_CLOSED")
+assert(loot:ShowLootPreview() == true, "preview should reopen after real loot closes")
+local lootWindow = env.QUI_LootFrame
+assert(lootWindow._previewMode and lootWindow.slots[1].slotIndex == nil, "preview rows must not be lootable")
+local beforeClicks = #clicks
+lootWindow.slots[1].scripts.OnClick(lootWindow.slots[1])
+assert(#clicks == beforeClicks, "preview item clicks must not invoke native looting")
+lootWindow.closeBtn.scripts.OnClick(lootWindow.closeBtn)
+assert(not lootWindow:IsShown() and not lootWindow._previewMode and nativeCloseCalls == 0,
+    "preview close must dismiss locally without calling gameplay CloseLoot")
+loot:ShowLootPreview()
+loot:EnableEditMode()
+assert(lootWindow.editLabel:IsShown() and lootWindow.editBorderOverlay:IsShown(), "preview edit chrome must be present before handoff")
+event("LOOT_OPENED", false, true)
+assert(not lootWindow.editLabel:IsShown() and not lootWindow.editBorderOverlay:IsShown(),
+    "native ownership must clear preview-only edit decorations")
+loot:DisableEditMode()
+assert(lootWindow:IsShown() and not lootWindow._previewMode and lootWindow.slots[1].slotIndex == 1,
+    "native loot opening must take ownership back from a preview")
+loot:HideLootPreview()
+assert(lootWindow:IsShown(), "stale preview cleanup must leave native loot visible")
+lootWindow.closeBtn.scripts.OnClick(lootWindow.closeBtn)
+assert(nativeCloseCalls == 1, "actual loot close must keep its native action")
+event("LOOT_CLOSED")
 
 print("OK: loot_quality_color_test")

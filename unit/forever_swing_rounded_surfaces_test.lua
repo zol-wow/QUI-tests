@@ -6,7 +6,8 @@ ns.LSM = {Fetch = function() return "QUI-flat" end}
 ns.Helpers.GetSkinBarColor = function() return 0.2, 0.4, 0.6, 1 end
 ns.Helpers.BaseClearAllPoints = function(frame) frame:ClearAllPoints() end
 ns.Helpers.BaseSetPoint = function(frame, ...) frame:SetPoint(...) end
-ns.QUI_LayoutMode = {isActive = true, RegisterElement = function() end}
+local movers = {}
+ns.QUI_LayoutMode = {isActive = true, RegisterElement = function(_, definition) movers[definition.key] = definition end}
 ns.Registry = {Register = function() end}
 ns.WhenLoggedIn = function() end
 _G.QUI_RegisterFrameResolver = function() end
@@ -17,6 +18,19 @@ _G.OverrideActionBar = nil
 assert(loadfile("tests/clients/forever/framexml/Interface/AddOns/Blizzard_SwingTimer/Blizzard_SwingTimer.lua"))()
 env.profile.swingTimers = {}
 local maskAttachments = 0
+local createFrame = _G.CreateFrame
+_G.CreateFrame = function(kind, ...)
+    local frame = createFrame(kind, ...)
+    if kind == "StatusBar" then
+        frame.CreateMaskTexture = frame.CreateTexture
+        local fill = frame:CreateTexture()
+        function frame:GetStatusBarTexture() return fill end
+        function frame:SetStatusBarTexture(path) fill:SetTexture(path) end
+        function frame:SetValue(value) self.value = value end
+        function fill:AddMaskTexture() maskAttachments = maskAttachments + 1 end
+    end
+    return frame
+end
 for _, name in ipairs({"MainHand", "OffHand", "Ranged"}) do
     local key = "swingTimer" .. name
     env.profile.swingTimers[key] = {
@@ -61,6 +75,15 @@ for _, entry in ipairs(ns.SwingTimers.entries) do
     assert(frame.Border.texture == nil and frame.Background.texture == nil, "square native art must be removed")
     frame:SetOutOfRange(true)
     assert(chrome:GetAlpha() == 0.4 and bar:GetAlpha() == 0.4, "rounded chrome must follow native range dimming")
+    env.profile.swingTimers[entry.key].fontSize = 13
+    ns.SwingTimers.Refresh()
+    frame:SetOutOfRange(true)
+    for _, label in ipairs({ bar.TypeLabel, bar.TimeLabel }) do
+        local r, g, b = label:GetTextColor()
+        local _, size = label:GetFont()
+        assert(r == 1 and g == 0 and b == 0 and size == 13,
+            "font refresh must preserve native out-of-range colors when range state is unchanged")
+    end
     frame:SetIsInEditMode(true)
     assert(chrome:GetAlpha() == 1 and bar:GetAlpha() == 1, "native edit mode must suppress dimming")
     frame:SetIsInEditMode(false)
@@ -74,4 +97,25 @@ for _, entry in ipairs(ns.SwingTimers.entries) do
     assert(chrome._quiBorderR ~= -1 and entry.chrome == chrome, "refresh must reuse and recolor the same shell")
 end
 assert(maskAttachments == 6, "refresh must attach one owner mask to each fill and pip")
+for _, entry in ipairs(ns.SwingTimers.entries) do
+    local mover = assert(movers[entry.key])
+    mover.onOpen()
+    local preview = assert(entry.previewBar)
+    assert(preview:GetParent() == entry.holder and preview:IsShown() and preview.value == 0.6,
+        "QUI preview must draw independently of the native frame")
+    assert(preview._quiRoundedSurface.radius == 3 and preview._quiRoundedSurface.borderPixels == 1,
+        "independent previews must use real rounded one-pixel chrome")
+    assert(preview:GetFrameLevel() > entry.frame:GetFrameLevel()
+        and preview:GetStatusBarTexture().texture == "QUI-flat",
+        "preview fill must use the QUI texture above the native bar")
+    assert(preview.TypeLabel:IsShown() and preview.TimeLabel:IsShown() and not entry.frame.isInEditMode,
+        "preview labels must not require changing native edit mode")
+    mover.onClose()
+    assert(not preview:IsShown() and entry.previewBar == preview,
+        "closing layout must retain a hidden reusable preview")
+    mover.onOpen()
+    assert(entry.previewBar == preview, "reopening layout must reuse its preview surface")
+    mover.onClose()
+end
+assert(maskAttachments == 9, "previews must attach only one additional fill mask per timer")
 print("OK: forever_swing_rounded_surfaces_test")

@@ -11,6 +11,7 @@ local function sink()
     local t = {}
     return setmetatable(t, { __index = function() return function() end end })
 end
+_G.InCombatLockdown = function() return false end
 _G.CreateFrame = function()
     local f = { _scripts = {} }
     function f.SetScript(self, which, fn) self._scripts[which] = fn end

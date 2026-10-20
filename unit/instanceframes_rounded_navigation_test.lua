@@ -1,4 +1,8 @@
 local env = dofile("tests/helpers/character_chrome_harness.lua").Build()
+local combat = false
+_G.InCombatLockdown = function() return combat end
+assert(loadfile("core/uikit.lua"))("QUI", env.ns)
+env.SkinBase = env.ns.SkinBase
 env.profile.general.skinInstanceFrames = true
 env.ns.Helpers.SetFrameBackdropBorderColor = function(frame, ...) frame:SetBackdropBorderColor(...) end
 env.ns.Helpers.SetFrameBackdropColor = function(frame, ...) frame:SetBackdropColor(...) end
@@ -176,8 +180,40 @@ local searchSelect = function() end
 searchRow:SetScript("OnClick", searchSelect)
 function searchPanel.ScrollBox:HasView() return true end
 function searchPanel.ScrollBox:ForEachFrame(fn) fn(searchRow) end
-env.SkinBase.OnAddOnLoaded = function(_, fn) fn() end
+local callbacks = {}
+env.SkinBase.OnAddOnLoaded = function(addon, fn) callbacks[addon] = fn end
+_G.PVEFrame:Hide()
 assert(loadfile(os.getenv("QUI_INSTANCE_SOURCE") or "modules/skinning/frames/instanceframes.lua"))("QUI", env.ns)
+callbacks.Blizzard_GroupFinder()
+callbacks.Blizzard_GroupFinder()
+_G.QUI_RefreshInstanceFramesColors()
+assert(not env.SkinBase.GetBackdrop(_G.PVEFrame), "hidden Group Finder must not initialize chrome on login or refresh")
+assert(not env.SkinBase.IsSkinned(_G.LFGListFrame), "hidden Group Finder must defer its children too")
+local hookCount = #_G.PVEFrame.hooks.OnShow
+env.profile.general.skinInstanceFrames = false
+_G.PVEFrame:Show()
+assert(not env.SkinBase.IsSkinned(_G.PVEFrame), "first-show work must respect a disabled skin setting")
+_G.PVEFrame:Hide()
+env.profile.general.skinInstanceFrames = true
+callbacks.Blizzard_GroupFinder()
+assert(#_G.PVEFrame.hooks.OnShow == hookCount, "repeated addon callbacks must reuse first-show hooks")
+local lateChallenges = _G.ChallengesFrame
+_G.ChallengesFrame = nil
+local latePVP = _G.PVPQueueFrame
+_G.PVPQueueFrame = nil
+combat = true
+_G.PVEFrame:Show()
+assert(env.SkinBase.IsSkinned(_G.PVEFrame), "first opening in combat must initialize Group Finder chrome")
+assert(env.SkinBase.IsSkinned(_G.LFGListFrame), "first opening in combat must initialize currently visible children")
+_G.PVEFrame:Hide()
+_G.ChallengesFrame = lateChallenges
+callbacks.Blizzard_ChallengesUI()
+assert(not env.SkinBase.IsSkinned(lateChallenges), "late hidden addons must wait for another opening")
+_G.PVEFrame:Show()
+assert(env.SkinBase.IsSkinned(lateChallenges), "reopening in combat must catch up a late Challenges addon")
+_G.PVPQueueFrame = latePVP
+callbacks.Blizzard_PVPUI()
+assert(env.SkinBase.IsSkinned(latePVP), "late PvP addons must skin immediately while the parent is shown in combat")
 assert(env.SkinBase.GetBackdrop(_G.PVEFrame)._quiRoundedSurface, "Group Finder shell must render rounded chrome")
 local backdrop = env.SkinBase.GetFrameData(button, "backdrop")
 assert(backdrop._quiRoundedSurface, "Group Finder navigation must render rounded chrome")

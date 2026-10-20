@@ -87,6 +87,7 @@ local ns = {
 }
 
 ns.Helpers = {
+    SafeToNumber = function(value, fallback) return tonumber(value) or fallback or 0 end,
     GetCore = function() return { db = { profile = profile } } end,
     GetCurrentSpecID = function() return nil end,
     GetModuleSettings = function(name, defaults)

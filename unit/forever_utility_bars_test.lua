@@ -8,6 +8,11 @@ local function run(showKeyring)
     world.QUI_RefreshActionBarFade = noop
     world.setfenv = setfenv
     local combat, timers = false, {}
+    local function drainTimers()
+        local pending = timers
+        timers = {}
+        for _, callback in ipairs(pending) do callback() end
+    end
     local visibilityDrivers = {}
     local storeAvailable = true
     local methods = {}
@@ -183,6 +188,7 @@ local function run(showKeyring)
     if showKeyring then
         storeAvailable = false
         world.UpdateMicroButtons()
+        drainTimers()
         assert(not world.StoreMicroButton:IsShown() and world.HelpMicroButton:IsShown(),
             "native runtime Store unavailability must expose Help instead of forcing Store visible")
         assert(world.HelpMicroButton.mouse == false, "Help fallback obeys QUI clickthrough")
@@ -190,6 +196,7 @@ local function run(showKeyring)
         assert(not world.StoreMicroButton:IsShown() and world.HelpMicroButton:IsShown(), "refresh preserves native Store visibility")
         storeAvailable = true
         world.UpdateMicroButtons()
+        drainTimers()
         assert(world.StoreMicroButton:IsShown() and not world.HelpMicroButton:IsShown(), "native Store recovery hides Help fallback")
     end
     local context = frame("NativeContext", world.UIParent)

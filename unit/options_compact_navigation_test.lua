@@ -181,9 +181,9 @@ assert(flyout:IsShown() and selections == 0 and builds == 0, "hover reveals page
 assert(flyout._title.textColor[1] == 1 and flyout._title.textColor[2] == 1 and flyout._title.textColor[3] == 1,
     "flyout titles explicitly override the native yellow font template with neutral text")
 assert(flyout._hint.textColor[1] == gui.Colors.textDim[1], "flyout hints retain their intentional dim color")
-assert(#flyout._pages == 5 and flyout._pages[4].key == "text" and flyout._pages[5].disabled,
+assert(#flyout._pages == 4 and flyout._pages[3].key == "text" and flyout._pages[4].disabled,
     "surface pages retain exact keys and disabled state")
-flyout._buttons[5]:Fire("OnClick")
+flyout._buttons[4]:Fire("OnClick")
 assert(selections == 0 and callbacks == 0 and flyout:IsShown(), "disabled pages cannot invoke navigation callbacks")
 tile.over = false
 tile:Fire("OnLeave")
@@ -211,8 +211,8 @@ tile:Fire("OnLeave")
 Advance(0.25)
 assert(not flyout:IsShown(), "leaving before the delay cancels hover opening")
 assert(gui:HandleNavigationKey(frame, "RIGHT") and flyout._keyboard, "Right opens keyboard navigation")
-assert(gui:HandleNavigationKey(frame, "UP") and flyout._keyboardIndex == 3, "Up selects the preceding surface page")
-assert(gui:HandleNavigationKey(frame, "DOWN") and flyout._keyboardIndex == 4, "Down returns to the exact text page")
+assert(gui:HandleNavigationKey(frame, "UP") and flyout._keyboardIndex == 2, "Up selects the preceding surface page")
+assert(gui:HandleNavigationKey(frame, "DOWN") and flyout._keyboardIndex == 3, "Down returns to the exact text page")
 assert(gui:HandleNavigationKey(frame, "ENTER") and selectedKey == "text" and selections == 1,
     "Enter selects the exact surface key on the owning subpage")
 assert(tile._activeSubPageIndex == 2 and not flyout:IsShown(), "selection keeps the outer page and closes the list")
@@ -349,9 +349,13 @@ local sectionTile = Node("Button", frame)
 sectionTile.config = { subPages = { { name = "General", sectionNav = true }, { name = "Other" } } }
 sectionTile._activeSubPageIndex = 1
 local heading = Node("Frame")
-sectionTile._subPageBodies = { { _contentBody = { _sections = { { id = "details", label = "Details", frame = heading } } } } }
+sectionTile._subPageBodies = { { _contentBody = { _sections = {
+    { id = "details", label = "Details", frame = heading },
+    { id = "second", label = "Second", frame = Node("Frame") },
+    { id = "third", label = "Third", frame = Node("Frame") },
+} } } }
 local sectionPages = gui:GetTileNavigationPages(sectionTile)
-assert(#sectionPages == 2 and sectionPages[1].label == "Details" and sectionPages[1].section == heading and sectionPages[2].label == "Other",
+assert(#sectionPages == 4 and sectionPages[1].label == "Details" and sectionPages[1].section == heading and sectionPages[4].label == "Other",
     "section links must replace the parent and omit its prefix")
 sectionTile._activeSubPageIndex = 2
 local otherPages = gui:GetTileNavigationPages(sectionTile)
@@ -456,6 +460,7 @@ local secondHeading = Node("Frame")
 heading.top, secondHeading.top = 790, 600
 sectionTile._subPageBodies[1]._scrollFrame = viewport
 sectionTile._subPageBodies[1]._contentBody._sections[2] = { id = "second", label = "Second", frame = secondHeading }
+sectionTile._subPageBodies[1]._contentBody._sections[3].frame.top = 300
 local grouped = gui:GetTileNavigationPages(sectionTile)
 assert(grouped[1].group == "General" and grouped[2].group == "General", "section destinations must retain their originating page group")
 assert(grouped[1].active and not grouped[2].active, "only the section at the viewport top must be active")
@@ -531,7 +536,8 @@ viewport.scrollRange = 600
 fourthHeading:Hide()
 grouped = At(600)
 assert(grouped[3].active and grouped[4].label == "Other", "scroll progress must ignore hidden sections and other subpages")
-sections[3], sections[4] = nil, nil
+sections[4] = nil
+thirdHeading.top = 300
 viewport.scrollRange = 0
 viewport.scroll = 0
 heading.top, secondHeading.top = 790, 500
@@ -550,7 +556,7 @@ assert(frame._pageFlyout._headings[1].fontPath:find("Poppins-Bold.ttf", 1, true)
 
 -- Unbuilt sections and nested tabs must be available without renderer work.
 ns.QUI_OptionsNavigationCatalog = {
-    cold = { sections = { { id = "Objective Tracker", label = "Objective Tracker" } } },
+    cold = { sections = { { id = "Objective Tracker", label = "Objective Tracker" }, { id = "Frames", label = "Frames" }, { id = "Menus", label = "Menus" } } },
     surface = { tabs = { { key = "general", label = "General" }, { key = "text", label = "Text" } } },
 }
 local cold = frame._tiles[11]
@@ -558,7 +564,7 @@ cold._subPageBodies, cold._surfacePagesByPage = nil, nil
 cold._navigationCatalog = nil
 cold.config.subPages = { { name = "Skinning", featureId = "cold", sectionNav = true } }
 local pages = gui:GetTileNavigationPages(cold)
-assert(#pages == 1 and pages[1].sectionId == "Objective Tracker" and builds == 0)
+assert(#pages == 3 and pages[1].sectionId == "Objective Tracker" and builds == 0)
 cold._navigationCatalog = nil
 cold.config.subPages = { { name = "Frame", featureId = "surface" } }
 pages = gui:GetTileNavigationPages(cold)
@@ -573,6 +579,70 @@ end
 gui:OpenNavigationFlyout(frame, cold, true)
 frame._pageFlyout._buttons[2]:Fire("OnClick")
 assert(selectedCold == "text", "cold nested page must resolve the newly registered native descriptor")
+local standard = { config = { subPages = {
+    { name = "General", featureId = "standardGeneral" },
+    { name = "Frames", featureId = "standardFrames" },
+} } }
+ns.QUI_OptionsNavigationCatalog.standardGeneral = {
+    sections = { { id = "Size", label = "Size" }, { id = "Colors", label = "Colors" }, { id = "Text", label = "Text" } }, tabs = {},
+}
+ns.QUI_OptionsNavigationCatalog.standardFrames = {
+    sections = {}, tabs = {
+        { key = "health", label = "Health", sections = { { id = "Absorbs", label = "Absorbs" } } },
+        { key = "text", label = "Text", sections = { { id = "Names", label = "Names" }, { id = "Health", label = "Health" }, { id = "Power", label = "Power" } } },
+    },
+}
+local standardPages = gui:GetTileNavigationPages(standard)
+assert(standardPages[1].sectionId == "Size" and standardPages[1].group == "General",
+    "ordinary settings pages must expose section shortcuts without per-page opt-in")
+local names
+for _, page in ipairs(standardPages) do
+    if page.sectionId == "Names" then names = page end
+end
+assert(names and names.key == "text" and names.pageIndex == 2 and names.group == "Frames / Text",
+    "unbuilt surface pages must expose correctly grouped section shortcuts without building editors")
+standard.config.subPages[1].sectionNav = false
+assert(gui:GetTileNavigationPages(standard)[1].sectionId == nil,
+    "an explicit section navigation opt-out must remain available")
+
+local sliced = { config = { featureId = "standardGeneral", searchSections = { "Colors" } } }
+local slicedPages = gui:GetTileNavigationPages(sliced)
+assert(#slicedPages == 0,
+    "a one-section provider slice must not advertise a submenu or another page's sections")
+local context = { providerKey = "partyFrames" }
+local contextualFeature = { getNavigationContext = function() return context end }
+ns.Settings = ns.Settings or {}
+ns.Settings.Registry = ns.Settings.Registry or { GetFeature = function() end }
+local getFeature = ns.Settings.Registry.GetFeature
+ns.Settings.Registry.GetFeature = function(self, id)
+    if id == "contextualFrames" then return contextualFeature end
+    return getFeature(self, id)
+end
+ns.QUI_OptionsNavigationCatalog.contextualFrames = { tabs = {
+    { key = "layout", label = "Layout", sections = {
+        { id = "Dimensions", label = "Dimensions", contexts = { {} } },
+        { id = "Spacing", label = "Spacing", contexts = { {} } },
+        { id = "Growth", label = "Growth", contexts = { {} } },
+        { id = "Spotlight", label = "Spotlight", contexts = { { providerKey = "raidFrames" } } },
+    } },
+} }
+local contextual = { config = { featureId = "contextualFrames" } }
+local contextPages = gui:GetTileNavigationPages(contextual)
+assert(#contextPages == 3 and contextPages[1].sectionId == "Dimensions",
+    "unopened Party settings must not advertise a raid-only Spotlight destination")
+context.providerKey = "raidFrames"
+contextPages = gui:GetTileNavigationPages(contextual)
+assert(#contextPages == 4 and contextPages[4].sectionId == "Spotlight" and not contextual._built,
+    "cold shortcuts must follow the selected context without constructing settings pages")
+contextualFeature.getNavigationTabs = function() return {} end
+assert(#gui:GetTileNavigationPages(contextual) == 0,
+    "a provider with no available tabs must not expose unavailable cold destinations")
+contextualFeature.getNavigationTabs = function()
+    return { { key = "layout", label = "Layout", isSectionAvailable = function(id) return id ~= "Spotlight" end } }
+end
+assert(#gui:GetTileNavigationPages(contextual) == 3,
+    "provider-specific section availability must filter the cold catalog")
+
 print("OK: options_compact_navigation_test")
 
 -- The parent may report zero while the resize path clears/rebuilds anchors.
@@ -589,3 +659,177 @@ assert(resizeDock._scroll:GetHeight()==387, "viewport must follow shrinking dock
 resizeDock:SetHeight(760)
 assert(resizeDock._scroll:GetHeight()==697, "viewport must follow growing dock height without rebuilding rows")
 print("options navigation resize viewport: ok")
+
+for count = 0, 3 do
+    local small = { config = { subPages = {
+        { name = "Small Page", featureId = "smallPage" }, { name = "Other" },
+    } }, _isActive = true, _activeSubPageIndex = 1 }
+    local catalog, live = {}, {}
+    for index = 1, count do
+        catalog[index] = { id = "section" .. index, label = "Section " .. index }
+        live[index] = { id = catalog[index].id, label = catalog[index].label, frame = Node("Frame") }
+    end
+    ns.QUI_OptionsNavigationCatalog.smallPage = { sections = catalog }
+    local baseConfig = small.config
+    for _, built in ipairs({ false, true }) do
+        small.config, small._surfacePagesByPage = baseConfig, nil
+        small._subPageBodies = built and { { _contentBody = { _sections = live } } } or nil
+        local pages = gui:GetTileNavigationPages(small)
+        if count <= 2 then
+            assert(#pages == 2 and pages[1].label == "Small Page" and pages[1].active
+                and not pages[1].group and not pages[1].sectionId,
+                "pages with at most two sections must stay single clickable destinations, cold and built")
+        else
+            assert(#pages == 4 and pages[1].sectionId == "section1" and pages[1].group == "Small Page",
+                "pages with three sections must retain grouped shortcuts, cold and built")
+        end
+        small.config = { featureId = "smallPage" }
+        pages = gui:GetTileNavigationPages(small)
+        assert(#pages == (count < 3 and 0 or 3),
+            "a single page with at most two sections must not create a section submenu")
+        small.config = { subPages = { baseConfig.subPages[1] } }
+        pages = gui:GetTileNavigationPages(small)
+        assert(#pages == (count < 3 and 1 or 3),
+            "a single configured subpage must obey the same section threshold")
+        local tab = { key = "settings", label = "Settings", disabled = true, sections = catalog }
+        ns.QUI_OptionsNavigationCatalog.smallSurface = { tabs = { tab } }
+        small.config = { featureId = "smallSurface" }
+        small._navigationCatalog = nil
+        small._surfacePagesByPage = built and { {
+            getTabs = function() return { tab } end,
+            getActiveTab = function() return "settings" end,
+            getPage = function() return small._subPageBodies[1] end,
+        } } or nil
+        pages = gui:GetTileNavigationPages(small)
+        assert(#pages == (count < 3 and 1 or 3) and pages[1].key == "settings" and pages[1].disabled,
+            "compact surface destinations must retain their exact key and disabled state")
+        assert((pages[1].sectionId ~= nil) == (count >= 3),
+            "surface section links require three visible destinations")
+        if count == 3 then
+            if built then live[3].frame:Hide()
+            else catalog[3].contexts = { { providerKey = "raidFrames" } } end
+            pages = gui:GetTileNavigationPages(small)
+            assert(#pages == 1 and not pages[1].sectionId,
+                "hidden or unavailable sections must not force an unnecessary submenu")
+            live[3].frame:Show()
+            catalog[3].contexts = nil
+        end
+        small._navigationCatalog = nil
+    end
+end
+
+local configuredSections = {
+    { id = "Panel", label = "Panel" }, { id = "Slot", label = "Slot" },
+    { id = "Time Options", label = "Time Options" },
+}
+local configuredFeature = { getNavigationSections = function() return configuredSections end }
+local priorGetFeature = ns.Settings.Registry.GetFeature
+ns.Settings.Registry.GetFeature = function(self, id)
+    if id == "configured" then return configuredFeature end
+    return priorGetFeature(self, id)
+end
+ns.QUI_OptionsNavigationCatalog.configured = { sections = {
+    { id = "Outdated", label = "Outdated" },
+} }
+local configured = { config = { featureId = "configured" } }
+local configuredPages = gui:GetTileNavigationPages(configured)
+assert(#configuredPages == 3 and configuredPages[3].sectionId == "Time Options" and builds == 0,
+    "cold section links must use current provider metadata without constructing its editor")
+configuredSections[3] = { id = "Spec Display", label = "Spec Display" }
+configuredPages = gui:GetTileNavigationPages(configured)
+assert(#configuredPages == 3 and configuredPages[3].sectionId == "Spec Display",
+    "changing a selected panel or slot must refresh cold section links without clearing the static catalog")
+configured.config.searchSections = { "Panel", "Spec Display" }
+assert(#gui:GetTileNavigationPages(configured) == 0,
+    "provider section slices and the three-section minimum must apply to dynamic cold metadata")
+configured.config.searchSections = nil
+configuredSections = {}
+assert(#gui:GetTileNavigationPages(configured) == 0,
+    "an explicitly empty current section list must not fall back to stale generated entries")
+configuredSections = nil
+assert(#gui:GetTileNavigationPages(configured) == 0,
+    "an unavailable metadata provider must fall back to the existing one-section catalog")
+configuredSections = { { id = "Panel", label = "Panel" }, { id = "Slot", label = "Slot" }, { id = "Time Options", label = "Time Options" } }
+configured._subPageBodies = {{ _contentBody = { _sections = {
+    { id = "Live Panel", label = "Live Panel", frame = Node("Frame") },
+    { id = "Live Slot", label = "Live Slot", frame = Node("Frame") },
+    { id = "Live Options", label = "Live Options", frame = Node("Frame") },
+} } }}
+assert(gui:GetTileNavigationPages(configured)[3].sectionId == "Live Options",
+    "mounted section frames must remain authoritative for actual jump destinations")
+print("options dynamic cold navigation: ok")
+
+local revealTile = Node("Button", frame)
+revealTile.index = #frame._tiles + 1
+revealTile.id, revealTile.config = "reveal_navigation", { name = "Reveal Navigation", subPages = {} }
+revealTile._isActive, revealTile._activeSubPageIndex = true, 4
+revealTile._subPageBodies = {}
+for pageIndex = 1, 4 do
+    revealTile.config.subPages[pageIndex] = { name = "Page " .. pageIndex }
+    local pageScroll = Node("ScrollFrame")
+    pageScroll.scrollRange = 900
+    local sections = {}
+    for sectionIndex = 1, 3 do
+        local section = Node("Frame")
+        section.top = 800 - (sectionIndex - 1) * 300
+        sections[sectionIndex] = { id = "Section " .. sectionIndex, frame = section }
+    end
+    revealTile._subPageBodies[pageIndex] = {
+        _scrollFrame = pageScroll, _contentBody = { _sections = sections },
+    }
+end
+frame._tiles[revealTile.index] = revealTile
+frame._lastTileIndex = revealTile.index
+frame:SetWidth(1200)
+QUI.db.profile.general.optionsNavigationDocked = true
+dock:SetHeight(300)
+dock._keyboard = false
+dock._scroll:SetVerticalScroll(0)
+local revealWrites, scrollbarNotifications = 0, 0
+local revealController = { target = 9 }
+function revealController:ScrollTo(offset, instant)
+    assert(instant, "explicit navigation must settle the page-list scroll immediately")
+    self.target = nil
+    revealWrites = revealWrites + 1
+    dock._scroll:SetVerticalScroll(offset)
+    scrollbarNotifications = scrollbarNotifications + 1
+end
+ns.UIKit.GetSmoothScroll = function(scrollFrame)
+    if scrollFrame == dock._scroll then return revealController end
+end
+local function AssertRowVisible(index, message)
+    local row = dock._buttons[index]
+    local offset, viewport = dock._scroll:GetVerticalScroll(), dock._scroll:GetHeight()
+    assert(row._navTop >= offset and row._navTop + row:GetHeight() <= offset + viewport, message)
+end
+gui:RefreshNavigationDock(frame, true)
+assert(dock._buttons[10]._page.active and not dock._keyboard,
+    "explicit navigation must retain mouse mode and select the destination row")
+AssertRowVisible(10, "the dock must reveal an offscreen destination after a programmatic page jump")
+assert(revealWrites > 0 and not revealController.target and scrollbarNotifications == revealWrites,
+    "page-list jumps must use the existing scroll controller and notify its listeners")
+dock._scroll:SetVerticalScroll(0)
+local writesBefore = revealWrites
+gui:RefreshNavigationDock(frame)
+dock._buttons[12]:Fire("OnEnter")
+dock._buttons[12]:Fire("OnLeave")
+gui:RefreshNavigationSectionHighlight(revealTile)
+assert(dock._scroll:GetVerticalScroll() == 0 and revealWrites == writesBefore,
+    "ordinary refresh and hover must preserve manual page-list scrolling")
+gui:RefreshNavigationDock(frame, true)
+AssertRowVisible(10, "reopening the same destination must reveal it after the list was manually scrolled away")
+revealTile._activeSubPageIndex = 1
+gui:RefreshNavigationDock(frame, true)
+AssertRowVisible(1, "an explicit jump must also reveal a destination above the current viewport")
+revealTile._activeSubPageIndex = 4
+gui:RefreshNavigationDock(frame, true)
+local delayedPage = revealTile._subPageBodies[4]
+delayedPage._scrollFrame:SetVerticalScroll(900)
+for index, section in ipairs(delayedPage._contentBody._sections) do
+    section.frame.top = 800 - (index - 1) * 20
+end
+dock._scroll:SetVerticalScroll(0)
+gui:RefreshNavigationSectionHighlight(revealTile, true)
+assert(dock._buttons[12]._page.active, "settled content scrolling must identify the final section destination")
+AssertRowVisible(12, "the page list must reveal the destination section after its delayed content jump")
+print("options explicit navigation destination reveal: ok")

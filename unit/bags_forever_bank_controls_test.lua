@@ -129,15 +129,18 @@ Bags.Chassis = {
 }
 Bags.OwnerSelect = { Attach = function() local f = node(); f.Update = function() end; return f end }
 local gridButtons = {}
+local deferLiveButtons = false
+local dressed = 0
 Bags.ItemButtons = {
     AddSlotBackground = function(button) button.slotBackground = true end,
     GetQualityColor = function(quality) return quality / 10, 0.4, 0.8 end,
     CreateHolder = function(parent, bagID) local f = node(parent); f.bagID = bagID; return f end,
     CreateLive = function(parent)
+        if deferLiveButtons then return nil end
         local f = node(parent); gridButtons[#gridButtons + 1] = f; return f
     end,
     CreateCached = function(parent) return node(parent) end,
-    Dress = function() end, DressCached = function() end,
+    Dress = function() dressed = dressed + 1 end, DressCached = function() end,
     SetFocusFlash = function() end, SetBagHighlight = function() end,
 }
 assert(loadfile("QUI_Bags/bags/views/grid_layout.lua"))("QUI", ns)
@@ -232,4 +235,18 @@ unavailableBank = Enum.BankType.Account
 bank.Refresh()
 if forever then assert(win._warbandBankBtn.enabled and win._warbandBankBtn.alpha == 1,
     "cached bank browsing must remain available without live service access") end
+unavailableBank = nil
+bank.ShowLive()
+win._warbandBankBtn.scripts.OnClick()
+local before = #gridButtons
+ns.Storage.Store.GetWarband().tabs[15].size = 11
+deferLiveButtons = true
+dressed = 0
+bank.Refresh()
+assert(#gridButtons == before and #visibleGrid() == 10 and dressed == 10,
+    "bank refresh must skip deferred slots while continuing to dress existing live slots")
+deferLiveButtons = false
+bank.Refresh()
+assert(#gridButtons == before + 1 and #visibleGrid() == 11,
+    "bank refresh must create and show the deferred slot after combat")
 print("OK: Forever bank native bag controls, purchase template, pagination, cached view")

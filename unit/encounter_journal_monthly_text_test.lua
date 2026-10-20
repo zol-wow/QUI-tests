@@ -88,6 +88,7 @@ local monthlyFrame = {
 
 _G.EncounterJournal = {
     name = "EncounterJournal",
+    IsShown = function() return true end,
     MonthlyActivitiesFrame = monthlyFrame,
     encounter = {
         infoFrame = { name = "infoFrame" },
@@ -118,6 +119,10 @@ local ns = {
 }
 
 ns.SkinBase = {
+    DeferUntilShown = function(frame)
+        assert(frame:IsShown(), "monthly text fixture must start visible")
+        return false
+    end,
     ClampTextureHidden = function() end,
     SkinButton = function() end,
     ApplyChromeBackdrop = function() end,

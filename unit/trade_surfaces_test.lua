@@ -17,6 +17,9 @@ for _, side in ipairs({"Player", "Recipient"}) do
         local prefix = "Trade" .. side .. "Item" .. index
         local row = env.NewFrame("Frame", prefix, frame)
         _G[prefix] = row
+        -- Native TradeItemTemplate geometry: 153 wide, with asymmetric columns.
+        row:SetSize(153, 37)
+        row:SetPoint("TOPLEFT", frame, "TOPLEFT", side == "Player" and 14 or 182, -89 - (index - 1) * 44)
         row.SlotTexture = row:CreateTexture()
         _G[prefix .. "NameFrame"] = row:CreateTexture()
         row.enchantGlyph = row:CreateTexture()
@@ -98,13 +101,27 @@ skin.OnAddOnLoaded = function(name, fn) if name == "Blizzard_UIPanels_Game" then
 ns.Registry = {Register = function(_, key, definition) if key == "skinTrade" then refresh = definition.refresh end end}
 assert(loadfile(arg[1] or "modules/skinning/frames/misc_frames.lua"))("QUI", ns)
 callback()
-assert(_G.TradeRecipientMoneyBg:GetAlpha() == 1 and _G.TradeRecipientMoneyBg.art:GetAlpha() == 0 and skin.GetBackdrop(_G.TradeRecipientMoneyBg)._quiRoundedSurface.radius == 4,
-    "native gold money inset must be replaced with rounded chrome")
+assert(_G.TradeRecipientMoneyBg:GetAlpha() == 0 and not skin.GetBackdrop(_G.TradeRecipientMoneyBg),
+    "recipient money must have one inset border, without a second nested panel")
+overlay.portrait:SetAlpha(1)
+overlay.portraitFrame:SetAlpha(1)
+assert(overlay.portrait:GetAlpha() == 0 and overlay.portraitFrame:GetAlpha() == 0,
+    "decorative recipient portrait and metal must stay hidden after native refresh")
 for _, side in ipairs({"Player", "Recipient"}) do
     for index = 1, 7 do
         if side == "Player" then _G.TradeFrame_UpdatePlayerItem(index) else _G.TradeFrame_UpdateTargetItem(index) end
         local prefix = "Trade" .. side .. "Item" .. index
         local row, button = _G[prefix], _G[prefix .. "ItemButton"]
+        local inset = _G["Trade" .. side .. (index == 7 and "EnchantInset" or "ItemsInset")]
+        local p, relative, rp, x, y = row:GetPoint(1)
+        assert(p == "TOPLEFT" and relative == inset and rp == "TOPLEFT" and x == 6
+            and y == -(index == 7 and 20 or 6 + (index - 1) * 44),
+            "rows must use equal inset-relative padding, including the enchant row")
+        local right, rightRelative, rightPoint, rightX = row:GetPoint(2)
+        assert(right == "TOPRIGHT" and rightRelative == inset and rightPoint == "TOPRIGHT" and rightX == -6,
+            "both row borders must fit inside their column instead of bleeding past the inset")
+        local _, labelRelative = _G[prefix .. "Name"]:GetPoint(1)
+        assert(labelRelative == button, "item text must start after its icon")
         assert(row.SlotTexture:GetAlpha() == 0 and row.enchantGlyph:GetAlpha() == 1, "decorative row art must be suppressed while semantic glyphs survive")
         assert(skin.GetBackdrop(button)._quiRoundedSurface.radius == 4 and button.icon.texture == 100 + index
             and button.count == index and button.nativeQuality == 3, "all fourteen item slots must retain native item art/count/quality")
@@ -120,6 +137,16 @@ assert(skin.GetBackdrop(_G.TradeRecipientItem1)._quiBorderR == 0.9 and target.ic
 items.Player[7].enchantment = "Native enchantment"
 _G.TradeFrame_UpdatePlayerItem(7)
 assert(_G.TradePlayerItem7Name:GetText() == "|cff00ff00Native enchantment|r", "native enchantment markup must survive")
+for _, side in ipairs({"Player", "Recipient"}) do
+    for _, enchant in ipairs({false, true}) do
+        local highlight = _G["TradeHighlight" .. side .. (enchant and "Enchant" or "")]
+        local inset = _G["Trade" .. side .. (enchant and "EnchantInset" or "ItemsInset")]
+        local _, relative, _, x, y = highlight:GetPoint(1)
+        local _, relativeRight, _, rx, ry = highlight:GetPoint(2)
+        assert(relative == inset and relativeRight == inset and x == 1 and y == -1 and rx == -1 and ry == 1,
+            "accepted-state outline must follow the full panel with equal clearance")
+    end
+end
 for _, states in ipairs({{1, 0}, {0, 1}, {1, 1}, {0, 0}}) do
     _G.TradeFrame_SetAcceptState(states[1], states[2])
     assert(_G.TradeHighlightPlayer:IsShown() == (states[1] == 1)
@@ -139,4 +166,42 @@ border._quiBorderR = -1
 refresh()
 assert(border._quiBorderR == 0.6 and skin.GetBackdrop(target) == border and maskCount == 14,
     "theme refresh must retain quality and reuse every icon mask")
+-- Exercise the native replacement/removal path, rather than styling only
+-- populated fixtures. A red unusable recipient row must not poison a reused slot.
+local sr, sg, sb = skin.GetWindowColors()
+for _, side in ipairs({"Player", "Recipient"}) do
+    local update = side == "Player" and _G.TradeFrame_UpdatePlayerItem or _G.TradeFrame_UpdateTargetItem
+    for index = 1, 7 do
+        local prefix = "Trade" .. side .. "Item" .. index
+        local row, button = _G[prefix], _G[prefix .. "ItemButton"]
+        local rowBackdrop, iconBackdrop = skin.GetBackdrop(row), skin.GetBackdrop(button)
+        items[side][index] = {count = 0, itemID = 0}
+        update(index)
+        assert(not button.icon.texture and button.count == 0 and not button.nativeQuality,
+            "native removal must clear icon, count and quality")
+        assert(not _G[prefix .. "Name"]:GetText() or _G[prefix .. "Name"]:GetText() == "",
+            "removal must clear ordinary and enchantment captions")
+        assert(rowBackdrop._quiBorderR == sr and rowBackdrop._quiBorderG == sg and rowBackdrop._quiBorderB == sb
+            and iconBackdrop._quiBorderR == sr and iconBackdrop._quiBorderG == sg and iconBackdrop._quiBorderB == sb,
+            "empty slots must lose stale unusable and item-quality borders")
+        if side == "Recipient" then
+            assert(button.icon.vertex[1] == 1 and button.icon.vertex[2] == 1 and button.icon.vertex[3] == 1,
+                "native removal must clear unusable icon tint")
+        end
+        items[side][index] = {name = "Replacement", icon = 900 + index, count = 2, quality = 4, usable = true, itemID = 900 + index}
+        update(index)
+        assert(button.icon.texture == 900 + index and button.count == 2 and button.nativeQuality == 4
+            and iconBackdrop._quiBorderR == 0.6 and skin.GetBackdrop(button) == iconBackdrop
+            and skin.GetBackdrop(row) == rowBackdrop,
+            "replacement must refresh native content and quality without reallocating chrome")
+        assert(button:GetScript("OnClick") == button.nativeClick and button:GetScript("OnReceiveDrag") == button.nativeDrag,
+            "native interaction ownership must survive empty/repopulated reuse")
+    end
+end
+refresh()
+assert(maskCount == 14, "empty/repopulated reuse must not attach extra icon masks")
+_G.TradeFrame_SetAcceptState(0, 0)
+assert(not _G.TradeHighlightPlayer:IsShown() and not _G.TradeHighlightRecipient:IsShown()
+    and not _G.TradeHighlightPlayerEnchant:IsShown() and not _G.TradeHighlightRecipientEnchant:IsShown()
+    and action:IsEnabled(), "reset must clear all four accepted-state panels and reenable native action")
 print("OK: trade_surfaces_test")

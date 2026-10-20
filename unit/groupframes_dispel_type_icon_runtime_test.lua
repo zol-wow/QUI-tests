@@ -114,7 +114,15 @@ assert(not fnSource:find("IsSecretValue(color)", 1, true),
 assert(source:find('scope == "ALL_TYPED"', 1, true)
     and source:find('"typedDebuffOrder", "typedDebuffs"', 1, true),
     "all-typed scope selects the dedicated awareness cache")
-assert(source:find("if glowOn and playerInstID then", 1, true),
-    "cleanse glow remains tied to player-actionable membership")
+C_UnitAuras.GetAuraDataByAuraInstanceID = function() return {} end
+local glowCache = {
+    playerDispellableOrder = {11}, playerDispellable = {[11] = true},
+    typedDebuffOrder = {22, 11}, typedDebuffs = {[11] = true, [22] = true},
+    debuffsByID = {[11] = {dispelName = "Magic"}, [22] = {dispelName = "Bleed"}},
+}
+local glowDefault = dispel.SelectGlowAura(glowCache, "party1", {})
+local glowTyped = dispel.SelectGlowAura(glowCache, "party1", {scope = "ALL_TYPED"})
+assert(glowDefault == 11 and glowTyped == 22,
+    "glow defaults to actionable membership and opts into independent all-typed awareness")
 
 print("OK: groupframes_dispel_type_icon_runtime_test")

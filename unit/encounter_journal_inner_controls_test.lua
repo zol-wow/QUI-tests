@@ -1,4 +1,7 @@
 local env = dofile("tests/helpers/character_chrome_harness.lua").Build()
+_G.InCombatLockdown = function() return true end
+assert(loadfile("core/uikit.lua"))("QUI", env.ns)
+env.SkinBase = env.ns.SkinBase
 env.profile.general.skinEncounterJournal = true
 local frame = env.NewFrame("Frame")
 _G.EncounterJournal = frame

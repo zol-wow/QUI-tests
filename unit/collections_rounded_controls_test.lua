@@ -173,6 +173,18 @@ pet.PetCard.xpBar = NewPetBar(pet.PetCard, { .2, .6, 1, 1 })
 for i = 1, 3 do
     local slot = env.NewFrame("Button", nil, pet)
     pet.Loadout["Pet" .. i] = slot
+    slot.helpFrame = env.NewFrame("Frame", nil, slot)
+    slot.helpFrame.plate = slot.helpFrame:CreateTexture()
+    slot.helpFrame.plate:SetAtlas("PetJournal-BattleSlot-Locked")
+    function slot.helpFrame.plate:GetAtlas() return self.atlas end
+    slot.helpFrame.text = slot.helpFrame:CreateFontString()
+    slot.helpFrame.text:SetText("Native locked-slot help " .. i)
+    slot.requirement = env.NewFrame("Frame", nil, slot)
+    slot.requirement.str = slot.requirement:CreateFontString()
+    slot.requirement.str:SetText("|Hachievement:123|h[Native requirement]|h")
+    slot.requirement.achievementID = 123
+    slot.requirement.nativeEnter = function() end
+    slot.requirement:SetScript("OnEnter", slot.requirement.nativeEnter)
     slot.qualityBorder = slot:CreateTexture()
     slot.qualityBorder:SetVertexColor(.1, .4, 1, 1)
     slot.xpBar = NewPetBar(slot, { .2, .6, 1, 1 })
@@ -360,3 +372,24 @@ selector.BgTiled:SetAlpha(1)
 selector:Fire("OnShow")
 assert(selector.BgEnd:GetAlpha() == 0 and selector.BgTiled:GetAlpha() == 0, "reopened flyout must not restore native decoration")
 print("OK: collections_pet_ability_selector_test")
+
+for i = 1, 3 do
+    local slot = pet.Loadout["Pet" .. i]
+    local help = slot.helpFrame
+    assert(help.plate:GetAlpha() == 0, "locked loadout must hide the illustrated Blizzard help plate")
+    help.plate:SetAlpha(1)
+    assert(help.plate:GetAlpha() == 0, "native refresh must not restore locked-slot decoration")
+    local lock = env.SkinBase.GetFrameData(help, "qPetLockedIcon")
+    assert(lock and lock:GetParent() == help and lock.texture == "Interface\\PetBattles\\PetBattle-LockIcon",
+        "a standalone lock must preserve the meaning of the removed plate")
+    assert(help.text:GetText() == "Native locked-slot help " .. i, "native unlock-help text must survive")
+    assert(slot.requirement.str:GetText() == "|Hachievement:123|h[Native requirement]|h"
+        and slot.requirement.achievementID == 123
+        and slot.requirement:GetScript("OnEnter") == slot.requirement.nativeEnter,
+        "native requirement links, identifiers and tooltip behavior must survive")
+    local textures = {help:GetRegions()}
+    _G.CollectionsJournal:Fire("OnShow")
+    assert(env.SkinBase.GetFrameData(help, "qPetLockedIcon") == lock and #{help:GetRegions()} == #textures,
+        "reopening must reuse the lock texture")
+end
+print("OK: collections_locked_loadout_test")

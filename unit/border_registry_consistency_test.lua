@@ -38,7 +38,7 @@ local EXPECTED_KEYS = {
     "combatTimer", "brezCounter", "actionTracker", "actionTrackerIcon",
     "rotationAssist", "cdmContainers", "cdmBuffContainers", "mplusTimer",
     "readyCheck", "alerts", "chat", "tooltip", "damageMeter", "unitFrame",
-    "resourceBarPrimary", "resourceBarSecondary", "lustTimer", "objectiveTracker",
+    "resourceBarPrimary", "resourceBarSecondary", "lustTimer", "objectiveTracker", "statusTrackingBars",
 }
 local expectedLookup = {}
 for _, k in ipairs(EXPECTED_KEYS) do expectedLookup[k] = true end
@@ -69,6 +69,7 @@ local function listModuleLuaFiles()
         "modules/qol/crosshair.lua",
         "modules/qol/skyriding.lua",
         "modules/qol/xptracker.lua",
+        "modules/skinning/frames/statustracking.lua",
         "modules/skinning/gameplay/mplus_timer.lua",
         "modules/skinning/gameplay/objectivetracker.lua",
         "modules/skinning/notifications/alerts.lua",

@@ -1,3 +1,4 @@
+local env = dofile("tests/helpers/character_chrome_harness.lua").Build()
 local callbacks = {}
 local frameData = setmetatable({}, { __mode = "k" })
 local skinned = setmetatable({}, { __mode = "k" })
@@ -56,6 +57,7 @@ local ns = {
 }
 
 ns.SkinBase = {
+    DeferUntilShown = env.SkinBase.DeferUntilShown,
     GetBackdrop = function(frame) return frame.backdrop end,
     GetWindowColors = function() return 1, 1, 1, 1, 0.1, 0.1, 0.1, 1 end,
     CreateBackdrop = function(frame) frame.roundedBackdrop = true end,
@@ -136,7 +138,10 @@ _G.WhoFrame = NewList()
 _G.WhoFrame.WhoFrameListInset = {}
 local contactTabs = { {}, {}, {} }
 _G.FriendsTabHeader = { TabSystem = { tabs = contactTabs } }
-_G.FriendsFrame = { IgnoreListWindow = NewList(), FriendsTabHeader = _G.FriendsTabHeader }
+_G.FriendsFrame = env.NewFrame("Frame")
+_G.FriendsFrame.IgnoreListWindow = NewList()
+_G.FriendsFrame.FriendsTabHeader = _G.FriendsTabHeader
+_G.FriendsFrame:Hide()
 _G.FriendsFrame.TopTileStreaks = {}
 _G.FriendsFrameBg = {}
 _G.FriendsFrame.Inset = { Bg = {} }
@@ -190,6 +195,10 @@ for _, addon in ipairs({
 end
 
 callbacks.Blizzard_FriendsFrame()
+callbacks.Blizzard_QuickJoin()
+assert(not calls.windows[_G.FriendsFrame] and not calls.scrollBars[_G.FriendsListFrame.ScrollBar],
+    "hidden Friends must defer shell and contents across repeated addon callbacks")
+_G.FriendsFrame:Show()
 
 assert(calls.windows[_G.FriendsFrame] == 1, "legacy FriendsFrame shell must use QUI chrome")
 assert(calls.windows[broadcast] == 1 and calls.editBoxes[broadcast.EditBox] == 1,
@@ -260,9 +269,12 @@ assert(legacyAllText.point[1] == "LEFT"
     and legacyAllText.point[2] == _G.RaidFrameAllAssistCheckButton
     and legacyAllText.point[3] == "RIGHT" and legacyAllText.point[4] == 4,
     "legacy All Assist text must clear the QUI checkbox border")
+_G.FriendsFrame:Hide()
 local legacyRaidPlayerTexture = {}
 _G.RaidGroupButton1 = { GetNormalTexture = function() return legacyRaidPlayerTexture end }
 callbacks.Blizzard_RaidUI()
+assert(not calls.rows[_G.RaidGroupButton1], "late hidden Raid content must wait until Friends opens")
+_G.FriendsFrame:Show()
 assert(calls.rows[_G.RaidGroupButton1] and not calls.hiddenTextures[legacyRaidPlayerTexture],
     "legacy Raid player rows must retain the texture that masks occupied-slot EMPTY text")
 
@@ -303,7 +315,8 @@ local ignoreList = NewList()
 ignoreList.BlockButton = {}
 ignoreList.UnblockButton = {}
 local broadcast = { EditBox = {}, UpdateButton = {}, CancelButton = {} }
-_G.SocialUIFrame = {
+_G.SocialUIFrame = env.NewFrame("Frame")
+for key, value in pairs({
     BattleNetBar = {
         ControlsContainer = {
             OnlineStatusDropdown = {},
@@ -318,8 +331,16 @@ _G.SocialUIFrame = {
     RaidInfoFrame = raidInfo,
     IgnoreListFrame = ignoreList,
     BattleNetBroadcastFrame = broadcast,
-}
+}) do _G.SocialUIFrame[key] = value end
+_G.SocialUIFrame:Hide()
 
+callbacks.Blizzard_SocialUI()
+assert(not calls.windows[_G.SocialUIFrame] and not calls.editBoxes[friendsList.FilterBar.SearchBar],
+    "hidden modern SocialUI must defer its shell and contents independently")
+settings.skinFriends = false
+_G.SocialUIFrame:Show()
+assert(not calls.windows[_G.SocialUIFrame], "deferred SocialUI must honor disabling its skin before first show")
+settings.skinFriends = true
 callbacks.Blizzard_SocialUI()
 
 assert(calls.windows[_G.SocialUIFrame] == 1, "modern SocialUIFrame shell must use QUI chrome")
@@ -379,6 +400,22 @@ assert(not calls.hiddenTextures[raidPlayerStatusIcon]
 callbacks.Blizzard_RecentAllies()
 assert(calls.rowHooks[friendsList.ScrollBox] == 1,
     "later Social addon loads must not duplicate pooled-row callbacks")
+
+_G.SocialUIFrame:Hide()
+local lateRecentAllies = NewContactView()
+_G.SocialUIFrame.RecentAlliesList = lateRecentAllies
+callbacks.Blizzard_RecentAllies()
+callbacks.Blizzard_RecentAllies()
+assert(not calls.editBoxes[lateRecentAllies.FilterBar.SearchBar],
+    "late hidden modern SocialUI content must stay deferred")
+_G.SocialUIFrame:Show()
+assert(calls.editBoxes[lateRecentAllies.FilterBar.SearchBar] == 1
+    and calls.windows[_G.SocialUIFrame] == 1,
+    "reopening modern SocialUI must style late content once without rebuilding its shell")
+_G.SocialUIFrame:Hide()
+_G.SocialUIFrame:Show()
+assert(calls.editBoxes[lateRecentAllies.FilterBar.SearchBar] == 1,
+    "reopening SocialUI without pending addon work must not repeat its full traversal")
 
 print("OK: social_frame_skin_lifecycle_test")
 
