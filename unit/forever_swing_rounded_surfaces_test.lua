@@ -75,6 +75,15 @@ for _, entry in ipairs(ns.SwingTimers.entries) do
     assert(frame.Border.texture == nil and frame.Background.texture == nil, "square native art must be removed")
     frame:SetOutOfRange(true)
     assert(chrome:GetAlpha() == 0.4 and bar:GetAlpha() == 0.4, "rounded chrome must follow native range dimming")
+    env.profile.swingTimers[entry.key].fontSize = 13
+    ns.SwingTimers.Refresh()
+    frame:SetOutOfRange(true)
+    for _, label in ipairs({ bar.TypeLabel, bar.TimeLabel }) do
+        local r, g, b = label:GetTextColor()
+        local _, size = label:GetFont()
+        assert(r == 1 and g == 0 and b == 0 and size == 13,
+            "font refresh must preserve native out-of-range colors when range state is unchanged")
+    end
     frame:SetIsInEditMode(true)
     assert(chrome:GetAlpha() == 1 and bar:GetAlpha() == 1, "native edit mode must suppress dimming")
     frame:SetIsInEditMode(false)
