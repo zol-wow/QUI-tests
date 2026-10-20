@@ -479,4 +479,114 @@ test.flush()
 assert(api.entries[1].chrome:GetAlpha() == 1 and main.isInEditMode and main:IsShown(), "QUI preview cleanup must preserve active native edit mode")
 assert(#state.addonStateWrites == 0,
     "all refresh, settings, and layout callbacks must preserve native gameplay state: " .. table.concat(state.addonStateWrites, ", "))
+local resizing = build(true)
+resizing.event("PLAYER_LOGIN")
+local resizeWorld, resizeNS = resizing.world, resizing.ns
+resizeNS.UIKit = { GetPixelSize = function() return 1 end }
+resizeNS.Helpers.SafeToNumber = function(value, fallback) return tonumber(value) or fallback end
+local layoutChunk = assert(loadfile("modules/layout/layoutmode.lua"))
+setfenv(layoutChunk, resizeWorld)
+layoutChunk("QUI", resizeNS)
+local layout = resizeNS.QUI_LayoutMode
+layout.isActive = true
+local anchors = {}
+resizing.core.db.profile.frameAnchoring = anchors
+resizeWorld.UIParent:SetSize(1000, 800)
+function resizeWorld.UIParent:GetCenter() return 500, 400 end
+local function pointOffset(frame, point)
+    local x, y = 0, 0
+    if point:find("LEFT") then x = -frame:GetWidth() / 2
+    elseif point:find("RIGHT") then x = frame:GetWidth() / 2 end
+    if point:find("TOP") then y = frame:GetHeight() / 2
+    elseif point:find("BOTTOM") then y = -frame:GetHeight() / 2 end
+    return x, y
+end
+for _, entry in ipairs(resizeNS.SwingTimers.entries) do
+    local holder = entry.holder
+    function holder:GetSize() return self:GetWidth(), self:GetHeight() end
+    function holder:GetCenter()
+        local point, parent, relative, x, y = self:GetPoint()
+        local px, py = parent:GetCenter()
+        local rx, ry = pointOffset(parent, relative)
+        local sx, sy = pointOffset(self, point)
+        return px + rx + x - sx, py + ry + y - sy
+    end
+    local handle = resizeWorld.CreateFrame("Frame", nil, holder)
+    handle._isChildOverlay, handle._parentFrame = true, holder
+    handle._coords, handle._label = resizeWorld.CreateFrame("Frame"), resizeWorld.CreateFrame("Frame")
+    function handle:GetCenter() return holder:GetCenter() end
+    function handle:GetSize() return holder:GetSize() end
+    layout._elements[entry.key] = resizing.movers[entry.key]
+    layout._handles[entry.key] = handle
+end
+local anchorSource = read("modules/layout/anchoring.lua")
+local reassertStart = assert(anchorSource:find("_G.QUI_ReassertAnchorAfterResize = function(key)", 1, true))
+local reassertEnd = assert(anchorSource:find("_G.QUI_ReanchorFramePositionOnly", reassertStart, true))
+local reassertEnv = setmetatable({
+    _G = resizeWorld,
+    ns = resizeNS,
+    QUICore = resizing.core,
+    GetSavedFrameAnchorSettings = function(db, key) return db[key] end,
+}, { __index = resizeWorld })
+local reassert = assert(loadstring(anchorSource:sub(reassertStart, reassertEnd - 1)))
+setfenv(reassert, reassertEnv)
+reassert()
+resizeWorld.QUI_ForceReapplyFrameAnchor = function(key)
+    local settings = assert(anchors[key])
+    local holder = layout._elements[key].getFrame()
+    holder:ClearAllPoints()
+    local parent = layout._elements[settings.parent]
+    holder:SetPoint(settings.point, parent and parent.getFrame() or resizeWorld.UIParent,
+        settings.relative, settings.offsetX, settings.offsetY)
+end
+for _, entry in ipairs(resizeNS.SwingTimers.entries) do
+    local key, holder = entry.key, entry.holder
+    local settings = resizeNS.SwingTimers.GetSettings(key)
+    for _, point in ipairs({ "TOPLEFT", "BOTTOMRIGHT" }) do
+        anchors[key] = { parent = "screen", point = point, relative = "CENTER", offsetX = 17, offsetY = -29 }
+        resizeWorld.QUI_ForceReapplyFrameAnchor(key)
+        for _, size in ipairs({ { 330, 50 }, { 180, 12 } }) do
+            local cx, cy = holder:GetCenter()
+            layout._pendingPositions[key] = { offsetX = cx - 500, offsetY = cy - 400,
+                anchorTarget = "screen", anchorPointSelf = point, anchorPointTarget = "CENTER" }
+            local untouched = { offsetX = 91, offsetY = 63 }
+            local siblingKey = key == "swingTimerMainHand" and "swingTimerOffHand" or "swingTimerMainHand"
+            layout._pendingPositions[siblingKey] = untouched
+            settings.width, settings.height = size[1], size[2]
+            resizeNS.SwingTimers.Refresh()
+            local x, y = holder:GetCenter()
+            local dx, dy = pointOffset(holder, point)
+            assert(x + dx == 517 and y + dy == 371,
+                key .. " " .. point .. " must retain its anchor edge and edited offsets while resizing in layout mode")
+            assert(layout._pendingPositions[siblingKey] == untouched, "resizing must preserve unchanged sibling pending positions")
+            assert(anchors[key].offsetX == 17 and anchors[key].offsetY == -29, "resizing must retain saved anchor offsets")
+            assert(holder:GetWidth() == size[1] and holder:GetHeight() == size[2], "holder must use the new dimensions")
+        end
+    end
+    anchors[key] = { parent = "disabled", point = "CENTER", relative = "CENTER", offsetX = 43, offsetY = -61 }
+    local pending = { offsetX = 43, offsetY = -61 }
+    layout._pendingPositions[key] = pending
+    settings.height = 35
+    resizeNS.SwingTimers.Refresh()
+    local x, y = holder:GetCenter()
+    assert(x == 543 and y == 339 and layout._pendingPositions[key] == pending,
+        "unanchored resize must preserve the pending free position")
+end
+local parentKey, childKey = "swingTimerMainHand", "swingTimerOffHand"
+local parent = layout._elements[parentKey].getFrame()
+local child = layout._elements[childKey].getFrame()
+anchors[parentKey] = { parent = "screen", point = "TOP", relative = "CENTER", offsetX = 0, offsetY = 0 }
+anchors[childKey] = { parent = parentKey, point = "TOP", relative = "BOTTOM", offsetX = 0, offsetY = -5 }
+resizeWorld.QUI_ForceReapplyFrameAnchor(parentKey)
+resizeWorld.QUI_ForceReapplyFrameAnchor(childKey)
+local cx, cy = child:GetCenter()
+layout._pendingPositions[childKey] = { offsetX = cx - 500, offsetY = cy - 400,
+    anchorTarget = parentKey, anchorPointSelf = "TOP", anchorPointTarget = "BOTTOM" }
+resizeNS.SwingTimers.GetSettings(parentKey).height = 65
+resizeNS.SwingTimers.Refresh()
+local _, py = parent:GetCenter()
+local _, y = child:GetCenter()
+assert((y + child:GetHeight() / 2) - (py - parent:GetHeight() / 2) == -5,
+    "a moved offhand timer must retain its saved gap when the main-hand timer resizes")
+assert(#resizing.state.addonStateWrites == 0, "layout resizing must preserve native gameplay state")
 print("OK forever_swing_timers_test")

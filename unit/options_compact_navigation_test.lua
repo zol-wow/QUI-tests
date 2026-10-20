@@ -758,3 +758,78 @@ configured._subPageBodies = {{ _contentBody = { _sections = {
 assert(gui:GetTileNavigationPages(configured)[3].sectionId == "Live Options",
     "mounted section frames must remain authoritative for actual jump destinations")
 print("options dynamic cold navigation: ok")
+
+local revealTile = Node("Button", frame)
+revealTile.index = #frame._tiles + 1
+revealTile.id, revealTile.config = "reveal_navigation", { name = "Reveal Navigation", subPages = {} }
+revealTile._isActive, revealTile._activeSubPageIndex = true, 4
+revealTile._subPageBodies = {}
+for pageIndex = 1, 4 do
+    revealTile.config.subPages[pageIndex] = { name = "Page " .. pageIndex }
+    local pageScroll = Node("ScrollFrame")
+    pageScroll.scrollRange = 900
+    local sections = {}
+    for sectionIndex = 1, 3 do
+        local section = Node("Frame")
+        section.top = 800 - (sectionIndex - 1) * 300
+        sections[sectionIndex] = { id = "Section " .. sectionIndex, frame = section }
+    end
+    revealTile._subPageBodies[pageIndex] = {
+        _scrollFrame = pageScroll, _contentBody = { _sections = sections },
+    }
+end
+frame._tiles[revealTile.index] = revealTile
+frame._lastTileIndex = revealTile.index
+frame:SetWidth(1200)
+QUI.db.profile.general.optionsNavigationDocked = true
+dock:SetHeight(300)
+dock._keyboard = false
+dock._scroll:SetVerticalScroll(0)
+local revealWrites, scrollbarNotifications = 0, 0
+local revealController = { target = 9 }
+function revealController:ScrollTo(offset, instant)
+    assert(instant, "explicit navigation must settle the page-list scroll immediately")
+    self.target = nil
+    revealWrites = revealWrites + 1
+    dock._scroll:SetVerticalScroll(offset)
+    scrollbarNotifications = scrollbarNotifications + 1
+end
+ns.UIKit.GetSmoothScroll = function(scrollFrame)
+    if scrollFrame == dock._scroll then return revealController end
+end
+local function AssertRowVisible(index, message)
+    local row = dock._buttons[index]
+    local offset, viewport = dock._scroll:GetVerticalScroll(), dock._scroll:GetHeight()
+    assert(row._navTop >= offset and row._navTop + row:GetHeight() <= offset + viewport, message)
+end
+gui:RefreshNavigationDock(frame, true)
+assert(dock._buttons[10]._page.active and not dock._keyboard,
+    "explicit navigation must retain mouse mode and select the destination row")
+AssertRowVisible(10, "the dock must reveal an offscreen destination after a programmatic page jump")
+assert(revealWrites > 0 and not revealController.target and scrollbarNotifications == revealWrites,
+    "page-list jumps must use the existing scroll controller and notify its listeners")
+dock._scroll:SetVerticalScroll(0)
+local writesBefore = revealWrites
+gui:RefreshNavigationDock(frame)
+dock._buttons[12]:Fire("OnEnter")
+dock._buttons[12]:Fire("OnLeave")
+gui:RefreshNavigationSectionHighlight(revealTile)
+assert(dock._scroll:GetVerticalScroll() == 0 and revealWrites == writesBefore,
+    "ordinary refresh and hover must preserve manual page-list scrolling")
+gui:RefreshNavigationDock(frame, true)
+AssertRowVisible(10, "reopening the same destination must reveal it after the list was manually scrolled away")
+revealTile._activeSubPageIndex = 1
+gui:RefreshNavigationDock(frame, true)
+AssertRowVisible(1, "an explicit jump must also reveal a destination above the current viewport")
+revealTile._activeSubPageIndex = 4
+gui:RefreshNavigationDock(frame, true)
+local delayedPage = revealTile._subPageBodies[4]
+delayedPage._scrollFrame:SetVerticalScroll(900)
+for index, section in ipairs(delayedPage._contentBody._sections) do
+    section.frame.top = 800 - (index - 1) * 20
+end
+dock._scroll:SetVerticalScroll(0)
+gui:RefreshNavigationSectionHighlight(revealTile, true)
+assert(dock._buttons[12]._page.active, "settled content scrolling must identify the final section destination")
+AssertRowVisible(12, "the page list must reveal the destination section after its delayed content jump")
+print("options explicit navigation destination reveal: ok")
