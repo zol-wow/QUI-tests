@@ -46,7 +46,11 @@ local function widget()
     local frame = { shown = true }
     function frame:SetText(value) self.text = value end
     function frame:GetText() return self.text end
-    function frame:SetFormattedText(pattern, ...) self.text = formatted(pattern, ...) end
+    function frame:SetFont(font) self.font = font end
+    function frame:SetFormattedText(pattern, ...)
+        assert(not self.requiresFont or self.font, "Font not set: tooltip formatting requires an initialized font")
+        self.text = formatted(pattern, ...)
+    end
     function frame:SetSize(width, height) self.width, self.height = width, height end
     function frame:GetWidth() return self.width or 150 end
     function frame:GetHeight() return self.height end
@@ -54,7 +58,11 @@ local function widget()
     function frame:Show() self.shown = true end
     function frame:Hide() self.shown = false end
     function frame:IsShown() return self.shown end
-    function frame:CreateFontString() return widget() end
+    function frame:CreateFontString(_, _, template)
+        local text = widget()
+        text.requiresFont, text.font = true, template
+        return text
+    end
     function frame:CreateTexture() return widget() end
     for _, name in ipairs({ "SetPoint", "SetTextColor", "SetShadowOffset", "EnableMouse", "SetHeight",
         "SetColorTexture", "SetJustifyH", "SetWordWrap" }) do frame[name] = noOp end
@@ -73,7 +81,8 @@ local addonSpeedCalls, laterRows, hookCount = 0, 0, 0
 local env = setmetatable({
     ns = { Client = { isForever = true } }, Helpers = {}, trackedUnderlines = {},
     GetSettings = function() return settings end, GetGlobalFont = function() return "font" end,
-    CJKFont = noOp, TrackFontString = noOp, GetPixelSize = function() return 1 end, CreateFrame = widget,
+    CJKFont = function(text, ...) text:SetFont(...) end,
+    TrackFontString = noOp, GetPixelSize = function() return 1 end, CreateFrame = widget,
     Enum = { Damageclass = { Arcane = 6, Fire = 2, Frost = 4, Nature = 3, Shadow = 5 } },
     UnitResistance = function() return 0, 0 end, PaperDollFrame_SetResistanceTooltips = noOp,
     STAT_CATEGORY_RESISTANCE = "Resistance", STAT_MOVEMENT_SPEED = "Movement Speed", STAT_FORMAT = "%s",
