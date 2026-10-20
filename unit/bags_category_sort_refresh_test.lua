@@ -129,10 +129,12 @@ ns.Bags.OwnerSelect = { Attach = function()
     local owner = frame(); owner.Update = noop; return owner
 end }
 local liveButtons, cachedButtons = {}, {}
+local deferLiveButtons = false
 local function dress(button, entry) button.entry = entry end
 ns.Bags.ItemButtons = {
     AddSlotBackground = noop, CreateHolder = frame,
     CreateLive = function(_, bagID)
+        if deferLiveButtons then return nil end
         local button = frame(); button.bagID = bagID
         liveButtons[#liveButtons + 1] = button
         return button
@@ -196,4 +198,20 @@ order(cachedButtons, 22, 11, "cached dress-all must relayout metadata and select
 settings.appearance.layoutMode = "flat"
 ns.Bags.BagWindow.Refresh()
 order(cachedButtons, 11, 22, "flat view must preserve physical slot order")
+ns.Bags.BagWindow.SetViewedCharacter(nil)
+deferLiveButtons = true
+rec.bags[0].size = 3
+rec.bags[0].slots[3] = { itemID = 11, quality = 4, count = 2 }
+rec.bags[0].slots[1] = { itemID = 22, quality = 2, count = 3 }
+ns.Bags.BagWindow.Refresh()
+assert(#liveButtons == 2, "deferred creation must not add a combat-born item button")
+assert(liveButtons[1].shown and liveButtons[1].entry.count == 3,
+    "an unavailable new slot must not prevent existing live slots from updating")
+ns.Bags.BagWindow.SetViewedCharacter("cached")
+assert(#cachedButtons == 3, "cached browsing must still build slots during combat")
+ns.Bags.BagWindow.SetViewedCharacter(nil)
+deferLiveButtons = false
+ns.Bags.BagWindow.Refresh()
+assert(#liveButtons == 3 and liveButtons[3].shown and liveButtons[3].entry.count == 2,
+    "a deferred live slot must appear on the next out-of-combat refresh")
 print("OK: bags_category_sort_refresh_test")

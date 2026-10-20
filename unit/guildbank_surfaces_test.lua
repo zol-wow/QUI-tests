@@ -11,6 +11,14 @@ local frame = env.NewFrame("Frame", "GuildBankFrame")
 _G.GuildBankFrame = frame
 frame.Columns, frame.BankTabs, frame.mode = {}, {}, "bank"
 frame.MoneyFrameBG = false
+for _, edge in ipairs({"BottomLeft","BottomRight","TopLeft","TopRight","Left","Right","Top","Bottom"}) do
+    _G["GuildBankFrame" .. edge .. "Outer"] = frame:CreateTexture()
+    _G["GuildBankFrame" .. edge .. "Inner"] = frame:CreateTexture()
+end
+frame.Emblem = env.NewFrame("Frame", nil, frame)
+for _, key in ipairs({"Left","Right","BorderUL","BorderUR","BorderBL","BorderBR","BackgroundUL","UL"}) do
+    frame.Emblem[key] = frame.Emblem:CreateTexture()
+end
 local masks = 0
 local function button(kind, parent)
     local widget = env.NewFrame(kind or "Button", nil, parent)
@@ -53,9 +61,17 @@ frame.BuyInfo, frame.Log, frame.Info = env.NewFrame("Frame", nil, frame), env.Ne
 frame.DepositButton, frame.WithdrawButton = button(nil, frame), button(nil, frame)
 frame.BuyInfo.PurchaseButton, frame.Info.SaveButton = button(nil, frame.BuyInfo), button(nil, frame.Info)
 frame.Info.ScrollFrame = env.NewFrame("ScrollFrame", nil, frame.Info)
+frame.Info.ScrollFrame:SetSize(691,306)
+_G.GuildBankTabInfoEditBox = env.NewFrame("EditBox", nil, frame.Info.ScrollFrame)
+_G.GuildBankTabInfoEditBox:SetSize(690,0)
+frame.Info.ScrollFrame.EditBox = _G.GuildBankTabInfoEditBox
 frame.Info.ScrollFrame.ScrollBar = env.NewFrame("Slider", nil, frame.Info.ScrollFrame)
 frame.Info.ScrollFrame.ScrollBar.ThumbTexture = frame.Info.ScrollFrame.ScrollBar:CreateTexture()
-frame.Log.ScrollBar = false
+frame.Log.ScrollBar = env.NewFrame("Frame", nil, frame.Log)
+frame.Log.MessageFrame = env.NewFrame("ScrollingMessageFrame", nil, frame.Log)
+local logRange, logCallbacks = 0, {}
+function frame.Log.MessageFrame:GetMaxScrollRange() return logRange end
+function frame.Log.MessageFrame:AddOnDisplayRefreshedCallback(fn) logCallbacks[#logCallbacks+1]=fn end
 local current, visible, deposit, withdrawal, canWithdraw, filtered, locked, quality = 1, true, true, 10, true, false, false, 4
 _G.GetCurrentGuildBankTab = function() return current end
 _G.SetCurrentGuildBankTab = function(value) current = value end
@@ -92,6 +108,13 @@ skin.OnAddOnLoaded = function(name, fn) if name == "Blizzard_GuildBankUI" then c
 ns.Registry = {Register = function(_, key, entry) if key == "skinGuildBank" then refresh = entry.refresh end end}
 assert(loadfile(arg[1] or "modules/skinning/frames/interaction.lua"))("QUI", ns)
 callback()
+assert(not frame.Log.ScrollBar:IsShown(), "a fully visible log must not show a false scroll affordance")
+logRange = 8
+for _, fn in ipairs(logCallbacks) do fn(frame.Log.MessageFrame) end
+assert(frame.Log.ScrollBar:IsShown(), "native log overflow must reveal its scrollbar")
+logRange = 0
+for _, fn in ipairs(logCallbacks) do fn(frame.Log.MessageFrame) end
+assert(not frame.Log.ScrollBar:IsShown(), "shrinking log content must clear an obsolete scrollbar")
 local slot = frame.Columns[1].Buttons[1]
 assert(skin.GetBackdrop(slot) and skin.GetBackdrop(slot)._quiRoundedSurface.radius == 4,
     "all guild bank item slots must use rounded QUI controls")
@@ -105,25 +128,41 @@ for _, column in ipairs(frame.Columns) do
 end
 assert(slot.Icon.texture == "native-item" and slot.nativeCount == 7 and slot:GetID() == 1,
     "native item art, counts and identities must survive")
-local border = skin.GetFrameData(slot.Icon, "iconBorder")
-assert(border._quiBorderR == 0.8, "native quality must reach the rounded icon border")
+assert(not skin.GetFrameData(slot.Icon, "iconBorder"):IsShown(), "guild slots must not draw overlapping icon and button edges")
+assert(_G.GuildBankFrameTopOuter:GetAlpha() == 0 and _G.GuildBankFrameBottomInner:GetAlpha() == 0,
+    "native gold inner and outer frame borders must stay suppressed")
+assert(frame.Columns[1].Background:GetAlpha() == 0, "native gold slot-grid art must be suppressed")
+assert(frame.Emblem.Left:GetAlpha() == 0 and frame.Emblem.BorderUL:GetAlpha() == 1
+    and frame.Emblem.BackgroundUL:GetAlpha() == 1 and frame.Emblem.UL:GetAlpha() == 1,
+    "ornate header decoration must disappear while native guild identity remains")
+local border = skin.GetBackdrop(slot)
+assert(border._quiBorderR == 0.8, "native quality must reach the single rounded slot border")
+slot:Fire("OnEnter"); slot:Fire("OnLeave")
+assert(border._quiBorderR == 0.8, "guild item hover leave must retain native rarity")
 assert(frame.BankTabs[1].Button:GetChecked() and frame.BankTabs[1].Button.enabled
     and not frame.BankTabs[2].Button:GetChecked(), "native tab checked/enabled state must survive")
 assert(frame.BankTabs[1].art:GetAlpha() == 0 and frame.BankTabs[1].Button.IconTexture.texture == "tab-art-1",
     "tab scenery must be suppressed while native identifying art survives")
 local r, g, b = skin.GetSkinColors()
 assert(skin.GetBackdrop(frame.BankTabs[1].Button)._quiBorderR == r, "selected bank tab must use the shared accent")
+assert(skin.GetBackdrop(frame.Info.ScrollFrame) and not skin.GetBackdrop(_G.GuildBankTabInfoEditBox)
+    and _G.GuildBankTabInfoEditBox:GetHeight()==0 and frame.Info.ScrollFrame:GetHeight()==306,
+    "empty multiline content must retain viewport chrome without changing native text height")
 assert(frame.Info.ScrollFrame.ScrollBar.ThumbTexture.color, "tab info editor must have a visible styled thumb")
 filtered, locked, quality, deposit, withdrawal, canWithdraw = true, true, nil, false, 0, false
 frame:UpdateTabs()
 frame:Update()
 assert(slot.locked and slot.SearchOverlay:IsShown() and not slot.matches and not frame.WithdrawButton.enabled,
     "native locks, filtered feedback and withdraw permissions must remain authoritative")
-assert(frame.Columns[1].Background.nativeDesaturation == 1 and frame.Columns[1].Background:GetAlpha() == 1,
-    "native column permission feedback must remain intact")
+assert(frame.Columns[1].Background.nativeDesaturation == 1 and frame.Columns[1].Background:GetAlpha() == 0
+    and border:GetAlpha() == 0.55,
+    "read-only permissions must mute QUI slot chrome without restoring native grid artwork")
 refresh()
 local sr = skin.GetWindowColors()
 assert(border._quiBorderR == sr, "ordinary item reuse must clear stale rarity")
+deposit, withdrawal = true, 10
+frame:Update()
+assert(border:GetAlpha() == 1, "switching back to writable slots must clear permission dimming")
 frame.mode = "moneylog"
 frame:UpdateTabs()
 frame:Update()
@@ -144,5 +183,6 @@ skin.GetBackdrop(frame.BankTabs[1].Button):SetBackdropColor(0.99, 0.99, 0.99, 1)
 refresh()
 assert(skin.GetBackdrop(slot)._quiBgR ~= 0.99 and skin.GetBackdrop(frame.BankTabs[1].Button)._quiBgR ~= 0.99,
     "theme refresh must reach existing item-slot and tab widget backgrounds")
-assert(masks == count and count == 106 and withdrawals == 5, "refresh must reuse 98 item and eight tab masks without native updates")
+assert(#logCallbacks == 1, "theme and content refreshes must reuse the log range callback")
+assert(masks == count and count == 106 and withdrawals == 6, "refresh must reuse 98 item and eight tab masks without native updates")
 print("OK: guildbank_surfaces_test")

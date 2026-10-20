@@ -166,4 +166,42 @@ border._quiBorderR = -1
 refresh()
 assert(border._quiBorderR == 0.6 and skin.GetBackdrop(target) == border and maskCount == 14,
     "theme refresh must retain quality and reuse every icon mask")
+-- Exercise the native replacement/removal path, rather than styling only
+-- populated fixtures. A red unusable recipient row must not poison a reused slot.
+local sr, sg, sb = skin.GetWindowColors()
+for _, side in ipairs({"Player", "Recipient"}) do
+    local update = side == "Player" and _G.TradeFrame_UpdatePlayerItem or _G.TradeFrame_UpdateTargetItem
+    for index = 1, 7 do
+        local prefix = "Trade" .. side .. "Item" .. index
+        local row, button = _G[prefix], _G[prefix .. "ItemButton"]
+        local rowBackdrop, iconBackdrop = skin.GetBackdrop(row), skin.GetBackdrop(button)
+        items[side][index] = {count = 0, itemID = 0}
+        update(index)
+        assert(not button.icon.texture and button.count == 0 and not button.nativeQuality,
+            "native removal must clear icon, count and quality")
+        assert(not _G[prefix .. "Name"]:GetText() or _G[prefix .. "Name"]:GetText() == "",
+            "removal must clear ordinary and enchantment captions")
+        assert(rowBackdrop._quiBorderR == sr and rowBackdrop._quiBorderG == sg and rowBackdrop._quiBorderB == sb
+            and iconBackdrop._quiBorderR == sr and iconBackdrop._quiBorderG == sg and iconBackdrop._quiBorderB == sb,
+            "empty slots must lose stale unusable and item-quality borders")
+        if side == "Recipient" then
+            assert(button.icon.vertex[1] == 1 and button.icon.vertex[2] == 1 and button.icon.vertex[3] == 1,
+                "native removal must clear unusable icon tint")
+        end
+        items[side][index] = {name = "Replacement", icon = 900 + index, count = 2, quality = 4, usable = true, itemID = 900 + index}
+        update(index)
+        assert(button.icon.texture == 900 + index and button.count == 2 and button.nativeQuality == 4
+            and iconBackdrop._quiBorderR == 0.6 and skin.GetBackdrop(button) == iconBackdrop
+            and skin.GetBackdrop(row) == rowBackdrop,
+            "replacement must refresh native content and quality without reallocating chrome")
+        assert(button:GetScript("OnClick") == button.nativeClick and button:GetScript("OnReceiveDrag") == button.nativeDrag,
+            "native interaction ownership must survive empty/repopulated reuse")
+    end
+end
+refresh()
+assert(maskCount == 14, "empty/repopulated reuse must not attach extra icon masks")
+_G.TradeFrame_SetAcceptState(0, 0)
+assert(not _G.TradeHighlightPlayer:IsShown() and not _G.TradeHighlightRecipient:IsShown()
+    and not _G.TradeHighlightPlayerEnchant:IsShown() and not _G.TradeHighlightRecipientEnchant:IsShown()
+    and action:IsEnabled(), "reset must clear all four accepted-state panels and reenable native action")
 print("OK: trade_surfaces_test")

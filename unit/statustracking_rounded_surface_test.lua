@@ -8,6 +8,7 @@ local scope = setmetatable({
     IsModuleEnabled = function() return true end,
     FALLBACK_TEXTURE = "texture",
     SkinBase = {
+        GetFrameData = function() return nil end,
         ApplyChromeBackdrop = function(_, opts) style = opts end,
         RoundBarTexture = function(owner, texture) masked = {owner, texture} end,
     },

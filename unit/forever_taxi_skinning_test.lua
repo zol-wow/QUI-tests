@@ -8,6 +8,8 @@ _G.TaxiFrame = frame
 _G.FlightMapFrame = nil
 frame.CloseButton = harness.NewFrame("Button", nil, frame)
 frame.TitleText = frame:CreateFontString(nil, "ARTWORK")
+frame.TitleText:SetFont("Native taxi title",12,"")
+frame.TitleText:SetTextColor(1,0.82,0,1)
 frame.InsetBg = frame:CreateTexture(nil, "BACKGROUND")
 local map = frame.InsetBg
 local node = harness.NewFrame("Button", "TaxiButton1", frame)
@@ -36,6 +38,14 @@ assert(callbacks.Blizzard_UIPanels_Game, "Forever TaxiFrame must be handled when
 callbacks.Blizzard_UIPanels_Game()
 assert(harness.SkinBase.IsSkinned(frame) and harness.SkinBase.GetBackdrop(frame), "native TaxiFrame must honor skinFlightMap")
 _G.TaxiFrame_OnShow(frame)
+local _, titleSize = frame.TitleText:GetFont()
+assert(frame.TitleText:GetText() == _G.FLIGHT_MAP and frame.TitleText:GetFont() == harness.ns.Helpers.GetGeneralFont()
+    and titleSize == 13 and frame.TitleText.textColor[1] == 0.92,
+    "legacy taxi title must match modern neutral QUI chrome while retaining native caption")
+frame.TitleText:SetFontObject("Native title rebound")
+_G.TaxiFrame_OnShow(frame)
+assert(frame.TitleText:GetFont() == harness.ns.Helpers.GetGeneralFont() and frame.TitleText:GetText() == _G.FLIGHT_MAP,
+    "native TaxiFrame reuse must preserve caption and durable title typography")
 assert(frame.InsetBg == map and map.texture == "native-taxi-map" and map:GetAlpha() == 1, "Taxi map must remain Blizzard-owned and visible")
 assert(node:GetID() == 1 and node:GetParent() == frame and node.normalTexture.texture == _G.TaxiButtonTypes.CURRENT.file,
     "native Taxi node IDs and availability art must survive")
