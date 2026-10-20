@@ -1,9 +1,11 @@
 local function noop() end
 local function falseValue() return false end
 
-for _, isForever in ipairs({ false, true }) do
+for _, client in ipairs({ { false, false }, { false, true }, { true, true } }) do
+    local isForever, separateSpells = client[1], client[2]
     local combat, registered = false, nil
     local buttons, calls, nativeCalls = {}, {}, {}
+    local openedTab
     local world = setmetatable({}, { __index = _G })
     world._G = world
     world.InCombatLockdown = function() return combat end
@@ -82,7 +84,19 @@ for _, isForever in ipairs({ false, true }) do
     world.PlayerSpellsUtil = {
         ToggleSpellBookFrame = callback("Spellbook"),
         ToggleClassTalentOrSpecFrame = callback("Talents"),
+        FrameTabs = { SpellBook = "spellbook", ClassTalents = "talents" },
+        TogglePlayerSpellsFrame = function(tab) openedTab = tab end,
     }
+    world.KeybindFrames_InQuickKeybindMode = falseValue
+    world.Kiosk = { IsEnabled = falseValue }
+    world.PlayerSpellsMicroButtonMixin = {}
+    local playerSpellsPath = separateSpells and "tests/clients/forever/framexml/" or nativePath
+    local nativeFile = assert(io.open(playerSpellsPath .. "Interface/AddOns/Blizzard_MicroMenu/Mainline/MainMenuBarMicroButtons.lua"))
+    local nativeSource = nativeFile:read("*a"); nativeFile:close()
+    local start = assert(nativeSource:find("function PlayerSpellsMicroButtonMixin:OnClick(button, down)", 1, true))
+    local stop = assert(nativeSource:find("function PlayerSpellsMicroButtonMixin:UpdateMicroButton()", start, true))
+    local nativeClick = assert(loadstring(nativeSource:sub(start, stop - 1)))
+    setfenv(nativeClick, world)()
     world.ToggleProfessionsBook = callback("Professions")
     world.ToggleAchievementFrame = callback("Achievements")
     world.ToggleLegacySystemUI = callback("Legacy")
@@ -100,8 +114,8 @@ for _, isForever in ipairs({ false, true }) do
     }
     local targets = {
         Character = "CharacterMicroButton",
-        Spellbook = isForever and "SpellbookMicroButton" or "PlayerSpellsMicroButton",
-        Talents = isForever and "TalentMicroButton" or "PlayerSpellsMicroButton",
+        Spellbook = separateSpells and "SpellbookMicroButton" or "PlayerSpellsMicroButton",
+        Talents = separateSpells and "TalentMicroButton" or "PlayerSpellsMicroButton",
         Professions = "ProfessionMicroButton",
         [isForever and "Legacy" or "Achievements"] = isForever and "LegacyMicroButton" or "AchievementMicroButton",
         ["Quest Log"] = "QuestLogMicroButton",
@@ -112,14 +126,22 @@ for _, isForever in ipairs({ false, true }) do
         Shop = "StoreMicroButton",
         Support = "HelpMicroButton",
     }
-    for _, target in pairs(targets) do
+    local targetNames = { "PlayerSpellsMicroButton" }
+    for _, target in pairs(targets) do targetNames[#targetNames + 1] = target end
+    for _, target in ipairs(targetNames) do
         local name = target
         world[name] = {
+            spellbookOnly = name == "SpellbookMicroButton",
+            talentsOnly = name == "TalentMicroButton",
+            suggestedTab = "remembered",
             HasAccessConstraints = falseValue,
             HasAnyForbiddenAspects = falseValue,
-            Click = function(_, button)
+            Click = function(self, button)
                 assert(button == "LeftButton", "native forwarding preserves the mouse button")
                 nativeCalls[name] = (nativeCalls[name] or 0) + 1
+                if name == "SpellbookMicroButton" or name == "TalentMicroButton" or name == "PlayerSpellsMicroButton" then
+                    world.PlayerSpellsMicroButtonMixin.OnClick(self, button, false)
+                end
             end,
         }
     end
@@ -158,8 +180,10 @@ for _, isForever in ipairs({ false, true }) do
     for label, target in pairs(targets) do
         local button = assert(buttons[label], label)
         local alwaysNative = label == "Spellbook" or label == "Talents"
+        local expectedTab = separateSpells and (label == "Spellbook" and "spellbook" or "talents") or "remembered"
         button:Click()
         if alwaysNative then
+            assert(openedTab == expectedTab, label .. " must use its dedicated native tab when available")
             assert(nativeCalls[target] == 1 and not calls[label],
                 label .. " must open through native secure dispatch even outside combat to avoid secret cooldown taint")
         else
@@ -169,6 +193,7 @@ for _, isForever in ipairs({ false, true }) do
         local before = nativeCalls[target] or 0
         button:Click()
         assert(nativeCalls[target] == before + 1, label .. " must forward one native click during combat")
+        if alwaysNative then assert(openedTab == expectedTab, label .. " must retain its native tab in combat") end
         assert(calls[label] == (not alwaysNative and 1 or nil), label .. " must not run its insecure callback in combat")
         assert(button:GetAttribute("useOnKeyDown") == false, "release works with ActionButtonUseKeyDown enabled")
         combat = false
@@ -176,6 +201,7 @@ for _, isForever in ipairs({ false, true }) do
         if alwaysNative then
             assert(nativeCalls[target] == before + 2 and not calls[label],
                 label .. " must stay on native dispatch after combat ends")
+            assert(openedTab == expectedTab, label .. " must retain its native tab after combat")
             world[target].HasAccessConstraints = function() return true end
             button:Click()
             assert(nativeCalls[target] == before + 2 and not calls[label],
