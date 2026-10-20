@@ -69,6 +69,50 @@ for _, key in ipairs(keys) do
     assert(route.tileId == "auras" and route.subPageIndex == 6,
         "settings links must open the Aura Displays page")
 end
+assert(loadfile("modules/trackers/settings/aura_displays_content.lua"))("QUI", ns)
+local navigate = ns.QUI_AuraDisplaysOptions.NavigateLayoutKey
+assert(type(navigate) == "function", "Aura Display settings must select the clicked mover")
+local function Upvalue(fn, wanted)
+    local index = 1
+    while true do
+        local name, value = debug.getupvalue(fn, index)
+        assert(name, "missing selection state: " .. wanted)
+        if name == wanted then return value end
+        index = index + 1
+    end
+end
+local selectDisplay = Upvalue(navigate, "SelectDisplay")
+local selectGroup = Upvalue(navigate, "SelectGroup")
+local previewCount = 0
+AD.ShowPreviewFor = function() previewCount = previewCount + 1 end
+AD.ShowPreviewForGroup = function() previewCount = previewCount + 1 end
+AD.DisablePreviewDrag = function() end
+local function CheckSelection(key, id, name)
+    assert(feature.onNavigate(key), "existing mover must select its settings")
+    assert(Upvalue(selectDisplay, "selectedID") == id)
+    assert(Upvalue(selectGroup, "selectedGroup") == name)
+    assert(Upvalue(navigate, "activeDetailTab") == (name and "group" or "general"))
+end
+CheckSelection(keys[1], display.id, nil)
+CheckSelection(keys[3], nil, "Group")
+CheckSelection(keys[2], second.id, nil)
+assert(previewCount == 0, "navigation while the settings page is hidden must not enable previews")
+assert(not navigate("auraDisplay_missing"))
+assert(not navigate("auraDisplayGroup_missing"))
+assert(not navigate(nil))
+assert(Upvalue(selectDisplay, "selectedID") == second.id, "stale movers must preserve current selection")
+local savedProfile = profile
+profile = {}
+assert(not navigate(keys[1]), "mover selection must read the active profile")
+local replacement = AD.NewDisplay("Replacement")
+CheckSelection(AD.ANCHOR_PREFIX .. replacement.id, replacement.id, nil)
+profile = savedProfile
+AD.Store().groups.Renamed = AD.Store().groups.Group
+AD.Store().groups.Group = nil
+CheckSelection(keys[3], nil, "Renamed")
+AD.Store().groups.Renamed = nil
+assert(not navigate(keys[3]), "deleted groups must not be selected")
+AD.Store().groups.Group = group
 AD.RegisterLayoutElement(display)
 assert(#feature.lookupKeys == 3, "repeat registration must not duplicate settings lookups")
 AD.UnregisterLayoutElement(display.id, true)
