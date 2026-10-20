@@ -11,7 +11,7 @@ local function Widget()
     function w:SetAllPoints(v) self.allPoints=v end
     function w:SetTexture(v) self.texture=v end
     function w:SetColorTexture(...) self.color={...} end
-    function w:SetVertexColor(...) self.vertex={...} end
+    function w:SetVertexColor(r,g,b,a) self.vertex={r,g,b,a or 1}; self.alpha=a or 1 end
     function w:SetTexCoord(...) self.coords={...} end
     function w:SetSize(x,y) self.width,self.height=x,y end
     function w:SetBlendMode(v) self.blend=v end
@@ -24,7 +24,7 @@ local function Widget()
     function w:CreateTexture() return Widget() end
     function w:CreateMaskTexture() return Widget() end
 
-    function w:SetAlpha(a) self.alpha = a end
+    function w:SetAlpha(a) self.alpha = a; if self.vertex then self.vertex[4]=a end end
     function w:SetScript() error("glow animation must remain scriptless") end
     function w:CreateAnimationGroup()
         local group = {animations = {}}
@@ -122,6 +122,23 @@ assert(map.Bleed == typed.colors.Bleed and map.Poison[2] == 0.6)
 -- corner UVs, rather than just sharing a similarly sized frame rectangle.
 _G.CreateColor=function(r,g,b,a) return {r=r,g=g,b=b,a=a} end
 local rendered, renderArt = Widget(), {}
+for _, appearance in ipairs({{0.45,1},{0,1},{nil,1},{1,0.65}}) do
+    local glow, pieces = Widget(), {}
+    C.StyleCleanseGlowArt(glow, pieces, glow, {0.3,0.5,0.8,0.7}, appearance[1])
+    for _, mode in ipairs({"NONE","PULSE","MOVING","NONE","MOVING","PULSE"}) do
+        C.ConfigureCleanseGlowAnimation(glow, pieces, {enabled=true,animation=mode}, appearance[2])
+        local expected=appearance[1] or 0.7
+        for _, key in ipairs(C.GLOW_PARTS) do
+            assert(pieces[key].alpha==expected and pieces[key].vertex[4]==expected,
+                mode.." must preserve configured texture opacity on every glow edge and corner")
+            if mode=="MOVING" then
+                assert(pieces.movingHighlights[key].alpha==expected,
+                    "moving highlights must preserve the same configured opacity as the base")
+            end
+        end
+        assert(glow.alpha==appearance[2],"texture opacity must not change the animation owner's opacity")
+    end
+end
 C.StyleCleanseGlowArt(rendered, renderArt, rendered, {0.3, 0.5, 0.8, 0.7})
 C.ConfigureCleanseGlowAnimation(rendered, renderArt, {enabled=true,animation="MOVING"})
 for _, key in ipairs(C.GLOW_PARTS) do
