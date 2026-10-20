@@ -181,6 +181,7 @@ local clickStop = assert(rendererSource:find("\nlocal function ClearClickButtonA
 local clickSource = rendererSource:sub(clickStart, clickStop - 1)
 clickSource = clickSource:gsub("^local function EnsureClickButton", "return function", 1)
 local clickEnv = setmetatable({
+    ns = ns,
     CDMIcons = { EnsureTextOverlayLevel = noop },
     SyncClickButtonFrameLevel = noop,
 }, { __index = _G })
@@ -189,7 +190,7 @@ setfenv(clickChunk, clickEnv)
 local ensureClickButton = clickChunk()
 local plainClick = ensureClickButton({})
 local restrictedClick = ensureClickButton({ _quiLayoutRestricted = true })
-assert(plainClick.template == "SecureActionButtonTemplate",
+assert(plainClick.template == "SecureActionButtonTemplate, SecureHandlerStateTemplate",
     "ordinary click overlays must remain unrestricted")
 assert(restrictedClick.template
         == "SecureActionButtonTemplate, DisableUntrustedLayoutScriptsTemplate",

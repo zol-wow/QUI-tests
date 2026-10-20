@@ -1,9 +1,13 @@
 local originalLoadfile = loadfile
 local baselineAnchor = os.getenv("QUI_LAYOUT_ANCHOR_SOURCE")
 local baselineUtils = os.getenv("QUI_LAYOUT_UTILS_SOURCE")
+local baselineShared = os.getenv("QUI_LAYOUT_SHARED_SOURCE")
+local baselineSettings = os.getenv("QUI_LAYOUT_SETTINGS_SOURCE")
 _G.loadfile = function(path, ...)
     if path == "core/settings/content/anchoring_shared_content.lua" and baselineAnchor then path = baselineAnchor end
     if path == "modules/layout/layoutmode_utils.lua" and baselineUtils then path = baselineUtils end
+    if path == "core/settings_layout_shared.lua" and baselineShared then path = baselineShared end
+    if path == "modules/layout/layoutmode_settings.lua" and baselineSettings then path = baselineSettings end
     return originalLoadfile(path, ...)
 end
 
@@ -37,7 +41,8 @@ local function Axis(frame, horizontal)
         local relativeFraction = fractions[point[3]][axis]
         local offset = horizontal and point[4] or -point[5]
         local coordinate = relativeStart + relativeLength * relativeFraction + offset
-        if first and math.abs(ownFraction - firstFraction) == 1 then
+        if first and (math.abs(ownFraction - firstFraction) == 1
+            or (frame._sectionTitle and ownFraction ~= firstFraction)) then
             length = (coordinate - first) / (ownFraction - firstFraction)
             return first - firstFraction * length, length
         end
@@ -214,6 +219,104 @@ end
 
 assert(loadfile("modules/layout/layoutmode_settings.lua"))("QUI", ns)
 local settings = ns.QUI_LayoutMode_Settings
+local getSwingSettings = ns.SwingTimers.GetSettings
+ns.SwingTimers.GetSettings = function() return {width = 250, height = 20} end
+for _, entry in ipairs(ns.SwingTimers.entries) do
+    settings:Show(entry.key)
+    Flush()
+    local panel = settings._panel
+    local sections = {}
+    for _, child in ipairs({panel._content:GetChildren()}) do
+        if child._sectionTitle and child ~= panel._infoSection
+            and child:GetParent() == panel._content and child:IsShown() then
+            sections[#sections + 1] = child
+        end
+    end
+    table.sort(sections, function(a, b) return a:GetTop() > b:GetTop() end)
+    assert(#sections == 2, "each swing mover must render Position and Frame Size sections")
+    for index, section in ipairs(sections) do
+        assert(section:GetHeight() > 0, "swing sections must retain positive height after layout")
+        assert(section:GetBottom() <= section._body:GetBottom(),
+            "swing sections must include their controls")
+        if sections[index + 1] then
+            assert(section:GetBottom() - sections[index + 1]:GetTop() >= 3.99,
+                "swing Frame Size must remain below Position")
+        end
+    end
+    assert(sections[2]:GetBottom() - panel._infoSection:GetTop() >= 3.99,
+        "Anchoring Details must remain below swing Frame Size")
+    assert(panel._content:GetBottom() <= panel._infoSection:GetBottom(),
+        "swing scroll content must include Anchoring Details")
+end
+ns.SwingTimers.GetSettings = getSwingSettings
+print("OK: swing mover sections preserve height and stay above Anchoring Details")
+
+assert(loadfile("QUI_Options/navigation.lua"))("QUI", ns)
+UIParent:SetSize(1920, 1080)
+local function AdvanceLayoutFrames(check)
+    for _ = 1, 10 do
+        local current = timers
+        timers = {}
+        for _, callback in ipairs(current) do callback() end
+        NotifySizes()
+        local panel = settings._panel
+        local driver = panel._quiLayoutReadyDriver
+        if driver and driver:IsShown() then
+            local update = driver:GetScript("OnUpdate")
+            if update then update(driver, 1 / 60) end
+        end
+        if check then check() end
+    end
+end
+
+settings:Show("partyFrames")
+AdvanceLayoutFrames()
+local panel = settings._panel
+local partyHeight = panel:GetHeight()
+local heightChanges = {}
+local setPanelHeight = panel.SetHeight
+panel.SetHeight = function(self, height)
+    heightChanges[#heightChanges + 1] = height
+    setPanelHeight(self, height)
+end
+settings:Show("raidFrames")
+assert(panel:GetHeight() == partyHeight, "switching movers must retain the settled panel height during rebuild")
+AdvanceLayoutFrames(function()
+    assert(panel:GetHeight() == partyHeight, "equal-height movers must not resize between deferred layout passes")
+end)
+assert(#heightChanges == 0, "party-to-raid switching must not apply a temporary expanded panel height")
+
+ns.SwingTimers.GetSettings = function() return {width = 250, height = 20} end
+settings:Show("swingTimerMainHand")
+settings:Show("partyFrames")
+settings:Show("raidFrames")
+AdvanceLayoutFrames()
+assert(settings._currentKey == "raidFrames", "rapid mover switching must retain the latest selection")
+assert(panel:GetHeight() == partyHeight, "retired mover callbacks must not resize the latest panel")
+assert(#heightChanges == 0, "rapid switches must not expose intermediate mover heights")
+
+settings:Show("swingTimerMainHand")
+assert(panel:GetHeight() == partyHeight, "a different-size mover must retain panel height until its layout settles")
+AdvanceLayoutFrames()
+local swingHeight = panel:GetHeight()
+assert(swingHeight ~= partyHeight, "a settled different-size mover must still fit its content")
+assert(#heightChanges == 1 and heightChanges[1] == swingHeight,
+    "switching to a different-size mover must apply only its settled panel height")
+assert(panel:GetBottom() <= panel._infoSection:GetBottom(),
+    "the fitted swing panel must include its Anchoring Details")
+
+settings:Show("partyFrames")
+settings:Hide(true)
+AdvanceLayoutFrames()
+assert(not settings:IsShown(), "finishing a pending mover layout must not reopen a closed panel")
+settings:Show("partyFrames")
+AdvanceLayoutFrames()
+assert(settings:IsShown() and panel:GetHeight() == partyHeight,
+    "reopening after a canceled layout must show the selected mover at its settled height")
+panel.SetHeight = setPanelHeight
+ns.SwingTimers.GetSettings = getSwingSettings
+print("OK: mover switching fits settled layout without intermediate panel resizing")
+
 settings._currentKey = "inlineRowGeometry"
 settings:Show("inlineRowGeometry")
 local panelContent = settings._panel._content

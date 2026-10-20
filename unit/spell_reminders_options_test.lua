@@ -84,7 +84,10 @@ ns.QUI_SettingsLayoutShared = {
     MakeLayout = function(host)
         local y = 0
         return {
-            headerAt = function() y = y - 30 end,
+            headerAt = function(title)
+                y = y - 30
+                if host.RegisterSection then host:RegisterSection(title, title, CreateFrame("Frame", nil, host)) end
+            end,
             sectionAt = function()
                 return { frame = CreateFrame("Frame", nil, host), AddRow = function() y = y - 30 end }
             end,
@@ -149,12 +152,14 @@ assert(tiles.reminders.subPages[1].featureId == "remindersPage")
 assert(tiles.reminders.subPages[2].featureId == H.feature.id and H.feature.nav.subPageIndex == 2
     and H.feature.nav.tileId == "reminders", "reminder tabs share the dedicated module tile")
 local content = CreateFrame("Frame", nil, UIParent)
+assert(#H.feature.getNavigationTabs() == 0, "cold navigation cannot expose tabs for an unloaded module")
 O.Build(content)
 assert(not widgets["Enable Spell Reminders"] and not buttons["Power Infusion Preset"],
     "a disabled module shows guidance without exposing unavailable runtime actions")
 assert(not ns.SpellReminderModel and not ns.SpellReminders, "opening options does not load the module")
 H.LoadRuntime()
 H.db.enabled = false
+assert(#H.feature.getNavigationTabs() == 0, "cold navigation cannot expose tabs without a reminder")
 O.Build(content)
 assert(#widgets.Reminder.options == 0, "an empty profile opens without adding reminders")
 assert(widgets.Reminder.enabled == false and widgets.Reminder.placeholder == "No reminders yet",
@@ -261,8 +266,63 @@ body:SetHeight(body:GetHeight() + 1)
 assert(content:GetHeight() == currentHeight, "late resize events from a retired editor must not change the active page")
 assert(GUI._searchContext.tileId == "other" and H.R.Get(10060).pi.whisper.enabled,
     "search capture must preserve the real configuration and caller context")
+local descriptor
+function GUI:RegisterTileSurfacePages(_, value) descriptor = value; return true end
+function GUI:RefreshTileSurfacePages() H.navigationRefreshes = (H.navigationRefreshes or 0) + 1 end
+function GUI:InitializeNavigationSections(host)
+    host._sections = {}
+    function host:RegisterSection(id, label, frame)
+        self._sections[#self._sections + 1] = { id = id, label = label, frame = frame }
+    end
+end
+paints = H.tabPaints
+O.Build(content)
+assert(descriptor and #descriptor.getTabs() == 7 and H.tabPaints == paints,
+    "spell settings use sidebar pages without creating a second horizontal tab strip")
+assert(not descriptor.getPage(descriptor.getActiveTab())._scrollFrame,
+    "the editor can be constructed before the outer page exposes its scroll frame")
+content._scrollFrame = CreateFrame("ScrollFrame")
+local firstPage = descriptor.getPage(descriptor.getActiveTab())
+assert(firstPage._contentBody == O.activeBody and firstPage._scrollFrame == content._scrollFrame
+    and #firstPage._contentBody._sections > 0, "section jumps use the active editor body and owning page scroll")
+assert(firstPage == O.activeBody and type(firstPage:GetWidth()) == "number" and firstPage:GetHeight() > 0,
+    "navigation layout readiness receives a real frame with dimensions")
+assert(descriptor.selectTab("sounds") and descriptor.getActiveTab() == "sounds"
+    and descriptor.getPage("sounds")._contentBody == O.activeBody and descriptor.getPage("timing") == nil,
+    "sidebar navigation renders the requested tab and retires previous section frames")
+assert(not descriptor.selectTab("sounds") and not descriptor.selectTab("missing"),
+    "current and unavailable navigation destinations must not rebuild the editor")
+buttons["Innervate Preset"]()
+assert(#descriptor.getTabs() == 4 and not descriptor.selectTab("requests"),
+    "PI-only sidebar pages remain unavailable for another selected spell")
+assert(#H.feature.getNavigationTabs() == 4, "cold navigation respects an explicitly selected non-PI reminder")
+widgets.Reminder:Change(10060)
+assert(#descriptor.getTabs() == 7 and descriptor.selectTab("requests") and H.navigationRefreshes > 0,
+    "changing the selected spell refreshes its dynamic sidebar pages")
+local requests = H.feature.getNavigationTabs()[7]
+H.R.Get(10060).pi.whisper.mode = "rotation"
+assert(requests.isSectionAvailable("Rotation Order") and not requests.isSectionAvailable("Priority Order"),
+    "rotation requests only expose their available section")
+H.R.Get(10060).pi.whisper.mode = "priority"
+assert(requests.isSectionAvailable("Priority Order") and not requests.isSectionAvailable("Rotation Order")
+    and requests.isSectionAvailable("Whisper Requests"), "priority requests preserve common sections and omit rotation")
 ns.Settings.Registry:UnregisterLookupKey("spellRemindersPage", "spellReminder:10060")
 assert(loadfile(os.getenv("QUI_REMINDER_OPTIONS_SOURCE") or "QUI_Reminders/spell_reminders/settings/spell_reminders.lua"))("QUI", ns)
 assert(ns.Settings.Registry:GetFeatureByLookupKey("spellReminder:10060") == ns.Settings.Registry:GetFeature("spellRemindersPage"),
     "loading settings after the runtime must connect existing reminders to their layout route")
+local coldFeature = ns.Settings.Registry:GetFeature("spellRemindersPage")
+local name = ns.SpellReminderPresentation.Name
+ns.SpellReminderPresentation.Name = function(config) return config.pi and "Z PI" or "A Innervate" end
+local reminderMetatable = getmetatable(H.db.reminders)
+setmetatable(H.db.reminders, { __index = function(_, key)
+    assert(key ~= nil, "cold navigation must not resolve a missing selection through a nil table key")
+end })
+assert(#coldFeature.getNavigationTabs() == 4, "cold default navigation uses the first reminder alphabetically")
+setmetatable(H.db.reminders, reminderMetatable)
+ns.SpellReminderPresentation.Name = function(config) return config.pi and "A PI" or "Z Innervate" end
+assert(#coldFeature.getNavigationTabs() == 7, "reading cold navigation must not pin an implicit reminder selection")
+ns.SpellReminderOptions.Build(content)
+assert(#descriptor.getTabs() == #coldFeature.getNavigationTabs() and widgets.Reminder.db.value == 10060,
+    "initial editor and cold navigation resolve the same alphabetically selected reminder")
+ns.SpellReminderPresentation.Name = name
 print("OK: spell reminder presets, editor controls, preview, deletion and search navigation")

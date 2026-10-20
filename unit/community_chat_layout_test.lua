@@ -56,6 +56,10 @@ local ns = {
 }
 
 ns.SkinBase = {
+    DeferUntilShown = function(frame)
+        assert(frame:IsShown(), "layout fixture must exercise a visible Communities frame")
+        return false
+    end,
     GetBackdrop = function(frame) return frame.backdrop end,
     GetWindowColors = function() return 1, 1, 1, 1, 0.1, 0.1, 0.1, 1 end,
     CreateBackdrop = function(frame) frame.roundedBackdrop = true end,
@@ -189,6 +193,7 @@ ns.SkinBase.StripTextures = function() end
 ns.SkinBase.SkinDropdown = function() end
 local function Geometry()
     local f = { points = {}, scripts = {} }
+    function f:IsShown() return true end
     function f:SetPoint(point, ...) self.points[point] = { ... } end
     function f:ClearAllPoints() self.points = {} end
     function f:SetHeight(height) self.height = height end

@@ -10,7 +10,7 @@ local callbacks = {}
 local calls = {}
 local frameData = setmetatable({}, { __mode = "k" })
 
-_G.EncounterJournal = { name = "EncounterJournal" }
+_G.EncounterJournal = { name = "EncounterJournal", IsShown = function() return true end }
 
 local function CreateStateTable()
     local tbl = setmetatable({}, { __mode = "k" })
@@ -45,6 +45,10 @@ local ns = {
 }
 
 ns.SkinBase = {
+    DeferUntilShown = function(frame)
+        assert(frame:IsShown(), "font scope fixture must start visible")
+        return false
+    end,
     RefreshFrameBackdropColors = function() end,
     IsSkinned = function() return false end,
     SkinButtonFrameTemplate = function(frame)

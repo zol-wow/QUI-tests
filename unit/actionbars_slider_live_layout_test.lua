@@ -82,6 +82,7 @@ for key in pairs(bars) do
     end
 end
 
+ns.ActionBarsEnv = nil
 assert(loadfile("QUI_ActionBars/actionbars/actionbars_env.lua"))("QUI", ns)
 local env = ns.ActionBarsEnv
 env.ActionBarsOwned = owned

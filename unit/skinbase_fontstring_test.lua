@@ -238,4 +238,60 @@ do
         "SkinButton must not apply the QUI font when applyGlobalFontToBlizzard is false")
 end
 
+do
+    local savedLibStub, savedCreateFontFamily = _G.LibStub, _G.CreateFontFamily
+    _G.LibStub = function() end
+    _G.CreateFontFamily = function(_, members) return { members = members } end
+    local fontNS = {}
+    assert(loadfile("core/utils.lua"))("QUI", fontNS)
+    ns.Helpers.ApplyFontWithFallback = fontNS.Helpers.ApplyFontWithFallback
+
+    local function LockedFontString()
+        local text = NewFontString(13)
+        text.fontObjectCalls = 0
+        function text:SetFontObject(object)
+            self.fontObjectCalls = self.fontObjectCalls + 1
+            assert(self.fontObjectCalls <= 20, "font lock recursively reapplied its own font family")
+            self.fontObject = object
+            if type(object) == "table" then
+                local member = object.members[1]
+                self:SetFont(member.file, member.height, member.flags)
+            end
+        end
+        SkinBase.LockFontObject(text, { fontOnly = true })
+        return text
+    end
+
+    local first, second = LockedFontString(), LockedFontString()
+    local nestedReset = false
+    hooksecurefunc(first, "SetFontObject", function(_, object)
+        if type(object) == "table" and not nestedReset then
+            nestedReset = true
+            second:SetFontObject("GameFontNormal")
+        end
+    end)
+    first:SetFontObject("GameFontNormal")
+    assert(first.fontObjectCalls == 2, "one external reset must apply the font family exactly once")
+    assert(second.fontObjectCalls == 2 and second.font == generalFont,
+        "a font lock must not suppress another widget's nested reset")
+    assert(first.font == generalFont and first.size == 13 and first.flags == "OUTLINE",
+        "locked font families must preserve the requested face, size, and outline")
+
+    first:SetFontObject("GameFontHighlight")
+    assert(first.fontObjectCalls == 4 and type(first.fontObject) == "table",
+        "a later external reset must still restore the font family")
+
+    ns.Helpers.ApplyFontWithFallback = function() error("font application failed", 0) end
+    local ok, err = pcall(first.SetFontObject, first, "GameFontNormal")
+    assert(not ok and err == "font application failed", "font lock must preserve styling errors")
+    ns.Helpers.ApplyFontWithFallback = fontNS.Helpers.ApplyFontWithFallback
+    local beforeRecovery = first.fontObjectCalls
+    first:SetFontObject("GameFontNormal")
+    assert(first.fontObjectCalls == beforeRecovery + 2 and type(first.fontObject) == "table",
+        "font lock must recover after a failed styling pass")
+
+    _G.LibStub, _G.CreateFontFamily = savedLibStub, savedCreateFontFamily
+    ns.Helpers.ApplyFontWithFallback = nil
+end
+
 print("OK: skinbase_fontstring_test")

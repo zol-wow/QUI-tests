@@ -49,6 +49,7 @@ local function MakeTexture()
     function t:SetWidth(w) self._w = w end
     function t:SetSize(w, h) self._w, self._h = w, h end
     function t:SetAlpha(a) self._alpha = a end
+    function t:SetShown(v) self._shown = v end
     function t:Show() self._shown = true end
     function t:Hide() self._shown = false end
     function t:SetScript() scriptInstalls = scriptInstalls + 1 end
@@ -210,20 +211,59 @@ for _, reg in ipairs(visual._dispelRegs) do
 end
 check("icon binding added with the engine Icon style", iconRegs == 1, iconRegs)
 
+-- Independent typed glow: engine picks the type, including non-cleansable
+-- Bleed/Enrage, without deriving secret aura presence or installing scripts.
+settings.cleanseGlow.scope = "ALL_TYPED"
+settings.cleanseGlow.colorMode = "TYPE"
+settings.cleanseGlow.opacity = 0.65
+settings.cleanseGlow.colors = { Bleed = {0.95, 0.15, 0.1, 1} }
+check("typed glow sync completes", F.Sync(frame, "party1", true, settings))
+local typedGlow = c._slots.glow
+check("glow trigger scope is independent from the dispel border",
+    c._filters.glow == "HARMFUL" and c._cf.glow.includeDispelTypes.Bleed
+    and c._cf.glow.includeDispelTypes.Poison and c._cf.glow.includeDispelTypes.Curse
+    and #typedGlow._dispelRegs == 8)
+local map = typedGlow._dispelRegs[1].opts.customDispelColorMap
+check("typed glow maps configured Bleed and aliases Enrage", map.Bleed.r == 0.95 and map.Enrage == map.Bleed)
+check("typed glow has fallback colors for all five types", map.Magic and map.Curse and map.Disease and map.Poison)
+check("typed glow opacity survives engine texture alpha ownership", typedGlow._alpha == 0.65)
+settings.cleanseGlow.scope = "PLAYER_DISPELLABLE"
+settings.cleanseGlow.colorMode = "CUSTOM"
+settings.cleanseGlow.opacity = nil
+check("returning to custom glow completes", F.Sync(frame, "party1", true, settings))
+check("custom glow removes engine type bindings and restores actionable scope",
+    c._filters.glow == BY_ME and c._cf.glow == nil and #typedGlow._dispelRegs == 0 and typedGlow._alpha == 1)
+
 local glowSlot = c._slots.glow
 local gArt = glowSlot and glowSlot._quiDispelArt
 local gTop = gArt and gArt.glowTop
-check("glow art is four additive edge strips, not a stretched ring",
+check("glow sides use additive alpha assets with the same tint treatment as corners",
     gTop and gArt.glowBottom and gArt.glowLeft and gArt.glowRight
-        and gTop._blend == "ADD" and gTop._texture == nil)
-check("glow gradient peaks at the frame edge in the configured color",
-    gTop and gTop._gradient and gTop._gradient[1] == "VERTICAL"
-        and gTop._gradient[2].a == 0
-        and gTop._gradient[3].r == 0.3 and gTop._gradient[3].g == 1
-        and gTop._gradient[3].a == 0.9)
-check("side strips fade inward horizontally",
-    gArt and gArt.glowLeft._gradient and gArt.glowLeft._gradient[1] == "HORIZONTAL"
-        and gArt.glowLeft._gradient[2].a == 0.9 and gArt.glowLeft._gradient[3].a == 0)
+        and gTop._blend == "ADD" and gTop._texture:find("dispel_gradient",1,true)
+        and not gTop._gradient and gTop._vertex[1]==0.3 and gTop._vertex[4]==0.9)
+check("top strip fade points inward", gTop and gTop._texCoord[3]==1 and gTop._texCoord[4]==0)
+local corners = {"glowTopLeft", "glowTopRight", "glowBottomLeft", "glowBottomRight"}
+local joined = gTop and gTop._points[1][4] == 6 and gTop._points[2][4] == -6
+for _, key in ipairs(corners) do
+    local corner = gArt and gArt[key]
+    joined = joined and corner and corner._w == 10 and corner._h == 10
+        and corner._texture:find("group_frame_glow_corner.tga", 1, true)
+        and corner._blend == "ADD" and corner._vertex[4] == 0.9
+end
+check("cleanse glow has matched corners between inset edge strips", joined)
+local f = assert(io.open("assets/group_frame_glow_corner.tga", "rb"))
+local asset = f:read("*a"); f:close()
+local width = asset:byte(13) + asset:byte(14) * 256
+local height = asset:byte(15) + asset:byte(16) * 256
+local function alpha(x, y) return asset:byte(18 + (y * width + x) * 4 + 4) / 255 end
+local continuous = width == 64 and height == 64
+for i = 0, 63 do
+    local edgeAlpha = 1 - i / 63
+    continuous = continuous and math.abs(alpha(63, i) - edgeAlpha) < 1 / 255
+        and math.abs(alpha(i, 63) - edgeAlpha) < 1 / 255
+        and alpha(0, i) == 1 and alpha(i, 0) == 1
+end
+check("corner alpha matches both perpendicular edge fades without a seam", continuous)
 check("still no script handlers after restyle", scriptInstalls == 0)
 
 ----------------------------------------------------------------------------

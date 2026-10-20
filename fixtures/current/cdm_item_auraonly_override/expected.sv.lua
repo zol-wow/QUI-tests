@@ -6230,13 +6230,18 @@ return {
             },
             healer = {
               cleanseGlow = {
+                animation = "NONE",
+                animationDuration = 1.6000000000000001,
                 color = {
                   [1] = 0.10000000000000001,
                   [2] = 1,
                   [3] = 0.10000000000000001,
                   [4] = 1
                 },
-                enabled = false
+                colorMode = "CUSTOM",
+                colors = {},
+                enabled = false,
+                scope = "PLAYER_DISPELLABLE"
               },
               dispelOverlay = {
                 borderSize = 3,
@@ -6628,13 +6633,18 @@ return {
             },
             healer = {
               cleanseGlow = {
+                animation = "NONE",
+                animationDuration = 1.6000000000000001,
                 color = {
                   [1] = 0.10000000000000001,
                   [2] = 1,
                   [3] = 0.10000000000000001,
                   [4] = 1
                 },
-                enabled = false
+                colorMode = "CUSTOM",
+                colors = {},
+                enabled = false,
+                scope = "PLAYER_DISPELLABLE"
               },
               dispelOverlay = {
                 borderSize = 3,

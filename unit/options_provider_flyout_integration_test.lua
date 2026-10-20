@@ -12,8 +12,7 @@ for index = 1, math.huge do
 end
 assert(ns)
 assert(loadfile("QUI_Options/search_cache.lua"))("QUI", ns)
--- Navigation destinations are tested here; actual settling is covered by
--- options_initial_section_navigation_test with a ticking layout driver.
+local runWhenSettingsLayoutReady = GUI.RunWhenSettingsLayoutReady
 function GUI:RunWhenSettingsLayoutReady(_, _, callback, isCurrent)
     C_Timer.After(0, function() if not isCurrent or isCurrent() then callback() end end)
 end
@@ -115,6 +114,12 @@ ns.Settings.Fields.Render = function(field, ctx, parent)
     return widget
 end
 ns.QUI_ActionBarsTile.Register(frame)
+local coldPerBar = {}
+for _, page in ipairs(GUI:GetTileNavigationPages(frame._tiles[1])) do
+    if page.pageIndex == 2 then coldPerBar[#coldPerBar + 1] = page end
+end
+assert(#coldPerBar >= 3 and not frame._tiles[1]._built,
+    "Action Bars must list Per Bar section links on first load before opening the editor")
 GUI:SelectFeatureTile(frame, 1, { subPageIndex = 2 })
 Flush()
 assert(selector and selector._testResolvedAnchor,
@@ -124,6 +129,11 @@ local actionBars = frame._tiles[1]
 local perBar = actionBars._subPageBodies[2]._contentBody
 assert(actionBars._activeSubPageIndex == 2 and perBar:GetHeight() > 300, "Per-Bar mounts its native settings on the selected subpage")
 assert(#perBar._sections >= 5, "Per-Bar includes the native layout, visual and text sections")
+assert(#coldPerBar == #perBar._sections, "opening Per Bar must preserve its initial section links")
+for index, section in ipairs(perBar._sections) do
+    assert(coldPerBar[index].sectionId == section.id and coldPerBar[index].label == section.label,
+        "initial Per Bar links must match the editor's actual heading identifiers and order")
+end
 local bindings = {}
 for _, entry in ipairs(GUI.SettingsRegistry) do
     if entry.featureId == "actionBarsPerBar" then bindings[entry.label] = true end
@@ -170,17 +180,35 @@ for _, name in ipairs({ "QUI_BagsTile", "QUI_AltsTile", "QUI_InfoBarTile" }) do
     assert(GUI:OpenNavigationFlyout(frame, tile), tile.id .. " opens its section flyout on first hover")
     assert(frame._lastTileIndex == previous, "warming a provider does not select its module")
     assert(not tile._built, "hovering must preserve the unbuilt provider")
+    local coldPages = GUI:GetTileNavigationPages(tile)
+    if tile.id == "bags" or tile.id == "alts" then
+        assert(#coldPages == #tile.config.subPages,
+            "small provider pages must expose one plain destination each before mounting")
+        for index, page in ipairs(coldPages) do
+            assert(page.pageIndex == index and page.label == tile.config.subPages[index].name
+                and not page.group and not page.sectionId,
+                "cold small provider pages must not add section sub-tabs")
+        end
+    end
     GUI:SelectFeatureTile(frame, tile.index)
     GUI:CloseNavigationFlyout(frame)
     GUI:OpenNavigationFlyout(frame, tile)
     local body = tile._subPageBodies[1]._contentBody
     local pages = GUI:GetTileNavigationPages(tile)
     if tile.id == "bags" or tile.id == "alts" then
-        assert(#pages == (tile.id == "bags" and 6 or 5) and tile._navArrow:IsShown(),
-            "focused provider pages must keep their native flyout inventory")
+        assert(#pages == #tile.config.subPages and tile._navArrow:IsShown(),
+            "focused provider pages must retain one destination per page")
         assert(#body._sections == 2, "General must build only its two related sections")
-        for _, page in ipairs(pages) do assert(not page.section, "focused pages must not duplicate section-scroll targets") end
-        local button = frame._pageFlyout._buttons[3]
+        local destination, represented = nil, {}
+        for index, page in ipairs(pages) do
+            local config = tile.config.subPages[page.pageIndex]
+            assert(page.label == config.name and not page.group and not page.sectionId,
+                "built small provider pages must remain plain destinations")
+            represented[page.pageIndex] = true
+            if page.pageIndex == 3 and not destination then destination = index end
+        end
+        for index in ipairs(tile.config.subPages) do assert(represented[index], "every provider page stays reachable") end
+        local button = frame._pageFlyout._buttons[assert(destination)]
         button._scripts.OnClick(button)
         Flush()
         assert(frame._lastTileIndex == tile.index and tile._activeSubPageIndex == 3,
@@ -207,7 +235,9 @@ for _, name in ipairs({ "QUI_BagsTile", "QUI_AltsTile", "QUI_InfoBarTile" }) do
         local scroll = assert(GUI:_findAncestorScroll(page.section))
         scroll.GetScrollChild = function() return body end
         body.GetTop = function() return 800 end
-        page.section.GetTop = function() return 500 end
+        for index, entry in ipairs(pages) do
+            entry.section.GetTop = function() return 800 - index * 100 end
+        end
         local range = scroll:GetVerticalScrollRange()
         local nextTop = pages[4] and pages[4].section:GetTop()
         local expected = math.min(range, 300)
@@ -237,18 +267,25 @@ for _, spec in ipairs({
     for _, page in ipairs(coldPages) do
         if page.pageIndex == spec.page then coldSections[#coldSections + 1] = page end
     end
-    assert(#coldSections == #config.featureIds,
-        "cold composite menus must list feature titles rather than internal settings headings")
-    for index, id in ipairs(config.featureIds) do
-        assert(coldSections[index].sectionId == id,
-            "cold composite links must use the feature IDs registered by the built page")
+    local grouped = #config.featureIds > 2
+    if grouped then
+        assert(#coldSections == #config.featureIds,
+            "larger composite menus must list feature titles rather than internal settings headings")
+        for index, id in ipairs(config.featureIds) do
+            assert(coldSections[index].sectionId == id,
+                "cold composite links must use the feature IDs registered by the built page")
+        end
+    else
+        assert(#coldSections == 1 and coldSections[1].label == config.name
+            and not coldSections[1].group and not coldSections[1].sectionId,
+            "small composite pages must have one plain destination")
     end
     local destination
     local ready = GUI.RunWhenSettingsLayoutReady
     GUI.RunWhenSettingsLayoutReady = function(_, _, target) destination = target end
     GUI:OpenNavigationFlyout(frame, tile, true)
     for index, page in ipairs(frame._pageFlyout._pages) do
-        if page.pageIndex == spec.page and page.sectionId == config.featureIds[2] then
+        if page.pageIndex == spec.page and (not grouped or page.sectionId == config.featureIds[2]) then
             local button = frame._pageFlyout._buttons[index]
             button._scripts.OnClick(button)
             break
@@ -257,11 +294,24 @@ for _, spec in ipairs({
     Flush()
     GUI.RunWhenSettingsLayoutReady = ready
     local sections = tile._subPageBodies[spec.page]._contentBody._sections
-    assert(destination == sections[2].frame,
-        "first composite click must resolve the actual mounted feature heading")
-    for index, section in ipairs(sections) do
-        assert(coldSections[index].label == section.label,
-            "cold and built composite menus must use identical feature title labels")
+    assert(tile._activeSubPageIndex == spec.page and #sections == #config.featureIds,
+        "composite page selection must mount all its settings")
+    if grouped then
+        assert(destination == sections[2].frame,
+            "first composite click must resolve the actual mounted feature heading")
+        for index, section in ipairs(sections) do
+            assert(coldSections[index].label == section.label,
+                "cold and built composite menus must use identical feature title labels")
+        end
+    else
+        assert(not destination, "small composite pages must open without a section jump")
+        local builtPages = {}
+        for _, page in ipairs(GUI:GetTileNavigationPages(tile)) do
+            if page.pageIndex == spec.page then builtPages[#builtPages + 1] = page end
+        end
+        assert(#builtPages == 1 and builtPages[1].label == config.name
+            and not builtPages[1].group and not builtPages[1].sectionId,
+            "small composite pages must stay plain after mounting")
     end
 end
 local cacheNS = {}
@@ -279,4 +329,94 @@ for _, entry in ipairs(GUI.StaticSettingsRegistry) do
     end
 end
 assert(foundQuality, "the actual search cache must retain the moved bag setting")
+ns.QUI_GroupFramesTile.Register(frame)
+local groupTile = frame._tiles[#frame._tiles]
+local groupSurface = ns.QUI_GroupFramesSettingsSurface
+local function HasSpotlight()
+    for _, page in ipairs(GUI:GetTileNavigationPages(groupTile)) do
+        if page.key == "layout" and page.sectionId == "Spotlight" then return true end
+    end
+    return false
+end
+groupSurface.SetContextMode("party")
+assert(not HasSpotlight(), "cold Party navigation must omit the raid-only Spotlight section")
+groupSurface.SetContextMode("raid")
+assert(HasSpotlight() and not groupTile._built,
+    "cold Raid navigation must expose Spotlight without constructing its settings page")
+local ready = GUI.RunWhenSettingsLayoutReady
+local jumpOwner, jumpTarget
+GUI.RunWhenSettingsLayoutReady = function(self, owner, target, callback, isCurrent)
+    jumpOwner, jumpTarget = owner, target
+    local body, scroll = assert(owner._contentBody), assert(owner._scrollFrame)
+    owner:SetWidth(800)
+    owner:SetHeight(600)
+    scroll:SetHeight(600)
+    body:SetHeight(2600)
+    body.GetTop = function() return 1000 end
+    local afterTarget = false
+    for _, section in ipairs(body._sections) do
+        if section.frame == target then
+            section.frame.GetTop = function() return 200 end
+            afterTarget = true
+        elseif afterTarget then
+            section.frame.GetTop = function() return -2000 end
+        else
+            section.frame.GetTop = function() return 990 end
+        end
+    end
+    scroll:SetVerticalScroll(0)
+    runWhenSettingsLayoutReady(self, owner, target, callback, isCurrent)
+end
+GUI:OpenNavigationFlyout(frame, groupTile, true)
+for index, page in ipairs(frame._pageFlyout._pages) do
+    if page.key == "layout" and page.sectionId == "Spotlight" then
+        local button = frame._pageFlyout._buttons[index]
+        button._scripts.OnClick(button)
+        break
+    end
+end
+Flush()
+local groupNavigation = assert(groupTile._surfacePagesByPage[1])
+assert(groupNavigation.getActiveTab() == "layout" and jumpOwner == groupNavigation.getPage("layout"),
+    "the first cold Spotlight click must select Layout and resolve its actual inner scrolling owner")
+assert(jumpTarget and jumpOwner._scrollFrame and #jumpOwner._contentBody._sections > 1,
+    "actual Group Frames layout must expose its rendered section heading as the scroll target")
+
+local function FinishJump(tile)
+    assert(rawget(tile, "_activeSubPageIndex") == nil,
+        tile.id .. " must exercise the real single-page tile without an explicit outer page index")
+    local driver = assert(jumpOwner._quiLayoutReadyDriver)
+    for _ = 1, 3 do
+        local update = driver._scripts.OnUpdate
+        if update then update(driver, 0.1) end
+    end
+    assert(jumpOwner._scrollFrame:GetVerticalScroll() == 800,
+        tile.id .. " section click must actually scroll its inner body after the layout settles")
+end
+FinishJump(groupTile)
+ns.QUI_NameplatesTile.Register(frame)
+local nameplateTile = frame._tiles[#frame._tiles]
+for pass = 1, 2 do
+    local destination
+    GUI:OpenNavigationFlyout(frame, nameplateTile, true)
+    for index, page in ipairs(frame._pageFlyout._pages) do
+        if page.key and page.sectionId then
+            local nextPage = frame._pageFlyout._pages[index + 1]
+            if not nextPage or nextPage.key ~= page.key or not nextPage.sectionId then
+                destination = page
+                local button = frame._pageFlyout._buttons[index]
+                button._scripts.OnClick(button)
+                break
+            end
+        end
+    end
+    assert(destination, "Nameplates must expose a cold and cached section destination")
+    Flush()
+    local navigation = assert(nameplateTile._surfacePagesByPage[1])
+    assert(navigation.getActiveTab() == destination.key and jumpOwner == navigation.getPage(destination.key),
+        "Nameplates section click must resolve its actual inner scrolling owner")
+    FinishJump(nameplateTile)
+end
+GUI.RunWhenSettingsLayoutReady = ready
+
 print("options_provider_flyout_integration_test: ok")

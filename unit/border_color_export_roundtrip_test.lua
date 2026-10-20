@@ -52,6 +52,10 @@ h.db.profile.general.objectiveTrackerBorderColorSource = "custom"
 h.db.profile.general.objectiveTrackerBorderColor = CUSTOM_COLOR
 h.db.profile.general.hideObjectiveTrackerBorder = false
 
+h.db.profile.general.statusTrackingBarsBorderColorSource = "custom"
+h.db.profile.general.statusTrackingBarsBorderColor = CUSTOM_COLOR
+h.db.profile.general.statusTrackingBarsHideBorder = true
+
 -- Categories that own the keys under test:
 --   minimapDatatexts/minimapSubtab -> topLevelKeys includes "minimap"
 --   skinning                        -> generalKeys = PROFILE_SKINNING_GENERAL_KEYS
@@ -99,6 +103,10 @@ check("Objective Tracker custom color survives selective import",
     colorEq(h.db.profile.general.objectiveTrackerBorderColor, CUSTOM_COLOR))
 check("Objective Tracker existing hide preference survives selective import",
     h.db.profile.general.hideObjectiveTrackerBorder == false)
+
+check("Status Tracking source survives selective import", h.db.profile.general.statusTrackingBarsBorderColorSource == "custom")
+check("Status Tracking color survives selective import", colorEq(h.db.profile.general.statusTrackingBarsBorderColor, CUSTOM_COLOR))
+check("Status Tracking visibility survives selective import", h.db.profile.general.statusTrackingBarsHideBorder == true)
 
 print(("\n%d failure(s)"):format(failures))
 os.exit(failures == 0 and 0 or 1)

@@ -21,7 +21,7 @@ end
 local sandbox=setmetatable({CreateFrame=Driver,GUI=gui,UIKit={},C_Timer={After=function(_,fn)timers[#timers+1]=fn end}},{__index=_G})
 local helperStart=assert(s:find("function GUI:RunWhenSettingsLayoutReady",1,true))
 local helperEnd=assert(s:find("function GUI:GetTileNavigationPages",helperStart,true))
-local helper=assert(loadstring(s:sub(helperStart,helperEnd-1)));setfenv(helper,sandbox);helper()
+local helper=assert(loadstring(s:sub(helperStart,helperEnd-1).."\nreturn NavigationPage, VisibleNavigationSections"));setfenv(helper,sandbox);sandbox.NavigationPage,sandbox.VisibleNavigationSections=helper()
 local chunk=assert(loadstring(s:sub(a,b-1).."\nreturn SelectPage"));setfenv(chunk,sandbox);local selectPage=chunk()
 local frame={};local page={pageIndex=4,section=target,sectionId="objectiveTracker"}
 local function Tick()local batch=timers;timers={};for _,fn in ipairs(batch)do fn()end;for _,d in ipairs(drivers)do if d.shown and d.scripts.OnUpdate then d.scripts.OnUpdate(d,0.1)end end end
@@ -37,4 +37,42 @@ assert(#offsets==0,"deferred section jump must not affect a different page")
 tile._activeSubPageIndex=4;ready=false;selectPage(frame,tile,page)
 for _=1,30 do Tick()end
 assert(#timers==0 and #offsets==0 and not drivers[1].scripts.OnUpdate,"layout retry must be bounded")
+local innerOwner=tile._subPageBodies[4]
+tile._subPageBodies[4]={_contentBody={_sections={}},_scrollFrame={SetVerticalScroll=function()error("wrong outer scroll")end}}
+local activeKey="general"
+tile._surfacePagesByPage={[4]={
+ getActiveTab=function()return activeKey end,
+ selectTab=function(key)activeKey=key end,
+ getPage=function(key)if key==activeKey then return innerOwner end end,
+}}
+offsets={};ready=false
+selectPage(frame,tile,{pageIndex=4,key="text",sectionId="objectiveTracker"});Tick()
+assert(activeKey=="text" and #offsets==0,"a cold section click must select its surface tab before waiting for geometry")
+ready=true;Tick();Tick();Tick()
+assert(offsets[1]==800,"surface shortcuts must scroll the inner page instead of its outer settings container")
+offsets={}
+selectPage(frame,tile,{pageIndex=4,key="text",sectionId="general"});Tick();Tick();Tick()
+assert(offsets[1]==10,"an embedded tab's first section must retain its offset inside the outer scroll")
+offsets={};ready=false
+selectPage(frame,tile,{pageIndex=4,key="text",sectionId="objectiveTracker"});Tick()
+activeKey="general";ready=true;Tick();Tick();Tick()
+assert(#offsets==0,"switching surface tabs must cancel the earlier tab's pending section jump")
+offsets={};ready=false
+selectPage(frame,tile,{pageIndex=4,key="text",sectionId="objectiveTracker"});Tick()
+innerOwner={_contentBody=innerOwner._contentBody,_scrollFrame=scroll,GetWidth=function()return 800 end,GetHeight=function()return 600 end}
+ready=true;Tick();Tick();Tick()
+assert(#offsets==0,"switching the Party/Raid or unit variant must cancel the earlier body's pending jump")
+
+gui.SelectFeatureTile=function()end
+tile._activeSubPageIndex=nil
+tile._surfacePagesByPage[1]=tile._surfacePagesByPage[4]
+offsets={};ready=false
+selectPage(frame,tile,{pageIndex=1,key="text",sectionId="objectiveTracker"});Tick()
+ready=true;Tick();Tick();Tick()
+assert(offsets[1]==800,"a single-page surface with an implicit first page must complete its deferred section jump")
+offsets={};ready=false
+selectPage(frame,tile,{pageIndex=1,key="text",sectionId="objectiveTracker"});Tick()
+tile._isActive=false;ready=true;Tick();Tick();Tick()
+assert(#offsets==0,"leaving a single-page tile must still cancel its pending jump")
+
 print("OK: options_initial_section_navigation_test")
