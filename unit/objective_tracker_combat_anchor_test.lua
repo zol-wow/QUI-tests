@@ -4,6 +4,7 @@ local a=assert(source:find("local managedReparentState = {}",1,true))
 local b=assert(source:find("local FRAME_RESOLVERS = {",a,true))
 local combat=false
 local timers={}
+local settings={skinObjectiveTracker=true,objectiveTrackerWidth=260,objectiveTrackerHeight=600}
 local function frame()
     local t={width=260,height=600,points={},protected=false,restricted=false}
     function t:IsProtected() return self.protected end
@@ -13,6 +14,20 @@ local function frame()
     end
     function t:GetWidth() return self.width end
     function t:GetHeight() return self.height end
+    function t:GetLeft()
+        local p = self.points[1]
+        if not p then return 0 end
+        if p[1] == "TOPLEFT" then return p[2]:GetLeft() + p[4] end
+        assert(p[1] == "CENTER" and p[3] == "CENTER")
+        return p[2]:GetLeft() + p[2]:GetWidth() / 2 + p[4] - self.width / 2
+    end
+    function t:GetTop()
+        local p = self.points[1]
+        if not p then return self.height end
+        if p[1] == "TOPLEFT" then return p[2]:GetTop() + p[5] end
+        assert(p[1] == "CENTER" and p[3] == "CENTER")
+        return p[2]:GetTop() - p[2]:GetHeight() / 2 + p[5] + self.height / 2
+    end
     function t:SetSize(w,h) check(self);self.width,self.height=w,h end
     function t:SetPoint(...) check(self);self.points[#self.points+1]={...} end
     function t:ClearAllPoints() check(self);self.points={} end
@@ -31,6 +46,7 @@ local ns={Helpers=core.Helpers}
 function ns.SafeCallMethod(_, t, method, ...) return t[method](t,...) end
 function ns.SafeCallMethodIfPresent(_, t, method, ...) if t and t[method] then return t[method](t,...) end end
 local sandbox=setmetatable({ns=ns,nsHelpers=core.Helpers,_G=globals,UIParent=parent,
+    QUICore={db={profile={general=settings}}},
     MANAGED_REPARENT_TARGETS={{key="objectiveTracker",frameName="ObjectiveTrackerFrame",holderName="QUI_ObjectiveTrackerHolder"}},
     QUI_Anchoring={},
     InCombatLockdown=function() return combat end,
@@ -59,12 +75,10 @@ assert(#tracker.points==1 and tracker.points[1][2]==holder,
     "unprotected objective tracker must stay on QUI holder when Spellbook opens in combat")
 assert(holder.width==tracker.width and holder.height==tracker.height)
 -- A native combat height change must not resize a centered configured holder.
-ns.GetObjectiveTrackerAnchorSize=function() return 260,600 end
 tracker.height=650
 repair("objectiveTracker")
 assert(holder.height==600,"native combat height changes must not shift the configured holder center/top")
 tracker.height=600
-ns.GetObjectiveTrackerAnchorSize=nil
 -- A genuinely protected or anchoring-restricted frame must still wait.
 for _,kind in ipairs({"protected","restricted"})do
     tracker[kind]=true
@@ -76,29 +90,31 @@ for _,kind in ipairs({"protected","restricted"})do
 end
 holder.protected=true
 tracker.height=650
+settings.objectiveTrackerHeight=650
 repair("objectiveTracker")
 assert(holder.height==600,"protected holder dimensions must not change in combat")
 combat=false;eventFrame.event(eventFrame,"PLAYER_REGEN_ENABLED")
 assert(holder.height==650,"holder dimensions must catch up after combat")
--- Exercise the production skin sizing contract, including native/scenario fallback.
-local sf=assert(io.open("modules/skinning/gameplay/objectivetracker.lua"))
-local skinSource=sf:read("*a");sf:close()
-local sa=assert(skinSource:find("ns.GetObjectiveTrackerAnchorSize = function()",1,true))
-local sb=assert(skinSource:find("local function UpdateBackdropAnchors()",sa,true))
-local settings={skinObjectiveTracker=true,objectiveTrackerWidth=260,objectiveTrackerHeight=600}
-local scenario=false
-local producerNS={}
-local producer=assert(loadstring(skinSource:sub(sa,sb-1)))
-setfenv(producer,setmetatable({ns=producerNS,blizzardTrackerHeight=650,
-    GetSettings=function()return settings end,IsScenarioActive=function()return scenario end},{__index=_G}))
-producer()
-local w,h=producerNS.GetObjectiveTrackerAnchorSize()
-assert(w==260 and h==600,"anchor extent must use configured size rather than native combat root size")
+holder.protected=false
 settings.objectiveTrackerHeight=1000
-w,h=producerNS.GetObjectiveTrackerAnchorSize();assert(h==1000,"configured height must expand beyond native maximum")
-ns.GetObjectiveTrackerAnchorSize=producerNS.GetObjectiveTrackerAnchorSize
 repair("objectiveTracker")
 assert(holder.height==1000,"managed holder must reserve the full expanded tracker height")
-settings.skinObjectiveTracker=false;assert(producerNS.GetObjectiveTrackerAnchorSize()==nil)
-settings.skinObjectiveTracker=true;scenario=true;assert(producerNS.GetObjectiveTrackerAnchorSize()==nil)
+holder:ClearAllPoints()
+holder:SetPoint("CENTER",parent,"CENTER",-400,100)
+ns.SyncManagedHolderSize("objectiveTracker")
+local savedLeft,savedTop=tracker:GetLeft(),tracker:GetTop()
+for _,skinned in ipairs({false,true}) do
+    settings.skinObjectiveTracker=skinned
+    for _,inCombat in ipairs({false,true}) do
+        combat=inCombat
+        for _,inScenario in ipairs({true,false,true,false}) do
+            tracker.width,tracker.height=inScenario and 235 or 260,inScenario and 800 or 1000
+            ns.SyncManagedHolderSize("objectiveTracker")
+            assert(tracker:GetLeft()==savedLeft and tracker:GetTop()==savedTop,
+                "scenario changes must preserve the saved tracker top-left, with skinning on/off and in combat")
+            assert(tracker.width==(inScenario and 235 or 260) and tracker.height==(inScenario and 800 or 1000),
+                "stable positioning must preserve native scenario content dimensions")
+        end
+    end
+end
 print("OK: objective_tracker_combat_anchor_test")
