@@ -291,11 +291,51 @@ Flush()
 local pageHost = page.children[1]
 local initialPageHeight = page:GetHeight()
 local runtime = pageHost._quiSettingsRuntime
+local function AssertSectionBounds(active)
+    local fractions = {TOPLEFT = 0, TOPRIGHT = 0, BOTTOMLEFT = 1, BOTTOMRIGHT = 1, RIGHT = 0.5, LEFT = 0.5}
+    local function Top(frame)
+        if frame == active.host then return 0 end
+        local point, relative, relativePoint, _, offset = frame:GetPoint(1)
+        return Top(relative) + relative:GetHeight() * fractions[relativePoint]
+            - offset - frame:GetHeight() * fractions[point]
+    end
+    local function HorizontalBounds(frame)
+        if frame == active.host then return 0, frame:GetWidth() end
+        local left, right
+        for index = 1, frame:GetNumPoints() do
+            local point, relative, relativePoint, x = frame:GetPoint(index)
+            local relativeLeft, relativeWidth = HorizontalBounds(relative)
+            local position = relativeLeft + x + (relativePoint:find("RIGHT", 1, true) and relativeWidth or 0)
+            if point:find("LEFT", 1, true) then left = position end
+            if point:find("RIGHT", 1, true) then right = position end
+        end
+        return left, right and right - left or frame:GetWidth()
+    end
+    for _, id in ipairs(active.sectionOrder) do
+        local frame = active.sectionHosts[id]
+        local top = Top(frame)
+        local left, width = HorizontalBounds(frame)
+        local pad = active.surface.padding or 10
+        assert(left == pad and width == active.host:GetWidth() - pad * 2,
+            "schema section widths must follow the available page width across child-page changes")
+        for index = 1, frame:GetNumPoints() do
+            local point, relative, relativePoint, _, offset = frame:GetPoint(index)
+            local anchoredTop = Top(relative) + relative:GetHeight() * fractions[relativePoint]
+                - offset - frame:GetHeight() * fractions[point]
+            assert(math.abs(anchoredTop - top) < 0.01,
+                "schema section anchors must agree with their declared heights: " .. id)
+        end
+        assert(top >= 0 and top + frame:GetHeight() <= active.host:GetHeight(),
+            "every schema section must stay within the measured scroll extent")
+    end
+end
+AssertSectionBounds(runtime)
 local sectionInitial = runtime.sectionHeights.settings
 local afterInitialY = select(5, runtime.sectionHosts.after:GetPoint(1))
 page:SetWidth(480)
 cards[1].frame.scripts.OnSizeChanged()
 Flush()
+AssertSectionBounds(runtime)
 local delta = runtime.sectionHeights.settings - sectionInitial
 assert(delta > 0, "schema must update the resized section height")
 assert(select(2, runtime.sectionHosts.after:GetPoint(1)) == runtime.sectionHosts.settings
@@ -307,6 +347,21 @@ page:SetWidth(800)
 cards[1].frame.scripts.OnSizeChanged()
 Flush()
 assert(page:GetHeight() == initialPageHeight, "deep schema wrappers must shrink without height drift")
+AssertSectionBounds(runtime)
+local singlePage = Frame()
+singlePage:SetWidth(760)
+ns.Settings.Schema:RenderFeature(ns.Settings.Schema.Feature({id = "singleEditor", sections = {
+    {id = "settings", kind = "custom", render = function(host) host:SetHeight(200); return 200 end},
+}}), singlePage, {surface = "tile"})
+local singleRuntime = singlePage._quiSettingsRuntime
+AssertSectionBounds(singleRuntime)
+for _, width in ipairs({480, 900, 760}) do
+    singlePage:SetWidth(width)
+    for _, height in ipairs({1200, 300, 1800, 200}) do
+        ns.Settings.Schema:ResizeSection(singleRuntime, "settings", height)
+        AssertSectionBounds(singleRuntime)
+    end
+end
 local stack = Frame()
 stack:SetWidth(800)
 BuildStack(stack, {"first", "second"})
@@ -833,3 +888,96 @@ assert(dualCard.frame._quiColumnCount == 2, "two-column flyouts must retain two 
 assert(dualCells[1]:GetParent() == dualCells[2]:GetParent(), "flyout rows must pair controls in reading order")
 assert(dualCells[1]:GetParent() ~= dualCells[3]:GetParent(), "third flyout control must start the next row")
 print("OK: explicit dual-column card layout")
+
+do
+    local t = { headers = {}, cards = {}, delayed = true }
+    ns.L = setmetatable({}, { __index = function(_, key) return key end })
+    options.CreateAccentDotLabel = function(parent, title)
+        local header = Frame(nil, nil, parent)
+        header.title = title
+        header:SetHeight(20)
+        t.headers[#t.headers + 1] = header
+        return header
+    end
+    function GUI:CreateLabel(parent, text)
+        local label = parent:CreateFontString()
+        label:SetText(text)
+        return label
+    end
+    function GUI:CreateFormEditBox(parent)
+        local widget = Frame(nil, nil, parent)
+        widget:SetSize(180, 28)
+        return widget
+    end
+    function GUI:SetSearchSection() end
+    t.createCard = options.CreateSettingsCardGroup
+    options.CreateSettingsCardGroup = function(...)
+        local card = t.createCard(...)
+        t.cards[#t.cards + 1] = card
+        local getHeight = card.frame.GetHeight
+        card.frame.GetHeight = function(self)
+            if t.delayed then return 0 end
+            return getHeight(self)
+        end
+        return card
+    end
+    t.source = Read("QUI_Reminders/spell_reminders/settings/spell_reminders.lua")
+    t.finish = assert(t.source:find("function O.Choices", 1, true))
+    assert(compile(t.source:sub(1, t.finish - 1)))("QUI", ns)
+    function ns.SpellReminderOptions.Layout(host)
+        local layout = ns.QUI_SettingsLayoutShared.MakeLayout(host)
+        layout.content = host
+        return layout
+    end
+    _G.C_Spell = { GetSpellInfo = function(id) return { name = "Offensive Buff " .. id } end }
+    assert(loadfile("QUI_Reminders/spell_reminders/model.lua"))("QUI", ns)
+    assert(loadfile("QUI_Reminders/spell_reminders/catalog.lua"))("QUI", ns)
+    assert(loadfile("QUI_Reminders/spell_reminders/settings/spell_reminder_tracking.lua"))("QUI", ns)
+    t.host = Frame()
+    t.host:SetWidth(660)
+    ns.SpellReminderOptions.builders.buffs(t.host, ns.SpellReminderModel.New(10060))
+    t.assertBounds = function()
+        assert(#t.cards == #t.headers and #t.cards == 16,
+            "Tracked Buffs must render its list settings, 13 class cards, potions and custom IDs")
+        for index = 1, #t.cards - 1 do
+            local card = t.cards[index].frame
+            local cardTop = -select(5, card:GetPoint(1))
+            local nextTop = -select(5, t.headers[index + 1]:GetPoint(1))
+            assert(nextTop >= cardTop + card._quiMeasuredHeight + 14,
+                "Tracked Buffs heading " .. t.headers[index + 1].title .. " overlaps its preceding card")
+        end
+        local last = t.cards[#t.cards].frame
+        assert(t.host:GetHeight() >= -select(5, last:GetPoint(1)) + last._quiMeasuredHeight,
+            "Tracked Buffs scroll extent must contain the final card")
+    end
+    t.assertBounds()
+    t.delayed = false
+    Flush()
+    t.assertBounds()
+    t.assertControls = function()
+        t.controls = 0
+        for index = 2, #t.cards - 1 do
+            for _, row in ipairs({ t.cards[index].frame:GetChildren() }) do
+                for _, cell in ipairs({ row:GetChildren() }) do
+                    if cell._widget then
+                        t.controls = t.controls + 1
+                        assert(cell:IsVisible() and cell._widget:IsVisible(),
+                            "each tracked buff control must remain visible after deferred layout")
+                    end
+                end
+            end
+        end
+        assert(t.controls == #ns.SpellReminderModel.buffs,
+            "deferred reflow must retain every catalogued tracked buff control")
+    end
+    t.assertControls()
+    for _, width in ipairs({ 480, 900, 480 }) do
+        t.host:SetWidth(width)
+        for _, callback in ipairs(t.host.hooks.OnSizeChanged) do callback(t.host, width) end
+        Flush()
+        t.assertBounds()
+        t.assertControls()
+    end
+    options.CreateSettingsCardGroup = t.createCard
+    print("OK: Tracked Buffs cards reserve calculated height before native bounds settle")
+end
