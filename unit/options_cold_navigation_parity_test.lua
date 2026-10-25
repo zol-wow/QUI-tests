@@ -17,6 +17,7 @@ function GUI:RunWhenSettingsLayoutReady(_, _, callback, isCurrent)
     C_Timer.After(0, function() if not isCurrent or isCurrent() then callback() end end)
 end
 for _, path in ipairs({
+    "modules/qol/sound_mute_catalog.lua",
     "QUI_ActionBars/actionbars/actionbars_env.lua", "QUI_ActionBars/actionbars/actionbars.lua",
     "QUI_ActionBars/actionbars/actionbars_helpers.lua", "QUI_ActionBars/actionbars/actionbars_per_bar_builders.lua",
 }) do

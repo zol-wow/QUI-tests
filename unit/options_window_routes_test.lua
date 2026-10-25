@@ -13,6 +13,7 @@ local function Frame()
     }
 end
 _G.CreateFrame = Frame
+_G.LibStub = function() end
 local gui = { Colors = { textMuted = {} }, SetSearchContext = function() end }
 function gui:CreateLabel() return Frame() end
 function gui:CreateFormCheckbox(_, _, key, db, callback)
@@ -40,8 +41,10 @@ local ns = { QUI_Options = {
         }
     end,
 } }
+ns.Addon = { db = { profile = profile, char = { consumableMacros = {} } } }
 (dofile("tests/helpers/locale.lua"))(ns)
 for _, path in ipairs({
+    "core/utils.lua",
     "core/settings/util.lua", "core/settings/schema.lua", "core/settings/registry.lua",
     "core/settings/nav.lua", "core/settings/provider_features.lua", "core/settings_layout_shared.lua",
     "modules/qol/settings/qol_content.lua", "modules/layout/settings/bonus_roll_provider.lua",
@@ -124,7 +127,10 @@ for _, cells in ipairs(rows) do
     end
 end
 for _, key in ipairs({ "enabled", "chatNotifications", "selectedFlask", "selectedPotion", "selectedHealth", "selectedHealthstone", "selectedAugment", "selectedVantus", "selectedWeapon" }) do
-    assert(macroBindings[key] == general.consumableMacros, "native macro control retains the profile binding: " .. key)
+    assert(macroBindings[key], "native macro control must remain available: " .. key)
+    macroBindings[key][key] = "shared-" .. key
+    assert(general.consumableMacros[key] == "shared-" .. key, "native macro control writes to the default shared scope: " .. key)
 end
+assert(macroBindings.characterSpecific, "QoL Consumables exposes the scope toggle")
 assert(macroBindings.alwaysShow == nil and macroBindings.showOnReadyCheck == nil, "QoL macros excludes the separately owned consumable-check controls")
 print("options_window_routes_test: ok")
