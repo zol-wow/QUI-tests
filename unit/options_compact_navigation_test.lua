@@ -18,6 +18,7 @@ local function Node(kind, parent)
         end
     end
     function node:Fire(key, ...) if self.scripts[key] then return self.scripts[key](self, ...) end end
+    function node:Click() if self.enabled ~= false then return self:Fire("OnClick") end end
     function node:ClearAllPoints() self.points = {} end
     function node:SetPoint(...) self.points[#self.points + 1] = { ... } end
     function node:SetWidth(value) self.width = value end
@@ -154,6 +155,20 @@ assert(frame._tiles[18]:IsShown(), "the Reminders module must remain visible in 
 for _, label in ipairs(frame._sidebarGroups) do
     assert(label.kind == "FontString" and not next(label.scripts), "category labels have no collapse handlers")
 end
+local function FindRow(panel, pageIndex, key, sectionId, isGroup)
+    for _, button in ipairs(panel._buttons) do
+        local page = button._page
+        if button:IsShown() and page and page.pageIndex == pageIndex and page.key == key
+            and page.sectionId == sectionId and (not not page._group) == (not not isGroup) then
+            return button
+        end
+    end
+end
+local function Row(panel, pageIndex, key, sectionId, isGroup)
+    return assert(FindRow(panel, pageIndex, key, sectionId, isGroup),
+        "missing visible navigation row " .. tostring(pageIndex) .. "/" .. tostring(key)
+            .. "/" .. tostring(sectionId) .. "/" .. tostring(isGroup))
+end
 local tile = frame._tiles[4]
 tile.config.subPages = { { name = "General" }, { name = "Frame" } }
 tile._activeSubPageIndex, tile._isActive, frame._lastTileIndex = 2, true, 4
@@ -183,7 +198,7 @@ assert(flyout._title.textColor[1] == 1 and flyout._title.textColor[2] == 1 and f
 assert(flyout._hint.textColor[1] == gui.Colors.textDim[1], "flyout hints retain their intentional dim color")
 assert(#flyout._pages == 4 and flyout._pages[3].key == "text" and flyout._pages[4].disabled,
     "surface pages retain exact keys and disabled state")
-flyout._buttons[4]:Fire("OnClick")
+Row(flyout, 2, "disabled"):Fire("OnClick")
 assert(selections == 0 and callbacks == 0 and flyout:IsShown(), "disabled pages cannot invoke navigation callbacks")
 tile.over = false
 tile:Fire("OnLeave")
@@ -211,8 +226,8 @@ tile:Fire("OnLeave")
 Advance(0.25)
 assert(not flyout:IsShown(), "leaving before the delay cancels hover opening")
 assert(gui:HandleNavigationKey(frame, "RIGHT") and flyout._keyboard, "Right opens keyboard navigation")
-assert(gui:HandleNavigationKey(frame, "UP") and flyout._keyboardIndex == 2, "Up selects the preceding surface page")
-assert(gui:HandleNavigationKey(frame, "DOWN") and flyout._keyboardIndex == 3, "Down returns to the exact text page")
+assert(gui:HandleNavigationKey(frame, "UP") and flyout._buttons[flyout._keyboardIndex]._page.key == "general", "Up selects the preceding surface page")
+assert(gui:HandleNavigationKey(frame, "DOWN") and flyout._buttons[flyout._keyboardIndex]._page.key == "text", "Down returns to the exact text page")
 assert(gui:HandleNavigationKey(frame, "ENTER") and selectedKey == "text" and selections == 1,
     "Enter selects the exact surface key on the owning subpage")
 assert(tile._activeSubPageIndex == 2 and not flyout:IsShown(), "selection keeps the outer page and closes the list")
@@ -383,8 +398,8 @@ assert(dock._pages[1].label == gui:GetTileNavigationPages(tile)[1].label, "dock 
 assert(not dock.scripts.OnUpdate and not dock.scripts.OnEvent, "docked navigation must not auto-close or poll mouse position")
 assert(frame.contentArea.points[#frame.contentArea.points][4] == 201, "dock must consume width instead of overlaying controls")
 local before = selections
-dock._buttons[2]:Fire("OnClick")
-assert(selections == before + 1 and tile._activeSubPageIndex == dock._pages[2].pageIndex, "one dock click must select the existing route")
+Row(dock, 2, "general"):Fire("OnClick")
+assert(selections == before + 1 and tile._activeSubPageIndex == 2 and selectedKey == "general", "one dock click must select the existing route")
 gui:SetNavigationDocked(frame, false)
 assert(not dock:IsShown() and QUI.db.profile.general.optionsNavigationDocked == false, "compact preference must be remembered")
 gui:SetNavigationDocked(frame, true)
@@ -511,7 +526,7 @@ viewport:SetVerticalScroll(0)
 gui:OpenNavigationFlyout(frame, sectionTile, true)
 for destination = 1, 4 do
     gui:OpenNavigationFlyout(frame, sectionTile, true)
-    frame._pageFlyout._buttons[destination]:Fire("OnClick")
+    Row(frame._pageFlyout, 1, nil, sections[destination].id):Fire("OnClick")
     Advance(0)
     grouped = gui:GetTileNavigationPages(sectionTile)
     assert(grouped[destination].active, "clicking each section must scroll into its own progress interval")
@@ -527,7 +542,7 @@ end
 viewport.scrollRange = 1100
 viewport:SetVerticalScroll(0)
 gui:OpenNavigationFlyout(frame, sectionTile, true)
-frame._pageFlyout._buttons[2]:Fire("OnClick")
+Row(frame._pageFlyout, 1, nil, "second"):Fire("OnClick")
 Advance(0)
 assert(math.abs(viewport:GetVerticalScroll() - 300) < 1, "clicking a section taller than the viewport must show its beginning rather than its middle")
 assert(gui:GetTileNavigationPages(sectionTile)[2].active, "the long section must remain highlighted at its beginning")
@@ -546,13 +561,14 @@ assert(grouped[1].active and not grouped[2].active, "a page without scrolling mu
 secondHeading.top = 810
 sectionTile.config.name = "Example"
 gui:OpenNavigationFlyout(frame, sectionTile, true)
-assert(frame._pageFlyout._headings[1]:GetText() == "General", "flyouts must show the originating page heading")
-assert(frame._pageFlyout._buttons[2]._navTop == 60, "group headings must reserve their own space above direct section links")
+local groupHeader = Row(frame._pageFlyout, 1, nil, nil, true)
+assert(groupHeader._label:GetText() == "General" and groupHeader._chevron,
+    "the originating page must be a selectable row with a separate expansion control")
+assert(groupHeader:GetHeight() == 26 and Row(frame._pageFlyout, 1, nil, "second"):GetHeight() == 26,
+    "parents and section links must use compact 26-unit rows")
+assert(Row(frame._pageFlyout, 2)._navTop - Row(frame._pageFlyout, 1, nil, "third")._navTop == 32,
+    "expanded groups must leave a six-unit gap after their final section")
 print("options_navigation_group_context: ok")
-
-assert(frame._pageFlyout._headings[1]._divider:GetWidth() == frame._pageFlyout._headings[1]:GetStringWidth(), "navigation divider must span its heading text")
-
-assert(frame._pageFlyout._headings[1].fontPath:find("Poppins-Bold.ttf", 1, true), "navigation group headings must use the bundled bold font")
 
 -- Unbuilt sections and nested tabs must be available without renderer work.
 ns.QUI_OptionsNavigationCatalog = {
@@ -577,7 +593,7 @@ gui.SelectFeatureTile = function(self, f, index, opts)
     cold._surfacePagesByPage = { [1] = { selectTab = function(key) selectedCold = key end } }
 end
 gui:OpenNavigationFlyout(frame, cold, true)
-frame._pageFlyout._buttons[2]:Fire("OnClick")
+Row(frame._pageFlyout, 1, "text"):Fire("OnClick")
 assert(selectedCold == "text", "cold nested page must resolve the newly registered native descriptor")
 local standard = { config = { subPages = {
     { name = "General", featureId = "standardGeneral" },
@@ -599,7 +615,7 @@ local names
 for _, page in ipairs(standardPages) do
     if page.sectionId == "Names" then names = page end
 end
-assert(names and names.key == "text" and names.pageIndex == 2 and names.group == "Frames / Text",
+assert(names and names.key == "text" and names.pageIndex == 2 and names.group == "Text" and names.parentGroup == "Frames",
     "unbuilt surface pages must expose correctly grouped section shortcuts without building editors")
 standard.config.subPages[1].sectionNav = false
 assert(gui:GetTileNavigationPages(standard)[1].sectionId == nil,
@@ -764,6 +780,8 @@ revealTile.index = #frame._tiles + 1
 revealTile.id, revealTile.config = "reveal_navigation", { name = "Reveal Navigation", subPages = {} }
 revealTile._isActive, revealTile._activeSubPageIndex = true, 4
 revealTile._subPageBodies = {}
+revealTile._title = Node("FontString")
+revealTile._pageFrame = Node("Frame", frame)
 for pageIndex = 1, 4 do
     revealTile.config.subPages[pageIndex] = { name = "Page " .. pageIndex }
     local pageScroll = Node("ScrollFrame")
@@ -782,7 +800,7 @@ frame._tiles[revealTile.index] = revealTile
 frame._lastTileIndex = revealTile.index
 frame:SetWidth(1200)
 QUI.db.profile.general.optionsNavigationDocked = true
-dock:SetHeight(300)
+dock:SetHeight(180)
 dock._keyboard = false
 dock._scroll:SetVerticalScroll(0)
 local revealWrites, scrollbarNotifications = 0, 0
@@ -797,30 +815,29 @@ end
 ns.UIKit.GetSmoothScroll = function(scrollFrame)
     if scrollFrame == dock._scroll then return revealController end
 end
-local function AssertRowVisible(index, message)
-    local row = dock._buttons[index]
+local function AssertRowVisible(row, message)
     local offset, viewport = dock._scroll:GetVerticalScroll(), dock._scroll:GetHeight()
     assert(row._navTop >= offset and row._navTop + row:GetHeight() <= offset + viewport, message)
 end
 gui:RefreshNavigationDock(frame, true)
-assert(dock._buttons[10]._page.active and not dock._keyboard,
+assert(Row(dock, 4, nil, "Section 1")._page.active and not dock._keyboard,
     "explicit navigation must retain mouse mode and select the destination row")
-AssertRowVisible(10, "the dock must reveal an offscreen destination after a programmatic page jump")
+AssertRowVisible(Row(dock, 4, nil, "Section 1"), "the dock must reveal an offscreen destination after a programmatic page jump")
 assert(revealWrites > 0 and not revealController.target and scrollbarNotifications == revealWrites,
     "page-list jumps must use the existing scroll controller and notify its listeners")
 dock._scroll:SetVerticalScroll(0)
 local writesBefore = revealWrites
 gui:RefreshNavigationDock(frame)
-dock._buttons[12]:Fire("OnEnter")
-dock._buttons[12]:Fire("OnLeave")
+Row(dock, 4, nil, "Section 3"):Fire("OnEnter")
+Row(dock, 4, nil, "Section 3"):Fire("OnLeave")
 gui:RefreshNavigationSectionHighlight(revealTile)
 assert(dock._scroll:GetVerticalScroll() == 0 and revealWrites == writesBefore,
     "ordinary refresh and hover must preserve manual page-list scrolling")
 gui:RefreshNavigationDock(frame, true)
-AssertRowVisible(10, "reopening the same destination must reveal it after the list was manually scrolled away")
+AssertRowVisible(Row(dock, 4, nil, "Section 1"), "reopening the same destination must reveal it after the list was manually scrolled away")
 revealTile._activeSubPageIndex = 1
 gui:RefreshNavigationDock(frame, true)
-AssertRowVisible(1, "an explicit jump must also reveal a destination above the current viewport")
+AssertRowVisible(Row(dock, 1, nil, "Section 1"), "an explicit jump must also reveal a destination above the current viewport")
 revealTile._activeSubPageIndex = 4
 gui:RefreshNavigationDock(frame, true)
 local delayedPage = revealTile._subPageBodies[4]
@@ -830,6 +847,310 @@ for index, section in ipairs(delayedPage._contentBody._sections) do
 end
 dock._scroll:SetVerticalScroll(0)
 gui:RefreshNavigationSectionHighlight(revealTile, true)
-assert(dock._buttons[12]._page.active, "settled content scrolling must identify the final section destination")
-AssertRowVisible(12, "the page list must reveal the destination section after its delayed content jump")
+assert(Row(dock, 4, nil, "Section 3")._page.active, "settled content scrolling must identify the final section destination")
+AssertRowVisible(Row(dock, 4, nil, "Section 3"), "the page list must reveal the destination section after its delayed content jump")
 print("options explicit navigation destination reveal: ok")
+
+assert(#dock._pages == 12 and #dock._rows == 7,
+    "the complete catalog must remain available while only the selected page exposes section rows")
+assert(not FindRow(dock, 1, nil, "Section 1") and not FindRow(dock, 2, nil, "Section 1"),
+    "unselected page sections must start collapsed")
+local selectionCount = selections
+local editorScroll = revealTile._subPageBodies[4]._scrollFrame:GetVerticalScroll()
+Row(dock, 2, nil, nil, true)._chevron:Click()
+assert(#dock._rows == 10 and FindRow(dock, 2, nil, "Section 1") and FindRow(dock, 4, nil, "Section 1"),
+    "a chevron must expose another group's sections without collapsing the selected group")
+assert(selections == selectionCount and revealTile._activeSubPageIndex == 4
+    and revealTile._subPageBodies[4]._scrollFrame:GetVerticalScroll() == editorScroll,
+    "peeking at another page must preserve the editor and content scroll")
+Row(dock, 4, nil, nil, true)._chevron:Click()
+assert(not FindRow(dock, 4, nil, "Section 1"), "the selected page may be collapsed explicitly")
+dock._scroll:SetVerticalScroll(25)
+local positionsBefore = {}
+for i, row in ipairs(dock._rows) do positionsBefore[i] = dock._buttons[i]._navTop .. ":" .. row.label end
+gui:RefreshNavigationSectionHighlight(revealTile)
+gui:RefreshNavigationDock(frame)
+assert(not FindRow(dock, 4, nil, "Section 1") and dock._scroll:GetVerticalScroll() == 25,
+    "ordinary section and layout refreshes must preserve manual collapse and navigation scroll")
+for i, row in ipairs(dock._rows) do
+    assert(positionsBefore[i] == dock._buttons[i]._navTop .. ":" .. row.label,
+        "settings scrolling must never rearrange navigation targets")
+end
+gui:RefreshNavigationDock(frame, true)
+assert(FindRow(dock, 4, nil, "Section 1") and not FindRow(dock, 2, nil, "Section 1"),
+    "explicit destination reveal must reopen its group and compact unrelated groups")
+Row(dock, 2, nil, nil, true):Click()
+assert(revealTile._activeSubPageIndex == 2 and selections == selectionCount + 1,
+    "clicking the parent page must navigate independently of its chevron")
+assert(FindRow(dock, 2, nil, "Section 1") and not FindRow(dock, 4, nil, "Section 1"),
+    "selecting a parent page must open its section links and collapse the previous page")
+
+dock._keyboard = true
+dock._keyboardIndex = Row(dock, 3, nil, nil, true)._index
+assert(gui:HandleNavigationKey(frame, "RIGHT") and FindRow(dock, 3, nil, "Section 1"),
+    "Right must expand the focused group without navigating")
+assert(selections == selectionCount + 1, "keyboard expansion must preserve the editor")
+assert(gui:HandleNavigationKey(frame, "DOWN") and dock._rows[dock._keyboardIndex].sectionId == "Section 1",
+    "Down must reach the first displayed child")
+assert(gui:HandleNavigationKey(frame, "LEFT") and dock._rows[dock._keyboardIndex]._group,
+    "Left from a section must focus its parent")
+assert(gui:HandleNavigationKey(frame, "LEFT") and not FindRow(dock, 3, nil, "Section 1"),
+    "Left from an open parent must collapse its children")
+assert(gui:HandleNavigationKey(frame, "END") and dock._keyboardIndex == #dock._rows
+    and dock._rows[dock._keyboardIndex].pageIndex == 4,
+    "End must select the last displayed row rather than a hidden catalog item")
+assert(gui:HandleNavigationKey(frame, "HOME") and dock._keyboardIndex == 1,
+    "Home must select the first displayed row")
+dock._keyboard = false
+
+dock._scroll:SetVerticalScroll(40)
+local savedModule = frame._lastTileIndex
+frame._lastTileIndex = sectionTile.index
+sectionTile._isActive, revealTile._isActive = true, false
+gui:RefreshNavigationDock(frame, true, true)
+dock._scroll:SetVerticalScroll(7)
+frame._lastTileIndex = savedModule
+sectionTile._isActive, revealTile._isActive = false, true
+gui:RefreshNavigationDock(frame, true, true)
+assert(dock._scroll:GetVerticalScroll() == 40, "returning to a module must restore its saved page-list offset")
+frame._lastTileIndex = sectionTile.index
+sectionTile._isActive, revealTile._isActive = true, false
+gui:RefreshNavigationDock(frame, true, true)
+assert(dock._scroll:GetVerticalScroll() == 7, "each module must retain its own page-list offset")
+print("options accordion navigation and scroll memory: ok")
+
+local surfaceTile = Node("Button", frame)
+surfaceTile.index = #frame._tiles + 1
+surfaceTile.config = { name = "Surface Accordion", featureId = "accordionSurface" }
+surfaceTile._title, surfaceTile._pageFrame = Node("FontString"), Node("Frame", frame)
+surfaceTile._activeSubPageIndex = 1
+frame._tiles[surfaceTile.index] = surfaceTile
+local surfaceKey = "general"
+local surfaceTabs, surfaceOwners = {}, {}
+for _, key in ipairs({ "general", "advanced", "disabled" }) do
+    local catalogSections, liveSections = {}, {}
+    for i = 1, 3 do
+        local id = key .. i
+        catalogSections[i] = { id = id, label = id }
+        liveSections[i] = { id = id, label = id, frame = Node("Frame") }
+    end
+    surfaceTabs[#surfaceTabs + 1] = { key = key, label = key, disabled = key == "disabled", sections = catalogSections }
+    surfaceOwners[key] = { _contentBody = { _sections = liveSections } }
+end
+ns.QUI_OptionsNavigationCatalog.accordionSurface = { tabs = surfaceTabs }
+local surfaceDescriptor = {
+    getTabs = function() return surfaceTabs end,
+    getActiveTab = function() return surfaceKey end,
+    getPage = function(key) return surfaceOwners[key] end,
+    selectTab = function(key)
+        surfaceKey = key
+        gui:UpdateTileNavigationTitle(surfaceTile)
+    end,
+}
+surfaceTile._surfacePagesByPage = { surfaceDescriptor }
+gui:SelectFeatureTile(frame, surfaceTile.index, { noHistory = true })
+gui:RefreshNavigationDock(frame, true)
+assert(FindRow(dock, 1, "general", "general1") and not FindRow(dock, 1, "advanced", "advanced1"),
+    "surface accordions must expand the selected surface key")
+local disabledRow = Row(dock, 1, "disabled", nil, true)
+assert(disabledRow.enabled == false and disabledRow._chevron.enabled == false,
+    "disabled surface groups must disable selection and expansion")
+local beforeDisabled = selections
+disabledRow:Fire("OnClick")
+assert(selections == beforeDisabled and surfaceKey == "general", "disabled parent routes cannot navigate")
+surfaceDescriptor.selectTab("advanced")
+assert(FindRow(dock, 1, "advanced", "advanced1") and not FindRow(dock, 1, "general", "general1"),
+    "a surface key change must expand its destination even without an explicit dock reveal")
+frame._navigationHistory = {}
+gui:PushNavigationHistory(frame)
+surfaceDescriptor.selectTab("general")
+gui:SelectFeatureTile(frame, revealTile.index, { noHistory = true })
+gui:RefreshNavigationDock(frame, true)
+gui:NavigateOptionsBack(frame)
+assert(frame._lastTileIndex == surfaceTile.index and surfaceKey == "advanced"
+    and FindRow(dock, 1, "advanced", "advanced1") and not FindRow(dock, 1, "general", "general1"),
+    "Back must expand the final restored surface key, after restoring the outer page")
+print("options surface accordion and Back restoration: ok")
+
+gui:SetNavigationDocked(frame, false)
+frame:SetHeight(760)
+gui:OpenNavigationFlyout(frame, revealTile, true)
+local resizeFlyout = frame._pageFlyout
+local compactHeight = resizeFlyout:GetHeight()
+Row(resizeFlyout, 3, nil, nil, true)._chevron:Click()
+assert(resizeFlyout:GetHeight() == compactHeight + 84,
+    "a flyout must grow to accommodate three expanded rows and their group gap when space allows")
+Row(resizeFlyout, 3, nil, nil, true)._chevron:Click()
+assert(resizeFlyout:GetHeight() == compactHeight,
+    "collapsing a group must reclaim unused flyout height")
+frame:SetHeight(220)
+gui:OpenNavigationFlyout(frame, revealTile, true)
+resizeFlyout._scroll:SetVerticalScroll(35)
+gui:CloseNavigationFlyout(frame)
+gui:OpenNavigationFlyout(frame, sectionTile, true)
+resizeFlyout._scroll:SetVerticalScroll(9)
+gui:CloseNavigationFlyout(frame)
+gui:OpenNavigationFlyout(frame, revealTile, true)
+assert(resizeFlyout._scroll:GetVerticalScroll() == 35,
+    "reopening a module flyout must restore its own saved scroll position")
+gui:CloseNavigationFlyout(frame)
+gui:OpenNavigationFlyout(frame, sectionTile, true)
+assert(resizeFlyout._scroll:GetVerticalScroll() == 9,
+    "switching flyout modules must not reuse another module's scroll position")
+frame:SetHeight(760)
+gui:OpenNavigationFlyout(frame, sectionTile, true)
+assert(resizeFlyout._scroll:GetVerticalScroll() == 0,
+    "saved flyout scroll must clamp when the full list fits after resizing")
+print("options accordion flyout height and scroll memory: ok")
+
+gui:SetNavigationDocked(frame, true)
+revealTile._activeSubPageIndex = 2
+frame._lastTileIndex = revealTile.index
+for _, entry in ipairs(frame._tiles) do entry._isActive = entry == revealTile end
+gui:RefreshNavigationDock(frame, true)
+Row(dock, 2, nil, nil, true)._chevron:Click()
+assert(not FindRow(dock, 2, nil, "Section 1"), "fixture must leave the remembered destination manually collapsed")
+frame._lastTileIndex = sectionTile.index
+sectionTile._isActive, revealTile._isActive = true, false
+gui:RefreshNavigationDock(frame, true, true)
+frame._lastTileIndex = revealTile.index
+sectionTile._isActive, revealTile._isActive = false, true
+gui:RefreshNavigationDock(frame, true)
+assert(FindRow(dock, 2, nil, "Section 1"),
+    "a cross-module explicit destination must reopen a previously collapsed remembered group")
+AssertRowVisible(Row(dock, 2, nil, "Section 1"),
+    "cross-module search navigation must reveal its destination instead of restoring an unrelated offset")
+print("options cross-module explicit destination expansion: ok")
+
+gui:SetNavigationDocked(frame, false)
+gui:OpenNavigationFlyout(frame, revealTile, true)
+Row(frame._pageFlyout, 2, nil, nil, true)._chevron:Click()
+assert(not FindRow(frame._pageFlyout, 2, nil, "Section 1"),
+    "fixture must collapse the selected group in compact navigation")
+gui:CloseNavigationFlyout(frame)
+gui:RefreshNavigationDock(frame, true)
+gui:OpenNavigationFlyout(frame, revealTile, true)
+assert(FindRow(frame._pageFlyout, 2, nil, "Section 1"),
+    "explicit navigation while the dock is disabled must expand its destination when the flyout reopens")
+Row(frame._pageFlyout, 2, nil, nil, true)._chevron:Click()
+Row(frame._pageFlyout, 2, nil, nil, true):Click()
+gui:OpenNavigationFlyout(frame, revealTile, true)
+assert(FindRow(frame._pageFlyout, 2, nil, "Section 1"),
+    "selecting a collapsed parent must expand its sections when compact navigation reopens")
+print("options compact explicit destination expansion: ok")
+
+local hierarchyTile = Node("Button", frame)
+hierarchyTile.index = #frame._tiles + 1
+hierarchyTile.id = "nested_reminders"
+hierarchyTile.config = { name = "Reminders", subPages = {
+    { name = "Defensive Reminders" }, { name = "Spell Reminders", featureId = "nestedReminderSurface" },
+} }
+hierarchyTile._title, hierarchyTile._pageFrame = Node("FontString"), Node("Frame", frame)
+hierarchyTile._activeSubPageIndex = 2
+frame._tiles[hierarchyTile.index] = hierarchyTile
+local hierarchyKey = "appearance"
+local hierarchyTabs = {
+    { key = "timing", label = "Timing", sections = { { id = "Timing", label = "Timing" } } },
+    { key = "appearance", label = "Appearance", sections = {
+        { id = "Icon", label = "Icon" }, { id = "Glow", label = "Glow" }, { id = "Position", label = "Position" },
+    } },
+    { key = "literal", label = "Audio / Voice", sections = {
+        { id = "Voice", label = "Voice" }, { id = "Volume", label = "Volume" }, { id = "Channel", label = "Channel" },
+    } },
+    { key = "sounds", label = "Sounds", sections = { { id = "Sound", label = "Sound" } } },
+}
+ns.QUI_OptionsNavigationCatalog.nestedReminderSurface = { tabs = hierarchyTabs }
+hierarchyTile._surfacePagesByPage = { [2] = {
+    getTabs = function() return hierarchyTabs end,
+    getActiveTab = function() return hierarchyKey end,
+    selectTab = function(key) hierarchyKey = key; gui:UpdateTileNavigationTitle(hierarchyTile) end,
+} }
+gui:SelectFeatureTile(frame, hierarchyTile.index, { subPageIndex = 2 })
+gui:SetNavigationDocked(frame, true)
+gui:RefreshNavigationDock(frame, true)
+local hierarchyParent = Row(dock, 2, nil, nil, true)
+local appearanceParent = Row(dock, 2, "appearance", nil, true)
+local iconRow = Row(dock, 2, "appearance", "Icon")
+assert(hierarchyParent._page.label == "Spell Reminders" and hierarchyParent._page._depth == 0,
+    "nested surfaces must retain one outer page parent")
+assert(appearanceParent._page.label == "Appearance" and appearanceParent._page._depth == 1
+    and iconRow._page._depth == 2,
+    "surface tabs and their sections must form separate nested levels without slash-joined labels")
+assert(Row(dock, 2, "timing")._page._depth == 1 and Row(dock, 2, "sounds")._page._depth == 1,
+    "short surface tabs must share their parent with tabs that expose sections")
+assert(Row(dock, 2, "literal", nil, true)._page.label == "Audio / Voice",
+    "literal slashes in a label must not invent hierarchy levels")
+local parentCount = 0
+for _, row in ipairs(dock._rows) do
+    if row.pageIndex == 2 and row._depth == 0 then parentCount = parentCount + 1 end
+end
+assert(parentCount == 1, "mixed short and section tabs must never duplicate the outer parent")
+local nestedSelectionCount = selections
+hierarchyParent._chevron:Click()
+assert(not FindRow(dock, 2, "appearance", nil, true) and not FindRow(dock, 2, "timing")
+    and not FindRow(dock, 2, "appearance", "Icon"),
+    "collapsing the outer page must hide all descendant tabs and sections")
+assert(selections == nestedSelectionCount, "collapsing an ancestor must not navigate")
+gui:RefreshNavigationSectionHighlight(hierarchyTile)
+gui:RefreshNavigationDock(frame)
+assert(not FindRow(dock, 2, "appearance", nil, true),
+    "ordinary updates must preserve an explicitly collapsed ancestor")
+gui:RefreshNavigationDock(frame, true)
+assert(FindRow(dock, 2, "appearance", "Icon"),
+    "an explicit destination must expand every ancestor of its selected section")
+dock._keyboard = true
+dock._keyboardIndex = Row(dock, 2, "appearance", "Icon")._index
+gui:HandleNavigationKey(frame, "LEFT")
+assert(dock._rows[dock._keyboardIndex].key == "appearance" and dock._rows[dock._keyboardIndex]._group,
+    "Left from a nested section must focus its surface-tab parent")
+gui:HandleNavigationKey(frame, "LEFT")
+assert(not FindRow(dock, 2, "appearance", "Icon"), "Left must collapse an expanded surface-tab parent")
+gui:HandleNavigationKey(frame, "LEFT")
+assert(dock._rows[dock._keyboardIndex].key == nil and dock._rows[dock._keyboardIndex]._group
+    and dock._rows[dock._keyboardIndex].pageIndex == 2,
+    "Left from a collapsed surface tab must move to its outer page parent")
+dock._keyboard = false
+Row(dock, 2, "literal", nil, true):Click()
+assert(hierarchyKey == "literal" and FindRow(dock, 2, "literal", "Voice")
+    and not FindRow(dock, 2, "appearance", "Icon"),
+    "selecting a sibling surface tab must keep the outer ancestor open and reveal the exact tab")
+print("options nested surface hierarchy: ok")
+
+local hierarchyDescriptor = hierarchyTile._surfacePagesByPage[2]
+local rootSelections = 0
+hierarchyDescriptor.rootKey = "general"
+hierarchyDescriptor.selectRoot = function()
+    rootSelections = rootSelections + 1
+    hierarchyDescriptor.selectTab("general")
+end
+Row(dock, 2, nil, nil, true):Click()
+assert(rootSelections == 1 and hierarchyKey == "general",
+    "an outer surface parent must open its own root controls")
+assert(Row(dock, 2, nil, nil, true)._page.active and FindRow(dock, 2, "timing"),
+    "a root destination must highlight and expand its parent without adding a General tab")
+assert(not FindRow(dock, 2, "general"), "the root must not duplicate itself among child tabs")
+gui:RefreshNavigationSectionHighlight(hierarchyTile)
+assert(Row(dock, 2, nil, nil, true)._page.active,
+    "scroll highlights must retain the active root destination")
+gui:PushNavigationHistory(frame)
+Row(dock, 2, "appearance", nil, true):Click()
+assert(hierarchyKey == "appearance" and rootSelections == 1
+    and FindRow(dock, 2, "appearance", "Glow"),
+    "child destinations must keep selecting their exact surface tab")
+gui:NavigateOptionsBack(frame)
+assert(hierarchyKey == "general" and Row(dock, 2, nil, nil, true)._page.active
+    and FindRow(dock, 2, "timing"), "Back must restore and reveal the root destination")
+hierarchyTile._surfacePagesByPage[2] = nil
+hierarchyKey = "appearance"
+gui:RefreshNavigationDock(frame, true)
+local selectBeforeRootBuild = gui.SelectFeatureTile
+gui.SelectFeatureTile = function(self, target, index, options)
+    selectBeforeRootBuild(self, target, index, options)
+    hierarchyTile._surfacePagesByPage[2] = hierarchyDescriptor
+end
+Row(dock, 2, nil, nil, true):Click()
+gui.SelectFeatureTile = selectBeforeRootBuild
+assert(rootSelections == 2 and hierarchyKey == "general"
+    and Row(dock, 2, nil, nil, true)._page.active,
+    "a cold parent route must use the root callback registered while its page builds")
+print("options surface root destination: ok")
