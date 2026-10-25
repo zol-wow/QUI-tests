@@ -48,6 +48,27 @@ for index, label in ipairs(expectedPerBar) do
     assert(perBarLinks[index].sectionId == label, "cold Per Bar section links must target the real editor headings")
 end
 
+local soundNS = { L = setmetatable({}, { __index = function(_, key) return key end }) }
+assert(loadfile("modules/qol/sound_mute_catalog.lua"))("QUI", soundNS)
+local expectedSoundSections = { "Sound Mute" }
+for _, category in ipairs(soundNS.SoundMuteCatalog.categories) do
+    expectedSoundSections[#expectedSoundSections + 1] = category.label
+end
+local sound = assert(catalog.soundMute, "Sound Mute must have cold navigation metadata")
+assert(#sound.sections == #expectedSoundSections,
+    "Sound Mute cold navigation must include every runtime category before the page is opened")
+local coldSound = { config = { subPages = { { name = "Sound Mute", featureId = "soundMute" } } } }
+local create = CreateFrame
+CreateFrame = function() error("cold Sound Mute navigation must not construct settings frames") end
+local soundLinks = GUI:GetTileNavigationPages(coldSound)
+CreateFrame = create
+assert(#soundLinks == #expectedSoundSections and not coldSound._subPageBodies,
+    "Sound Mute categories must be visible without constructing its settings page")
+for index, label in ipairs(expectedSoundSections) do
+    assert(sound.sections[index].id == label and soundLinks[index].sectionId == label,
+        "Sound Mute cold navigation must preserve runtime category order and heading targets")
+end
+
 local general = Sections("groupFramesPage", "general")
 local appearance = Sections("groupFramesPage", "appearance")
 local layout = Sections("groupFramesPage", "layout")
