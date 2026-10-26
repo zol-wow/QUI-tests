@@ -298,7 +298,7 @@ for _, spec in ipairs({
     for _, page in ipairs(coldPages) do
         if page.pageIndex == spec.page then coldSections[#coldSections + 1] = page end
     end
-    local grouped = #config.featureIds > 2
+    local grouped = #config.featureIds >= (config.sectionNav == true and 2 or 3)
     if grouped then
         assert(#coldSections == #config.featureIds,
             "larger composite menus must list feature titles rather than internal settings headings")
@@ -452,42 +452,63 @@ GUI.RunWhenSettingsLayoutReady = ready
 
 print("options_provider_flyout_integration_test: ok")
 
-profile.spellReminders.reminders = { [10060] = ns.SpellReminderModel.New(10060) }
+profile.spellReminders.reminders = {}
+for _, id in ipairs({10060, 29166, 6940, 1022, 1044}) do
+    profile.spellReminders.reminders[id] = ns.SpellReminderModel.New(id)
+end
 ns.QUI_RemindersTile.Register(frame)
 local remindersTile = frame._tiles[#frame._tiles]
 GUI:OpenNavigationFlyout(frame, remindersTile, true)
 local reminderPanel = frame._pageFlyout
-local function ReminderRow(key, sectionId, isGroup)
+local function ReminderRow(key, sectionId, isGroup, contextId)
     for _, button in ipairs(reminderPanel._buttons) do
         local row = button._page
         if button:IsShown() and row.pageIndex == 2 and row.key == key and row.sectionId == sectionId
-            and (not not row._group) == (not not isGroup) then return button end
+            and row.contextId == contextId and (not not row._group) == (not not isGroup) then return button end
     end
 end
-local outer = assert(ReminderRow(nil, nil, true), "cold Reminders must expose a single Spell Reminders parent")
-assert(outer._page.label == "Spell Reminders" and outer._page._depth == 0,
-    "the actual Spell Reminders outer page must stay at the root")
-assert(not ReminderRow("appearance", nil, true),
-    "a collapsed Spell Reminders parent must hide its nested tabs")
-outer._chevron._scripts.OnClick(outer._chevron)
-local appearance = assert(ReminderRow("appearance", nil, true))
-assert(appearance._page.label == "Appearance" and appearance._page._depth == 1,
-    "Spell Reminders Appearance must be a child tab, not a slash-delimited sibling")
-assert(ReminderRow("timing")._page._depth == 1 and ReminderRow("sounds")._page._depth == 1,
-    "short Spell Reminders tabs must remain siblings of Appearance")
-local outerCount = 0
-for _, row in ipairs(reminderPanel._rows) do
-    if row.pageIndex == 2 and row._depth == 0 then outerCount = outerCount + 1 end
+local function ContextRow(id)
+    for _, button in ipairs(reminderPanel._buttons) do
+        if button:IsShown() and button._page._groupId == "2:context:" .. id then return button end
+    end
 end
-assert(outerCount == 1, "the actual mixed Spell Reminders tabs must share exactly one parent")
+local outer = assert(ReminderRow(nil, nil, true))
+assert(not ns.SpellReminderPresentation and outer._page.label == "Spell Reminders (5)" and outer._page._depth == 0,
+    "cold navigation must preserve the collection before spell names load")
+outer._chevron._scripts.OnClick(outer._chevron)
+assert(ReminderRow("general")._page.label == "Add Reminder" and ContextRow(10060)._page.label == "10060",
+    "cold collection must expose creation and use spell ID fallbacks")
+ns.SpellReminderPresentation = { Name = function(config)
+    return config.spellID == 10060 and "Power Infusion" or "Spell " .. config.spellID
+end }
+GUI:OpenNavigationFlyout(frame, remindersTile, true)
+outer = assert(ReminderRow(nil, nil, true))
+assert(outer._page.label == "Spell Reminders (5)", "spell names must not replace the collection root")
+if not ContextRow(10060) then outer._chevron._scripts.OnClick(outer._chevron) end
+for _, id in ipairs({10060, 29166, 6940, 1022, 1044}) do
+    assert(ContextRow(id) and ContextRow(id)._page._depth == 1, "all five reminders must be separate visible rows")
+end
+local pi = ContextRow(10060)
+assert(pi._page.label == "Power Infusion")
+pi._chevron._scripts.OnClick(pi._chevron)
+local appearance = assert(ReminderRow("appearance", nil, true, 10060))
+assert(appearance._page.label == "Appearance" and appearance._page._depth == 2,
+    "Appearance must belong to the named reminder")
+assert(ReminderRow("timing", nil, false, 10060)._page._depth == 2
+    and ReminderRow("sounds", nil, false, 10060)._page._depth == 2, "short tabs must remain siblings")
 appearance._chevron._scripts.OnClick(appearance._chevron)
 for _, label in ipairs({ "Icon and Text", "Glow and Animation", "Position" }) do
-    local section = assert(ReminderRow("appearance", label), "Appearance must retain " .. label)
-    assert(section._page._depth == 2, "actual Spell Reminders sections must nest below their tab")
+    assert(ReminderRow("appearance", label, false, 10060)._page._depth == 3,
+        "actual reminder sections must retain their tab and reminder ancestry")
 end
-assert(not remindersTile._built, "inspecting nested Spell Reminders navigation must not build its editor")
+assert(not remindersTile._built, "inspecting every reminder must not build its editor")
 outer = ReminderRow(nil, nil, true)
 outer._chevron._scripts.OnClick(outer._chevron)
-assert(not ReminderRow("appearance", nil, true) and not ReminderRow("appearance", "Position")
-    and not ReminderRow("timing"), "collapsing Spell Reminders must hide every child and grandchild")
-print("options actual Spell Reminders hierarchy: ok")
+assert(not ContextRow(10060) and not ReminderRow("general"), "collapsing the collection hides all descendants")
+profile.spellReminders.reminders = {}
+GUI:OpenNavigationFlyout(frame, remindersTile, true)
+outer = assert(ReminderRow(nil, nil, true))
+assert(outer._page.label == "Spell Reminders (0)", "deleting all reminders retains the collection root")
+outer._chevron._scripts.OnClick(outer._chevron)
+assert(ReminderRow("general") and not ContextRow(10060), "empty cold navigation still exposes Add Reminder")
+print("options actual Spell Reminders collection hierarchy: ok")

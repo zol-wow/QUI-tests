@@ -51,20 +51,20 @@ assert(type(schema.navigation) == "table" and #schema.navigation > 0,
 --
 -- If a legitimate settings change alters the field count, updating these numbers
 -- is the correct response -- but it must be a deliberate edit, not a silent pass.
-assert(#schema.settings == 18,
-    ("settings schema has %d fields, expected 18"):format(#schema.settings))
-assert(#schema.navigation == 16,
-    ("navigation schema has %d fields, expected 16"):format(#schema.navigation))
+assert(#schema.settings == 19,
+    ("settings schema has %d fields, expected 19"):format(#schema.settings))
+assert(#schema.navigation == 17,
+    ("navigation schema has %d fields, expected 17"):format(#schema.navigation))
 
 local function hasField(list, name)
     for i = 1, #list do if list[i] == name then return true end end
     return false
 end
-for _, required in ipairs({ "featureId", "category", "label", "widgetDescriptor" }) do
+for _, required in ipairs({ "featureId", "category", "label", "contextLabel", "widgetDescriptor" }) do
     assert(hasField(schema.settings, required),
         "settings schema lost required field: " .. required)
 end
-for _, required in ipairs({ "featureId", "category", "label", "navType" }) do
+for _, required in ipairs({ "featureId", "category", "label", "contextLabel", "navType" }) do
     assert(hasField(schema.navigation, required),
         "navigation schema lost required field: " .. required)
 end

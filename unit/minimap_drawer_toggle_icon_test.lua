@@ -88,38 +88,31 @@ assert(drawerDefaults.toggleIcon == "qui",
     "the shipped default drawer toggle icon should be the QUI mark, got "
         .. tostring(drawerDefaults.toggleIcon))
 
--- tools/generate_search_cache.lua hardcodes its own copy of this dropdown
--- instead of reading the provider, so the two silently drift. Parse the mirror
--- out of the generator source and compare value sets.
-local generatorSource
-do
-    local handle = assert(io.open("tools/generate_search_cache.lua", "r"),
-        "tools/generate_search_cache.lua should be readable from the repo root")
-    generatorSource = handle:read("*a")
-    handle:close()
+-- The generated choices come from the real settings provider and must match
+-- every icon the runtime can render, without a second hardcoded option list.
+local cache = dofile("tests/helpers/search_cache.lua")()
+local capturedValues, choiceRows = {}, 0
+for _, entry in ipairs(cache.settings) do
+    local descriptor = entry.widgetDescriptor
+    if entry.featureId == "minimap" and descriptor
+        and descriptor.dbPath == "profile.minimap.buttonDrawer" and descriptor.dbKey == "toggleIcon" then
+        choiceRows = choiceRows + 1
+        for _, option in ipairs(descriptor.options) do capturedValues[option.value] = true end
+    end
 end
-
-local mirrorBody = generatorSource:match(
-    "MINIMAP_DRAWER_TOGGLE_ICON_OPTIONS%s*=%s*{(.-)}%s*\n")
-assert(mirrorBody,
-    "MINIMAP_DRAWER_TOGGLE_ICON_OPTIONS should still exist in tools/generate_search_cache.lua")
-
-local mirrorValues = {}
-for value in mirrorBody:gmatch('value%s*=%s*"([^"]+)"') do
-    mirrorValues[value] = true
-end
+assert(choiceRows == 1, "the real toggle-icon control must appear exactly once in search")
 
 -- The renderable set is every file-texture icon plus the colour-texture "grid".
 local renderable = { grid = true }
 for value in pairs(textures) do renderable[value] = true end
 
 for value in pairs(renderable) do
-    assert(mirrorValues[value],
-        ("toggle icon %q is renderable but missing from the search-cache mirror"):format(value))
+    assert(capturedValues[value],
+        ("toggle icon %q is renderable but missing from the generated search control"):format(value))
 end
-for value in pairs(mirrorValues) do
+for value in pairs(capturedValues) do
     assert(renderable[value],
-        ("the search-cache mirror offers %q, which the renderer cannot draw"):format(value))
+        ("the generated search control offers %q, which the renderer cannot draw"):format(value))
 end
 
 -- Everything above this line only checks the shape of TOGGLE_ICON_TEXTURES.

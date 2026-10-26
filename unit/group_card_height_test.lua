@@ -2,7 +2,9 @@ local path=os.getenv('QUI_GROUP_SCHEMA_SOURCE') or 'QUI_GroupFrames/groupframes/
 local f=assert(io.open(path));local source=f:read('*a');f:close()
 local body=assert(source:match('(local function CreateSectionBuilder.-)\nlocal function GetFontListWithDefault'))
 local options={};local host={SetHeight=function(self,h) self.height=h end}
-local build=assert((loadstring or load)('return function(GetOptionsAPI,PrepareSectionHost,SetSearchContext,GetRenderContextMode,SECTION_BOTTOM_PAD)\n'..body..'\nreturn CreateSectionBuilder end'))()(function() return options end,function() end,function() end,function() end,10)
+local ns={QUI_Options=options}
+assert(loadfile("core/settings_layout_shared.lua"))("QUI",ns)
+local build=assert((loadstring or load)('return function(ns,GetOptionsAPI,PrepareSectionHost,SetSearchContext,GetRenderContextMode,SECTION_BOTTOM_PAD)\n'..body..'\nreturn CreateSectionBuilder end'))()(ns,function() return options end,function() end,function() end,function() end,10)
 local builder=build(host,{})
 local card={frame={height=240}}
 function card.Finalize() end

@@ -432,8 +432,8 @@ local legacyHeight = legacyBody._contentHeight
 legacyBody:SetWidth(520)
 for _, fn in ipairs(legacyBody.hooks.OnSizeChanged) do fn(legacyBody, 520) end
 Flush()
-assert(select(2, legacyCells[1]:GetPoint(1)) ~= select(2, legacyCells[3]:GetPoint(1)),
-    "legacy forms must restore two columns when narrowed")
+assert(select(5, legacyCells[1]:GetPoint(1)) ~= select(5, legacyCells[2]:GetPoint(1)),
+    "legacy forms must stack adjacent controls below the shared breakpoint")
 assert(legacyBody._contentHeight > legacyHeight, "legacy scroll extent must follow the responsive row count")
 legacyBody:SetWidth(900)
 for _, fn in ipairs(legacyBody.hooks.OnSizeChanged) do fn(legacyBody, 900) end
@@ -462,8 +462,8 @@ local builderStart = assert(schemaSource:find("local function CreateSectionBuild
 local builderCode = schemaSource:sub(builderStart, assert(schemaSource:find("local function RefreshNameplates(", builderStart, true)) - 1)
 local sectionHost = Frame()
 sectionHost:SetWidth(760)
-local builderLoader = assert(compile("return function(GetOptionsAPI, PrepareSectionHost, SetSearchContext, HEADER_GAP, DESCRIPTION_TEXT_COLOR, SECTION_BOTTOM_PAD)\n" .. builderCode .. "\nreturn CreateSectionBuilder end"))
-local createBuilder = builderLoader()(function() return options end, function() end, function() end, 22, {}, 6)
+local builderLoader = assert(compile("return function(ns, GetOptionsAPI, PrepareSectionHost, SetSearchContext, HEADER_GAP, DESCRIPTION_TEXT_COLOR, SECTION_BOTTOM_PAD)\n" .. builderCode .. "\nreturn CreateSectionBuilder end"))
+local createBuilder = builderLoader()(ns, function() return options end, function() end, function() end, 22, {}, 6)
 local builder = createBuilder(sectionHost, {}, {})
 builder.Spacer(44)
 local mixedCard = builder.Card()
@@ -540,9 +540,9 @@ local groupSource = Read(arg[1] or "QUI_GroupFrames/groupframes/settings/group_f
 local groupBuilderStart = assert(groupSource:find("local function CreateSectionBuilder(", 1, true))
 local groupBuilderCode = groupSource:sub(groupBuilderStart,
     assert(groupSource:find("local function GetFontListWithDefault", groupBuilderStart, true)) - 1)
-local groupBuilderLoader = assert(compile("return function(GetOptionsAPI, PrepareSectionHost, SetSearchContext, GetSearchProviderKey, GetRenderContextMode, SECTION_BOTTOM_PAD)\n"
+local groupBuilderLoader = assert(compile("return function(ns, GetOptionsAPI, PrepareSectionHost, SetSearchContext, GetSearchProviderKey, GetRenderContextMode, SECTION_BOTTOM_PAD)\n"
     .. groupBuilderCode .. "\nreturn CreateSectionBuilder end"))
-local createGroupBuilder = groupBuilderLoader()(function() return options end, function() end,
+local createGroupBuilder = groupBuilderLoader()(ns, function() return options end, function() end,
     function() end, function() return "groupFrames" end, function() return "party" end, 10)
 
 for _, case in ipairs({{count = 1, trailing = 0}, {count = 1, trailing = 31}, {count = 3, trailing = 31}}) do
@@ -766,6 +766,57 @@ for _, fn in ipairs(nativeParent.hooks.OnSizeChanged) do fn(nativeParent, 700) e
 Flush()
 assert(nativeFrame:GetWidth() == 670, "recovered cards must follow parent resizing")
 
+-- A scrolled-out native card reports IsVisible=false while its page remains
+-- shown. Scrolling it back does not fire OnShow, so resize must still reflow it.
+do
+    local priorVisible = nativeFrame.IsVisible
+    nativeFrame.IsVisible = function() return false end
+    -- Native anchored width can remain positive but stale in the resize callback.
+    nativeFrame._quiRecoveredInset = nil
+    nativeParent:SetWidth(520)
+    for _, fn in ipairs(nativeParent.hooks.OnSizeChanged) do fn(nativeParent, 520) end
+    Flush()
+    assert(nativeFrame:GetWidth() == 490 and nativeFrame._quiColumnCount == 1,
+        "scroll-clipped cards must reflow before returning to the viewport")
+    nativeFrame.IsVisible = priorVisible
+end
+
+-- Reflow can reapply a stale explicit card width after the parent has already
+-- settled. The next refresh must use the parent's available width again.
+nativeFrame:SetWidth(670)
+nativeFrame._quiRefreshSettingsRows()
+Flush()
+assert(nativeFrame:GetWidth() == 490 and nativeFrame._quiColumnCount == 1,
+    "card reflow repairs stale bounds even when the parent width is unchanged")
+
+-- Native GetWidth can still report the old anchor width immediately after
+-- SetWidth. Packing must use the recovered parent width in that same pass.
+local stableGetWidth = nativeFrame.GetWidth
+function nativeFrame:GetWidth() return 670 end
+nativeFrame._quiRefreshSettingsRows()
+Flush()
+assert(nativeFrame.width == 490 and nativeFrame._quiColumnCount == 1,
+    "card packing must use the recovered width before native geometry catches up")
+nativeFrame.GetWidth = stableGetWidth
+
+-- A later sibling reflow can invalidate bounds after the one-shot native
+-- verification has finished. The resize path must repair them as well.
+nativeFrame._quiRecoveredInset = nil
+nativeFrame:SetPoint("TOPRIGHT", nativeParent, "TOPRIGHT", -15, -20)
+nativeParent:SetWidth(520)
+nativeFrame.lostBounds = true
+nativeFrame.scripts.OnSizeChanged()
+Flush()
+assert(nativeFrame:GetWidth() == 490 and nativeFrame:GetTop() == 480,
+    "late resize must recover invalid card bounds after initial verification")
+assert(nativeFrame:GetNumPoints() == 1 and nativeFrame._quiColumnCount == 1,
+    "recovered card must lay out against the actual narrow width")
+nativeParent:SetWidth(800)
+for _, fn in ipairs(nativeParent.hooks.OnSizeChanged) do fn(nativeParent, 800) end
+Flush()
+assert(nativeFrame:GetWidth() == 770 and nativeFrame._quiColumnCount == 2,
+    "late recovery must keep following parent width changes")
+
 local nativePage = Frame()
 nativePage:SetWidth(900)
 nativePage:SetHeight(500)
@@ -980,4 +1031,246 @@ do
     end
     options.CreateSettingsCardGroup = t.createCard
     print("OK: Tracked Buffs cards reserve calculated height before native bounds settle")
+end
+
+
+do
+    local source = Read("QUI_Options/aura_elements_editor.lua")
+    local first = assert(source:find("local function RenderDetail(", 1, true))
+    local last = assert(source:find("local function RelayoutList(", first, true))
+    local state, controls = { basics = true }, {}
+    local function BuildFields(ctx)
+        local header = Frame(nil, nil, ctx.detailArea)
+        ctx.BeginDetailSection(header, 28, "basics")
+        for _, label in ipairs({"Max Icons", "Icon Size"}) do
+            local widget = Frame(nil, nil, ctx.detailArea)
+            widget:SetSize(236, 28)
+            widget._quiPreferredControlWidth, widget._quiMinimumControlWidth = 236, 196
+            ctx.AddFormRow(label, widget)
+            controls[#controls + 1] = widget._quiSettingCell
+        end
+    end
+    local loader = assert(compile("return function(CreateFrame, GetOptionsAPI, sectionState, AddFilterStripConfig, ns)\n"
+        .. "local PAD, COL_GAP, FORM_ROW = 10, 16, 28\n"
+        .. source:sub(first, last - 1) .. "\nreturn RenderDetail end"))
+    local render = loader()(Frame, function() return options end, function() return state end, BuildFields, ns)
+    local detail = Frame(); detail:SetWidth(800)
+    local ctx = { detailArea = detail, caps = {singleStrip = true}, _detailRowPool = {},
+        ClearDetailWidgets = function() end, RegisterDetailWidget = function() end }
+    local element = {id = "responsive", mode = "filterStrip"}
+    local wide = render(ctx, element)
+    assert(#controls == 2 and controls[1]._label.wrap,
+        "aura details must use shared setting-row measurement")
+    assert(controls[1]._label:GetWidth() >= 80 and controls[2]._label:GetWidth() >= 80,
+        "aura slider labels must reserve readable width")
+    local row = controls[1]._quiDetailRow
+    assert(row == controls[2]._quiDetailRow and row._quiColDiv:IsShown())
+    detail:SetWidth(480)
+    local narrow = ctx.RelayoutDetail()
+    assert(narrow > wide and not row._quiColDiv:IsShown(),
+        "narrow aura details stack controls and grow their measured height")
+    assert(select(5, controls[2]:GetPoint(1)) <= -controls[1]:GetHeight(),
+        "stacked aura controls cannot overlap")
+    assert(controls[1]._label:GetWidth() >= 80 and controls[2]._label:GetWidth() >= 80,
+        "narrow aura slider labels stay readable")
+    ctx.SetDetailSectionExpanded("basics", false)
+    local collapsed = detail:GetHeight()
+    assert(collapsed < narrow and not row:IsShown(), "disclosure must still hide its detail rows")
+    ctx.SetDetailSectionExpanded("basics", true)
+    assert(detail:GetHeight() == narrow and row:IsShown())
+    for _ = 1, 3 do
+        detail:SetWidth(800); assert(ctx.RelayoutDetail() == wide)
+        detail:SetWidth(480); assert(ctx.RelayoutDetail() == narrow)
+    end
+    print("OK: aura details reuse shared measured rows across width and disclosure changes")
+end
+
+-- Real Buff/Debuff provider plus the shared card/composer. Native resize fires
+-- card and embedded-editor height changes independently, in either order.
+do
+    local t = { cards = {}, editors = {}, callbacks = {}, headers = {} }
+    local createCard = options.CreateSettingsCardGroup
+    options.CreateSettingsCardGroup = function(...)
+        local card = createCard(...)
+        t.cards[#t.cards + 1] = card
+        return card
+    end
+    options.CreateAccentDotLabel = function(parent, title)
+        local header = Frame(nil, nil, parent)
+        header:SetHeight(20)
+        header.title = title
+        t.headers[#t.headers + 1] = header
+        return header
+    end
+    GUI.CreateFormToggle = GUI.CreateFormCheckbox
+    function GUI:CreateFormSlider(parent)
+        local widget = Frame(nil, nil, parent)
+        widget:SetSize(236, 28)
+        widget._quiPreferredControlWidth, widget._quiMinimumControlWidth = 236, 196
+        return widget
+    end
+    local db = { buffBorders = { buffAuras = {}, debuffAuras = {} } }
+    options.GetDB = function() return db end
+    ns.QUI_AuraElementsEditor = { RenderAuras = function(host, auras, _, _, opts)
+        local key = auras == db.buffBorders.buffAuras and "buff" or "debuff"
+        t.editors[key], t.callbacks[key] = host, opts.onLayoutChanged
+        host:SetHeight(80)
+        return 80
+    end }
+    assert(loadfile("QUI_ActionBars/actionbars/settings/action_bars_buffdebuff_content.lua"))("QUI", ns)
+    t.host = Frame(); t.host:SetWidth(800)
+    ns.QUI_BuffDebuffOptions.BuildBuffDebuffTab(t.host)
+    Flush()
+    local ordered = {t.headers[1], t.cards[1].frame, t.headers[2], t.cards[2].frame,
+        t.editors.buff, t.headers[3], t.cards[3].frame, t.editors.debuff}
+    local origins, heights = {}, {}
+    for index, frame in ipairs(ordered) do
+        origins[index], heights[index] = select(5, frame:GetPoint()), frame:GetHeight()
+    end
+    local initialHeight = t.host:GetHeight()
+    local function AssertFlow()
+        local delta = 0
+        for index, frame in ipairs(ordered) do
+            local y = select(5, frame:GetPoint())
+            assert(y == origins[index] - delta,
+                ("Buff/Debuff frame %s must retain preceding card/editor deltas: expected %s, got %s")
+                    :format(index, origins[index] - delta, y))
+            delta = delta + frame:GetHeight() - heights[index]
+        end
+        assert(t.host:GetHeight() == initialHeight + delta,
+            "Buff/Debuff scroll extent must apply card and editor changes exactly once")
+    end
+    local function SetEditor(key, height)
+        t.editors[key]:SetHeight(height)
+        t.callbacks[key](height)
+        Flush()
+    end
+    local function SetWidth(width)
+        t.host:SetWidth(width)
+        for _, card in ipairs(t.cards) do card.frame.scripts.OnSizeChanged() end
+        Flush()
+    end
+    AssertFlow()
+    for _ = 1, 3 do
+        SetEditor("buff", 230); AssertFlow()
+        SetWidth(480); AssertFlow()
+        SetEditor("buff", 340); AssertFlow()
+        SetEditor("debuff", 270); AssertFlow()
+        SetWidth(800); AssertFlow()
+        SetEditor("buff", 230); AssertFlow()
+        SetEditor("debuff", 180); AssertFlow()
+        SetEditor("buff", 340); AssertFlow()
+        SetWidth(480); AssertFlow()
+        SetEditor("buff", 80); AssertFlow()
+        SetEditor("debuff", 80); AssertFlow()
+        SetWidth(800); AssertFlow()
+        SetEditor("buff", 80); AssertFlow()
+    end
+    options.CreateSettingsCardGroup = createCard
+    print("OK: actual Buff/Debuff provider preserves card and editor reflow in either order")
+end
+
+-- Nested custom bodies must move following sections and extend the outer scroll.
+do
+    local outer = Frame()
+    outer:SetWidth(700); outer:SetHeight(500)
+    local body = Frame(nil, nil, outer)
+    body:SetPoint("TOPLEFT", outer, "TOPLEFT", 15, -10); body:SetHeight(100)
+    local following = Frame(nil, nil, outer)
+    following:SetPoint("TOPLEFT", outer, "TOPLEFT", 15, -130)
+    ns.QUI_SettingsLayoutShared.WatchContentHeight(body, outer)
+    body:SetHeight(400)
+    assert(select(5, following:GetPoint(1)) == -430 and outer:GetHeight() == 800,
+        "compact custom body expansion must preserve following settings and scroll extent")
+    body:SetHeight(100)
+    assert(select(5, following:GetPoint(1)) == -130 and outer:GetHeight() == 500,
+        "normal width must restore the original extent without drift")
+    local label = outer:CreateFontString()
+    label:SetPoint("TOPLEFT", outer, "TOPLEFT", 15, -10)
+    label:SetText(string.rep("text ", 60))
+    ns.QUI_SettingsLayoutShared.BindWrappedLabel(label, outer, 15)
+    local originalHeight = label:GetHeight()
+    outer:SetWidth(350)
+    for _, hook in ipairs(outer.hooks.OnSizeChanged) do hook(outer, 350, outer:GetHeight()) end
+    assert(label:GetWidth() == 320 and label:GetHeight() > originalHeight,
+        "document text must wrap to the compact width")
+    assert(select(5, following:GetPoint(1)) == -130 - label:GetHeight() + originalHeight,
+        "wrapped text must push the following content down")
+end
+
+do
+    local outer = Frame(); outer:SetWidth(700); outer:SetHeight(500)
+    local L = ns.QUI_SettingsLayoutShared.MakeLayout(outer)
+    local first = Frame(nil, nil, outer)
+    L.placeCustom(first, 1)
+    first:SetHeight(100)
+    local nextBlock = Frame(nil, nil, outer)
+    L.placeCustom(nextBlock, 50)
+    assert(select(5, nextBlock:GetPoint(1)) == -124,
+        "blocks placed after measured content grows must start below its current height")
+end
+
+-- Height changes must not recursively remeasure all text in a document.
+do
+    local outer = Frame(); outer:SetWidth(700); outer:SetHeight(500)
+    local reads = 0
+    for i = 1, 40 do
+        local label = outer:CreateFontString()
+        label:SetPoint("TOPLEFT", outer, "TOPLEFT", 15, -i * 50)
+        label:SetText(string.rep("text ", 60))
+        local measure = label.GetStringHeight
+        label.GetStringHeight = function(self) reads = reads + 1; return measure(self) end
+        ns.QUI_SettingsLayoutShared.BindWrappedLabel(label, outer, 15)
+    end
+    reads = 0
+    outer:SetHeight(600)
+    assert(reads == 0, "height-only notifications must not remeasure document text")
+    outer:SetWidth(350)
+    for _, hook in ipairs(outer.hooks.OnSizeChanged) do hook(outer, 350, outer:GetHeight()) end
+    assert(reads == 40, "each document label must be measured once per width change")
+end
+
+-- Nested hosts retain their source width even when native anchors still resolve
+-- against the preceding editor's previous width.
+do
+    local outer = Frame(); outer:SetWidth(700); outer:SetHeight(500)
+    function outer:GetTop() return 100 end
+    local host = Frame(nil, nil, outer)
+    function host:GetTop() return 90 end
+    ns.QUI_SettingsLayoutShared.MakeLayout(outer, nil, -40,
+        {padding = 0, explicitWidth = true}).placeCustom(host, 100)
+    assert(host:GetNumPoints() == 1 and host:GetWidth() == 700)
+    for _, width in ipairs({480, 800, 480, 700}) do
+        outer:SetWidth(width)
+        for _, callback in ipairs(outer.hooks.OnSizeChanged) do callback(outer, 700) end
+        assert(host:GetWidth() == width, "nested content width must follow the settled parent width")
+        assert(select(5, host:GetPoint(1)) == -40, "width changes must preserve vertical placement")
+    end
+end
+
+-- WoW may deliver old-width notifications while measuring text changes height.
+-- Coalesce those notifications and read native width after the layout settles.
+do
+    local oldTimer = C_Timer
+    C_Timer = timer
+    local outer = Frame(); outer:SetWidth(700); outer:SetHeight(1200)
+    local labels, reads = {}, 0
+    for i = 1, 20 do
+        local label = outer:CreateFontString()
+        label:SetPoint("TOPLEFT", outer, "TOPLEFT", 15, -i * 50)
+        label:SetText(string.rep("text ", 60))
+        local measure = label.GetStringHeight
+        label.GetStringHeight = function(self) reads = reads + 1; return measure(self) end
+        ns.QUI_SettingsLayoutShared.BindWrappedLabel(label, outer, 15)
+        labels[#labels + 1] = label
+    end
+    Flush(); reads = 0
+    for _, callback in ipairs(outer.hooks.OnSizeChanged) do callback(outer, 700) end
+    outer:SetWidth(350)
+    for _, callback in ipairs(outer.hooks.OnSizeChanged) do callback(outer, 700) end
+    assert(reads == 0, "native resize notifications must defer text measurement")
+    Flush()
+    assert(reads == 20, "settled resize must measure each label once without recursive height layout")
+    for _, label in ipairs(labels) do assert(label:GetWidth() == 320) end
+    C_Timer = oldTimer
 end

@@ -155,6 +155,22 @@ end
 print("OK: cold navigation matches rendered pages across " .. checked .. " destinations")
 
 frame:SetWidth(1400)
+-- Mounted Bonus Roll headings share the sidebar jump and reveal lifecycle.
+local bonusTile
+for _, tile in ipairs(frame._tiles) do if tile.id == "qol" then bonusTile = tile end end
+GUI:SelectFeatureTile(frame, bonusTile.index, { subPageIndex = 14 })
+Flush()
+local bonusBody = bonusTile._subPageBodies[14]._contentBody
+local worldSection
+for _, section in ipairs(bonusBody._sections) do
+    if section.id == "World Bosses" then worldSection = section.frame end
+end
+assert(worldSection and not worldSection._expanded, "World Bosses starts collapsed")
+GUI:ScrollToTileNavigationSection(bonusTile, { pageIndex = 14, sectionId = "World Bosses" })
+Flush()
+assert(worldSection._expanded and worldSection._body:IsShown(),
+    "sidebar section navigation must reveal the actual collapsed provider body")
+
 local actionTile
 for _, tile in ipairs(frame._tiles) do
     if tile.id == "action_bars" then actionTile = tile; break end

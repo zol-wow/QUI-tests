@@ -3,6 +3,7 @@
 -- luacheck: globals CreateFrame
 
 local refreshDrivers = {}
+local activePixelSize = 0.5
 local pixelSizeCalls = 0
 local pixelsCalls = 0
 
@@ -99,12 +100,12 @@ local core = {}
 
 function core:GetPixelSize()
     pixelSizeCalls = pixelSizeCalls + 1
-    return 0.5
+    return activePixelSize
 end
 
 function core:Pixels(value)
     pixelsCalls = pixelsCalls + 1
-    return value * 0.5
+    return value * activePixelSize
 end
 
 function ns.Helpers.GetCore()
@@ -141,3 +142,20 @@ for name, edge in pairs(edges) do
 end
 
 print("OK: uikit_border_color_update_no_resnap_test")
+
+-- A preview can be fitted to a tiny intermediate scale during a panel resize.
+-- Repaint only that subtree against its stable pixel reference before measuring.
+ns.SafeCall = function(_, fn, ...) return pcall(fn, ...) end
+local child, unrelated = NewFrame(), NewFrame()
+local childEdges = UIKit.CreateBorderLines(child)
+local unrelatedEdges = UIKit.CreateBorderLines(unrelated)
+frame.GetChildren = function() return child end
+activePixelSize = 2
+UIKit.RefreshPixelBorders(frame)
+assert(edges.top.height == 2 and childEdges.top.height == 2,
+    "scoped border refresh must include preview descendants")
+assert(unrelatedEdges.top.height == 0.5,
+    "scoped preview refresh must not alter other settings or live plates")
+UIKit.RefreshPixelBorders()
+assert(unrelatedEdges.top.height == 2, "global scale refresh must remain supported")
+print("OK: scoped pixel border refresh")

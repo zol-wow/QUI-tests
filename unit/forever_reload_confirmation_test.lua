@@ -2,6 +2,10 @@ local function noop() end
 local widgets = {}
 local function widget(name)
     local self = { scripts = {}, shown = true }
+    function self:SetParent(parent) self.parent = parent end
+    function self:GetParent() return self.parent end
+    function self:SetFrameLevel(level) self.level = level end
+    function self:GetFrameLevel() return self.level or 0 end
     function self:SetScript(event, callback) self.scripts[event] = callback end
     function self:GetScript(event) return self.scripts[event] end
     function self:HookScript(event, callback)
@@ -40,7 +44,10 @@ _G.QUI = {
 }
 _G.LibStub = noop
 _G.InCombatLockdown = function() return false end
-_G.CreateFrame = function(_, name) return widget(name) end
+_G.UIParent = widget("UIParent")
+_G.CreateFrame = function(_, name, parent)
+    local frame = widget(name); frame:SetParent(parent); return frame
+end
 _G.UIReload = function()
     assert(widgets.QUI_ConfirmDialog:IsShown(),
         "Forever must request reload while its mouse-release dialog is still visible")
@@ -123,3 +130,21 @@ click(accept)
 assert(retailReloads == 1 and reloads == 2 and deletions == 1)
 
 print("OK: real reload confirmation dispatch and reused dialog cleanup")
+
+-- Native Raise() promotes a top-level owner ahead of unrelated sibling dialogs.
+-- Exercise the real shared dialog, including reuse outside the options window.
+GUI.MainFrame = widget("Options")
+GUI.MainFrame:SetFrameLevel(500)
+GUI:ShowConfirmation({ title = "Owned confirmation" })
+assert(dialog:GetParent() == GUI.MainFrame,
+    "a confirmation must stay in the options owner tree when the window is raised")
+assert(dialog:GetFrameLevel() > GUI.MainFrame:GetFrameLevel())
+dialog:Hide()
+GUI.MainFrame:Hide()
+GUI:ShowConfirmation({ title = "Standalone confirmation" })
+assert(dialog:GetParent() == UIParent and dialog:IsShown(),
+    "confirmation reuse with hidden options must detach to the visible UI root")
+GUI.MainFrame:Show()
+GUI:ShowConfirmation({ title = "Owned again" })
+assert(dialog:GetParent() == GUI.MainFrame, "reused confirmation must follow its current owner")
+print("OK: shared confirmation owner and standalone reuse")

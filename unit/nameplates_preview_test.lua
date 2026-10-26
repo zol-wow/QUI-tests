@@ -1218,3 +1218,24 @@ test("zoom refitting cannot paint an oversized intermediate frame", function()
     if host:GetAlpha() ~= 0 then fail("later zoom changes must use the same rendering barrier") end
     C_Timer.After = function() end
 end)
+
+
+test("preview measurement refreshes borders against the live pixel reference", function()
+    local host = NewFrame(UIParent)
+    host._left, host._top, host._w, host._h = 100, 500, 300, 160
+    host._npPreviewFit = true
+    host.GetEffectiveScale = function() return 1 end
+    local plate, callbacks = MeasureOn(host)
+    Paint(plate.healthBar, 100, 300, 500, 400, 1)
+    local previous = ns.UIKit.RefreshPixelBorders
+    local calls = 0
+    ns.UIKit.RefreshPixelBorders = function(root)
+        assert(root == plate, "only the active specimen may be refreshed")
+        assert(ns.Addon._pixelRef == false, "preview borders must use the live reference")
+        calls = calls + 1
+    end
+    callbacks[1]()
+    assert(calls == 1, "refitted preview must repaint stale borders before measuring")
+    assert(ns.Addon._pixelRef == nil, "measurement must restore the caller's pixel context")
+    ns.UIKit.RefreshPixelBorders = previous
+end)

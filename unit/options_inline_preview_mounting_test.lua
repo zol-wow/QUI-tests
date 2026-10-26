@@ -585,23 +585,24 @@ end
 local profileRows = CardRows(profileCard)
 assert(#profileRows == 3 and profileRows[1]._rightCell and profileRows[2]._rightCell and profileRows[3]._rightCell,
     "profile status, selection actions and save actions use three paired rows instead of separate strips")
-profileCard:SetWidth(900)
+-- Resize the owning section: native card anchors follow its available width.
+profiles:SetWidth(900)
 profileCard._quiRefreshSettingsRows()
 Flush()
 assert(not profileRows[2]._stacked and #profileRows[2]._rightCell._buttons == 4,
     "wide profile editor keeps all existing selection actions beside the dropdown")
 local profileActions = profileRows[2]._rightCell
-profileCard:SetWidth(640)
+profiles:SetWidth(640)
 profileCard._quiRefreshSettingsRows()
 Flush()
 assert(select(5, profileActions._buttons[4]:GetPoint(1)) < 0,
     "profile actions wrap rather than overflow at the paired-card boundary")
-profileCard:SetWidth(480)
+profiles:SetWidth(480)
 profileCard._quiRefreshSettingsRows()
 Flush()
 assert(profileRows[2]._stacked and profileRows[3]._stacked,
     "narrow profile editor stacks selection and save actions without hiding controls")
-profileCard:SetWidth(900)
+profiles:SetWidth(900)
 profileCard._quiRefreshSettingsRows()
 Flush()
 local starterCard

@@ -36,10 +36,10 @@ layout.headerAt("Objective Tracker")
 local broken = frames[1]
 assert(broken.update, "section title must verify its text bounds after native layout")
 broken.update(broken)
-assert(not broken.width, "recovery must wait until the parent is positioned")
+assert(broken.width == 670 and broken.update, "explicit width must be set while bounds repair waits for parent position")
 content.top = 100
 broken.update(broken)
-assert(not broken.width, "recovery must allow the first layout frame")
+assert(broken.width == 670 and broken.update, "bounds repair must allow the first layout frame")
 -- Simulate card reflow before repair: the current offset must be preserved.
 broken.points[1][5] = -150
 broken.update(broken)
@@ -54,7 +54,7 @@ valid = true
 layout.headerAt("Next Section")
 local good = frames[2]
 good.update(good); good.update(good)
-assert(not good.width and not good.update, "valid titles must retain their native anchors")
+assert(good.width == 770 and #good.points == 1 and not good.update, "valid titles must use one anchor plus an explicit width")
 content:SetWidth(700)
-assert(not good.width, "valid titles must retain native width handling after resize")
+assert(good.width == 670, "all titles must follow content width after resize")
 print("OK: settings_section_header_bounds_test")

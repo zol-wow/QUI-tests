@@ -143,4 +143,32 @@ selectPage({}, tile, { pageIndex = 1 })
 Tick()
 assert(not tile._pendingNavigationSection and perBar._scrollFrame.offset == 0,
     "a newer plain page selection must cancel the pending section highlight and scroll")
+selectPage({}, tile, { pageIndex = 2, sectionId = "Unavailable Section" })
+assert(not tile._pendingNavigationSection,
+    "a section absent from the mounted page must clear its early pending highlight")
+-- A short normal-size page has very little scroll range. Fractional native
+-- bounds can settle by a couple of pixels after the jump without changing the
+-- intended section to the following collapsed heading.
+local shortPage = Page({ "Bonus Roll", "Raids", "World Bosses", "Dungeons & Mythic+", "Delves & Other Content" })
+local shortScroll, shortBody = shortPage._scrollFrame, shortPage._contentBody
+local settledShift = 0
+function shortScroll:GetVerticalScrollRange() return 89 end
+function shortScroll:GetHeight() return 653 end
+function shortScroll:GetTop() return 860.134 end
+function shortBody:GetTop() return 860.134 + shortScroll.offset end
+function shortBody:GetHeight() return 742 end
+for index, offset in ipairs({ 30, 184, 494, 522, 680 }) do
+    shortBody._sections[index].frame.GetTop = function()
+        return shortBody:GetTop() - offset + settledShift
+    end
+end
+tile._subPageBodies[2] = shortPage
+tile._isActive, tile._activeSubPageIndex, settled = true, 2, true
+Click("Dungeons & Mythic+")
+Tick(3)
+CheckHighlight()
+settledShift = 2
+CheckHighlight()
+assert(shortScroll.offset > 0 and shortScroll.offset < 89,
+    "the selected section must remain visible without forcing the last-section highlight")
 print("OK: options_section_pending_highlight_test")

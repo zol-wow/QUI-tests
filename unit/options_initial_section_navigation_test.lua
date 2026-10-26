@@ -1,5 +1,5 @@
 local f=assert(io.open(os.getenv("QUI_NAV_SOURCE") or "QUI_Options/navigation.lua"));local s=f:read("*a");f:close()
-local a=assert(s:find("local function SelectPage(",1,true));local b=assert(s:find("local function CreateFlyout",a,true))
+local a=assert(s:find("function GUI:ScrollToTileNavigationSection(",1,true) or s:find("local function SelectPage(",1,true));local b=assert(s:find("local function CreateFlyout",a,true))
 local timers,offsets,drivers={},{},{}
 local ready=false
 local scroll={GetScrollChild=function()return {GetHeight=function()return 2600 end,GetTop=function()return ready and 1000 or nil end}end,
@@ -27,6 +27,16 @@ local frame={};local page={pageIndex=4,section=target,sectionId="objectiveTracke
 local function Tick()local batch=timers;timers={};for _,fn in ipairs(batch)do fn()end;for _,d in ipairs(drivers)do if d.shown and d.scripts.OnUpdate then d.scripts.OnUpdate(d,0.1)end end end
 selectPage(frame,tile,page);Tick();assert(#offsets==0)
 ready=true;Tick();Tick();Tick();Tick();assert(offsets[1]==800,"first Objective Tracker click must survive initially unresolved layout")
+-- First-width provider reflow replaces headings within the same mounted body.
+offsets={};ready=false;selectPage(frame,tile,page);Tick()
+local collapsed={_expanded=false,SetExpanded=function(self,value)self._expanded=value end}
+local replacement={IsShown=function()return true end,GetTop=target.GetTop,GetParent=function()return collapsed end}
+sections[2]=nil;Tick()
+sections[2]={id="objectiveTracker",frame=replacement}
+ready=true;Tick();Tick();Tick();Tick()
+assert(offsets[1]==800 and collapsed._expanded,
+ "a pending section jump must resolve and reveal the replacement heading after provider reflow")
+sections[2]={id="objectiveTracker",frame=target}
 -- A newer click on the same outer page supersedes the pending section jump.
 offsets={};ready=false;selectPage(frame,tile,page);Tick()
 selectPage(frame,tile,{pageIndex=4,section=first,sectionId="general"});ready=true;Tick();Tick();Tick()
@@ -62,6 +72,12 @@ selectPage(frame,tile,{pageIndex=4,key="text",sectionId="objectiveTracker"});Tic
 innerOwner={_contentBody=innerOwner._contentBody,_scrollFrame=scroll,GetWidth=function()return 800 end,GetHeight=function()return 600 end}
 ready=true;Tick();Tick();Tick()
 assert(#offsets==0,"switching the Party/Raid or unit variant must cancel the earlier body's pending jump")
+offsets={};ready=false
+selectPage(frame,tile,{pageIndex=4,key="text",sectionId="objectiveTracker"});Tick()
+local previousBody=innerOwner._contentBody
+innerOwner._contentBody={_sections=sections,GetHeight=previousBody.GetHeight,GetTop=previousBody.GetTop}
+ready=true;Tick();Tick();Tick()
+assert(#offsets==0,"replacing the body on the same owner must cancel a pending section jump")
 
 gui.SelectFeatureTile=function()end
 tile._activeSubPageIndex=nil

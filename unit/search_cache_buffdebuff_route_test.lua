@@ -12,7 +12,7 @@
 -- given its OWN featureId, "actionBarsBuffDebuffPage", so the two homes can
 -- carry different routes from one shared editor. The FEATURE_ID checks below
 -- are unchanged and still guard the original regression -- the hub-mounted
--- editor (featureId actionBarsBuffDebuff) must not carry a stale Action Bars
+-- editor (featureId aurasActionBarPage) must not carry a stale Action Bars
 -- route. The block at the end of this file adds coverage for the new module
 -- page so a route regression on either home fails this test.
 --
@@ -21,7 +21,7 @@
 local cache = dofile("tests/helpers/search_cache.lua")()
 local settings = assert(cache.settings, "cache must have a settings section")
 
-local FEATURE_ID = "actionBarsBuffDebuff"
+local FEATURE_ID = "aurasActionBarPage"
 
 local failures = 0
 local function check(name, ok, detail)
@@ -76,13 +76,7 @@ check("tab builder tags widgets with the hub route",
     and source:find("tabIndex = 21", 1, true) ~= nil
     and source:find('subTabName = ns.L["Buff/Debuff Frames"]', 1, true) ~= nil)
 
--- Route agreement is load-bearing, not cosmetic: GUI:ResolveSearchNavigation
--- (QUI_Options/framework.lua) DISCARDS an entry's explicit tileId/subPageIndex
--- when it disagrees with the navMap route registered for its
--- (tabIndex, subTabIndex), then falls back to that tab route. The auras tile's
--- fourth sub-page must therefore register navRoutes {21, 4} -- RegisterFeatureTile
--- passes the subPages array index as the sub-page (QUI_Options/shared.lua) --
--- or these entries silently land on the hub's default sub-page instead.
+-- Legacy aliases remain registered for callers that have no canonical host id.
 local tileHandle = assert(io.open("QUI_Options/tiles/auras.lua", "rb"))
 local tileSource = tileHandle:read("*a")
 tileHandle:close()
@@ -100,7 +94,7 @@ check("Buff/Debuff Frames is the fourth auras sub-page",
 
 -- Task 6 added the module home as a SEPARATE feature so the two homes can
 -- carry different routes from one shared editor. The assertions above still
--- guard actionBarsBuffDebuff's own rows; these guard the new module page.
+-- guard the Auras host rows; these guard the new module page.
 local modulePageRows = 0
 for _, entry in ipairs(settings) do
     if entry.featureId == "actionBarsBuffDebuffPage" then
