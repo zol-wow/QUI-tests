@@ -72,7 +72,7 @@ test("action-button rows with no per-type data are never duplicated per type", f
         local hasNoDbPath = type(descriptor) ~= "table" or descriptor.dbPath == nil
         if entry.widgetType == "action_button" and hasNoDbPath then
             local key = tostring(entry.label) .. "|" .. tostring(entry.tileId)
-                .. "|" .. tostring(entry.subPageIndex) .. "|" .. tostring(entry.subTabIndex)
+                .. "|" .. tostring(entry.subPageIndex) .. "|" .. tostring(entry.surfaceTabKey or entry.subTabIndex)
             seen[key] = (seen[key] or 0) + 1
         end
     end
@@ -90,6 +90,9 @@ test("action-button rows with no per-type data never carry a surfaceTypeKey", fu
         local hasNoDbPath = type(descriptor) ~= "table" or descriptor.dbPath == nil
         if entry.widgetType == "action_button" and hasNoDbPath then
             checked = checked + 1
+            if entry.contextLabel ~= nil then
+                fail("unbound action row must not claim the first captured type: " .. tostring(entry.label))
+            end
             if entry.surfaceTypeKey ~= nil then
                 fail(("action-button row %q carries surfaceTypeKey=%s -- clicking it would silently "
                     .. "flip the user's selected type instead of leaving the current selection alone")

@@ -108,3 +108,44 @@ end
 assert(found, "searching 'damage meter' did not return the feature-toggle entry after the seed pass")
 
 print("OK: search_seed_moduletoggle_label_test")
+
+-- Inner tabs use the same generated catalog as the navigation tree. They must
+-- be searchable before their page exists, including tabs with no named section.
+frame._tiles = {
+    { id = "reminders", config = { name = "Reminders", subPages = {
+        {name = "Defensive Reminders", featureId = "buffs"},
+        {name = "Spell Reminders", featureId = "spellRemindersPage"},
+    }}},
+    { id = "unitframes", config = {name = "Unit Frames", featureId = "unitFramesPage"}},
+}
+GUI.MainFrame = frame
+GUI:SeedStaticSearchRoutesFromTiles(frame)
+local count = #GUI.StaticNavigationRegistry
+GUI:SeedStaticSearchRoutesFromTiles(frame)
+assert(#GUI.StaticNavigationRegistry == count, "repeated catalog seeding must not duplicate inner tabs")
+local _, tabs = GUI:ExecuteSearch("Tracked Buffs")
+local tracked
+for _, hit in ipairs(tabs) do
+    if hit.data.featureId == "spellRemindersPage" and hit.data.surfaceTabKey == "buffs" then tracked = hit.data end
+end
+assert(tracked and tracked.label == "Reminders > Spell Reminders > Tracked Buffs",
+    "the actual Tracked Buffs tab must be searchable by its displayed name")
+assert(tracked.tileId == "reminders" and tracked.subPageIndex == 2 and not tracked.sectionName,
+    "inner-tab search must preserve its outer page and distinct tab key")
+for featureId, record in pairs(frameworkNS.QUI_OptionsNavigationCatalog) do
+    if featureId == "spellRemindersPage" or featureId == "unitFramesPage" then
+        for _, tab in ipairs(record.tabs) do
+            local found
+            for _, entry in ipairs(GUI.StaticNavigationRegistry) do
+                if entry.featureId == featureId and entry.surfaceTabKey == tab.key and entry.navType == "subtab"
+                    and entry.contextLabel == tab.label then
+                    found = entry; break
+                end
+            end
+            assert(found and found.label:find(tab.label, 1, true), "missing inner-tab destination " .. tab.label)
+        end
+    end
+end
+assert(not frame._tiles[1]._built and not frame._tiles[2]._built,
+    "search discovery must not build hidden settings pages")
+print("OK: inner tabs are searchable from their shared navigation catalog")

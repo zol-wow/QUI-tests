@@ -33,19 +33,8 @@ end
 -- Each surface: a module-route probe and a hub-route probe. minimum is a floor,
 -- not an exact count, so ordinary option churn does not redden this test.
 --
--- Measured on the tree this test was written against (see task-8-addendum.md):
---   Group Frames auras: module=103, hub=17
---   Unit Frames auras:  module=12,  hub=3
---   Nameplates auras:   module=22,  hub=22
---   Buff/Debuff frames: module=44,  hub=44 (hub counted under featureId
---     actionBarsBuffDebuff post Task 9 dedupe -- see hubMatch comment below)
--- Floors are roughly half the smaller home so ordinary option churn does not
--- redden this test. The Group Frames and Unit Frames module/hub asymmetry is
--- EXPECTED: the module side is inflated by harvest harnesses with no hub
--- equivalent (capture_group_frames_auras_elements force-renders 12 synthetic
--- element variants; the unit capture walks all 6 units while a hub render
--- shows only the selected one). Do not raise the hub floors to match the
--- module counts.
+-- Both homes are captured from registered hosts and actual selector options.
+-- Expanded element fixtures may still add controls beyond the collapsed editor.
 local SURFACES = {
     {
         name = "Group Frames auras",
@@ -68,20 +57,7 @@ local SURFACES = {
     {
         name = "Buff/Debuff frames",
         moduleMatch = function(e) return e.tileId == "action_bars" and e.featureId == "actionBarsBuffDebuffPage" end,
-        -- featureId is actionBarsBuffDebuff here, NOT aurasActionBarPage, even
-        -- though these rows live on the Auras hub. Task 9's harvest-time
-        -- dedupe (tools/generate_search_cache.lua, register_capture_setting_
-        -- entry) collapsed the pair: both features render the identical
-        -- QUI_BuffDebuffOptions.BuildBuffDebuffTab at the same destination
-        -- (tileId "auras", subPageIndex 4), first registration wins
-        -- (QUI_Options.toc loads action_bars.lua, which registers
-        -- actionBarsBuffDebuff, before auras_actionbar_page.lua, which
-        -- registers aurasActionBarPage), and aurasActionBarPage is now
-        -- noSearch = true (core/settings/content/auras_actionbar_page.lua)
-        -- with zero harvested rows by design. See
-        -- tests/unit/search_cache_no_duplicate_rows_test.lua for the dedupe
-        -- guarantee itself.
-        hubMatch = function(e) return e.tileId == "auras" and e.featureId == "actionBarsBuffDebuff" end,
+        hubMatch = function(e) return e.tileId == "auras" and e.featureId == "aurasActionBarPage" end,
         minimum = 20,
     },
 }

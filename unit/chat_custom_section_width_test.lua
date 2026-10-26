@@ -4,7 +4,7 @@ local source = file:read("*a")
 file:close()
 local first = assert(source:find("        local function CreateChatCustomSection", 1, true))
 local last = assert(source:find("        local function ShowChatModuleReloadPrompt", first, true))
-local chunk = assert((loadstring or load)("return function(content, L, PAD, CreateFrame, ShouldRenderSection)\n" .. source:sub(first, last - 1) .. "\nreturn CreateChatCustomSection\nend"))
+local chunk = assert((loadstring or load)("return function(content, L, PAD, CreateFrame, ShouldRenderSection, ns)\n" .. source:sub(first, last - 1) .. "\nreturn CreateChatCustomSection\nend"))
 local parent = { GetWidth = function() return 900 end }
 local frame = { width = 0 }
 function frame:SetPoint() end
@@ -17,7 +17,7 @@ local layout = {
     getY = function() return -36 end,
     placeCustom = function(_, height) placedHeight = height end,
 }
-local build = chunk()(parent, layout, 15, function() return frame end, function() return true end)
+local build = chunk()(parent, layout, 15, function() return frame end, function() return true end, {QUI_SettingsLayoutShared = {WatchContentHeight = function(host, owner) assert(host == frame and owner == parent) end}})
 local returned = build("filters", "Filters", function(body)
     assert(body:GetWidth() == 870, "custom sections must establish inset width before measuring responsive cards")
     local columns = body:GetWidth() >= 840 and 3 or 2

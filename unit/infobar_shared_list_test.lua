@@ -4,7 +4,7 @@ local first = assert(source:find('        L.headerAt(ns.L["Arrangement"])', 1, t
 local last = assert(source:find('        L.headerAt(ns.L["Widget Overrides"])', first, true))
 local nodes, buttons, dropdowns, lists = {}, {}, {}, {}
 local function node(parent)
-    local n = {parent=parent, width=660, height=0, heightChanges=0, heightCalls=0, scripts={}, points={}}
+    local n = {parent=parent, width=660, height=0, heightChanges=0, heightCalls=0, _quiMeasuredHeight=false, scripts={}, points={}}
     setmetatable(n, {__index=function() return function() end end})
     function n:ClearAllPoints() self.points={} end
     function n:SetPoint(point, relative, relativePoint, x, y)
@@ -12,6 +12,8 @@ local function node(parent)
         self.points[#self.points+1]={point,relative,relativePoint,x or 0,y or 0}
     end
     function n:GetHeight() return self.height end
+    function n:GetParent() return self.parent end
+    function n:GetPoint(i) return unpack(self.points[i or 1]) end
     function n:GetWidth()
         local left,right
         for _,p in ipairs(self.points) do
@@ -164,6 +166,15 @@ for index,width in ipairs({474,474,660,660,474,660}) do
     assert(env.content.heightCalls==heightChanges+expectedChanges,"each height transition must update content exactly once")
 end
 local remaining=header.parent
+-- Native layout can temporarily lose the nested host bounds during resize.
+assert(remaining.scripts.OnUpdate, "nested settings must verify native bounds")
+remaining:SetWidth(0)
+remaining.points[2] = nil
+function env.content:GetTop() return 100 end
+remaining.scripts.OnUpdate(remaining)
+remaining.scripts.OnUpdate(remaining)
+assert(remaining:GetWidth() == env.content:GetWidth(), "nested settings must recover the full content width")
+assert(remaining.points[1][2] == editor, "width recovery must retain the editor-relative origin")
 local tailHeight=remaining:GetHeight()
 remaining:SetHeight(tailHeight+20)
 assert(env.content:GetHeight()==initialHeight+20,"later section height changes must still update content height")

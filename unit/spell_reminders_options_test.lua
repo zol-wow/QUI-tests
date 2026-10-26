@@ -8,6 +8,15 @@ _G.CreateFrame = function(...)
     local frame = createFrame(...)
     function frame:SetParent(parent) self.parent = parent end
     function frame:GetParent() return self.parent end
+    function frame:GetTop() return 900 end
+    for _, event in ipairs({ "Show", "Hide" }) do
+        local original = frame[event]
+        frame[event] = function(self)
+            local changed = self:IsShown() ~= (event == "Show")
+            original(self)
+            if changed and self.scripts["On" .. event] then self.scripts["On" .. event](self) end
+        end
+    end
     function frame:GetPoint(index)
         local point = self.points[index or 1]
         if point then return unpack(point) end
@@ -73,6 +82,7 @@ function GUI:SetSearchContext(context)
 end
 function GUI:SetSearchSection() end
 function GUI:TeardownFrameTree(root)
+    H.editorBuilds = (H.editorBuilds or 0) + 1
     local function Within(frame)
         while frame do
             if frame == root then return true end
@@ -104,8 +114,8 @@ assert(loadfile(os.getenv("QUI_LAYOUT_SOURCE") or "core/settings_layout_shared.l
 ns.QUI_SettingsLayoutShared = {
     VerifyInitialBounds = realLayoutNS.QUI_SettingsLayoutShared.VerifyInitialBounds,
     BuildNinePointAnchorOptions = function() return {} end,
-    MakeLayout = function(host)
-        local y = 0
+    MakeLayout = function(host, _, startY, options)
+        local y = startY or 0
         return {
             headerAt = function(title)
                 y = y - 30
@@ -123,7 +133,7 @@ ns.QUI_SettingsLayoutShared = {
                 return label
             end,
             placeCustom = function(frame, height)
-                local layout = realLayoutNS.QUI_SettingsLayoutShared.MakeLayout(host, nil, y)
+                local layout = realLayoutNS.QUI_SettingsLayoutShared.MakeLayout(host, nil, y, options)
                 layout.placeCustom(frame, height)
                 y = layout.getY()
             end,
@@ -157,6 +167,7 @@ ns.QUI_LayoutMode_Utils = {
     end,
 }
 assert(loadfile("core/settings/registry.lua"))("QUI", ns)
+assert(loadfile("core/settings/search_route.lua"))("QUI", ns)
 assert(loadfile("core/settings/render_adapters.lua"))("QUI", ns)
 assert(loadfile(os.getenv("QUI_REMINDER_OPTIONS_SOURCE") or "QUI_Reminders/spell_reminders/settings/spell_reminders.lua"))("QUI", ns)
 assert(loadfile("QUI_Reminders/spell_reminders/settings/spell_reminder_tracking.lua"))("QUI", ns)
@@ -182,16 +193,83 @@ assert(not widgets["Enable Spell Reminders"] and not buttons["Power Infusion Pre
 assert(not ns.SpellReminderModel and not ns.SpellReminders, "opening options does not load the module")
 H.LoadRuntime()
 H.db.enabled = false
+assert(type(H.feature.getNavigationContexts) == "function", "Spell Reminders must expose a persistent collection, not only the selected spell")
+assert(H.feature.getNavigationRoot().key == "general" and H.feature.getNavigationRoot().label == "Add Reminder",
+    "creation must remain a reachable navigation destination with no reminders")
+assert(#H.feature.getNavigationContexts() == 0 and H.feature.getNavigationLabel() == "Spell Reminders (0)",
+    "empty navigation must identify the collection and its count")
+for _, id in ipairs({10060, 29166, 6940, 1022, 1044}) do assert(H.R.Add(id)) end
+local entries = H.feature.getNavigationContexts()
+assert(#entries == 5 and H.feature.getNavigationLabel() == "Spell Reminders (5)",
+    "all five saved reminders must be discoverable independently of selection")
+local identities = {}
+for _, entry in ipairs(entries) do
+    assert(not identities[entry.id] and H.db.reminders[entry.id] and #entry.tabs >= 4,
+        "each saved reminder must have a unique stable identity and its own tabs")
+    identities[entry.id] = true
+end
+for id in pairs(identities) do H.R.Remove(id) end
+assert(#H.feature.getNavigationContexts() == 0 and H.feature.getNavigationRoot().key == "general",
+    "deleting the last reminder must preserve the Add Reminder destination")
 assert(#H.feature.getNavigationTabs() == 0, "cold navigation cannot expose tabs without a reminder")
 O.Build(content)
-assert(#widgets.Reminder.options == 0, "an empty profile opens without adding reminders")
-assert(widgets.Reminder.enabled == false and widgets.Reminder.placeholder == "No reminders yet",
-    "an empty reminder selector must explain its empty state and disable selection")
+assert(not widgets.Reminder and widgets["New Spell ID"] and next(H.db.reminders) == nil, "empty collection opens creation without inventing a reminder")
+assert(select(4, O.activeBody:GetParent():GetPoint(1)) == 0,
+    "Reminder editor must not add a second horizontal inset around shared cards")
+assert(select(5, O.activeBody:GetPoint(1)) == 0,
+    "General page must not reserve empty tab-header space")
+assert(buttons["Add Spell"] and buttons["Power Infusion Preset"], "empty collection retains direct creation actions")
+local emptyBuilds = H.editorBuilds
+assert(not H.feature.searchNavigate({surfaceTabKey = "requests"}, {opts = {}})
+    and H.editorBuilds == emptyBuilds and next(H.db.reminders) == nil,
+    "PI-only search must stay unavailable without creating a reminder or rebuilding an empty editor")
+-- The real General builder places its action buttons with shared MakeLayout.
+-- Native cached pages can retain their anchors but lose resolved row bounds.
+do
+    local row = buttonFrames["Add Spell"]:GetParent()
+    local host = row:GetParent()
+    local parentReady, lost, repairs = false, true, 0
+    function host:GetTop() return parentReady and 900 or nil end
+    function row:GetTop() return not lost and host:GetTop() or nil end
+    local setPoint = row.SetPoint
+    function row:SetPoint(...)
+        setPoint(self, ...)
+        lost, repairs = false, repairs + 1
+    end
+    local function Tick()
+        if row.scripts.OnUpdate then row.scripts.OnUpdate(row) end
+    end
+    row:Hide(); row:Show()
+    for _ = 1, 4 do Tick() end
+    assert(lost and repairs == 0, "action row recovery must wait for its host bounds")
+    parentReady = true
+    host:SetWidth(685)
+    for _ = 1, 5 do Tick() end
+    assert(row:GetTop() and row:GetWidth() == 655,
+        "Add Spell row must recover its native bounds before it can be clicked")
+    local first = row:GetPoint(1)
+    assert(first == "TOPLEFT" and #row.points == 1)
+    for _, width in ipairs({480, 900, 685}) do
+        lost = true
+        host:SetWidth(width)
+        for _ = 1, 5 do Tick() end
+        assert(row:GetTop() and row:GetWidth() == width - 30,
+            "action buttons must follow the shared custom row after resize")
+    end
+    lost = true
+    row:Hide(); row:Show()
+    for _ = 1, 5 do Tick() end
+    assert(row:GetTop(), "returning to a cached page must recover its action row")
+    local count = repairs
+    row:Hide(); row:Show()
+    for _ = 1, 5 do Tick() end
+    assert(repairs == count, "valid custom row bounds must not be rewritten on return")
+end
 widgets["Enable Spell Reminders"]:Change(true)
 buttons["Power Infusion Preset"]()
 assert(H.R.hosts[10060].sample.name.text == ns.L["PI Recipient"], "the first PI preset creates its preview label")
-assert(H.R.Get(10060) and #H.tabs == 8 and H.activeTab == "general",
-    "adding a preset stays on its general page, with a fallback route back to General")
+assert(H.R.Get(10060) and #H.tabs == 8 and H.activeTab == "timing",
+    "adding a preset opens its named Timing editor, with a route back to creation")
 assert(ns.Settings.Registry:GetFeatureByLookupKey("spellReminder:10060") == H.feature,
     "dynamic reminders must resolve to the existing settings feature")
 local routeHost = CreateFrame("Frame", nil, UIParent)
@@ -200,10 +278,12 @@ assert(H.feature.render.layout(routeHost, { providerKey = "spellReminder:10060" 
     and H.fullSettingsHost == routeHost and H.fullSettingsKey == "spellReminder:10060",
     "the real layout adapter must build anchoring controls and a settings link for the exact reminder")
 assert(widgets.Reminder.enabled == true, "adding the first reminder must enable selection")
-assert(not widgets["Allow Estimated Early Alerts"], "general controls do not embed the timing page")
+assert(widgets["Allow Estimated Early Alerts"], "adding a reminder opens its Timing controls")
 H.selectTab("timing")
-assert(not widgets.Reminder and not widgets["Enable Spell Reminders"] and not buttons["Add Spell"],
-    "child tabs must not retain the root's general controls above their settings")
+assert(widgets.Reminder and widgets.Reminder.db.value == 10060,
+    "every child page must expose the reminder being edited and allow switching it")
+assert(not widgets["Enable Spell Reminders"] and not buttons["Add Spell"],
+    "child tabs must not retain global controls or creation actions")
 local body = O.activeBody
 local editor = body.parent
 local function AssertEditorAnchorGeometry()
@@ -281,10 +361,10 @@ assert(H.R.hosts[10060].sample.shown and H.R.previews[10060])
 H.selectTab("general")
 buttons["Innervate Preset"]()
 assert(not H.R.previews[10060], "adding a different preset ends the old preview")
-assert(H.R.Get(29166) and #H.tabs == 5 and H.activeTab == "general", "PI tabs cannot leak into another spell")
+assert(H.R.Get(29166) and #H.tabs == 5 and H.activeTab == "timing", "PI tabs cannot leak into another spell")
 assert(#widgets.Reminder.options == 2)
 H.feature.onNavigate("spellReminder:10060")
-assert(#H.tabs == 8 and H.activeTab == "general" and widgets.Reminder.db.value == 10060,
+assert(#H.tabs == 8 and H.activeTab == "timing" and widgets.Reminder.db.value == 10060,
     "layout navigation must select the matching reminder in the editor and dropdown")
 H.feature.onNavigate("spellReminder:999999")
 H.feature.onNavigate("cdmCustom_10060")
@@ -295,16 +375,17 @@ assert(H.activeTab == "requests" and #H.tabs == 8 and context.opts.searchRoot ==
 widgets["Enable Whisper Requests"]:Change(true)
 assert(H.R.Get(10060).pi.whisper.enabled, "search navigation selects the PI reminder")
 assert(H.feature.searchNavigate({}, context) and H.activeTab == "general"
-    and context.opts.searchRoot == O.activeBody and widgets.Reminder,
+    and context.opts.searchRoot == O.activeBody and widgets["New Spell ID"] and not widgets.Reminder,
     "searching a general setting must leave the active child tab and expose the root controls")
-widgets.Reminder:Change(29166)
-assert(H.activeTab == "general" and #H.tabs == 5)
+H.selectTab("timing", 29166)
+assert(H.activeTab == "timing" and #H.tabs == 5)
 buttons["Delete Reminder"]()
 assert(H.R.Get(29166), "deletion waits for the concrete confirmation")
 H.confirmation.onAccept()
 assert(not H.R.Get(29166) and #widgets.Reminder.options == 1)
 assert(not ns.Settings.Registry:GetFeatureByLookupKey("spellReminder:29166"),
     "deleting a reminder must remove its dynamic settings lookup")
+H.selectTab("general")
 local savedContext = { tileId = "other" }
 GUI:SetSearchContext(savedContext)
 O.CaptureSearch(content)
@@ -331,7 +412,7 @@ paints = H.tabPaints
 O.Build(content)
 assert(descriptor and #descriptor.getTabs() == 7 and H.tabPaints == paints,
     "spell settings use sidebar pages without creating a second horizontal tab strip")
-assert(descriptor.getActiveTab() == "general" and widgets.Reminder and widgets["Enable Spell Reminders"],
+assert(descriptor.getActiveTab() == "general" and not widgets.Reminder and widgets["Enable Spell Reminders"],
     "the parent destination opens the general controls")
 assert(not descriptor.getPage(descriptor.getActiveTab())._scrollFrame,
     "the editor can be constructed before the outer page exposes its scroll frame")
@@ -346,15 +427,18 @@ assert(firstPage == O.activeBody and type(firstPage:GetWidth()) == "number" and 
 assert(descriptor.selectTab("appearance") and widgets["Icon Glow"] and widgets.Animation,
     "Appearance must render Glow and Animation controls on its own page")
 assert(content._scrollFrame.offset == 0, "changing pages must reveal the new page from its top")
-assert(not widgets.Reminder and not widgets["New Spell ID"] and not widgets["Enable Spell Reminders"]
-    and not buttons["Add Spell"] and not buttons["Delete Reminder"],
-    "Appearance cannot retain general controls or reminder management actions")
+assert(widgets.Reminder and widgets.Reminder.db.value == 10060 and not widgets["New Spell ID"] and not widgets["Enable Spell Reminders"]
+    and not buttons["Add Spell"] and buttons["Delete Reminder"],
+    "Appearance exposes named deletion without retaining collection creation controls")
+assert(widgets.Font.options[1] and widgets.Font.options[1].value == ""
+    and widgets.Font.options[1].text == "Global Font",
+    "inherited reminder font must have a visible, selectable default")
 local appearance = descriptor.getPage("appearance")
 assert(#appearance._sections == 3 and appearance._sections[2].id == "Glow and Animation",
     "Appearance navigation must expose its actual sections, including Glow and Animation")
 assert(descriptor.selectRoot() and descriptor.getActiveTab() == "general"
     and descriptor.getPage("general") == O.activeBody and not descriptor.getPage("appearance")
-    and widgets.Reminder and not widgets["Icon Glow"],
+    and not widgets.Reminder and widgets["New Spell ID"] and not widgets["Icon Glow"],
     "clicking the parent returns to general controls and retires Appearance")
 appearance:ClearAllPoints()
 local generalHeight = content:GetHeight()
@@ -363,17 +447,29 @@ assert(content:GetHeight() == generalHeight, "a retired child page cannot resize
 assert(not descriptor.selectRoot(), "reselecting the root must not rebuild it")
 assert(H.feature.searchNavigate({ surfaceTabKey = "appearance" }, context)
     and descriptor.getActiveTab() == "appearance" and widgets["Icon Glow"] and widgets.Animation
-    and context.opts.searchRoot == O.activeBody and not widgets.Reminder,
+    and context.opts.searchRoot == O.activeBody and widgets.Reminder.db.value == 10060,
     "Appearance search results open the child settings without the general controls")
+do
+    local page, edit, builds = O.activeBody, widgets["Reminder Label"], H.editorBuilds
+    edit:SetText("Unsubmitted label")
+    edit.focused = true
+    content._scrollFrame.offset = 123
+    assert(H.feature.searchNavigate({surfaceTabKey = "appearance"}, context), "same-tab search remains a handled route")
+    assert(H.editorBuilds == builds and O.activeBody == page and widgets["Reminder Label"] == edit
+        and edit.text == "Unsubmitted label" and edit.focused and content._scrollFrame.offset == 123,
+        "same-tab search must retain the actual editor, unsaved input, focus, and scroll")
+    assert(not H.feature.searchNavigate({surfaceTabKey = "missing"}, context)
+        and H.editorBuilds == builds and O.activeBody == page, "invalid search cannot rebuild or change tabs")
+end
 H.feature.onNavigate("spellReminder:10060")
-assert(descriptor.getActiveTab() == "general" and widgets.Reminder.db.value == 10060,
-    "a layout link for the already selected reminder must still return to its general page")
+assert(descriptor.getActiveTab() == "timing" and widgets.Reminder.db.value == 10060,
+    "a layout link must open the exact reminder editor")
 assert(descriptor.selectTab("sounds") and descriptor.getActiveTab() == "sounds"
     and descriptor.getPage("sounds")._contentBody == O.activeBody and descriptor.getPage("timing") == nil,
     "sidebar navigation renders the requested tab and retires previous section frames")
 assert(not descriptor.selectTab("sounds") and not descriptor.selectTab("missing"),
     "current and unavailable navigation destinations must not rebuild the editor")
-assert(descriptor.selectTab("general") and widgets.Reminder,
+assert(descriptor.selectTab("general") and widgets["New Spell ID"] and not widgets.Reminder,
     "history can restore the general page using the normal surface key")
 buttons["Innervate Preset"]()
 assert(#descriptor.getTabs() == 4 and not descriptor.selectTab("requests"),
@@ -396,20 +492,10 @@ do
     function currentEditor:GetTop()
         if not lostBounds and content:GetTop() then return content:GetTop() + select(5, self:GetPoint(1)) end
     end
-    local setPoint, show, hide = currentEditor.SetPoint, currentEditor.Show, currentEditor.Hide
+    local setPoint = currentEditor.SetPoint
     function currentEditor:SetPoint(...)
         setPoint(self, ...)
         lostBounds, repairs = persistentLoss, repairs + 1
-    end
-    function currentEditor:Show()
-        local wasShown = self:IsShown()
-        show(self)
-        if not wasShown and self.scripts.OnShow then self.scripts.OnShow(self) end
-    end
-    function currentEditor:Hide()
-        local wasShown = self:IsShown()
-        hide(self)
-        if wasShown and self.scripts.OnHide then self.scripts.OnHide(self) end
     end
     local function Tick()
         if currentEditor.scripts.OnUpdate then currentEditor.scripts.OnUpdate(currentEditor) end
@@ -433,7 +519,7 @@ do
     Tick()
     assert(lostBounds, "recovery must let parent layout settle before repairing the editor")
     Settle()
-    assert(#currentEditor.points == 1 and currentEditor:GetWidth() == 655,
+    assert(#currentEditor.points == 1 and currentEditor:GetWidth() == 685,
         "native bounds recovery must keep the top anchor and use the parent's inset width")
     local page = O.activeBody
     for _ = 1, 2 do
@@ -455,7 +541,7 @@ do
         lostBounds = true
         content:SetWidth(width)
         Settle()
-        assert(currentEditor:GetWidth() == width - 30,
+        assert(currentEditor:GetWidth() == width,
             "a recovered editor must retain responsive inset sizing")
     end
     local repairCount = repairs
@@ -477,6 +563,47 @@ do
     currentEditor:Show()
     Settle()
 end
+-- The inner tab host can lose native bounds independently of its editor.
+-- Reuse shared custom-host recovery on later resizes, preserving the active tab.
+do
+    local page, editor = O.activeBody, O.activeBody:GetParent()
+    local lost, setWidth = false, page.SetWidth
+    function page:GetTop() if not lost then return 800 end end
+    function page:SetWidth(width) lost = false; setWidth(self, width) end
+    for _, width in ipairs({900, 480, 685}) do
+        lost = true
+        editor:SetWidth(width)
+        for _ = 1, 6 do if page.scripts.OnUpdate then page.scripts.OnUpdate(page) end end
+        assert(not lost and page:GetWidth() == width and #page.points == 1,
+            "resizing must recover the reminder tab host without blank content")
+        assert(O.activeBody == page and descriptor.getPage("buffs") == page,
+            "host recovery must retain the selected tab and its controls")
+    end
+end
+-- Context remains explicit while moving between existing reminder editors.
+H.feature.onNavigate("spellReminder:10060")
+assert(descriptor.getContextLabel and descriptor.getContextLabel() == ns.SpellReminderPresentation.Name(H.R.Get(10060)),
+    "mounted sidebar must identify its selected reminder")
+assert(H.feature.getNavigationContextLabel() == descriptor.getContextLabel(),
+    "cold and mounted navigation must name the same selected reminder")
+descriptor.selectTab("timing")
+local piReady = H.R.Get(10060).readyDuration
+widgets.Reminder:Change(29166)
+assert(descriptor.getActiveTab() == "timing" and widgets.Reminder.db.value == 29166,
+    "changing reminders keeps a compatible editing tab")
+widgets["Hide After Ready"]:Change(piReady + 9)
+assert(H.R.Get(29166).readyDuration == piReady + 9 and H.R.Get(10060).readyDuration == piReady,
+    "editing after a selector change must write only to the named reminder")
+widgets.Reminder:Change(10060)
+assert(widgets["Hide After Ready"].db == H.R.Get(10060), "switching back binds the original reminder")
+assert(descriptor.selectTab("requests"))
+widgets.Reminder:Change(29166)
+assert(descriptor.getActiveTab() == "timing" and not widgets["Enable Whisper Requests"],
+    "switching away from PI on a PI-only tab must select a supported editor")
+assert(descriptor.getContextLabel() == ns.SpellReminderPresentation.Name(H.R.Get(29166)),
+    "navigation context must change with the actual binding")
+print("OK: named reminder context, selector transitions, and isolated editing")
+
 ns.Settings.Registry:UnregisterLookupKey("spellRemindersPage", "spellReminder:10060")
 assert(loadfile(os.getenv("QUI_REMINDER_OPTIONS_SOURCE") or "QUI_Reminders/spell_reminders/settings/spell_reminders.lua"))("QUI", ns)
 assert(ns.Settings.Registry:GetFeatureByLookupKey("spellReminder:10060") == ns.Settings.Registry:GetFeature("spellRemindersPage"),
@@ -492,8 +619,56 @@ assert(#coldFeature.getNavigationTabs() == 4, "cold default navigation uses the 
 setmetatable(H.db.reminders, reminderMetatable)
 ns.SpellReminderPresentation.Name = function(config) return config.pi and "A PI" or "Z Innervate" end
 assert(#coldFeature.getNavigationTabs() == 7, "reading cold navigation must not pin an implicit reminder selection")
+local coldBuilds = H.editorBuilds
+assert(coldFeature.searchNavigate({surfaceTabKey = "appearance"}, {opts = {}})
+    and H.editorBuilds == coldBuilds, "cold search selects its tab without mounting the editor")
 ns.SpellReminderOptions.Build(content)
-assert(#descriptor.getTabs() == #coldFeature.getNavigationTabs() and widgets.Reminder.db.value == 10060,
+assert(descriptor.getActiveTab() == "appearance" and widgets["Reminder Label"],
+    "first mount retains the requested cold tab")
+assert(coldFeature.searchNavigate({}, {opts = {}}), "cold-selected editor can return through shared root selection")
+assert(#descriptor.getTabs() == #coldFeature.getNavigationTabs() and descriptor.getActiveContext() == nil,
     "initial editor and cold navigation resolve the same alphabetically selected reminder")
 ns.SpellReminderPresentation.Name = name
+do
+    local route = {tileId = "alternate_reminders", subPageIndex = 7, featureId = "spellRemindersPage",
+        tabName = "Alternate Reminders", subTabName = "Relocated Spells"}
+    GUI:SetSearchContext(route)
+    ns.Settings.SearchRoute.With(route, ns.SpellReminderOptions.Build, content)
+    local current = ns.SpellReminderOptions
+    GUI:SetSearchContext({tileId = "unrelated", subPageIndex = 3})
+    local before = H.editorBuilds
+    assert(descriptor.selectTab("appearance") and H.editorBuilds == before + 1,
+        "a different sidebar tab builds exactly once")
+    assert(H.searchTile == route.tileId and H.searchPage == 7,
+        "later reminder rebuilds must retain their registered host after its route scope exits")
+    local page, editor = current.activeBody, current.activeBody:GetParent()
+    editor:Hide(); editor:Show()
+    assert(coldFeature.searchNavigate({surfaceTabKey = "appearance"}, {opts = {}})
+        and current.activeBody == page and H.editorBuilds == before + 1,
+        "returning to the current hidden/shown page must preserve its editor")
+end
 print("OK: spell reminder presets, editor controls, preview, deletion and search navigation")
+
+
+-- Deleting the last mounted reminder returns to creation, including stale links.
+do
+    local ids = {}
+    for id in pairs(H.db.reminders) do ids[#ids + 1] = id end
+    for _, id in ipairs(ids) do
+        descriptor.selectTab("timing", id)
+        buttons["Delete Reminder"]()
+        assert(H.confirmation.message:find(ns.SpellReminderPresentation.Name(H.R.Get(id)), 1, true),
+            "deletion confirmation must identify the exact reminder")
+        H.confirmation.onAccept()
+    end
+    assert(descriptor.getActiveTab() == "general" and descriptor.getActiveContext() == nil
+        and #descriptor.getNavigationContexts() == 0 and widgets["New Spell ID"] and buttons["Add Spell"],
+        "deleting the last reminder must show an actionable creation page")
+    assert(not descriptor.selectTab("timing", ids[1]) and descriptor.getActiveTab() == "general",
+        "a stale deleted reminder route must not edit another reminder")
+    widgets["New Spell ID"]:Change("29166")
+    buttons["Add Spell"]()
+    assert(descriptor.getActiveContext() == 29166 and descriptor.getActiveTab() == "timing"
+        and #descriptor.getNavigationContexts() == 1, "creation must work again after deleting every reminder")
+end
+print("OK: last-reminder deletion, named confirmation, stale routes, and recreation")

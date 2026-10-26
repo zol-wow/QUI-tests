@@ -8,6 +8,8 @@
 
 local function NewFrame()
     return {
+        GetWidth = function(self) return self.width or 700 end,
+        SetWidth = function(self, width) self.width = width end,
         ClearAllPoints = function() end,
         SetPoint = function() end,
         SetJustifyH = function() end,

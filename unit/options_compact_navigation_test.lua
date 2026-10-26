@@ -19,6 +19,12 @@ local function Node(kind, parent)
     end
     function node:Fire(key, ...) if self.scripts[key] then return self.scripts[key](self, ...) end end
     function node:Click() if self.enabled ~= false then return self:Fire("OnClick") end end
+    function node:MouseDown() self.pressed = self.shown and self.enabled ~= false end
+    function node:MouseUp()
+        local pressed = self.pressed
+        self.pressed = nil
+        if pressed then return self:Click() end
+    end
     function node:ClearAllPoints() self.points = {} end
     function node:SetPoint(...) self.points[#self.points + 1] = { ... } end
     function node:SetWidth(value) self.width = value end
@@ -48,7 +54,7 @@ local function Node(kind, parent)
     function node:Enable() self.enabled = true end
     function node:Disable() self.enabled = false end
     function node:Show() self.shown = true end
-    function node:Hide() self.shown = false end
+    function node:Hide() self.shown = false; self.pressed = nil end
     function node:IsShown() return self.shown end
     function node:SetShown(value) self.shown = value end
     function node:IsMouseOver() return self.over == true end
@@ -107,6 +113,13 @@ local ns = { Helpers = { AssetPath = [[Interface\AddOns\QUI\assets\]], ApplyFont
     AnimateValue = function(owner, _, options) animations = animations + 1; options.onUpdate(owner, options.toValue, 1) end,
 } }
 (dofile("tests/helpers/locale.lua"))(ns)
+-- Exercise the real shared sidebar geometry alongside grouped navigation.
+local frameworkHandle = assert(io.open("QUI_Options/framework.lua"))
+local frameworkSource = frameworkHandle:read("*a")
+frameworkHandle:close()
+local boundsStart = assert(frameworkSource:find("local SIDEBAR_SEARCH_RESERVE =", 1, true))
+local boundsEnd = assert(frameworkSource:find("local function EnsureSidebarScroll(", boundsStart, true))
+assert(loadstring("return function(GUI, ns)\n" .. frameworkSource:sub(boundsStart, boundsEnd - 1) .. "\nend"))()(gui, ns)
 assert(loadfile(os.getenv("QUI_NAV_SOURCE") or "QUI_Options/navigation.lua"))("QUI", ns)
 local frame = Node("Frame")
 frame:SetWidth(1100)
@@ -144,6 +157,30 @@ assert(togglePoint[1] == "RIGHT" and togglePoint[2] == toggleTile._navArrow and 
 gui.MainFrame = frame
 gui:LayoutSidebarGroups(frame)
 assert(#frame._sidebarGroups == 5 and #frame._tiles == 19, "five categories contain all 19 module buttons")
+-- The bottom of the module viewport must stay above the Tools divider,
+-- regardless of the number of tool buttons or the containing window's height.
+local function SidebarBottomOffset()
+    for index = #frame._sidebarScroll.points, 1, -1 do
+        local point = frame._sidebarScroll.points[index]
+        if point[1] == "BOTTOMRIGHT" then return point[5] end
+    end
+end
+for _, sidebarHeight in ipairs({650, 800}) do
+    frame.sidebar:SetHeight(sidebarHeight)
+    for _, toolCount in ipairs({1, 3, 4}) do
+        frame._toolsStrip = Node("Frame", frame.sidebar)
+        frame._toolsStrip:SetHeight(20 + toolCount * 26 - 2)
+        gui:LayoutSidebarGroups(frame)
+        local dividerOffset = 12 + frame._toolsStrip:GetHeight()
+        assert(SidebarBottomOffset() >= dividerOffset + 6,
+            "grouped sidebar rows need breathing room above the Tools divider")
+        assert(SidebarBottomOffset() <= dividerOffset + 10,
+            "shorter Tools strips must give unused height back to navigation")
+    end
+end
+frame._toolsStrip = nil
+gui:LayoutSidebarGroups(frame)
+assert(SidebarBottomOffset() <= 10, "navigation reclaims footer space when no Tools strip exists")
 local positions = {}
 for _, tile in ipairs(frame._tiles) do
     assert(tile.parent == frame._sidebarScrollChild and tile._sidebarTop, "each module uses the shared sidebar")
@@ -755,9 +792,10 @@ configuredSections[3] = { id = "Spec Display", label = "Spec Display" }
 configuredPages = gui:GetTileNavigationPages(configured)
 assert(#configuredPages == 3 and configuredPages[3].sectionId == "Spec Display",
     "changing a selected panel or slot must refresh cold section links without clearing the static catalog")
+configured.config.sectionNav = true
 configured.config.searchSections = { "Panel", "Spec Display" }
-assert(#gui:GetTileNavigationPages(configured) == 0,
-    "provider section slices and the three-section minimum must apply to dynamic cold metadata")
+assert(#gui:GetTileNavigationPages(configured) == 2,
+    "pages requesting section navigation must expose both long sections")
 configured.config.searchSections = nil
 configuredSections = {}
 assert(#gui:GetTileNavigationPages(configured) == 0,
@@ -1154,3 +1192,93 @@ assert(rootSelections == 2 and hierarchyKey == "general"
     and Row(dock, 2, nil, nil, true)._page.active,
     "a cold parent route must use the root callback registered while its page builds")
 print("options surface root destination: ok")
+
+do
+    hierarchyDescriptor.selectTab("timing")
+    local rootRow = Row(dock, 2, nil, nil, true)
+    local before = rootSelections
+    rootRow:MouseDown()
+    gui:RefreshNavigationDock(frame)
+    rootRow:MouseUp()
+    assert(rootSelections == before + 1 and hierarchyKey == "general",
+        "a sidebar refresh between mouse down and up must not swallow the root navigation click")
+
+    local timingRow = Row(dock, 2, "timing")
+    timingRow:MouseDown()
+    local timingTab = table.remove(hierarchyTabs, 1)
+    gui:RefreshNavigationDock(frame)
+    timingRow:MouseUp()
+    assert(hierarchyKey == "general", "a recycled row must cancel the old destination's pending click")
+    table.insert(hierarchyTabs, 1, timingTab)
+    gui:RefreshNavigationDock(frame)
+end
+print("options navigation refresh during click: ok")
+
+-- The shared navigation presents a provider's editing context without
+-- changing its stable destination keys or section hierarchy.
+do
+    local contextLabel = "Power Infusion"
+    hierarchyDescriptor.getContextLabel = function() return contextLabel end
+    hierarchyDescriptor.selectTab("timing")
+    gui:UpdateTileNavigationTitle(hierarchyTile)
+    assert(hierarchyTile._title:GetText() == "Power Infusion > Timing",
+        "page title must identify the selected entity as well as the editing tab")
+    assert(Row(dock, 2, nil, nil, true)._page.label == hierarchyTile.config.subPages[2].name,
+        "selected-entity naming must not replace the collection parent")
+    contextLabel = "Innervate"
+    gui:UpdateTileNavigationTitle(hierarchyTile)
+    assert(hierarchyTile._title:GetText() == "Innervate > Timing"
+        and Row(dock, 2, nil, nil, true)._page.label == hierarchyTile.config.subPages[2].name,
+        "context changes must update the editor title while retaining the collection parent")
+    assert(FindRow(dock, 2, "timing"), "context naming must preserve the exact navigation destination")
+    hierarchyDescriptor.getContextLabel = nil
+    gui:UpdateTileNavigationTitle(hierarchyTile)
+    assert(hierarchyTile._title:GetText() == "Timing", "providers without context keep their existing title")
+end
+print("OK: navigation retains explicit editing context")
+
+-- Collection contexts use the same navigation rows, selection and history.
+do
+    local contexts, selectedId = {}, 1
+    for id = 1, 5 do contexts[id] = {id = id, label = "Reminder " .. id, tabs = hierarchyTabs} end
+    hierarchyDescriptor.getNavigationContexts = function() return contexts end
+    hierarchyDescriptor.getNavigationRoot = function() return {key = "general", label = "Add Reminder"} end
+    hierarchyDescriptor.getNavigationLabel = function() return "Spell Reminders (" .. #contexts .. ")" end
+    hierarchyDescriptor.getActiveContext = function() return hierarchyKey ~= "general" and selectedId or nil end
+    local selectTab, getPage = hierarchyDescriptor.selectTab, hierarchyDescriptor.getPage
+    hierarchyDescriptor.selectTab = function(key, id)
+        if id then selectedId = id end
+        return selectTab(key)
+    end
+    hierarchyDescriptor.getPage = function(key, id)
+        if id and id ~= selectedId then return nil end
+        return getPage and getPage(key)
+    end
+    hierarchyDescriptor.selectTab("general")
+    gui:UpdateTileNavigationTitle(hierarchyTile)
+    assert(Row(dock, 2, nil, nil, true)._page.label == "Spell Reminders (5)"
+        and Row(dock, 2, "general")._page.label == "Add Reminder", "collection root must expose count and creation")
+    local function ContextRow(id)
+        for _, button in ipairs(dock._buttons) do
+            local row = button._page
+            if button:IsShown() and row._group and row._groupId == "2:context:" .. id then return button end
+        end
+    end
+    for id = 1, 5 do
+        assert(ContextRow(id) and ContextRow(id)._page._depth == 1, "every saved reminder must remain discoverable")
+    end
+    ContextRow(2):Click()
+    assert(selectedId == 2 and hierarchyKey == "timing", "named reminder row selects its own editor")
+    gui:PushNavigationHistory(frame)
+    ContextRow(4):Click()
+    assert(selectedId == 4, "same tab on another reminder is a distinct destination")
+    gui:NavigateOptionsBack(frame)
+    assert(selectedId == 2 and hierarchyKey == "timing", "Back must restore the reminder as well as the tab")
+    for id = 1, 5 do assert(ContextRow(id), "opening one reminder must not lose siblings") end
+    contexts = {}
+    hierarchyDescriptor.selectTab("general")
+    gui:UpdateTileNavigationTitle(hierarchyTile)
+    assert(Row(dock, 2, nil, nil, true)._page.label == "Spell Reminders (0)"
+        and Row(dock, 2, "general") and not ContextRow(2), "empty collection retains creation and removes stale reminders")
+end
+print("OK: collection navigation, five contexts, history, and empty state")

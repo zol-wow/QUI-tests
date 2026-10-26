@@ -4,6 +4,8 @@ local profile = { general = general, minimapButton = { hide = false } }
 local rows, refreshed = {}, 0
 local function Frame()
     return {
+        GetWidth = function(self) return self.width or 700 end,
+        SetWidth = function(self, width) self.width = width end,
         SetPoint = function() end,
         ClearAllPoints = function() end,
         SetJustifyH = function() end,

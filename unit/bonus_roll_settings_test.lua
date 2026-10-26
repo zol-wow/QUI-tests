@@ -15,6 +15,8 @@ function methods:SetColorTexture() end
 function methods:SetTexture() end
 function methods:AddMaskTexture() end
 function methods:GetChildren() end
+function methods:GetNumChildren() return 0 end
+function methods:GetNumRegions() return 0 end
 function methods:Enable() self.enabled = true end
 function methods:Disable() self.enabled = false end
 function methods:SetHeight(value) self.height = value end
@@ -43,7 +45,7 @@ methods.CreateFontString = methods.CreateTexture
 _G.CreateFrame = Frame
 local GUI = {
     Colors = { text = { 1, 1, 1, 1 }, textMuted = { 1, 1, 1, 0.45 },
-        toggleOff = { 1, 1, 1, 0.12 }, toggleThumb = { 1, 1, 1, 1 }, accent = { 0.2, 0.8, 0.6, 1 } },
+        bgLight = {0, 0, 0}, border = {1, 1, 1}, toggleOff = { 1, 1, 1, 0.12 }, toggleThumb = { 1, 1, 1, 1 }, accent = { 0.2, 0.8, 0.6, 1 } },
     _searchContext = {},
     HasGeneratedSearchCache = function() return true end,
 }
@@ -81,7 +83,8 @@ local profile = { general = { bonusRoll = { enabled = false, announce = true, di
 local pending, recovered, cleared, notified = nil, 0, 0, 0
 local feature
 local ns = {
-    UIKit = { CreateChevronCaret = function(parent) return Frame(nil, nil, parent) end },
+    UIKit = { CreateChevronCaret = function(parent) return Frame(nil, nil, parent) end,
+        SetChevronCaretExpanded = function(caret, expanded) caret.expanded = expanded end },
     Helpers = {
         AssetPath = "Interface\\AddOns\\QUI\\assets\\",
         ApplyFontWithFallback = function(font, ...) font:SetFont(...) end,
@@ -134,7 +137,8 @@ local function Noop() end
 local function BindWidgetMethod(_, callback) return function(_, ...) return callback(...) end end
 local loader = loadstring or load
 local framework = "QUI_Options/framework.lua"
-local toggles = Extract(framework, "-- BEGIN widget disabled mute", "-- END widget disabled mute")
+local toggles = Extract(framework, "GUI._formFallbacks =", "function GUI:BuildSearchWidgetDescriptor")
+    .. Extract(framework, "-- BEGIN widget disabled mute", "-- END widget disabled mute")
     .. Extract(framework, "-- BEGIN pill toggle", "-- BEGIN square checkbox")
 local sync = Extract(framework, "local function IsTransientOptionsBinding", "local function ShouldRegisterSearchSetting")
     .. Extract(framework, "local function GetProviderSyncContext", "local function BuildPinnedWidgetDescriptor")
@@ -161,6 +165,9 @@ function GUI:CreateFormDropdown(parent, label, options, key, db, callback, info)
 end
 local rows = Extract("QUI_Options/shared.lua", "-- BEGIN setting row state", "-- END setting row state")
 assert(loader("return function(ns, QUI, Helpers)\n" .. rows .. "\nend"))()(ns, _G.QUI, ns.Helpers)
+local sectionsCode = Extract("QUI_Options/shared.lua", "local function GetCollapsibleAccent", "local Options = ns.QUI_Options")
+ns.QUI_Options.CreateInlineCollapsible = assert(loader("return function(GUI, UIKit)\n" .. sectionsCode
+    .. "\nreturn CreateInlineCollapsible end"))()(GUI, ns.UIKit)
 local BuildSettingRow = ns.QUI_Options.BuildSettingRow
 function ns.QUI_Options.BuildSettingRow(parent, label, widget, ...)
     local row = BuildSettingRow(parent, label, widget, ...)
@@ -171,9 +178,14 @@ assert(loadfile("core/settings_layout_shared.lua"))("QUI", ns)
 assert(loadfile("modules/layout/settings/bonus_roll_provider.lua"))("QUI", ns)
 assert(feature.nav.tileId == "qol" and feature.nav.subPageIndex == 14)
 assert(feature.getDB(profile) == profile.general.bonusRoll)
-local content = Frame()
+local registeredSections = {}
+local owner = Frame()
+function owner:RegisterSection(id, _, section) registeredSections[id] = section end
+local content = Frame(nil, nil, owner)
 content._quiProviderSync = { providerKey = "bonusRollFrame", surfaceId = "bonusRollTest" }
 providers.bonusRollFrame.build(content, "bonusRollFrame")
+assert(registeredSections.Raids and registeredSections["World Bosses"],
+    "Bonus Roll sections must register with the mounted ancestor for sidebar navigation")
 local function Find(label, difficulty)
     for _, widget in ipairs(widgets) do
         if (widget.rowLabel == label or widget.label == label) and (not difficulty or widget.db == profile.general.bonusRoll.difficulty[difficulty]
@@ -195,16 +207,38 @@ local function Click(label, index)
     error("Missing button: " .. label)
 end
 for _, title in ipairs({ "Raids", "World Bosses", "Dungeons & Mythic+", "Delves & Other Content" }) do
-    local header = Find(title)
-    assert(header.section == title, title .. " captured the previous search section")
-    Section(title):SetExpanded(false)
-    feature.searchNavigate({ label = title, sectionName = header.section })
+    local section = Section(title)
+    assert(section._header and registeredSections[title] == section, title .. " must use shared heading navigation")
+    section:SetExpanded(false)
+    assert(not section._body:IsShown() and section:GetHeight() == 24, title .. " must collapse its body")
+    feature.searchNavigate({ label = title, sectionName = title })
     assert(Section(title)._expanded, title .. " search did not open its own section")
 end
 local db = profile.general.bonusRoll
 assert(Find("Show a Chat Link When a Roll Is Hidden").isEnabled == false)
 assert(Find("Show Pending Roll").enabled == false)
+local browseDifficulty = Find("Raid Difficulty")
+assert(browseDifficulty.isEnabled ~= false, "Raid difficulty browsing must remain available while filtering is off")
+browseDifficulty:SetValue(16)
+assert(browseDifficulty.GetValue() == 16 and db.enabled == false,
+    "Browsing a raid difficulty must not enable filtering")
+browseDifficulty:SetValue(14)
 local master = Find("Enable Bonus Roll Filtering")
+-- Native responsive cards can settle at a different height after construction.
+-- Refreshing controls must not move the following sections back over the card.
+local generalCard = master.parent.parent
+local initialGeneralHeight = generalCard:GetHeight()
+local initialRaidY = Section("Raids").point[5]
+for _, extraHeight in ipairs({ 64, 0, 96, 0 }) do
+    generalCard:SetHeight(initialGeneralHeight + extraHeight)
+    master.track.scripts.OnClick(master.track)
+    assert(Section("Raids").point[5] == initialRaidY - extraHeight,
+        "Bonus Roll refresh must retain the current general card height above Raids")
+    browseDifficulty:SetValue(15)
+    assert(Section("Raids").point[5] == initialRaidY - extraHeight,
+        "difficulty navigation must not restore the stale pre-reflow section origin")
+end
+browseDifficulty:SetValue(14)
 assert(master:GetWidth() == 26 and master:GetHeight() == 14, "Master toggle must fit its settings row")
 assert(master.point[1] == "RIGHT" and master.point[2] == master.parent and master.point[3] == "RIGHT")
 assert(master.track:GetWidth() == 26 and master.track:GetHeight() == 14)

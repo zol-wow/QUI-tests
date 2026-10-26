@@ -10,6 +10,7 @@ local function Node(parent)
  function n:IsShown() return self.shown end
  function n:Show() self.shown=true end
  function n:Hide() self.shown=false end
+ function n:SetShown(value) self.shown=value end
  function n:SetPoint(...) self.points[#self.points+1]={...} end
  function n:ClearAllPoints() self.points={} end
  function n:SetHeight(h) self.height=h end
@@ -33,9 +34,12 @@ local function Check(count,compact,expected)
  end
  apply({_body=body})
  assert(last.points[1][2]._divider.shown,"a singleton must retain its column-ending divider")
- local p=last.points[2]
- assert(p[3]==expected,"unmatched provider setting must end at its column boundary")
- if expected=="LEFT" then assert(p[4]==(body.width+4)/3-12,"unmatched compact setting retains three-column width") end
+ if expected=="LEFT" then
+  assert(last.width+last.points[1][4]==(body.width+4)/3-12,
+   "unmatched compact setting retains its exact three-column boundary")
+ else
+  assert(last.points[2][3]==expected,"unmatched provider setting must end at its column boundary")
+ end
 end
 Check(1,false,"CENTER")
 Check(3,false,"CENTER")
