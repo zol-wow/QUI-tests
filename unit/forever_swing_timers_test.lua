@@ -387,6 +387,10 @@ test.event("PLAYER_SWING", 2, world.Enum.PlayerSwingType.MainHand)
 assert(main.StatusBar.Pip:IsShown(), "new native swing must show the skinned pip again")
 state.range = false
 test.event("PLAYER_TARGET_CHANGED")
+assert(api.entries[1].chrome:GetAlpha() == 1 and main.StatusBar.alpha == 1 and main.Background.alpha == 1 and main.StatusBar.TimeLabel.textColor[2] == 1,
+    "active native swings must defer range dimming and red labels")
+state.time = 104
+main:Fire("OnUpdate", 2)
 assert(api.entries[1].chrome:GetAlpha() == 0.4 and main.StatusBar.alpha == 0.4 and main.Background.alpha == 0.4 and main.StatusBar.TimeLabel.textColor[2] == 0,
     "native range dimming and red labels must survive skinning")
 state.range = nil
