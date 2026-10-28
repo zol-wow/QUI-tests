@@ -1,14 +1,16 @@
 -- luacheck: globals PlayerChoice_WidgetsLayout DefaultWidgetLayout
 -- Replays the native PlayerChoice widget layout with recycled horizontal rows.
--- Bottom-only layouts skip the native pool clear, leaving old rows in extents.
+for _, case in ipairs({
+    { root = "tests/framexml", nativeHeight = 15 },
+    { root = "tests/clients/forever/framexml", nativeHeight = 800 },
+}) do
 local function read(path)
     local f = assert(io.open(path, "rb")); local s = f:read("*a"); f:close(); return s
 end
-local native = read("tests/framexml/Interface/AddOns/Blizzard_PlayerChoice/Blizzard_PlayerChoiceOptionBase.lua")
+local native = read(case.root .. "/Interface/AddOns/Blizzard_PlayerChoice/Blizzard_PlayerChoiceOptionBase.lua")
 local chunk = assert(native:match("(local function IsTopWidget.-)\nfunction PlayerChoiceBaseOptionTemplateMixin:WidgetsLayout"))
 Enum = { UIWidgetVisualizationType = { SpellDisplay = 1 } }
 local layouts, releases = 0, 0
--- The native DefaultWidgetLayout's bottom-only path retains the row pool.
 function DefaultWidgetLayout(c, widgets, _, skipClear)
     if not skipClear then c.horizontalRowContainerPool:ReleaseAll() end
     for _, w in ipairs(widgets) do w.parent = c end -- vertical widget
@@ -51,7 +53,7 @@ local function fixture()
 end
 local c, w = fixture()
 PlayerChoice_WidgetsLayout(c, { w }, false)
-assert(c.height == 800, "native fixture must reproduce stale-row inflation")
+assert(c.height == case.nativeHeight, case.root .. ": unexpected native stale-row behavior")
 local file = io.open("modules/qol/playerchoice_layout.lua", "rb")
 if file then file:close(); assert(loadfile("modules/qol/playerchoice_layout.lua"))() end
 assert(hookCount == 1, "player-choice layout repair must install when already loaded")
@@ -100,4 +102,5 @@ lateEvent.callback(lateEvent, "ADDON_LOADED", "Blizzard_PlayerChoice")
 lateEvent.callback(lateEvent, "ADDON_LOADED", "Blizzard_PlayerChoice")
 assert(hookCount == 2, "late load should install once")
 assert(releases >= 21)
+end
 print("OK: playerchoice_stale_widget_rows_test")
