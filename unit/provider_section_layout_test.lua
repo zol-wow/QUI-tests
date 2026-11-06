@@ -24,6 +24,7 @@ local function Frame(parent)
     function f:GetHeight() return self.height end
     function f:GetTop() return self.top end
     function f:SetParent(value) self.parent = value end
+    function f:GetParent() return self.parent end
     function f:SetScript(event, callback) self[event] = callback end
     function f:HookScript(event, callback)
         self.hooks[event] = self.hooks[event] or {}

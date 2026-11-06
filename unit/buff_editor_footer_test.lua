@@ -1,8 +1,9 @@
 local path = os.getenv("QUI_BUFF_SOURCE") or "QUI_ActionBars/actionbars/settings/action_bars_buffdebuff_content.lua"
 local file = assert(io.open(path)); local source = file:read("*a"); file:close()
 local body = assert(source:match("(local function BuildBuffDebuffTab.-)\nns.QUI_BuffDebuffOptions"))
-local function Frame()
-    local f = {height = 0, width = 700, points = {}, hooks = {}}
+local function Frame(parent)
+    local f = {height = 0, width = 700, points = {}, hooks = {}, parent = parent}
+    function f:GetParent() return self.parent end
     function f:SetPoint(point, relative, relativePoint, x, y)
         if point == "TOPLEFT" then self.y = y end
         for index, anchor in ipairs(self.points) do
@@ -32,8 +33,8 @@ local function Frame()
 end
 local settings, editors, callbacks, headers, cards = {}, {}, {}, {}, {}
 local options = {PADDING = 15}
-function options.CreateAccentDotLabel()
-    local header = Frame()
+function options.CreateAccentDotLabel(parent)
+    local header = Frame(parent)
     header._dot, header._label = {}, {points = {}}
     function header._label:GetTop() return self.top end
     function header._label:ClearAllPoints() self.points = {} end
