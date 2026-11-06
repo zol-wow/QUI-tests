@@ -129,6 +129,22 @@ local BattleNet =
 			},
 		},
 		{
+			Name = "GetDefaultTitleWhisperTarget",
+			Type = "Function",
+			MayReturnNothing = true,
+			SecretArguments = "AllowedWhenUntainted",
+
+			Arguments =
+			{
+				{ Name = "id", Type = "number", Nilable = false },
+			},
+
+			Returns =
+			{
+				{ Name = "whisperTarget", Type = "string", Nilable = false },
+			},
+		},
+		{
 			Name = "GetFriendAccountInfo",
 			Type = "Function",
 			SecretArguments = "AllowedWhenUntainted",
@@ -520,6 +536,7 @@ local BattleNet =
 				{ Name = "regionID", Type = "number", Nilable = false },
 				{ Name = "isInCurrentRegion", Type = "bool", Nilable = false },
 				{ Name = "timerunningSeasonID", Type = "number", Nilable = true },
+				{ Name = "subIcon", Type = "string", Nilable = true },
 			},
 		},
 	},

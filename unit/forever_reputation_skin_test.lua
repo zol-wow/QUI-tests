@@ -69,6 +69,7 @@ local bar = {
     SetShown = function(self, shown) self.shown = shown end,
     IsShown = function(self) return self.shown end,
     Fill = {
+        SetShown = function(self, shown) self.shown = shown end,
         SetTexture = function(self, texture) self.texture = texture end,
         SetWidth = function(self, width) self.width = width end,
         SetTexCoord = function(self, ...) self.coords = { ... } end,
@@ -102,6 +103,9 @@ assert(track and track.fill.center:IsShown() and track.fill.center.vertex[4] == 
 bar:SetFillPercent(0.75)
 bar:SetText("4,500 / 6,000")
 assert(bar.Fill.width == 111 and bar.Fill.coords[2] == 0.75, "native progress must still update within the inset fill area after skinning")
+assert(bar.Fill.shown, "positive reputation progress must show the native fill")
+bar:SetFillPercent(0)
+assert(not bar.Fill.shown, "zero reputation progress must hide the native fill instead of showing its full atlas")
 assert(bar.Text.text == "4,500 / 6,000", "native hover text must still update")
 acquired(row)
 assert(backdropCount == 1, "reacquiring a pooled row must not duplicate its backdrop")
