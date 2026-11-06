@@ -55,17 +55,22 @@ end
 print("OK cdm_composer_add_icon_fallback_test")
 
 local equipped = {}
+local itemLocationAllocations = 0
 local function readAll(path)
     local f = assert(io.open(path, "rb"))
     local text = f:read("*a")
     f:close()
     return text
 end
-ItemUtil = {
-    GetValidatedItemLocation = function(slot) return equipped[slot] end,
+ItemUtil = {}
+ItemLocation = {
+    CreateFromEquipmentSlot = function(_, slot)
+        itemLocationAllocations = itemLocationAllocations + 1
+        return { slot = slot, IsValid = function(self) return equipped[self.slot] ~= nil end }
+    end,
 }
 C_Item = {
-    GetItemIcon = function(item) return item.icon end,
+    GetItemIcon = function(item) return equipped[item.slot].icon end,
     GetItemIconByID = function() return nil end,
     GetItemInfoInstant = function() return nil end,
 }
@@ -76,7 +81,9 @@ C_PaperDollInfo = {
     end,
 }
 GetInventoryItemID = function(_, slot) return equipped[slot] and equipped[slot].id end
+GetInventoryItemTexture = function(_, slot) return equipped[slot] and equipped[slot].icon end
 local native = readAll("tests/clients/forever/framexml/Interface/AddOns/Blizzard_FrameXMLUtil/ItemUtil.lua")
+assert(loadstring(assert(native:match("(function ItemUtil.GetValidatedItemLocation%(equipSlot%).-\nend)\n"))))()
 assert(loadstring(assert(native:match("(function ItemUtil.GetEquipSlotTexture%(equipSlot%).-\nend)\n"))))()
 local ns = { SafeCall = function(_, fn, ...) return pcall(fn, ...) end }
 assert(loadfile("QUI_CDM/cdm/cdm_sources.lua"))("QUI", ns)
@@ -123,6 +130,13 @@ for _, withEquipment in ipairs({ false, true }) do
             assert(cells[index]._icon.texture == want, tab .. " must render both trinket slots")
         end
     end
+    local allocationsBefore = itemLocationAllocations
+    local entry = { type = "slot", id = 13 }
+    for _ = 1, 100 do
+        assert(resolvers.GetEntryTexture(entry) == (withEquipment and 987654 or 136528))
+    end
+    assert(itemLocationAllocations == allocationsBefore,
+        "repeated combat texture lookups must not allocate ItemLocation tables for empty or uncached equipped slots")
 end
 
 print("OK cdm_composer_trinket_slot_icons")
