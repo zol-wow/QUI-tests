@@ -89,4 +89,45 @@ end
 assert(resolvers.GetEntryTexture({ type = "consumable", id = 9999 }) == nil,
     "unknown consumable category resolves to nil")
 
+local file = assert(io.open("QUI_CDM/cdm/settings/composer.lua", "rb"))
+local source = file:read("*a")
+file:close()
+local iconFunction = assert(source:match("(local function GetEntryIcon%(entry%)\n.-\nend)\n"))
+local nameFunction = assert(source:match("(local function GetEntryName%(entry%)\n.-\nend)\n"))
+local chunk = assert(loadstring(iconFunction .. "\n" .. nameFunction .. "\nreturn GetEntryIcon, GetEntryName"))
+setfenv(chunk, setmetatable({ ns = ns }, { __index = _G }))
+local getEntryIcon, getEntryName = chunk()
+
+_G.C_CooldownViewer = {
+    GetCooldownViewerCategorySet = noop,
+    GetCooldownViewerCooldownInfo = noop,
+}
+catalog.GetTrackedCategorySet = function() return { 24, 1153, 2466 } end
+catalog.GetCooldownInfo = function(id) return { spellCategoryID = id, isKnown = true } end
+local available = catalog.GetAvailableSpellsForContainer("essential", "cooldown", {}, {})
+assert(#available == 3, "picker must include each Forever category once")
+local availableByID = {}
+for _, entry in ipairs(available) do
+    availableByID[entry._entryID] = entry
+end
+
+for _, case in ipairs({
+    { id = 24, name = "Aggressive Consumables", icon = 133709 },
+    { id = 1153, name = "Non-Aggressive Consumables", icon = 135230 },
+    { id = 2466, name = "Parachutes", icon = 133763 },
+}) do
+    local pickerEntry = assert(availableByID[case.id], "picker must include category " .. case.id)
+    assert(pickerEntry.name == case.name,
+        "picker must name category " .. case.id .. "; got " .. tostring(pickerEntry.name))
+    assert(pickerEntry.icon == case.icon, "picker must show the verified icon for category " .. case.id)
+    assert(pickerEntry._entryType == "consumable", "picker must preserve the consumable entry type")
+    local entry = { type = "consumable", id = case.id }
+    assert(resolvers.GetEntryTexture(entry) == case.icon,
+        "resolver must use the verified icon for category " .. case.id)
+    assert(getEntryIcon(entry) == case.icon,
+        "composer must use the verified icon for category " .. case.id)
+    assert(getEntryName(entry) == case.name,
+        "composer must name category " .. case.id)
+end
+
 print("OK cdm_resolvers_consumable_entry_texture_test")
