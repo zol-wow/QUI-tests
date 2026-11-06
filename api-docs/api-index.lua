@@ -3912,6 +3912,7 @@ return {
     ["event:START_PLAYER_COUNTDOWN"] = { eventFlags = { "SecretInChatMessagingLockdown" } },
     ["event:UNIT_AURA"] = { eventFlags = { "SecretWhenAurasRestricted" } },
     ["event:UNIT_AURA_BLOCKED"] = { secretPayload = true },
+    ["event:UNIT_COMBAT"] = { secretPayload = true },
     ["event:UNIT_DIED"] = { eventFlags = { "SecretWhenUnitIdentityRestricted" } },
     ["event:UNIT_DISTANCE_CHECK_UPDATE"] = { eventFlags = { "SecretPayloads" } },
     ["event:UNIT_IN_RANGE_UPDATE"] = { eventFlags = { "SecretPayloads" } },
