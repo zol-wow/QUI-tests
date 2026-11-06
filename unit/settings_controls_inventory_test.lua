@@ -1,8 +1,42 @@
+local inventory = dofile("tests/helpers/settings_inventory.lua")
+local function Quote(value)
+    return "'" .. value:gsub("'", "'\\''") .. "'"
+end
+if not arg[1] then
+    local interpreter = assert(arg[-1], "Lua interpreter path is required")
+    assert(os.execute("LUA=" .. Quote(interpreter) .. " bash tools/test_settings_inventory.sh") == 0,
+        "settings inventory shards failed")
+    return
+end
+if arg[1] == "--merge" then
+    local count = assert(tonumber(arg[2]), "shard count is required")
+    assert(count >= 1 and count % 1 == 0, "shard count must be a positive integer")
+    local reports = {}
+    for index = 3, #arg do reports[#reports + 1] = dofile(arg[index]) end
+    inventory.Verify(inventory.Merge(reports, count))
+    return
+end
+local shard, shards = 1, 1
+local worker = arg[1] == "--shard"
+local output
+if worker then
+    local a, b = tostring(arg[2]):match("^(%d+)/(%d+)$")
+    shard, shards = tonumber(a), tonumber(b)
+    assert(shard and shards and shard >= 1 and shard <= shards, "expected --shard I/N with 1 <= I <= N")
+    assert(arg[3] == "--output" and arg[4] and not arg[5], "worker requires --output PATH")
+    output = arg[4]
+else
+    assert(arg[1] == "--serial" and not arg[2], "expected --serial, --shard I/N --output PATH, or --merge N PATH...")
+end
+local baseline = dofile("tests/fixtures/settings_controls_inventory.lua")
 local handle = assert(io.open("tools/generate_search_cache.lua", "rb"))
 local source = handle:read("*a")
 handle:close()
 local marker = assert(source:find('local frame = create_stub_node("Frame", nil, false)', 1, true))
+local arguments = arg
+arg = {}
 assert(loadstring(source:sub(1, marker - 1)))()
+arg = arguments
 local GUI = QUI.GUI
 local ns
 for index = 1, math.huge do
@@ -116,7 +150,6 @@ assert(loadfile("modules/datatexts/datatexts.lua"))("QUI", ns)
 assert(loadfile("modules/datatexts/providers_extra.lua"))("QUI", ns)
 
 -- This observes actual constructors; none of the generator's capture overrides run.
-local cache = dofile("tests/helpers/search_cache.lua")(os.getenv("QUI_SETTINGS_CACHE"))
 local records, widgets, active = {}, {}, false
 local function Context()
     return Copy(GUI._searchContext or {})
@@ -204,6 +237,12 @@ GUI.RegisterTileSurfacePages = function(self,host,spec)
     descriptor = spec
     return register(self,host,spec)
 end
+local features = {}
+for id in ns.Settings.Registry:IterateFeatures() do features[#features + 1] = id end
+local assignments = inventory.Partition(features, baseline, shards)
+local function Owns(id)
+    return assignments[id] == shard
+end
 local failures = {}
 local destinations, contexts = 0, 0
 local function Render(feature, context, fn)
@@ -230,52 +269,55 @@ local function Render(feature, context, fn)
     if not ok then failures[#failures+1] = feature.id .. ": " .. err end
 end
 for destination in ns.Settings.Registry:IterateDestinations() do
-    destinations = destinations + 1
-    local feature = assert(ns.Settings.Registry:GetFeature(destination.featureId))
-    local context = Copy(destination.searchContext)
-    context.providerKey = context.providerKey or feature.providerKey
-    if not context.providerKey and feature.id:match("^actionBars") and feature.lookupKeys and #feature.lookupKeys == 1 then
-        context.providerKey = feature.lookupKeys[1]
-    end
-    local function Page(host)
-        local opts = {surface="tile",width=760,tileLayout=true,includePosition=true,providerKey=context.providerKey}
-        for k,v in pairs(destination.renderOptions or {}) do opts[k]=v end
-        ns.Settings.Renderer:RenderFeature(feature,host,opts)
-    end
-    Render(feature,context,Page)
-    if feature.model then
-        local model = type(feature.model)=="function" and feature.model() or feature.model
-        -- Walk actual tab declarations and selector contexts, including hidden tabs
-        -- only when their own visibility contract accepts the state.
-        for _,tab in ipairs(model.GetTabDefinitions()) do
-            for _,variant in ipairs(model.GetSearchContexts and model.GetSearchContexts(tab.key) or {{state={},searchContext={}}}) do
-                if not tab.visible or tab.visible(variant.state,tab,model) ~= false then
-                    local ctx=Copy(context)
-                    for k,v in pairs(variant.searchContext or {}) do ctx[k]=v end
-                    ctx.surfaceTabKey,ctx.subTabName=tab.key,tab.label
-                    Render(feature,ctx,function(host) tab.render(host,variant.state) end)
+    if Owns(destination.featureId) then
+        destinations = destinations + 1
+        local feature = assert(ns.Settings.Registry:GetFeature(destination.featureId))
+        local context = Copy(destination.searchContext)
+        context.providerKey = context.providerKey or feature.providerKey
+        if not context.providerKey and feature.id:match("^actionBars") and feature.lookupKeys and #feature.lookupKeys == 1 then
+            context.providerKey = feature.lookupKeys[1]
+        end
+        local function Page(host)
+            local opts = {surface="tile",width=760,tileLayout=true,includePosition=true,providerKey=context.providerKey}
+            for k,v in pairs(destination.renderOptions or {}) do opts[k]=v end
+            ns.Settings.Renderer:RenderFeature(feature,host,opts)
+        end
+        Render(feature,context,Page)
+        if feature.model then
+            local model = type(feature.model)=="function" and feature.model() or feature.model
+            -- Walk actual tab declarations and selector contexts, including hidden tabs
+            -- only when their own visibility contract accepts the state.
+            for _,tab in ipairs(model.GetTabDefinitions()) do
+                for _,variant in ipairs(model.GetSearchContexts and model.GetSearchContexts(tab.key) or {{state={},searchContext={}}}) do
+                    if not tab.visible or tab.visible(variant.state,tab,model) ~= false then
+                        local ctx=Copy(context)
+                        for k,v in pairs(variant.searchContext or {}) do ctx[k]=v end
+                        ctx.surfaceTabKey,ctx.subTabName=tab.key,tab.label
+                        Render(feature,ctx,function(host) tab.render(host,variant.state) end)
+                    end
                 end
             end
-        end
-    elseif feature.getSearchContexts then
-        local previous=feature.getNavigationContext and feature.getNavigationContext()
-        for _,variant in ipairs(feature.getSearchContexts()) do
-            assert(feature.searchNavigate(variant.searchContext),"unsupported declared context: "..feature.id)
-            local ctx=Copy(context)
-            for k,v in pairs(variant.searchContext or {}) do ctx[k]=v end
-            Render(feature,ctx,Page)
-        end
-        if previous then feature.searchNavigate(previous) end
-    elseif descriptor and descriptor.selectTab then
-        local mounted = descriptor
-        for _,tab in ipairs(mounted.getTabs()) do
-            Render(feature,context,function() mounted.selectTab(tab.key) end)
+        elseif feature.getSearchContexts then
+            local previous=feature.getNavigationContext and feature.getNavigationContext()
+            for _,variant in ipairs(feature.getSearchContexts()) do
+                assert(feature.searchNavigate(variant.searchContext),"unsupported declared context: "..feature.id)
+                local ctx=Copy(context)
+                for k,v in pairs(variant.searchContext or {}) do ctx[k]=v end
+                Render(feature,ctx,Page)
+            end
+            if previous then feature.searchNavigate(previous) end
+        elseif descriptor and descriptor.selectTab then
+            local mounted = descriptor
+            for _,tab in ipairs(mounted.getTabs()) do
+                Render(feature,context,function() mounted.selectTab(tab.key) end)
+            end
         end
     end
 end
 -- Conditional cases come from actual provider APIs and mounted capabilities.
 -- No labels or bindings are copied from the generated catalog.
 local function Fixture(id, fn, extra)
+    if not Owns(id) then return end
     local feature = assert(ns.Settings.Registry:GetFeature(id))
     for destination in ns.Settings.Registry:IterateDestinations() do
         if destination.featureId == id then
@@ -376,12 +418,8 @@ for _,sample in pairs(auraSamples) do
     end
 end
 
-local function Identity(context,label,path,key)
-    return table.concat({context.tileId or "",tostring(context.subPageIndex or ""),context.featureId or "",
-
-        label or "",path or "",tostring(key or "")},"|")
-end
-local expected, actual = {}, {}
+local Identity, Options = inventory.Identity, inventory.Options
+local expected = {}
 local paths = {}
 local function IndexBindings(value, path, depth)
     if type(value) ~= "table" or paths[value] or depth > 12 then return end
@@ -411,53 +449,6 @@ for _,entry in ipairs(records) do
         expected[id]=entry
     end
 end
-for _,entry in ipairs(cache.settings) do
-    local d=entry.widgetDescriptor or {}
-    actual[Identity(entry,entry.label,d.dbPath,d.dbKey)]=entry
-end
-local missing, count = {},0
-for id,entry in pairs(expected) do
-    count=count+1
-    if not actual[id] then missing[#missing+1]=id.." ["..entry.constructor.."]" end
-end
-table.sort(missing)
-print("DESTINATIONS "..destinations.." CONTEXTS "..contexts.." CONTROLS "..count.." MISSING "..#missing.." ERRORS "..#failures)
-for _,err in ipairs(failures) do print("RENDER ERROR "..err) end
-for _,id in ipairs(missing) do print("MISSING "..id) end
-
-local extra={}
-for id in pairs(actual) do if not expected[id] then extra[#extra+1]=id end end
-table.sort(extra)
-print("UNOBSERVED "..#extra)
-for _,id in ipairs(extra) do print("UNOBSERVED "..id) end
-
-local mismatches={}
-local function Options(value)
-    local parts={}
-    for _,o in ipairs(value or {}) do parts[#parts+1]=tostring(o.value)..":"..tostring(o.text) end
-    return table.concat(parts,";")
-end
-for id,e in pairs(expected) do
-    local got=actual[id]
-    if got then
-        if (e.path and got.widgetType~=e.kind) or (not e.path and not e.kinds[got.widgetType]) then mismatches[#mismatches+1]=id.." kind "..tostring(got.widgetType).." expected "..e.kind end
-        local d=got.widgetDescriptor
-        if e.path then
-            if e.kind=="slider" then
-                for _,k in ipairs({"min","max","step"}) do if not d or d[k]~=e[k] then mismatches[#mismatches+1]=id.." "..k end end
-            elseif e.kind=="dropdown" and (not d or Options(d.options)~=Options(e.options)) then
-                mismatches[#mismatches+1]=id.." options"
-            end
-        end
-    end
-end
-table.sort(mismatches)
-print("MISMATCHES "..#mismatches)
-for _,id in ipairs(mismatches) do print("MISMATCH "..id) end
-assert(#missing==0 and #failures==0 and #mismatches==0,"actual provider inventory differs from generated search")
-
-assert(#extra==0,"generated search contains controls not observed in actual supported providers")
-local inventory=dofile("tests/helpers/settings_inventory.lua")
 local sourceRows, sourceShapes, sourceKeysBySearchID={},{},{}
 local function Signature(entry)
     return table.concat({entry.kind,tostring(entry.min or ""),tostring(entry.max or ""),tostring(entry.step or ""),
@@ -481,35 +472,22 @@ for key,shapes in pairs(sourceShapes) do
     sourceRows[key]=table.concat(values,"\n")
 end
 for destination in ns.Settings.Registry:IterateDestinations() do
-    sourceRows["destination|"..destination.tileId.."|"..destination.subPageIndex.."|"..destination.featureId]="registered"
+    if Owns(destination.featureId) then
+        sourceRows["destination|"..destination.tileId.."|"..destination.subPageIndex.."|"..destination.featureId]="registered"
+    end
 end
 for id,feature in ns.Settings.Registry:IterateFeatures() do
-    sourceRows["feature|"..id]=feature.noSearch and "non-search alias" or "registered"
+    if Owns(id) then sourceRows["feature|"..id]=feature.noSearch and "non-search alias" or "registered" end
 end
-local output=os.getenv("QUI_SETTINGS_BASELINE_OUTPUT")
-if output then inventory.Save(output,sourceRows) end
-local baseline=dofile("tests/fixtures/settings_controls_inventory.lua")
-local changes=inventory.Differences(baseline,sourceRows)
-assert(#changes==0,"reviewed control baseline changed:\n"..table.concat(changes,"\n"))
--- Mutation checks use this run's actual provider inventory. A simultaneous
--- source and cache deletion must fail even though the two reduced sets agree.
-local searchID=next(expected)
-local chosen=assert(next(sourceKeysBySearchID[searchID]))
-local removed=Copy(sourceRows)
-for key in pairs(sourceKeysBySearchID[searchID]) do removed[key]=nil end
-local function ShallowCopy(values)
-    local result={}
-    for key,value in pairs(values) do result[key]=value end
-    return result
+for id, entry in pairs(expected) do
+    expected[id] = {constructor = entry.constructor, kind = entry.kind, kinds = entry.kinds, path = entry.path,
+        min = entry.min, max = entry.max, step = entry.step, options = Options(entry.options)}
 end
-local reducedSource=ShallowCopy(expected); reducedSource[searchID]=nil
-local reducedIndex=ShallowCopy(actual); reducedIndex[searchID]=nil
-assert(#inventory.Missing(expected,actual)==0,"every actual control requires an index entry")
-assert(#inventory.Missing(expected,reducedIndex)==1,"index deletion must fail the independent control comparison")
-assert(#inventory.Missing(reducedSource,reducedIndex)==0,"the simultaneous deletion defeats a two-way comparison alone")
-assert(#inventory.Differences(baseline,removed)>0,"reviewed baseline must detect simultaneous source+cache deletion")
-local modified=Copy(sourceRows); modified[chosen]=modified[chosen].."|changed"
-assert(#inventory.Differences(baseline,modified)>0,"baseline must detect changed control contract")
-local added=Copy(sourceRows); added["destination|unreviewed|1|unknown"]="registered"
-assert(#inventory.Differences(baseline,added)>0,"baseline must require review of new destinations")
-print("OK: reviewed source inventory and deletion mutations across "..destinations.." destinations and "..contexts.." contexts")
+local report = {shard = shard, shards = shards, expected = expected, sourceRows = sourceRows,
+    sourceKeysBySearchID = sourceKeysBySearchID, failures = failures, destinations = destinations, contexts = contexts}
+if worker then
+    dofile("tests/helpers/pretty_print.lua").WriteFile(output, report)
+    print(("shard %d/%d: %d destinations, %d contexts"):format(shard, shards, destinations, contexts))
+else
+    inventory.Verify(report, nil, baseline)
+end
