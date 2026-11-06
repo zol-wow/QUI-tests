@@ -23,6 +23,7 @@ local function Flush()
 end
 local function Region(parent)
     local region = {parent = parent, points = {}, height = 0, shown = true}
+    function region:GetParent() return self.parent end
     function region:SetPoint(point, relative, relativePoint, x, y)
         for i, anchor in ipairs(self.points) do
             if anchor[1] == point then self.points[i] = {point, relative, relativePoint, x, y}; return end
@@ -46,6 +47,7 @@ local function Region(parent)
     function region:IsVisible() return self.shown and (not self.parent or self.parent:IsVisible()) end
     return region
 end
+
 local function Frame(_, _, parent)
     local frame = Region(parent)
     frame.children, frame.scripts = {}, {}
@@ -1273,4 +1275,44 @@ do
     assert(reads == 20, "settled resize must measure each label once without recursive height layout")
     for _, label in ipairs(labels) do assert(label:GetWidth() == 320) end
     C_Timer = oldTimer
+end
+
+do
+    local host = Frame(); host:SetWidth(800); host:SetHeight(500)
+    local detachedWrites, initialHooks = 0
+    for rebuild = 1, 12 do
+        for _, child in ipairs({host:GetChildren()}) do
+            child:Hide()
+            child:ClearAllPoints()
+            child:SetParent(nil)
+            local setWidth = child.SetWidth
+            child.SetWidth = function(self, width)
+                detachedWrites = detachedWrites + 1
+                setWidth(self, width)
+            end
+        end
+        host:SetWidth(800)
+        local layout = ns.QUI_SettingsLayoutShared.MakeLayout(host, nil, nil, {explicitWidth = true})
+        local group = layout.sectionAt()
+        group.AddRow(Cell("First setting"), Cell("Second setting"))
+        layout.closeSection(group)
+        local custom = Frame(nil, nil, host)
+        function custom:GetTop() return 100 end
+        layout.placeCustom(custom, 50)
+        layout.finish()
+        Flush()
+        initialHooks = initialHooks or #host.hooks.OnSizeChanged
+        assert(#host.hooks.OnSizeChanged == initialHooks,
+            "page rebuilds must not accumulate native parent resize hooks")
+        assert(detachedWrites == 0,
+            "rebuilding must not lay out detached widgets")
+        local wideHeight = group.frame:GetHeight()
+        host:SetWidth(480)
+        for _, callback in ipairs(host.hooks.OnSizeChanged) do callback(host, 480, host:GetHeight()) end
+        Flush()
+        assert(group.frame:GetHeight() > wideHeight and custom:GetWidth() == 450,
+            "the latest rebuilt page must still resize its cards and custom content")
+        assert(detachedWrites == 0,
+            "parent resize must not reach widgets from previous page builds")
+    end
 end

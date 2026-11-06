@@ -1274,6 +1274,7 @@ return {
               width = 1100
             },
             combineAbsorbsIntoHealing = true,
+            defaultWindowDeleted = false,
             enabled = true,
             hoverTooltipScale = 100,
             refreshRateCombat = 0.5,

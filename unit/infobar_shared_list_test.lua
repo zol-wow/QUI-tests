@@ -5,7 +5,10 @@ local last = assert(source:find('        L.headerAt(ns.L["Widget Overrides"])', 
 local nodes, buttons, dropdowns, lists = {}, {}, {}, {}
 local function node(parent)
     local n = {parent=parent, width=660, height=0, heightChanges=0, heightCalls=0, _quiMeasuredHeight=false, scripts={}, points={}}
-    setmetatable(n, {__index=function() return function() end end})
+    setmetatable(n, {__index=function(_, key)
+        if key:sub(1, 1) == "_" then return nil end
+        return function() end
+    end})
     function n:ClearAllPoints() self.points={} end
     function n:SetPoint(point, relative, relativePoint, x, y)
         if type(relative) == "number" then x,y,relative,relativePoint=relative,relativePoint,self.parent,point end
