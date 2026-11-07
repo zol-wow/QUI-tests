@@ -336,11 +336,11 @@ end
 local oldClient=ns.Client
 ns.Client={isForever=true}
 RenderFeature("skinningPage")
-for _, id in ipairs({ "unitFramesPage", "nameplatesPage" }) do
+for _, id in ipairs({ "unitFramesPage", "nameplatesPage", "groupFramesPage" }) do
     local feature = ns.Settings.Registry:GetFeature(id)
     local model = type(feature.model) == "function" and feature.model() or feature.model
     for _, tab in ipairs(model.GetTabDefinitions()) do
-        if tab.key == "text" then
+        if tab.key == (id == "groupFramesPage" and "appearance" or "text") then
             for _, variant in ipairs(model.GetSearchContexts(tab.key)) do
                 local context = Copy(variant.searchContext)
                 context.surfaceTabKey, context.subTabName = tab.key, tab.label
