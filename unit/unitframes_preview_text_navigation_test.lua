@@ -1,6 +1,12 @@
 local function NewFrame(parent)
     local frame = { parent = parent, shown = true, scripts = {}, width = 400, height = 100 }
     function frame:SetAllPoints(region) self.anchor = region end
+    function frame:ClearAllPoints() self.points = {} end
+    function frame:SetPoint(point, relative, relativePoint, x, y)
+        self.points = rawget(self, "points") or {}
+        self.points[point] = { relative, relativePoint, x, y }
+        self.point = { point, relative, relativePoint, x, y }
+    end
     function frame:SetSize(width, height) self.width, self.height = width, height end
     function frame:SetWidth(width) self.width = width end
     function frame:SetHeight(height) self.height = height end
@@ -80,4 +86,33 @@ unit.showName, unit.showHealth = true, true
 _G.QUI_RefreshUnitFramePreview()
 assert(mock._nameTextButton.shown and mock._healthTextButton.shown,
     "reenabling preview text must restore its navigation targets")
+unit.showLevel, unit.showPowerText = true, true
+for _, case in ipairs({
+    { shown = true, height = 4, separator = true, bottom = 6 },
+    { shown = true, height = 12, separator = true, bottom = 14 },
+    { shown = true, height = 12, separator = false, bottom = 13 },
+    { shown = false, height = 12, separator = true, bottom = 1 },
+}) do
+    unit.showPowerBar, unit.powerBarHeight, unit.powerBarBorder = case.shown, case.height, case.separator
+    for _, anchor in ipairs({ "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT", "CENTER", "TOPLEFT" }) do
+        unit.nameAnchor, unit.levelAnchor, unit.healthAnchor, unit.powerTextAnchor = anchor, anchor, anchor, anchor
+        unit.nameOffsetX, unit.levelOffsetX, unit.healthOffsetX, unit.powerTextOffsetX = 3, 3, 3, 3
+        unit.nameOffsetY, unit.levelOffsetY, unit.healthOffsetY, unit.powerTextOffsetY = 2, 2, 2, 2
+        _G.QUI_RefreshUnitFramePreview()
+        local texts = { mock._nameText, mock._levelText, mock._healthText }
+        if case.shown then texts[#texts + 1] = mock._powerText end
+        for _, text in ipairs(texts) do
+            local point = assert(text.point)
+            local area = point[2]
+            assert(area ~= mock and area ~= mock._healthBar,
+                "preview text must anchor to the full health area, excluding mana and independent of health fill")
+            local top, bottom = area.points.TOPLEFT, area.points.BOTTOMRIGHT
+            assert(top[1] == mock and top[3] == 1 and top[4] == -1)
+            assert(bottom[1] == mock and bottom[3] == -1 and bottom[4] == case.bottom,
+                "preview health area must reserve the configured mana bar and separator")
+            assert(point[1] == anchor and point[3] == anchor and point[4] == 3 and point[5] == 2,
+                "preview must preserve text offsets without adding hidden padding")
+        end
+    end
+end
 print("OK: unitframes_preview_text_navigation_test")
