@@ -32,7 +32,12 @@ _G.QUI = { GUI = gui, db = { profile = { quiUnitFrames = { player = unit, target
 
 local ns = {
     L = setmetatable({}, { __index = function(_, key) return key end }),
-    Helpers = { SafeValue = function(value) return value end, ApplyFontWithFallback = function() end, ApplyTextureStyle = function() end },
+    Helpers = {
+        SafeValue = function(value) return value end,
+        ApplyFontWithFallback = function() end,
+        ApplyTextureStyle = function() end,
+        GetUnitDisplayName = UnitName,
+    },
     QUI_UnitFramesSettingsModel = {
         NormalizeUnitKey = function(key) return key end,
         IsPerUnitTab = function() return true end,
