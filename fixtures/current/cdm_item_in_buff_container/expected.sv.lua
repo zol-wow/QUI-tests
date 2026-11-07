@@ -6963,6 +6963,7 @@ return {
             hideHealthPercentSymbol = false,
             hidePowerPercentSymbol = false,
             levelAnchor = "RIGHT",
+            levelDifficultyColor = false,
             levelFont = "",
             levelFontSize = 11,
             levelOffsetX = -4,
@@ -7130,6 +7131,7 @@ return {
               yOffset = 8
             },
             levelAnchor = "RIGHT",
+            levelDifficultyColor = false,
             levelFont = "",
             levelFontSize = 14,
             levelOffsetX = -4,
@@ -7325,6 +7327,7 @@ return {
             hideHealthPercentSymbol = false,
             hidePowerPercentSymbol = false,
             levelAnchor = "RIGHT",
+            levelDifficultyColor = false,
             levelFont = "",
             levelFontSize = 10,
             levelOffsetX = -4,
@@ -7529,6 +7532,7 @@ return {
               yOffset = 8
             },
             levelAnchor = "RIGHT",
+            levelDifficultyColor = false,
             levelFont = "",
             levelFontSize = 16,
             levelOffsetX = -12,
@@ -7734,6 +7738,7 @@ return {
               yOffset = 8
             },
             levelAnchor = "LEFT",
+            levelDifficultyColor = false,
             levelFont = "",
             levelFontSize = 16,
             levelOffsetX = 9,
@@ -7878,6 +7883,7 @@ return {
             hideHealthPercentSymbol = false,
             hidePowerPercentSymbol = false,
             levelAnchor = "RIGHT",
+            levelDifficultyColor = false,
             levelFont = "",
             levelFontSize = 14,
             levelOffsetX = -4,

@@ -19,6 +19,8 @@ local function NewFrame(parent)
     function frame:Hide() self.shown = false end
     function frame:IsShown() return self.shown end
     function frame:SetShown(value) self.shown = value end
+    function frame:SetText(value) self.text = value end
+    function frame:SetTextColor(...) self.color = { ... } end
     function frame:CreateTexture() return NewFrame(self) end
     function frame:CreateFontString() return NewFrame(self) end
     function frame:GetChildren() end
@@ -26,6 +28,10 @@ local function NewFrame(parent)
 end
 _G.CreateFrame = function(_, _, parent) return NewFrame(parent) end
 _G.UnitName = function() return "Player" end
+_G.UnitEffectiveLevel = function() return 20 end
+_G.LibStub = function() return nil end
+local utilsNS = {}
+assert(loadfile("core/utils.lua"))("QUI", utilsNS)
 
 local unit = { width = 200, height = 40, showName = true, showHealth = true }
 local gui = { Tooltip = {} }
@@ -43,6 +49,8 @@ local ns = {
         ApplyFontWithFallback = function() end,
         ApplyTextureStyle = function() end,
         GetUnitDisplayName = UnitName,
+        GetLevelTextColor = utilsNS.Helpers.GetLevelTextColor,
+        SafeToNumber = utilsNS.Helpers.SafeToNumber,
     },
     QUI_UnitFramesSettingsModel = {
         NormalizeUnitKey = function(key) return key end,
@@ -115,4 +123,23 @@ for _, case in ipairs({
         end
     end
 end
+unit.levelTextColor = { 0.2, 0.4, 0.6, 0.7 }
+unit.levelDifficultyColor = true
+local coloredLevel
+_G.GetCreatureDifficultyColor = function(level)
+    coloredLevel = level
+    return { r = 1, g = 0.5, b = 0 }
+end
+surface.SetSelectedUnit("target")
+_G.QUI_RefreshUnitFramePreview()
+assert(mock._levelText.color[1] == 1 and mock._levelText.color[2] == 0.5
+    and mock._levelText.color[3] == 0 and mock._levelText.color[4] == 0.7,
+    "preview must apply difficulty color and retain custom alpha")
+assert(tostring(mock._levelText.text) == "22" and coloredLevel == 22,
+    "preview must color the displayed sample relative to the player's effective level")
+unit.levelDifficultyColor = false
+_G.QUI_RefreshUnitFramePreview()
+assert(mock._levelText.color[1] == 0.2 and mock._levelText.color[2] == 0.4
+    and mock._levelText.color[3] == 0.6 and mock._levelText.color[4] == 0.7,
+    "disabling difficulty color must restore the saved color")
 print("OK: unitframes_preview_text_navigation_test")
