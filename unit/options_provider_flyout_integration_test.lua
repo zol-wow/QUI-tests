@@ -229,7 +229,7 @@ for _, name in ipairs({ "QUI_BagsTile", "QUI_AltsTile", "QUI_InfoBarTile" }) do
     if tile.id == "bags" or tile.id == "alts" then
         assert(#pages == #tile.config.subPages and tile._navArrow:IsShown(),
             "focused provider pages must retain one destination per page")
-        assert(#body._sections == 2, "General must build only its two related sections")
+        assert(#body._sections == (tile.id == "bags" and 3 or 2), "General must build only its related sections")
         local destination, represented = nil, {}
         for index, page in ipairs(pages) do
             local config = tile.config.subPages[page.pageIndex]

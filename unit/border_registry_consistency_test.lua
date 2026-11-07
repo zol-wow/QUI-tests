@@ -38,7 +38,7 @@ local EXPECTED_KEYS = {
     "combatTimer", "brezCounter", "actionTracker", "actionTrackerIcon",
     "rotationAssist", "cdmContainers", "cdmBuffContainers", "mplusTimer",
     "readyCheck", "alerts", "chat", "tooltip", "damageMeter", "unitFrame",
-    "resourceBarPrimary", "resourceBarSecondary", "lustTimer", "objectiveTracker", "statusTrackingBars",
+    "resourceBarPrimary", "resourceBarSecondary", "lustTimer", "objectiveTracker", "statusTrackingBars", "bags",
 }
 local expectedLookup = {}
 for _, k in ipairs(EXPECTED_KEYS) do expectedLookup[k] = true end
@@ -47,7 +47,7 @@ for _, k in ipairs(EXPECTED_KEYS) do expectedLookup[k] = true end
 -- the files known to Register (kept in sync with grep) if `find` is unavailable.
 local function listModuleLuaFiles()
     local files = {}
-    local p = io.popen and io.popen("find QUI_ActionBars QUI_CDM QUI_Chat QUI_DamageMeter QUI_GroupFrames QUI_ResourceBars QUI_UnitFrames modules -name '*.lua' -type f 2>/dev/null")
+    local p = io.popen and io.popen("find QUI_ActionBars QUI_Bags QUI_CDM QUI_Chat QUI_DamageMeter QUI_GroupFrames QUI_ResourceBars QUI_UnitFrames modules -name '*.lua' -type f 2>/dev/null")
     if p then
         for line in p:lines() do
             files[#files + 1] = line
@@ -57,6 +57,7 @@ local function listModuleLuaFiles()
     if #files > 0 then return files end
     -- Fallback: the files known to host Register calls.
     return {
+        "QUI_Bags/bags/views/chassis.lua",
         "QUI_CDM/cdm/cdm_container_border_registry.lua",
         "QUI_Chat/chat/chat.lua",
         "modules/combat/rotationassist.lua",

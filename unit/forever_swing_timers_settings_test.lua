@@ -42,6 +42,7 @@ local layout = {
 }
 ns.QUI_SettingsLayoutShared = { MakeLayout = function() return layout end }
 ns.QUI_Options = {
+    GetDB = function() return profile end,
     BuildSettingRow = function(_, _, widget) return widget end,
     GetTextureList = function() return {} end,
 }

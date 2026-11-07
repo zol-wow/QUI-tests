@@ -50,7 +50,7 @@ assert(#GUI.StaticNavigationRegistry == navigationCount, "Retail must retain oth
 
 ns.SwingTimers = swingTimers
 assert(GUI:ApplyGeneratedSearchCache(cache))
-assert(CountSwingEntries(GUI.StaticSettingsRegistry) == 22, "Forever must expose one toggle and seven settings per weapon")
+assert(CountSwingEntries(GUI.StaticSettingsRegistry) == 25, "Forever must expose enable, three background controls, and seven settings per weapon")
 assert(CountSwingEntries(GUI.StaticNavigationRegistry) > 0, "Forever must expose swing routes")
 local _, navigation = GUI:ExecuteSearch("swing timers")
 assert(#navigation > 0, "Forever swing timer search must return navigation")
