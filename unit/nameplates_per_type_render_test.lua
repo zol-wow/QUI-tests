@@ -141,6 +141,7 @@ local ns = {
         IsSecretValue = function() return false end,
         SafeToNumber = function(v, fb) return tonumber(v) or fb or 0 end,
         TruncateUTF8 = function(s) return s end,
+        GetUnitDisplayName = UnitName,
         GetModuleSettings = function() return settings end,
         GetProfile = function() return { nameplates = settings } end,
     },

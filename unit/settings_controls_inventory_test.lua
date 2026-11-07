@@ -336,6 +336,19 @@ end
 local oldClient=ns.Client
 ns.Client={isForever=true}
 RenderFeature("skinningPage")
+for _, id in ipairs({ "unitFramesPage", "nameplatesPage" }) do
+    local feature = ns.Settings.Registry:GetFeature(id)
+    local model = type(feature.model) == "function" and feature.model() or feature.model
+    for _, tab in ipairs(model.GetTabDefinitions()) do
+        if tab.key == "text" then
+            for _, variant in ipairs(model.GetSearchContexts(tab.key)) do
+                local context = Copy(variant.searchContext)
+                context.surfaceTabKey, context.subTabName = tab.key, tab.label
+                Fixture(id, function(host) tab.render(host, variant.state) end, context)
+            end
+        end
+    end
+end
 ns.Client=oldClient
 local oldSlots=profile.datatext.slots
 local definitions=ns.Addon.Datatexts:GetAll()
