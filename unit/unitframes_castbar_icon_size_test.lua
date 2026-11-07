@@ -422,4 +422,16 @@ applyUnitframeVisibilityAlpha(bossCastbar, 1)
 assert(not bossCastbar:IsVisible(),
     "HUD visibility refresh must not restore a stopped boss castbar after its frame disappears")
 
+inCombat = false
+UnitCastingInfo = function() return nil end
+local interactionIcon = "test-interaction-icon"
+UnitChannelInfo = function(unit)
+    if unit == "player" then
+        return "Opening", "", interactionIcon, (now - 0.2) * 1000, (now + 2.8) * 1000, false, false, 12345
+    end
+end
+secondCastbar:Cast(12345, false)
+assert(secondCastbar.spellText.text == "Opening", "interaction channels with blank display text must show their action name")
+assert(secondCastbar.iconTexture.texture == interactionIcon, "interaction channels must preserve the game's supplied icon")
+
 print("OK: unitframes_castbar_icon_size_test")

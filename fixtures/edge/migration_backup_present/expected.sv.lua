@@ -6410,6 +6410,7 @@ return {
                 [4] = 1
               },
               nameTextUseClassColor = false,
+              showLastName = true,
               showLevel = false,
               showName = true
             },
@@ -6815,6 +6816,7 @@ return {
                 [4] = 1
               },
               nameTextUseClassColor = false,
+              showLastName = true,
               showLevel = false,
               showName = true
             },

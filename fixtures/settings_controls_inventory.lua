@@ -3529,6 +3529,8 @@ dropdown||||all:All;mine:Only my auras;defensives:Defensives;important:Important
     ["control|group_frames|1|groupFramesPage|Show Healer|profile.quiGroupFrames.raid.indicators|showRoleHealer|raidFrames|indicators||||CreateFormCheckbox|checkbox"] = "checkbox|||||searchable",
     ["control|group_frames|1|groupFramesPage|Show Health Text|profile.quiGroupFrames.party.health|showHealthText|partyFrames|health||||CreateFormCheckbox|checkbox"] = "checkbox|||||searchable",
     ["control|group_frames|1|groupFramesPage|Show Health Text|profile.quiGroupFrames.raid.health|showHealthText|raidFrames|health||||CreateFormCheckbox|checkbox"] = "checkbox|||||searchable",
+    ["control|group_frames|1|groupFramesPage|Show Last Name|profile.quiGroupFrames.party.name|showLastName|partyFrames|appearance||||CreateFormCheckbox|checkbox"] = "checkbox|||||searchable",
+    ["control|group_frames|1|groupFramesPage|Show Last Name|profile.quiGroupFrames.raid.name|showLastName|raidFrames|appearance||||CreateFormCheckbox|checkbox"] = "checkbox|||||searchable",
     ["control|group_frames|1|groupFramesPage|Show Level|profile.quiGroupFrames.party.name|showLevel|partyFrames|appearance||||CreateFormCheckbox|checkbox"] = "checkbox|||||searchable",
     ["control|group_frames|1|groupFramesPage|Show Name|profile.quiGroupFrames.party.name|showName|partyFrames|appearance||||CreateFormCheckbox|checkbox"] = "checkbox|||||searchable",
     ["control|group_frames|1|groupFramesPage|Show Name|profile.quiGroupFrames.raid.name|showName|raidFrames|appearance||||CreateFormCheckbox|checkbox"] = "checkbox|||||searchable",
