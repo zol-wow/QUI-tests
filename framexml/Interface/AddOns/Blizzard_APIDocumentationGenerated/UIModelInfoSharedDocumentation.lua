@@ -60,15 +60,17 @@ local UIModelInfoShared =
 		{
 			Name = "UIModelSceneActorFlag",
 			Type = "Enumeration",
-			NumValues = 4,
+			NumValues = 6,
 			MinValue = 1,
-			MaxValue = 8,
+			MaxValue = 32,
 			Fields =
 			{
 				{ Name = "Deprecated1", Type = "UIModelSceneActorFlag", EnumValue = 1 },
 				{ Name = "UseCenterForOriginX", Type = "UIModelSceneActorFlag", EnumValue = 2 },
 				{ Name = "UseCenterForOriginY", Type = "UIModelSceneActorFlag", EnumValue = 4 },
 				{ Name = "UseCenterForOriginZ", Type = "UIModelSceneActorFlag", EnumValue = 8 },
+				{ Name = "AddDropShadowAtM2Feet", Type = "UIModelSceneActorFlag", EnumValue = 16 },
+				{ Name = "ShowFloatingProjectedTextures", Type = "UIModelSceneActorFlag", EnumValue = 32 },
 			},
 		},
 	},

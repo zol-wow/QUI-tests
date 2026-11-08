@@ -129,12 +129,16 @@ function CatalogShopMixin:InitVariables()
 			modelScene = nil,
 			modelSceneID = nil,
 			overrideModelSceneID = nil,
+			appliesOverrideCameraTarget = true,
+			appliesOverrideActorPosition = nil,
 		},
 		CurrentCardModelSceneData =
 		{
 			modelScene = nil,
 			modelSceneID = nil,
 			overrideModelSceneID = nil,
+			appliesOverrideCameraTarget = true,
+			appliesOverrideActorPosition = nil,
 		},
 	};
 
@@ -151,20 +155,24 @@ function CatalogShopMixin:GetCurrentActor()
 	return self.currentActor;
 end
 
-function CatalogShopMixin:SetCurrentModelSceneData(currentModelScene, currentModelSceneID, overrideModelSceneID)
+function CatalogShopMixin:SetCurrentModelSceneData(currentModelScene, currentModelSceneID, overrideModelSceneID, appliesOverrideActorPosition, actor)
 	self.ModelSceneData.CurrentModelSceneData.modelScene = currentModelScene;
 	self.ModelSceneData.CurrentModelSceneData.modelSceneID = currentModelSceneID;
 	self.ModelSceneData.CurrentModelSceneData.overrideModelSceneID = overrideModelSceneID;
+	self.ModelSceneData.CurrentModelSceneData.appliesOverrideActorPosition = appliesOverrideActorPosition;
+	self.ModelSceneData.CurrentModelSceneData.actor = actor;
 end
 
 function CatalogShopMixin:GetCurrentModelSceneData()
 	return self.ModelSceneData.CurrentModelSceneData;
 end
 
-function CatalogShopMixin:SetCurrentCardModelSceneData(currentModelScene, currentModelSceneID, overrideModelSceneID)
+function CatalogShopMixin:SetCurrentCardModelSceneData(currentModelScene, currentModelSceneID, overrideModelSceneID, appliesOverrideActorPosition, actor)
 	self.ModelSceneData.CurrentCardModelSceneData.modelScene = currentModelScene;
 	self.ModelSceneData.CurrentCardModelSceneData.modelSceneID = currentModelSceneID;
 	self.ModelSceneData.CurrentCardModelSceneData.overrideModelSceneID = overrideModelSceneID;
+	self.ModelSceneData.CurrentCardModelSceneData.appliesOverrideActorPosition = appliesOverrideActorPosition;
+	self.ModelSceneData.CurrentCardModelSceneData.actor = actor;
 end
 
 function CatalogShopMixin:GetCurrentCardModelSceneData()
@@ -306,12 +314,23 @@ function CatalogShopMixin:OnEvent_CatalogShop(event, ...)
 		end
 
 		local productID = ...;
+
+		if self.ProductBYOBContainerFrame:IsShown() then
+			local selectedProductInfo = self:GetSelectedProductInfo();
+			local productInfo = selectedProductInfo and CatalogShopUtil.GetProductInfo(selectedProductInfo.catalogShopProductID);
+			if productInfo then
+				if productInfo.purchaseEligibility ~= Enum.CatalogShopPurchaseEligibility.Eligible then
+					self:HideProductBYOB();
+				else
+					self.ProductBYOBContainerFrame:UpdateProductInfo(productInfo);
+				end
+			end
+		end
+
 		if self.ProductContainerFrame:IsShown() then
 			self.ProductContainerFrame:UpdateSpecificProduct(productID);
 		elseif self.ProductDetailsContainerFrame:IsShown() then
 			self.ProductDetailsContainerFrame:UpdateSpecificProduct(productID);
-		elseif self.ProductBYOBContainerFrame:IsShown() then
-			self.ProductBYOBContainerFrame:UpdateProductInfo(self:GetSelectedProductInfo());
 		end
 	elseif event == "CATALOG_SHOP_OPEN_SIMPLE_CHECKOUT" then
 		--... handle it
@@ -477,7 +496,7 @@ function CatalogShopMixin:OnShow()
 
 	local isShown = true;
 	CatalogShopOutbound.VisibilityUpdated(isShown);
-	
+
 	if InputUtil.IsGamepadUIEnabled() then
 		CatalogShopOutbound.SetupGamepad(self);
 		CatalogShopOutbound.HandleGamepadFrameShown(self);
@@ -792,6 +811,8 @@ function CatalogShopMixin:OnProductSelected(data)
 		end
 	end
 
+	-- Clear any icon train left over from the previously selected product (e.g. BYOB bundles skip Init below)
+	self.IconTrainFrame:Hide();
 	if data.isBundle then
 		if data.cardDisplayData and data.cardDisplayData.productType == CatalogShopConstants.ProductType.BYOB then
 			-- BYOB - do icon train
@@ -799,8 +820,6 @@ function CatalogShopMixin:OnProductSelected(data)
 			local bundleChildInfo = C_CatalogShop.GetProductIDsForBundle(data.catalogShopProductID);
 			self.IconTrainFrame:Init(bundleChildInfo);
 		end
-	else
-		self.IconTrainFrame:Hide();
 	end
 
 	local smallOverrideURL = data and data.previewSmallBGOverrideProductURL;
@@ -832,6 +851,7 @@ end
 function CatalogShopMixin:OnNoProductsSelected()
 	self.BackgroundContainer:SetBackgroundTexture(CatalogShopConstants.NoResults.BackgroundTexture);
 	self:HidePreviewFrames();
+	self.IconTrainFrame:Hide();
 	self.CatalogShopDetailsFrame:Hide();
 	self.CatalogShopVCFrame:Hide();
 end
@@ -1183,6 +1203,20 @@ function CatalogShopProductDetailsFrameMixin:GetDetailsFrameProductInfo()
 	return self.currentProductInfo;
 end
 
+function CatalogShopProductDetailsFrameMixin:NarrationGetName()
+	local name = self.ProductName:GetText();
+	if name == "" then
+		return nil;
+	end
+
+	return name;
+end
+
+function CatalogShopProductDetailsFrameMixin:NarrationGetDescription()
+	local productType = self.ProductType:IsShown() and self.ProductType:GetText() or nil;
+	local description = self.ProductDescription:IsShown() and self.ProductDescription:GetText() or nil;
+	return NarrationUtil.MakeNarrationString(productType, description);
+end
 
 function CatalogShopProductDetailsFrameMixin:UpdateState()
 	CatalogShopFrame:HideLoadingScreen();

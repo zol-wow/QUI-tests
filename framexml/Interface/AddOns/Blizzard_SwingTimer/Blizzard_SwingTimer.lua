@@ -151,8 +151,13 @@ function SwingTimerMixin:OnEvent(event, ...)
 	elseif event == "WEAPON_SLOT_CHANGED" then
 		self:UpdateFrameState();
 		self:ResetSwingTimerForEquippedWeapon();
-	elseif event == "PLAYER_ENTERING_WORLD" or event == "UNIT_ATTACK_SPEED" then
+	elseif event == "PLAYER_ENTERING_WORLD" then
 		self:UpdateFrameState();
+	elseif event == "UNIT_ATTACK_SPEED" then
+		local unitToken = ...;
+		if unitToken == "player" then
+			self:UpdateFrameState();
+		end
 	elseif event == "PLAYER_SWING_RANGE_UPDATE" then
 		local swingType, isInRange, checksRange = ...;
 		if self.swingType == swingType then
@@ -312,6 +317,8 @@ function SwingTimerMixin:ClearSwingTimer()
 
 	local timeLabel = self:GetTimeLabel();
 	timeLabel:SetText("0.0");
+
+	self:ApplyRangePresentation();
 end
 
 function SwingTimerMixin:ResetSwingTimerForEquippedWeapon()
@@ -344,6 +351,8 @@ function SwingTimerMixin:ResetSwingTimer(duration)
 
 	local timeLabel = self:GetTimeLabel();
 	timeLabel:SetFormattedText("%.1f", duration);
+
+	self:ApplyRangePresentation();
 end
 
 function SwingTimerMixin:OnUpdate(_elapsed)
@@ -366,6 +375,11 @@ end
 
 function SwingTimerMixin:IsOutOfRange()
 	if self.isInEditMode then
+		return false;
+	end
+
+	-- Out of range visuals wait for an in-progress swing to finish.
+	if self:HasSwingTimer() then
 		return false;
 	end
 
