@@ -38,8 +38,8 @@ assertContains(
 
 assertContains(
     inspectFrame,
-    "ShowUIPanel(InspectFrame);\n\t\t\tInspectFrame_UpdateTabs();",
-    "FrameXML should still run InspectFrame_UpdateTabs after InspectFrame OnShow during INSPECT_READY")
+    "ShowUIPanel(self);\n\t\t\tself:UpdateTabs();",
+    "FrameXML should still run UpdateTabs after InspectFrame OnShow during INSPECT_READY")
 
 assertContains(
     paperDollDocs,

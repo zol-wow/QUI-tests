@@ -1,29 +1,10 @@
-INSPECTPAPERDOLLFRAME_SLOTS = {
-	"InspectHeadSlot",
-	"InspectNeckSlot",
-	"InspectShoulderSlot",
-	"InspectBackSlot",
-	"InspectChestSlot",
-	"InspectShirtSlot",
-	"InspectTabardSlot",
-	"InspectWristSlot",
-	"InspectHandsSlot",
-	"InspectWaistSlot",
-	"InspectLegsSlot",
-	"InspectFeetSlot",
-	"InspectFinger0Slot",
-	"InspectFinger1Slot",
-	"InspectTrinket0Slot",
-	"InspectTrinket1Slot",
-	"InspectMainHandSlot",
-	"InspectSecondaryHandSlot",
-};
 
 InspectPaperDollFrameMixin = {};
 
 function InspectPaperDollFrameMixin:OnLoad()
 	self:RegisterEvent("UNIT_MODEL_CHANGED");
 	self:RegisterEvent("UNIT_LEVEL");
+	self:RegisterEvent("UNIT_NAME_UPDATE");
 	self:RegisterEvent("INSPECT_READY");
 
 	self:RegisterForTransitions();
@@ -34,7 +15,7 @@ function InspectPaperDollFrameMixin:OnEvent(event, unit)
 		if ( unit and unit == InspectFrame.unit ) then
 			if ( event == "UNIT_MODEL_CHANGED" ) then
 				InspectModelFrame:RefreshUnit();
-			elseif ( event == "UNIT_LEVEL" ) then
+			elseif ( event == "UNIT_LEVEL" or event == "UNIT_NAME_UPDATE" ) then
 				self:SetLevel();
 			end
 			return;
@@ -55,6 +36,11 @@ function InspectPaperDollFrameMixin:SetLevel()
 	local specID = C_SpecializationInfo.GetInspectSpecialization(InspectFrame.unit);
 
 	local classDisplayName, class = UnitClass(InspectFrame.unit);
+	if (not class) then
+		InspectLevelText:SetText("");
+		return;
+	end
+
 	local classColorString = RAID_CLASS_COLORS[class].colorStr;
 	local specName, _;
 

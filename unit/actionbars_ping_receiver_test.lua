@@ -73,7 +73,7 @@ check("owned buttons route Blizzard's Update through QUI's own painter",
         and builder:find("ActionBarsOwned.SafeUpdate, self", 1, true) ~= nil)
 check("owned buttons take over the cast-anim OnHide that bypasses Update",
     framexml:find(
-        "function ActionButtonCastingAnimFrameMixin:OnHide()\n\tlocal parent = self:GetParent();\n\tparent:ClearReticle();\n\tparent.cooldown:SetSwipeColor(0, 0, 0, 1);\n\tActionButton_UpdateCooldown(parent);",
+        "function ActionButtonCastingAnimFrameMixin:OnHide()\n\tlocal parent = self:GetParent();\n\tparent:ClearReticle();\n\tlocal alpha = self:GetCooldownFrameAlpha();\n\tparent.cooldown:SetSwipeColor(0, 0, 0, alpha);\n\tActionButton_UpdateCooldown(parent);",
         1, true) ~= nil
         and builder:find('castAnim:SetScript("OnHide"', 1, true) ~= nil
         and builder:find("ScheduleABCooldownUpdate(true)", 1, true) ~= nil)

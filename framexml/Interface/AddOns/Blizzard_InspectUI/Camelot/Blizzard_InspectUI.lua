@@ -124,7 +124,7 @@ end
 function InspectFrameMixin:UnitChanged()
 	local unit = self.unit;
 	NotifyInspect(unit);
-	InspectPaperDollFrame_OnShow();
+	InspectPaperDollFrame:OnShow();
 	self:UpdateInspectHeaderForUnit(unit);
 	self:UpdateTabs();
 	if InspectPVPFrame:IsShown() then
@@ -365,11 +365,7 @@ function InspectFrameMixin:SetupGamepad()
 		local dressingRoom = GamepadSharedUtility.CreatePromptedBinding(GAMEPAD_FACE_TOP, GenerateClosure(self.OnGamepadOpenDressingRoom, self), DRESSUP_FRAME);
 		dressingRoom:AddCondition(GenerateClosure(self.CanShowDressingRoom, self));
 
-		local tooltips = GamepadSharedUtility.CreatePromptedBinding(GAMEPAD_STICK_LEFT_PRESS,
-			GenerateClosure(GamepadMode.FrameControlsManager.ToggleTooltips, GamepadMode.FrameControlsManager), PROMPT_TOGGLE_TOOLTIPS);
-
 		self.frameFooter = GamepadSharedUtility.CreatePromptedBindingFooter(self, "InspectFrameFooter");
-		self.frameFooter:AddPromptedBinding(tooltips);
 		self.frameFooter:AddPromptedBinding(dressingRoom);
 		self.frameFooter:AddStandardBackPrompt();
 		self.frameFooter:Finalize();

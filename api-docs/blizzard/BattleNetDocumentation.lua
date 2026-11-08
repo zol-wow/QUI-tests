@@ -176,6 +176,21 @@ local BattleNet =
 			},
 		},
 		{
+			Name = "GetFriendLevelFromInviteText",
+			Type = "Function",
+			SecretArguments = "AllowedWhenUntainted",
+
+			Arguments =
+			{
+				{ Name = "inviteText", Type = "cstring", Nilable = false },
+			},
+
+			Returns =
+			{
+				{ Name = "friendLevel", Type = "BattleNetFriendLevel", Nilable = false },
+			},
+		},
+		{
 			Name = "GetFriendNumGameAccounts",
 			Type = "Function",
 			SecretArguments = "AllowedWhenUntainted",
@@ -505,6 +520,7 @@ local BattleNet =
 				{ Name = "regionID", Type = "number", Nilable = false },
 				{ Name = "isInCurrentRegion", Type = "bool", Nilable = false },
 				{ Name = "timerunningSeasonID", Type = "number", Nilable = true },
+				{ Name = "subIcon", Type = "string", Nilable = true },
 			},
 		},
 	},

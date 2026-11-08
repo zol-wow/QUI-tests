@@ -529,12 +529,6 @@ function ProfessionsMixin:OnShow()
 
 	self:RefreshRightTabs();
 	self:RecastSelectedProfession();
-
-	if InputUtil.IsGamepadUIEnabled() then
-		SmartNavigation:RegisterCallback("SelectedButtonUpdated", function()
-			self:UpdateGamepadUnlearnIcons();
-		end, self);
-	end
 end
 
 function ProfessionsMixin:OnHide()
@@ -732,22 +726,6 @@ function ProfessionsMixin:RefreshBookPageSmartNavJumps()
 	UpdateSmartNavJumps_BookPage(professionsFrame);
 end
 
-function ProfessionsMixin:UpdateGamepadUnlearnIcons()
-	local focusedButton = SmartNavigation:GetCurrentButton();
-
-	local function UpdateProfessionFrame(primaryProfessionFrame)
-		local show =
-			focusedButton and
-			focusedButton:GetParent() == primaryProfessionFrame and
-			primaryProfessionFrame.isPrimary;
-
-		primaryProfessionFrame.GamepadUnlearnButton:SetShown(show);
-	end
-
-	UpdateProfessionFrame(self.BookPage.ProfessionsContentFrame.PrimaryProfession1);
-	UpdateProfessionFrame(self.BookPage.ProfessionsContentFrame.PrimaryProfession2);
-end
-
 local function FocusChatAndInsertLink(link)
 	if not link then
 		return;
@@ -761,24 +739,50 @@ local function FocusChatAndInsertLink(link)
 	ChatFrameUtil.InsertLink(link);
 end
 
-function ProfessionsMixin:SetUpGamepadBookPageFooter(toggleTooltips)
+function ProfessionsMixin:SetUpGamepadBookPageFooter()
 	local function UnlearnProfession()
-		local button = SmartNavigation:GetCurrentButton();
-		local primaryProfessionFrame = button:GetParent();
-		primaryProfessionFrame.UnlearnButton:Click();
+		local focusedButton = SmartNavigation:GetCurrentButton();
+		local primaryProfessionFrame = focusedButton and focusedButton:GetParent();
+
+		if primaryProfessionFrame then
+			primaryProfessionFrame.UnlearnButton:Click();
+		end
 	end
 
 	local function CanUnlearn()
-		local button = SmartNavigation:GetCurrentButton();
-		local primaryProfessionFrame = button:GetParent();
+		local focusedButton = SmartNavigation:GetCurrentButton();
+		local primaryProfessionFrame = focusedButton and focusedButton:GetParent();
 
 		return primaryProfessionFrame.isPrimary;
+	end
+
+	local function ProfessionHasFocus(frame)
+		local focusedButton = SmartNavigation:GetCurrentButton();
+		local primaryProfessionFrame = focusedButton and focusedButton:GetParent();
+
+		return frame == primaryProfessionFrame;
 	end
 
 	local unlearnProfession = GamepadSharedUtility.CreateTapOrHoldPromptedBinding(GAMEPAD_FACE_LEFT, 0.5, nil, UnlearnProfession, FRAME_ACTION_HOLD_TO_UNLEARN);
 	unlearnProfession:AddButtonContext("ButtonContext_ProfessionsButton");
 	unlearnProfession:AddCondition(CanUnlearn);
 	unlearnProfession:SetVisibilityType(PromptedBindingMixin.VISIBILITY_TYPE.ONLY_IF_USABLE);
+
+	local prof1 = self.BookPage.ProfessionsContentFrame.PrimaryProfession1;
+	local unlearnFirstProfession = unlearnProfession:AddCustomPromptBinding({
+		frame = prof1.GamepadUnlearnButton,
+		visibilityType = PromptedBindingMixin.VISIBILITY_TYPE.ONLY_IF_USABLE,
+		conditions = { function() return ProfessionHasFocus(prof1); end, },
+	});
+	unlearnProfession:AddCustomPromptHoldFunction(unlearnFirstProfession, { holdTime = 0.5 });
+
+	local prof2 = self.BookPage.ProfessionsContentFrame.PrimaryProfession2;
+	local unlearnSecondProfession = unlearnProfession:AddCustomPromptBinding({
+		frame = prof2.GamepadUnlearnButton,
+		visibilityType = PromptedBindingMixin.VISIBILITY_TYPE.ONLY_IF_USABLE,
+		conditions = { function() return ProfessionHasFocus(prof2); end, },
+	});
+	unlearnProfession:AddCustomPromptHoldFunction(unlearnSecondProfession, { holdTime = 0.5 });
 
 	local function BindToActionBar()
 		GamepadMode.FrameControlsManager:UnsuspendAllFrames();
@@ -819,7 +823,6 @@ function ProfessionsMixin:SetUpGamepadBookPageFooter(toggleTooltips)
 	moreOptions:AddMoreActionsEntry(SOCIAL_SHARE_TEXT, LinkInChat, CanLinkInChat);
 
 	self.bookPageFooter = GamepadSharedUtility.CreatePromptedBindingFooter(self, "ProfessionsBookPageFooter");
-	self.bookPageFooter:AddPromptedBinding(toggleTooltips);
 	self.bookPageFooter:AddPromptedBinding(unlearnProfession);
 	self.bookPageFooter:AddPromptedBinding(moreOptions);
 	self.bookPageFooter:AddStandardBackPrompt();
@@ -973,7 +976,7 @@ function ProfessionsMixin:GetReagentMoreOptions()
 	return reagentMoreOptions;
 end
 
-function ProfessionsMixin:SetUpGamepadCraftingPageFooter(toggleTooltips)
+function ProfessionsMixin:SetUpGamepadCraftingPageFooter()
 	local function OpenFilter()
 		local filter = self.CraftingPage.RecipeList.FilterDropdown;
 		filter:MouseDown();
@@ -1064,23 +1067,19 @@ function ProfessionsMixin:SetUpGamepadCraftingPageFooter(toggleTooltips)
 	local reagentMoreOptions = self:GetReagentMoreOptions();
 
 	self.craftingPageFooter = GamepadSharedUtility.CreatePromptedBindingFooter(self, "ProfessionsCraftingPageFooter");
-	self.craftingPageFooter:AddPromptedBinding(toggleTooltips);
 	self.craftingPageFooter:AddPromptedBinding(filterDropdown);
 	self.craftingPageFooter:AddPromptedBinding(focusSearchBox);
 	self.craftingPageFooter:AddPromptedBinding(create);
 	self.craftingPageFooter:AddPromptedBinding(recipeMoreOptions);
 	self.craftingPageFooter:AddPromptedBinding(reagentMoreOptions);
-	self.craftingPageFooter:AddStandardFrameControlManagerBindings(self);
 	self.craftingPageFooter:AddStandardBackPrompt();
 	self.craftingPageFooter:AddStandardSelectPrompt();
 	self.craftingPageFooter:Finalize();
 end
 
 function ProfessionsMixin:SetUpGamepad()
-	local toggleTooltips = GamepadSharedUtility.CreatePromptedBinding(GAMEPAD_STICK_LEFT_PRESS, nil, PROMPT_TOGGLE_TOOLTIPS);
-
-	self:SetUpGamepadBookPageFooter(toggleTooltips);
-	self:SetUpGamepadCraftingPageFooter(toggleTooltips);
+	self:SetUpGamepadBookPageFooter();
+	self:SetUpGamepadCraftingPageFooter();
 
 	EventRegistry:RegisterCallback(
 		"SKILL_LINES_CHANGED",
@@ -1125,8 +1124,8 @@ function ProfessionsMixin:InitializeGamepad()
 	self.CraftingPage.RecipeList.SearchBox:SetPoint("RIGHT", self.CraftingPage.RecipeList.FilterDropdown.GamepadFocusIcon, "LEFT", -2, 0);
 	self.CraftingPage.CreateAllButton:SetWidth(130);
 	self.CraftingPage.CreateButton:SetWidth(130);
-	self.CraftingPage.CreateAllButton.smartNavigationIgnored = true;
-	self.CraftingPage.CreateButton.smartNavigationIgnored = true;
+	SmartNavigation_MarkFrameIgnored(self.CraftingPage.CreateAllButton);
+	SmartNavigation_MarkFrameIgnored(self.CraftingPage.CreateButton);
 	self.CraftingPage.GamepadCreateMultiple.ControlDescText.FontString:SetWidth(60);
 	self.CraftingPage.GamepadCreateMultiple.ControlDescText.FontString:SetMaxLines(2);
 	self.CraftingPage.LinkButton:Hide();

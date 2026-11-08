@@ -68,6 +68,7 @@ function CharacterSelectFrameMixin:OnLoad()
 	self:RegisterEvent("WARBAND_GROUP_SCENE_UPDATED");
 	self:RegisterEvent("ACTIVE_MAP_SCENE_TRANSITIONED");
 	self:RegisterEvent("ACCOUNT_DATA_RESTORING");
+	self:RegisterEvent("SUBSCRIPTION_INTERSTITIAL_AVAILABLE");
 
 	CharacterSelectCharacterFrame:Init();
 
@@ -324,6 +325,8 @@ function CharacterSelectFrameMixin:OnUpdate(elapsed)
 				StaticPopup_Show("UNDELETE_NAME_TAKEN_REGIONAL");
 			elseif (self.undeleteFailed == "dracthyr") then
 				StaticPopup_Show("UNDELETE_DRACTHYR_LEVEL_REQUIREMENT");
+			elseif (self.undeleteFailed == "pvpTeams") then
+				StaticPopup_Show("UNDELETE_PVP_TEAMS_VIOLATION");
 			else
 				StaticPopup_Show("UNDELETE_FAILED");
 			end
@@ -353,7 +356,10 @@ end
 function CharacterSelectFrameMixin:OnKeyDown(key)
 	local handled = false;
 	if key == "ESCAPE" then
-		if not CharacterSelectUI:GetVisibilityState() then
+		if SubscriptionInterstitialFrame and SubscriptionInterstitialFrame:IsShown() then
+			SubscriptionInterstitialFrame:HideInterstitial();
+			return false;
+		elseif not CharacterSelectUI:GetVisibilityState() then
 			CharacterSelectUI:ToggleVisibilityState();
 			return false;
 		elseif C_Login.IsLauncherLogin() then
@@ -550,6 +556,8 @@ function CharacterSelectFrameMixin:OnEvent(event, ...)
 				self.undeleteFailed = "regionalname";
 			elseif ( result == LE_CHARACTER_UNDELETE_RESULT_ERROR_DRACTHYR_LEVEL_REQUIREMENT ) then
 				self.undeleteFailed = "dracthyr";
+			elseif ( result == LE_CHARACTER_UNDELETE_RESULT_ERROR_PVP_TEAMS_VIOLATION ) then
+				self.undeleteFailed = "pvpTeams";
 			else
 				self.undeleteFailed = "other";
 			end
@@ -638,6 +646,10 @@ function CharacterSelectFrameMixin:OnEvent(event, ...)
 	elseif (event == "AUTO_REALM_SWAP") then
 		local swapping = ...;
 		self.autoRealmSwap = swapping;
+	elseif (event == "SUBSCRIPTION_INTERSTITIAL_AVAILABLE") then
+		if not InputUtil.IsGamepadUIEnabled() then
+			SubscriptionInterstitial_ShowSubscriptionPeriod();
+		end
 	elseif (event == "ALL_WARBAND_GROUP_SCENES_UPDATED") then
 		-- Clear search to correct visual issues with the camp/map scene when we refresh things.
 		CharacterSelectCharacterFrame:ClearSearch();
@@ -1198,6 +1210,13 @@ function AccountUpgradePanel_GetBannerInfo()
 end
 
 function CharacterSelect_UpdateLogo()
+	local gameModeDisplayInfo = C_GameRules.GetCurrentGameModeDisplayInfo();
+	if gameModeDisplayInfo and gameModeDisplayInfo.logo and gameModeDisplayInfo.logo > 0 then
+		CharacterSelectLogo:SetTexture(gameModeDisplayInfo.logo);
+		CharacterSelectLogo:Show();
+		return;
+	end
+
 	local currentExpansionLevel = AccountUpgradePanel_GetBannerInfo();
 	SetExpansionLogo(CharacterSelectLogo, currentExpansionLevel);
 end
@@ -1360,9 +1379,34 @@ CharacterSelectRewardsButtonMixin = {};
 
 CharacterSelect_ToggleStoreUI = ToggleStoreUI;
 
+local REWARDS_GLOW_PADDING_X, REWARDS_GLOW_PADDING_Y = 48, 48;
+
 function CharacterSelectRewardsButtonMixin:OnClick()
+	SetCVar("hasClickedGlueRewardsButton", true);
+	self:UpdateGlow();
+
 	CatalogShopFrame.shoppingSessionUUIDStr = C_CatalogShop.OpenCatalogShopInteractionFromRewards();
 	CharacterSelect_ToggleStoreUI();
+end
+
+function CharacterSelectRewardsButtonMixin:OnEnter()
+	if not self:IsEnabled() then
+		GlueTooltip:SetOwner(self, "ANCHOR_TOP");
+		GlueTooltip:SetText(WOWHACK_REWARDS_DISABLED_TOOLTIP);
+		GlueTooltip:Show();
+	end
+end
+
+function CharacterSelectRewardsButtonMixin:OnLeave()
+	if GlueTooltip:GetOwner() == self then
+		GlueTooltip:Hide();
+	end
+end
+
+function CharacterSelectRewardsButtonMixin:UpdateGlow()
+	local showGlow = self:IsShown() and self:IsEnabled() and not GetCVarBool("hasClickedGlueRewardsButton");
+	local glowWidth, glowHeight = self:GetWidth() + REWARDS_GLOW_PADDING_X, self:GetHeight() + REWARDS_GLOW_PADDING_Y;
+	GlowEmitterFactory:SetShown(showGlow, self, GlowEmitterMixin.Anims.GreenGlow, 0, 0, glowWidth, glowHeight);
 end
 
 CharSelectEnterWorldButtonMixin = {};
@@ -1494,6 +1538,7 @@ function CharacterSelect_UpdateButtonState()
 	if visibilityFramesContainer.RewardsButton:IsShown() then
 		visibilityFramesContainer.RewardsButton:SetEnabled(hasCharacters);
 	end
+	visibilityFramesContainer.RewardsButton:UpdateGlow();
 
 	if (CharSelectReincarnateCharacterButton) then
 		-- Disable reincarnation for now. Potentially turn it on in the future? CAM-6168
@@ -2456,6 +2501,12 @@ StaticPopupDialogs["UNDELETE_DRACTHYR_LEVEL_REQUIREMENT"] = {
 	escapeHides = true,
 }
 
+StaticPopupDialogs["UNDELETE_PVP_TEAMS_VIOLATION"] = {
+	text = UNDELETE_PVP_TEAMS_VIOLATION,
+	button1 = OKAY,
+	escapeHides = true,
+}
+
 StaticPopupDialogs["UNDELETE_NO_CHARACTERS"] = {
 	text = UNDELETE_NO_CHARACTERS;
 	button1 = OKAY,
@@ -3166,6 +3217,11 @@ function CharacterSelectFrameMixin:SetUpGamepad()
 	self.SmartNavigationOnSelect = self.OnSmartNavButtonSelected;
 end
 
+function CharacterSelectFrameMixin:ConfigureCharacterListSearchBoxGamepad()
+	CharacterSelectUI.VisibilityFramesContainer.CharacterList.SearchBox:SetPoint("TOPLEFT", 40, -25);
+	CharacterSelectUI.VisibilityFramesContainer.CharacterList.SearchBox:SetWidth(297);
+end
+
 function CharacterSelectFrameMixin:InitializeGamepad()
 	--Set up navigation overrides.
 	local navBar = self.CharacterSelectUI.VisibilityFramesContainer.NavBar;
@@ -3186,7 +3242,8 @@ function CharacterSelectFrameMixin:InitializeGamepad()
 	CharacterSelectCharacterFrame.DeleteCharacterButton:Hide();
 
 	CharacterSelectUI.VisibilityFramesContainer.CharacterList.SearchBox.FocusIcon:Show();
-	CharacterSelectUI.VisibilityFramesContainer.CharacterList.SearchBox:SetPoint("TOPLEFT", 40, -25);
+	self:ConfigureCharacterListSearchBoxGamepad();
+
 	CharacterSelectUI.VisibilityFramesContainer.ToolTray:SetPoint("RIGHT", CharSelectEnterWorldButton, "BOTTOMLEFT", -200, 0);
 	CharSelectCharacterName:SetPoint("BOTTOM", self.frameFooter.inputLegend, "TOP", 0, 15);
 
@@ -3198,6 +3255,20 @@ function CharacterSelectFrameMixin:InitializeGamepad()
 	EventRegistry:RegisterCallback("CharacterSelectList.OnCharacterSelectionUpdated",
 	function()
 		if SmartNavigation:GetActiveFrame() ~= CharacterSelect then
+			-- The character list equates focus with selection, but the two can be updated
+			-- independently. If the selection is updated while CharacterSelect is out of focus,
+			-- then the on-return focus target must be updated to match.
+			local panelInfo = SmartNavigation:GetPanelInfo(CharacterSelect, true);
+			local buttonContext = panelInfo and panelInfo.lastButton and panelInfo.lastButton.buttonContext;
+			-- It's possible to be focusing something other than the character list when the update comes.
+			-- Only prep the new focus target if our prior focus target was a character list entry.
+			if buttonContext == 'ButtonContext_CharacterSelectListCharacterButton' then
+				local selectedButton = CharacterSelect:GetSelectedCharacterButton();
+				if selectedButton and selectedButton.buttonContext == "ButtonContext_CharacterSelectListCharacterButton" then
+					SmartNavigation:SetLastButtonForPanelInfo(panelInfo, selectedButton);
+				end
+			end
+
 			return;
 		end
 

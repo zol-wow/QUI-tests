@@ -1,7 +1,7 @@
 -- luacheck: globals PlayerChoice_WidgetsLayout DefaultWidgetLayout
 -- Replays the native PlayerChoice widget layout with recycled horizontal rows.
 for _, case in ipairs({
-    { root = "tests/framexml", nativeHeight = 800 },
+    { root = "tests/framexml", nativeHeight = 15 },
     { root = "tests/clients/forever/framexml", nativeHeight = 800 },
 }) do
 local function read(path)
