@@ -434,4 +434,25 @@ secondCastbar:Cast(12345, false)
 assert(secondCastbar.spellText.text == "Opening", "interaction channels with blank display text must show their action name")
 assert(secondCastbar.iconTexture.texture == interactionIcon, "interaction channels must preserve the game's supplied icon")
 
+_G.OPENING = "Ouvrir"
+for _, channeled in ipairs({ false, true }) do
+    UnitCastingInfo = function()
+        if not channeled then
+            return "Ouverture - Sans texte", "", interactionIcon, (now - 0.2) * 1000,
+                (now + 2.8) * 1000, false, "interaction", false, 22810
+        end
+    end
+    UnitChannelInfo = function()
+        if channeled then
+            return "Ouverture - Sans texte", "", interactionIcon, (now - 0.2) * 1000,
+                (now + 2.8) * 1000, false, false, 22810
+        end
+    end
+    secondCastbar:Cast(nil, false)
+    bossCastbar:Cast(nil, false)
+    assert(secondCastbar.spellText.text == "Ouvrir", "interaction cast/channel labels must use localized Opening")
+    assert(bossCastbar.spellText.text == "Ouvrir", "boss cast/channel labels must share the interaction-name fix")
+    assert(secondCastbar.iconTexture.texture == interactionIcon, "interaction-name cleanup must preserve the native icon")
+end
+
 print("OK: unitframes_castbar_icon_size_test")
