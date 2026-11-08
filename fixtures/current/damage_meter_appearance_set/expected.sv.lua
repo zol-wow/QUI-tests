@@ -282,6 +282,7 @@ return {
           },
           global = {
             assistedHighlight = false,
+            autoUpgradeSpellRanks = true,
             backdropAlpha = 0.20000000000000001,
             barScale = 1,
             buttonSpacing = 0,

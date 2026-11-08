@@ -198,4 +198,42 @@ for _, parts in ipairs({
     settings.showLastName, npSettings.name.showLastName = true, true
 end
 
+local characterSource = Read("modules/skinning/character_pane/character.lua")
+local characterStart = assert(characterSource:find("local function UpdateILvlDisplay()", 1, true))
+local characterStop = assert(characterSource:find("\nScheduleUpdate = function()", characterStart, true))
+local characterFrame, characterName = {}, NewText()
+local characterChunk = assert(loadstring(characterSource:sub(characterStart, characterStop - 1)
+    .. "\nreturn UpdateILvlDisplay"))
+setfenv(characterChunk, setmetatable({
+    ns = ns, Helpers = Helpers, CharacterFrame = characterFrame,
+    frameState = { [characterFrame] = { ilvlDisplay = { text = characterName } } },
+    GetSettings = function() return { enabled = true } end,
+    GetPlayerAverageItemLevels = function() return 0, 0, 0 end,
+    UnitLevel = function() return 8 end,
+    UnitClass = function() end,
+    C_SpecializationInfo = false,
+}, { __index = _G }))
+local UpdateCharacterName = characterChunk()
+names.player = { "Aria", "Moonwhisper" }
+UpdateCharacterName()
+assert(characterName.value == "Aria Moonwhisper", "character panel must include the Forever surname")
+names.player = { "Aria", "Newname" }
+UpdateCharacterName()
+assert(characterName.value == "Aria Newname", "character refresh must read the current surname")
+for _, surname in ipairs({ false, "" }) do
+    names.player = { "Aria", surname or nil }
+    UpdateCharacterName()
+    assert(characterName.value == "Aria", "missing surname must preserve the character's first name")
+end
+ns.Client.isForever = false
+names.player = { "Aria", "OtherRealm" }
+UpdateCharacterName()
+assert(characterName.value == "Aria", "Retail character panel must not treat realm as surname")
+ns.Client.isForever = true
+for _, parts in ipairs({ { Secret(), "Moonwhisper" }, { "Aria", Secret() }, {} }) do
+    names.player = parts
+    UpdateCharacterName()
+    assert(characterName.value == "Unknown", "character panel must retain its unreadable-name fallback")
+end
+
 print("OK: forever_display_names_test")

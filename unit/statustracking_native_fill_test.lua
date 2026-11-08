@@ -74,6 +74,6 @@ assert(statusBar.value == 17 and statusBar.low == 0 and statusBar.high == 100,
     "appearance transitions must not alter native progress or range")
 assert(masks == 1, "mode switching and native updates must reuse the existing mask")
 local backdrop = skin.GetFrameData(bar, "quiStbBackdrop")
-assert(backdrop and backdrop._quiRoundedSurface.radius == 3,
+assert(backdrop and backdrop._quiRoundedSurface.radius == 6,
     "native art mode must retain rounded QUI shell")
 print("OK: statustracking_native_fill_test")

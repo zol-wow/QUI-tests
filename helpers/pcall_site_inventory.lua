@@ -5,6 +5,7 @@
 return {
     "QUI_ActionBars/actionbars/actionbars_helpers.lua::2",
     "QUI_ActionBars/actionbars/actionbars_layout.lua::4",
+    "QUI_ActionBars/actionbars/actionbars_uprank.lua::1",
     "QUI_ActionBars/actionbars/actionbars_usability.lua::3",
     "QUI_ActionBars/actionbars/settings/action_bars_preview_driver.lua::2",
     "QUI_ActionBars/actionbars/totems.lua::4",

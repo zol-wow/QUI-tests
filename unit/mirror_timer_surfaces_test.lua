@@ -75,7 +75,7 @@ for _, legacy in ipairs({false, true}) do
         assert(frame:IsShown(), "native timer visibility must survive")
         assert(frame.Border:GetAlpha() == 0 and background:GetAlpha() == 0, "native decorative borders/background must be suppressed")
         local backdrop = skin.GetFrameData(frame, "backdrop")
-        assert(backdrop and backdrop._quiRoundedSurface.radius == 4 and backdrop:GetFrameLevel() < bar:GetFrameLevel(),
+        assert(backdrop and backdrop._quiRoundedSurface.radius == 6 and backdrop:GetFrameLevel() < bar:GetFrameLevel(),
             "timer shell must be rounded and behind the native fill")
         if legacy then
             local color = _G.MirrorTimerColors[timer]

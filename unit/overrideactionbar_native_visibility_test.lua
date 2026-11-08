@@ -153,7 +153,7 @@ for index = 1, 6 do
 end
 assert(data[bar.LeaveButton].backdrop.chromeRadius == 4, "native exit control must share rounded button chrome")
 for _, resource in ipairs({bar.healthBar, bar.powerBar}) do
-    assert(data[resource].backdrop.chromeRadius == 3 and resource.roundedFill == resource.fill,
+    assert(data[resource].backdrop.chromeRadius == 6 and resource.roundedFill == resource.fill,
         "both native resource bars must use rounded shells and owner-clipped fills")
 end
 state.combat, state.vehicle, state.health, state.mana = true, false, false, false

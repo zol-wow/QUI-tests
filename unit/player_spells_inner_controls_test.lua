@@ -71,7 +71,7 @@ for _, key in ipairs({ "MaximizeButton", "MinimizeButton" }) do
     local button = resize[key]
     assert(button.Art:GetAlpha() == 0, "native resize updates must retain neutral control chrome")
     assert(button:GetScript("OnClick") == nativeApply, "native resize actions must remain intact")
-    assert(env.SkinBase.GetFrameData(button, "qPlayerSpellsResizeGlyph"):GetText() == (key == "MaximizeButton" and "+" or "-"),
+    assert(env.SkinBase.GetFrameData(button, "closeLabel"):GetText() == (key == "MaximizeButton" and "+" or "-"),
         "both native resize states require a visible glyph")
 end
 

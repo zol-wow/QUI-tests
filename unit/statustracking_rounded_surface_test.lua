@@ -24,7 +24,7 @@ end
 local layout = extract("local function UpdateBackdropLayout(", "local function ApplyBarTextStyle(", "UpdateBackdropLayout")
 local fill = extract("local function RefreshBarFillAndTexture(", "local function HookBarUpdate(", "RefreshBarFillAndTexture")
 layout({})
-assert(style.radius == 3 and style.borderPixels == 1 and style.withBackground,
+assert(style.radius == 6 and style.borderPixels == 1 and style.withBackground,
     "tracking bars use rounded chrome with the configured physical border")
 settings.statusTrackingBarsBorderThickness = 2
 layout({})

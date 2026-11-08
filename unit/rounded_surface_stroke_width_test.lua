@@ -19,7 +19,26 @@ for _, texture in ipairs(frame.regions) do
     if texture.layer == 'BORDER' then edges[#edges + 1] = texture end
 end
 assert(#edges == 4, 'square fallback must reuse the four existing manual edges')
-for _, thickness in ipairs({ 4, 8, 10, 0 }) do
+for thickness = 1, 8 do
+    env.SkinBase.ApplyChromeBackdrop(frame, { radius = 6, borderPixels = thickness, withBackground = true })
+    assert(surface.shown and not background:IsShown(), 'supported bar thicknesses must retain rounded corners')
+    assert(surface.border.left.width == thickness and surface.border.top.height == thickness,
+        'rounded corners must preserve the requested border thickness')
+    for _, edge in ipairs(edges) do assert(not edge:IsShown(), 'rounded borders must not retain square edges') end
+end
+env.SkinBase.ApplyChromeBackdrop(frame, { radius = 6, borderPixels = 8, borderColor = { 1, 1, 1, .5 } })
+assert(surface.resolvedRadius == 8 and surface.stroke == 8,
+    'thick borders need enough corner radius to avoid overlapping translucent edges')
+assert(surface.border.top.points[1][4] >= surface.border.left.width,
+    'top and side strips must meet without double-coating their junction')
+frame:SetSize(80, 9)
+surface:Refresh()
+assert(surface.stroke == 4 and surface.resolvedRadius == 4 and surface.borderPixels == 8,
+    'tiny bars must fit border geometry without changing the configured thickness')
+frame:SetSize(100, 30)
+surface:Refresh()
+assert(surface.stroke == 8, 'growing the bar must restore its full configured thickness')
+for _, thickness in ipairs({ 10, 0 }) do
     env.SkinBase.ApplyChromeBackdrop(frame, { radius = 4, borderPixels = thickness, withBackground = true })
     assert(not surface.shown and not surface.background:IsShown(), 'unsupported stroke widths must hide previous rounded art')
     for _, texture in pairs(surface.border) do assert(not texture:IsShown(), 'square fallback must hide every rounded edge') end

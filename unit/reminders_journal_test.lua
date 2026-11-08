@@ -10,15 +10,26 @@
 local ns = { L = setmetatable({}, { __index = function(_, k) return k end }) }
 
 local selectedTier, selectedInstance, selectedEncounter = 3, nil, nil
+local numTiers, invalidTierSelections, tierSelections = 5, 0, 0
+local failInstanceRead = false
 function EJ_SelectEncounter(id) selectedEncounter = id end
-function EJ_GetNumTiers() return 5 end
+function EJ_GetNumTiers() return numTiers end
 function EJ_GetCurrentTier() return selectedTier end
-function EJ_SelectTier(tier) selectedTier = tier end
+function EJ_SelectTier(tier)
+    tierSelections = tierSelections + 1
+    if type(tier) ~= "number" or tier < 1 or tier > (numTiers or 0) then
+        invalidTierSelections = invalidTierSelections + 1
+        error("Usage: EJ_SelectTier(index) Invalid index " .. tostring(tier))
+    end
+    selectedTier = tier
+end
 local instances = {
     [false] = { { 1001, "Ara-Kara" } },
     [true] = { { 2001, "Nerub-ar Palace" }, { 2002, "Liberation" } },
 }
 function EJ_GetInstanceByIndex(index, isRaid)
+    assert(selectedTier == 5, "instances must be enumerated from the latest tier")
+    if failInstanceRead then error("instance data unavailable") end
     local row = instances[isRaid][index]
     if not row then return nil end
     return row[1], row[2]
@@ -100,5 +111,45 @@ assert(J.Get(true) ~= catalog, "force rebuild")
 -- A section-walk that loops is bounded.
 sections[300].siblingSectionID = 300
 assert(J.Get(true), "cyclic sibling chain terminates")
+
+EncounterJournal = { IsShown = function() return false end }
+for _, selection in ipairs({ {}, { tier = 0 }, { tier = 6 } }) do
+    selectedTier = selection.tier
+    catalog = assert(J.Get(true), "uninitialized journal can still load its catalog")
+    assert(catalog.tier == 5 and #catalog.instances == 3, "valid latest-tier catalog remains available")
+    assert(invalidTierSelections == 0, "uninitialized or stale tier must never reach EJ_SelectTier")
+    assert(selectedTier == 5, "absent previous selection leaves the valid enumerated tier selected")
+end
+
+for _, tier in ipairs({ 1, 5 }) do
+    selectedTier = tier
+    assert(J.Get(true))
+    assert(selectedTier == tier, "both valid tier boundaries are restored")
+end
+
+for _, unavailable in ipairs({ {}, { count = 0 } }) do
+    numTiers, selectedTier = unavailable.count, 3
+    local before = tierSelections
+    J.Invalidate()
+    assert(J.Get() == nil and not J.IsCached(), "unavailable tier data must remain retryable")
+    assert(tierSelections == before, "no tier can be selected while tier data is unavailable")
+    numTiers = 5
+    assert(J.Get() and selectedTier == 3, "catalog and previous selection recover when tiers load")
+end
+
+EncounterJournal.instanceID, EncounterJournal.encounterID = 2002, 3003
+selectedTier, selectedInstance, selectedEncounter = 1, nil, nil
+failInstanceRead = true
+J.Invalidate()
+local failures = {}
+_G.geterrorhandler = function()
+    return function(err) failures[#failures + 1] = err end
+end
+assert(J.Get() == nil and not J.IsCached(), "failed enumeration must remain retryable")
+assert(#failures == 1 and failures[1]:find("instance data unavailable", 1, true), "enumeration errors remain reported")
+assert(selectedTier == 1 and selectedInstance == 2002 and selectedEncounter == 3003,
+    "valid tier, instance and encounter selection is restored after enumeration fails")
+failInstanceRead = false
+assert(J.Get(), "retry succeeds after instance data loads")
 
 print("OK: reminders_journal_test")
