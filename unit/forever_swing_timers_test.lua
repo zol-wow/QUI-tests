@@ -344,7 +344,7 @@ for _, entry in ipairs(api.entries) do
         assert(top and bottom and top[4] == 0.5 and top[5] == -0.5 and bottom[4] == -0.5 and bottom[5] == 0.5,
             "bar and background insets must use physical pixels at non-unit UI scale")
     end
-    assert(entry.chrome and entry.chrome.chromeOptions.radius == 3 and entry.chrome.chromeOptions.borderPixels == 1
+    assert(entry.chrome and entry.chrome.chromeOptions.radius == 6 and entry.chrome.chromeOptions.borderPixels == 1
         and entry.chrome:GetParent() == frame and entry.chrome:GetFrameLevel() < frame.StatusBar:GetFrameLevel(),
         "each swing must use rounded one-pixel chrome behind its native fill")
     assert(frame.Border.texture == nil and frame.Background.texture == nil

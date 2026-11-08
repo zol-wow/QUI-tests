@@ -41,10 +41,10 @@ assert(loadfile(os.getenv("QUI_MPLUS_SKIN_SOURCE") or "modules/skinning/gameplay
 _G.QUI_ApplyMPlusTimerSkin()
 assert(skin.GetFrameData(root, "backdrop") == rootBackdrop, "timer must reuse its existing root backdrop")
 assert(rootBackdrop._quiRoundedSurface and rootBackdrop._quiBgA == 0.4, "root needs rounded chrome and configured opacity")
-assert(skin.GetBackdrop(sleek) == sleekBackdrop and sleekBackdrop._quiRoundedSurface.radius == 3, "sleek bar must reuse and round its existing backdrop")
+assert(skin.GetBackdrop(sleek) == sleekBackdrop and sleekBackdrop._quiRoundedSurface.radius == 6, "sleek bar must reuse and round its existing backdrop")
 for key, entry in pairs(bars) do
     local backdrop = skin.GetBackdrop(entry.frame)
-    assert(backdrop == originalBackdrops[key] and backdrop._quiRoundedSurface.radius == 3,
+    assert(backdrop == originalBackdrops[key] and backdrop._quiRoundedSurface.radius == 6,
         "every timer and forces bar must reuse rounded native background")
     assert(entry.bar.value == 17 and entry.bar.minValue == 0 and entry.bar.maxValue == 100,
         "skinning must preserve progress values and ranges")

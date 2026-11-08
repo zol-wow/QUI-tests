@@ -69,7 +69,7 @@ ns.SwingTimers.Refresh()
 for _, entry in ipairs(ns.SwingTimers.entries) do
     local frame, chrome = entry.frame, assert(entry.chrome)
     local bar = frame.StatusBar
-    assert(chrome._quiRoundedSurface.radius == 3 and chrome._quiRoundedSurface.borderPixels == 1,
+    assert(chrome._quiRoundedSurface.radius == 6 and chrome._quiRoundedSurface.borderPixels == 1,
         "all three timers must use real rounded one-pixel chrome")
     assert(chrome:GetFrameLevel() < bar:GetFrameLevel(), "chrome must stay behind the fill")
     assert(frame.Border.texture == nil and frame.Background.texture == nil, "square native art must be removed")
@@ -103,7 +103,7 @@ for _, entry in ipairs(ns.SwingTimers.entries) do
     local preview = assert(entry.previewBar)
     assert(preview:GetParent() == entry.holder and preview:IsShown() and preview.value == 0.6,
         "QUI preview must draw independently of the native frame")
-    assert(preview._quiRoundedSurface.radius == 3 and preview._quiRoundedSurface.borderPixels == 1,
+    assert(preview._quiRoundedSurface.radius == 6 and preview._quiRoundedSurface.borderPixels == 1,
         "independent previews must use real rounded one-pixel chrome")
     assert(preview:GetFrameLevel() > entry.frame:GetFrameLevel()
         and preview:GetStatusBarTexture().texture == "QUI-flat",

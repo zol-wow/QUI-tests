@@ -1,5 +1,6 @@
 local env = dofile("tests/helpers/character_chrome_harness.lua").Build()
 env.profile.general.skinCollections = true
+env.ns.Helpers.GetSkinBarColor = function() return .3, .7, .5, 1 end
 _G.CollectionsJournal = env.NewFrame("Frame")
 _G.MountJournal = env.NewFrame("Frame", nil, _G.CollectionsJournal)
 _G.MountJournal.searchBox = env.NewFrame("EditBox", nil, _G.MountJournal)
@@ -79,6 +80,10 @@ _G.MountJournal_InitMountButton = function(row)
     row.selectedTexture:SetAlpha(1)
 end
 _G.ToyBox = env.NewFrame("Frame", nil, _G.CollectionsJournal)
+_G.ToyBox.progressBar = env.NewFrame("StatusBar", nil, _G.ToyBox)
+local collectionProgress = _G.ToyBox.progressBar
+collectionProgress.fill = collectionProgress:CreateTexture()
+collectionProgress.GetStatusBarTexture = function(self) return self.fill end
 _G.ToyBox.iconsFrame = env.NewFrame("Frame", nil, _G.ToyBox)
 local toy = env.NewFrame("CheckButton", nil, _G.ToyBox.iconsFrame)
 _G.ToyBox.iconsFrame.spellButton1 = toy
@@ -393,3 +398,7 @@ for i = 1, 3 do
         "reopening must reuse the lock texture")
 end
 print("OK: collections_locked_loadout_test")
+local progressBackdrop = assert(env.SkinBase.GetBackdrop(collectionProgress))
+assert(progressBackdrop._quiRoundedSurface and progressBackdrop._quiRoundedSurface.radius == 6,
+    "collection progress must round its actual child backdrop")
+assert(not collectionProgress._quiRoundedSurface, "collection progress must not draw a second parent backdrop")

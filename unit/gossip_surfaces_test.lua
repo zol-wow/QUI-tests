@@ -121,7 +121,7 @@ assert(quest:GetText() == "|cFF7b8489Native quest|r" and quest.Icon.vertex[1] ==
 assert(goodbye:GetScript("OnClick") == click and option:GetScript("OnClick") == optionClick
     and quest:GetScript("OnClick") == questClick, "native actions must retain ownership")
 local shell = skin.GetBackdrop(bar)
-assert(shell._quiRoundedSurface.radius == 3 and shell:GetFrameLevel() < bar:GetFrameLevel(),
+assert(shell._quiRoundedSurface.radius == 6 and shell:GetFrameLevel() < bar:GetFrameLevel(),
     "friendship shell must sit behind the native status bar")
 for index = 1, 4 do
     rank = index

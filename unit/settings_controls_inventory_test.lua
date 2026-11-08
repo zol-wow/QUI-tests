@@ -336,6 +336,7 @@ end
 local oldClient=ns.Client
 ns.Client={isForever=true}
 RenderFeature("skinningPage")
+RenderFeature("actionBarsGeneral")
 for _, id in ipairs({ "unitFramesPage", "nameplatesPage", "groupFramesPage" }) do
     local feature = ns.Settings.Registry:GetFeature(id)
     local model = type(feature.model) == "function" and feature.model() or feature.model

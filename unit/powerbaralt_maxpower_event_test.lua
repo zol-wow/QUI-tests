@@ -75,7 +75,7 @@ setfenv(chunk, env)
 chunk("QUI", ns)
 local bar = assert(env.QUI_AltPowerBar)
 assert(bar.roundedFill == bar:GetStatusBarTexture(), "power fill must use the shared rounded mask")
-assert(bar.backdrop.chromeOptions.radius == 3 and bar.backdrop.chromeOptions.borderPixels == 1, "power shell must use rounded one-pixel chrome")
+assert(bar.backdrop.chromeOptions.radius == 6 and bar.backdrop.chromeOptions.borderPixels == 1, "power shell must use rounded one-pixel chrome")
 assert(bar.events.UNIT_MAXPOWER == "player", "replacement must register native alternate-power maximum changes")
 assert(bar.maximum == 100 and bar.text.text == "Power: 25%")
 state.maximum = 50

@@ -31,6 +31,7 @@ for _, alreadyLoaded in ipairs({ true, false }) do
     frame.TabSystem.tabs = { tab }
     frame.SpellBookFrame = env.NewFrame("Frame", nil, frame)
     local book = frame.SpellBookFrame
+    book.SettingsDropdown = false
     book.BookBGLeft = book:CreateTexture()
     book.SearchBox = env.NewFrame("EditBox", nil, book)
     book.AssistedCombatRotationSpellFrame = env.NewFrame("Frame", nil, book)

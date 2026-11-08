@@ -20,7 +20,7 @@ for radius = 1, 16 do
             assert(texture.filter == "NEAREST", "native-size corners must not blur across adjacent atlas texels")
             assert(math.abs(uv[2] - uv[1]) * 2048 == texture.width,
                 'rounded corners must sample native-size texels instead of shrinking a 32px tile')
-            assert(math.abs(uv[4] - uv[3]) * 32 == texture.height,
+            assert(math.abs(uv[4] - uv[3]) * 128 == texture.height,
                 'corner vertical texels must also match physical pixel height')
         end
     end
@@ -30,7 +30,7 @@ local file = assert(io.open('assets/appearance/RoundedSurfaceStrokes.tga', 'rb')
 local data = file:read('*a')
 file:close()
 local function Alpha(tile, x, y)
-    return data:byte(18 + (y * 2048 + tile * 32 + x) * 4 + 4)
+    return data:byte(18 + ((math.floor(tile / 64) * 32 + y) * 2048 + tile % 64 * 32 + x) * 4 + 4)
 end
 for radius = 3, 16 do
     local tile = radius + 15
@@ -44,4 +44,15 @@ assert(frame._quiRoundedSurface.border.left.width == 2 and frame._quiRoundedSurf
     'two-pixel icon outlines must use matching edge thickness')
 assert(Alpha(35, 3, 0) >= 230 and Alpha(35, 3, 1) == 255,
     'two-pixel corner arcs must meet both rows of the straight edge')
+for thickness = 4, 8 do
+    local radius = 16
+    local tile = radius - 1 + thickness * 16
+    env.SkinBase.ApplyChromeBackdrop(frame, { radius = radius, borderPixels = thickness, withBackground = false })
+    local uv = frame._quiRoundedSurface.border.tl.texCoord
+    assert(uv[1] == tile % 64 / 64 and uv[3] == math.floor(tile / 64) / 4,
+        'thick outlines must select their own atlas row')
+    assert(Alpha(tile, 0, 0) == 0 and Alpha(tile, radius - 1, thickness - 1) == 255
+        and Alpha(tile, radius - 1, radius - 1) == 0,
+        'thick arcs must retain transparent corners and centers while meeting their straight edges')
+end
 print('OK rounded_surface_native_corners_test')

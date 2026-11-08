@@ -1,5 +1,6 @@
 -- Reviewed real-provider inventory. Regenerate only with a reviewed control/route diff.
 return {
+    ["control|action_bars|1|actionBarsGeneral|Auto-upgrade Spell Ranks|profile.actionBars.global|autoUpgradeSpellRanks||||||CreateFormToggle|toggle"] = "toggle|||||searchable",
     ["control|action_bars|1|actionBarsGeneral|AutoCast Particles|profile.actionBars.global|glowParticles||||||CreateFormSlider|slider"] = "slider|1|12|1||searchable",
     ["control|action_bars|1|actionBarsGeneral|AutoCast Scale|profile.actionBars.global|glowScale||||||CreateFormSlider|slider"] = "slider|0.5|2|0.1||searchable",
     ["control|action_bars|1|actionBarsGeneral|Button Lock||||||||CreateFormDropdown|dropdown"] = "dropdown||||unlocked:Unlocked;shift:Locked - Shift to drag;alt:Locked - Alt to drag;ctrl:Locked - Ctrl to drag;none:Fully Locked|searchable",

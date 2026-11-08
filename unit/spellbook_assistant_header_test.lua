@@ -10,6 +10,7 @@ local apply = chunk()
 local root = env.NewFrame("Frame")
 local book = env.NewFrame("Frame", nil, root)
 root.SpellBookFrame = book
+book.SettingsDropdown = false
 local rotation = env.NewFrame("Frame", nil, book)
 book.AssistedCombatRotationSpellFrame = rotation
 rotation.Divider = rotation:CreateTexture()
