@@ -1,6 +1,8 @@
 local path = os.getenv("QUI_LAYOUT_SOURCE") or "core/settings_layout_shared.lua"
 local function frame()
     local f = {}
+    function f:GetWidth() return self.width or 700 end
+    function f:SetWidth(w) self.width = w end
     function f:ClearAllPoints() end
     function f:SetPoint() end
     function f:SetHeight(h) self.height = h end

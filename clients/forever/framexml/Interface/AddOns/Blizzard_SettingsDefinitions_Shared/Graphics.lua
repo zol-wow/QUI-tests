@@ -182,12 +182,18 @@ function SettingsAdvancedQualityControlsMixin:Init(settings, raid, cbrHandles)
 		if not C_VideoOptions.IsSecondaryLightingSupported() then
 			local data = AddValidatedSettingOption(container, cvar, raid, 0, WARNING_FONT_COLOR:WrapTextInColorCode(VIDEO_OPTIONS_DISABLED));
 			data.warning = WARNING_FONT_COLOR:WrapTextInColorCode(VIDEO_OPTIONS_COMBAT_CUES_DISABLED_WARNING);
+			AddValidatedSettingOption(container, cvar, raid, 1, VIDEO_OPTIONS_LOW);
+			AddValidatedSettingOption(container, cvar, raid, 2, VIDEO_OPTIONS_FAIR);
+			AddValidatedSettingOption(container, cvar, raid, 3, VIDEO_OPTIONS_MEDIUM);
+			AddValidatedSettingOption(container, cvar, raid, 4, VIDEO_OPTIONS_HIGH);
+			AddValidatedSettingOption(container, cvar, raid, 5, VIDEO_OPTIONS_ULTRA);
+		else
+			AddValidatedSettingOption(container, cvar, raid, 0, VIDEO_OPTIONS_LOW);
+			AddValidatedSettingOption(container, cvar, raid, 1, VIDEO_OPTIONS_FAIR);
+			AddValidatedSettingOption(container, cvar, raid, 2, VIDEO_OPTIONS_MEDIUM);
+			AddValidatedSettingOption(container, cvar, raid, 3, VIDEO_OPTIONS_HIGH);
+			AddValidatedSettingOption(container, cvar, raid, 4, VIDEO_OPTIONS_ULTRA);
 		end
-		AddValidatedSettingOption(container, cvar, raid, 1, VIDEO_OPTIONS_LOW);
-		AddValidatedSettingOption(container, cvar, raid, 2, VIDEO_OPTIONS_FAIR);
-		AddValidatedSettingOption(container, cvar, raid, 3, VIDEO_OPTIONS_MEDIUM);
-		AddValidatedSettingOption(container, cvar, raid, 4, VIDEO_OPTIONS_HIGH);
-		AddValidatedSettingOption(container, cvar, raid, 5, VIDEO_OPTIONS_ULTRA);
 		AddRecommended(container, cvar);
 		return container:GetData();
 	end
@@ -1037,8 +1043,12 @@ local function Register()
 				local container = Settings.CreateControlTextContainer();
 				container:Add(AA_NONE, VIDEO_OPTIONS_NONE);
 				container:Add(AA_IMAGE, FXAA_CMAA_LABEL);
-				container:Add(AA_MULTISAMPLE, MSAA_LABEL);
-				container:Add(AA_ADVANCED, ADVANCED_LABEL);
+				if MultiSampleAntiAliasingSupported() then
+					container:Add(AA_MULTISAMPLE, MSAA_LABEL);
+				end
+				if MultiSampleAntiAliasingSupported() and AntiAliasingSupported() then
+					container:Add(AA_ADVANCED, ADVANCED_LABEL);
+				end
 				return container:GetData();
 			end
 
@@ -1124,13 +1134,17 @@ local function Register()
 			setting:SetCommitOrder(2);
 			aaSettings.msaa = setting;
 
-			local initializer = Settings.CreateDropdown(category, setting, GetOptions, OPTION_TOOLTIP_ADVANCED_MSAA);
-			local function IsModifiable()
-				local value = aaSetting:GetValue();
-				return (value == AA_MULTISAMPLE or value == AA_ADVANCED) and MultiSampleAntiAliasingSupported();
+			if MultiSampleAntiAliasingSupported() then
+				local initializer = Settings.CreateDropdown(category, setting, GetOptions, OPTION_TOOLTIP_ADVANCED_MSAA);
+
+				local function IsModifiable()
+					local value = aaSetting:GetValue();
+					return (value == AA_MULTISAMPLE or value == AA_ADVANCED) and MultiSampleAntiAliasingSupported();
+				end
+
+				initializer:SetParentInitializer(aaInitializer, IsModifiable);
+				initializer:AddSearchTags(ANTIALIASING);
 			end
-			initializer:SetParentInitializer(aaInitializer, IsModifiable);
-			initializer:AddSearchTags(ANTIALIASING);
 		end
 
 		-- Multisample Alpha Test
@@ -1150,17 +1164,17 @@ local function Register()
 				return container:GetData();
 			end
 
-			local initializer = Settings.CreateCheckboxWithOptions(category, setting, GetOptions, OPTION_TOOLTIP_MULTISAMPLE_ALPHA_TEST);
-			local function IsModifiable()
-				local value = aaSetting:GetValue();
-				return (value == AA_MULTISAMPLE or value == AA_ADVANCED) and MultiSampleAntiAliasingSupported();
+			if MultiSampleAntiAliasingSupported() then
+				local initializer = Settings.CreateCheckboxWithOptions(category, setting, GetOptions, OPTION_TOOLTIP_MULTISAMPLE_ALPHA_TEST);
+				local function IsModifiable()
+					local value = aaSetting:GetValue();
+					return (value == AA_MULTISAMPLE or value == AA_ADVANCED) and MultiSampleAntiAliasingSupported();
+				end
+				initializer:SetParentInitializer(aaInitializer, IsModifiable);
+				initializer:AddSearchTags(ANTIALIASING);
 			end
-			initializer:SetParentInitializer(aaInitializer, IsModifiable);
-			initializer:AddSearchTags(ANTIALIASING);
 		end
 	end
-
-	GraphicsOverrides.CreateHDSDToggleOptions(category, layout);
 
 	GraphicsOverrides.CreateHiResOptions(category, layout);
 

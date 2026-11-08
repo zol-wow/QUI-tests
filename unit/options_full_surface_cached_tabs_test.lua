@@ -267,8 +267,9 @@ for _, builder in ipairs({ FullSurface.BuildScrollTabBody, FullSurface.BuildMult
             { key = "general", label = "General" },
             { key = "text", label = "Text", disabled = true },
         }
-        local counts, changes = {}, 0
+        local counts, changes, selectionState = {}, 0, {}
         local result = builder(owner, {
+            state = selectionState,
             cacheTabBodies = cached,
             clearFrame = ClearFrame,
             tabTopOffset = contextualTop or nil,
@@ -296,6 +297,14 @@ for _, builder in ipairs({ FullSurface.BuildScrollTabBody, FullSurface.BuildMult
             "unknown flyout page keys must not change selection")
         assert(navigation.selectTab("general") == false and counts.general == 1,
             "selecting the current page must preserve its editor")
+        assert(selectionState.selectTab == result.SelectTab,
+            "public consumers must receive the existing shared selection operation")
+        local changed, accepted = result.SelectTab("general")
+        assert(changed == false and accepted == true and counts.general == 1 and changes == 0,
+            "an accepted current destination must preserve its editor and callbacks")
+        changed, accepted = selectionState.selectTab("missing")
+        assert(changed == false and accepted == false,
+            "shared selection must distinguish invalid and accepted-current destinations")
         definitions[2].disabled = false
         assert(navigation.selectTab("text") == true and counts.text == 1 and changes == 1)
         assert(navigation.selectTab("general") == true)

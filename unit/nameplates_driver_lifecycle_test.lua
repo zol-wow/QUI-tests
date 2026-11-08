@@ -33,7 +33,8 @@ local function NewRegion(parent)
         AddMaskTexture = noop, SetBlendMode = noop,
         Show = function(self) self._shown = true end,
         Hide = function(self) self._shown = false end,
-        SetText = noop, SetFormattedText = noop, SetTextColor = noop, SetFont = noop,
+        SetText = function(self, value) self._text = value end,
+        SetFormattedText = noop, SetTextColor = noop, SetFont = noop,
         SetJustifyH = noop, SetDrawLayer = noop, SetShadowOffset = noop, SetShadowColor = noop,
     }
     return r
@@ -121,7 +122,7 @@ UnitHealth = function(u) local d = U(u) return d and d.health or 0 end
 UnitHealthMax = function(u) local d = U(u) return d and d.maxHealth or 1 end
 UnitGetTotalAbsorbs = function() return 0 end
 UnitIsDeadOrGhost = function() return false end
-UnitName = function(u) local d = U(u) return d and d.name or "Stub" end
+UnitName = function(u) local d = U(u) return d and d.name or "Stub", d and d.surname end
 UnitHealthPercent = function() return 55 end
 UnitClassification = function(u) local d = U(u) return d and d.classification end
 UnitLevel = function(u) local d = U(u) return d and d.level end
@@ -190,6 +191,7 @@ local ns = {
         ApplyIconStyle = function() end,
         IsSecretValue = function() return false end,
         TruncateUTF8 = function(s, n) return type(s) == "string" and s:sub(1, n) or s end,
+        GetUnitDisplayName = UnitName,
         GetModuleSettings = function(_, defaults)
             settingsStore = settingsStore or { enabled = true }
             return settingsStore
@@ -451,6 +453,64 @@ test("PEW re-asserts appearance: generation bumps and live plates restyle", func
     if NP.appearanceGen <= genBefore then fail("PEW must bump the appearance generation") end
     if plate.npAppearanceGen ~= NP.appearanceGen then fail("live plates must restyle to the new generation") end
     FireRemoved("nameplate8")
+end)
+
+test("surname toggles refresh existing plates without a unit-name event", function()
+    local file = assert(io.open("core/utils.lua", "r"))
+    local source = file:read("*a")
+    file:close()
+    local start = assert(source:find("function Helpers.GetUnitDisplayName", 1, true))
+    local stop = assert(source:find("function Helpers.TruncateUTF8", start, true))
+    local loadHelper = assert(loadstring(source:sub(start, stop - 1)))
+    local previousHelper = ns.Helpers.GetUnitDisplayName
+    ns.Client = { isForever = true }
+    setfenv(loadHelper, setmetatable({
+        Helpers = ns.Helpers,
+        ns = ns,
+        Constants = { CharacterNameSeparatorConsts = { CHARACTERNAME_SURNAME_SEPARATOR = " " } },
+        C_StringUtil = { WrapString = function(text, prefix, suffix)
+            if text == "" then return "" end
+            return (prefix or "") .. text .. (suffix or "")
+        end },
+    }, { __index = _G }))
+    loadHelper()
+    local previousTypes = settingsStore.types
+    local config = { name = { enabled = true, showLastName = false, truncateLength = 40 } }
+    settingsStore.types = { enemyPlayer = config }
+    world.units.nameplate9 = {
+        canAttack = true, reaction = 2, health = 10, maxHealth = 100,
+        name = "Aria", surname = "Moonwhisper", isPlayer = true,
+    }
+    NewBase("nameplate9")
+    FireAdded("nameplate9")
+    DrainDefer()
+    local plate = NP.plates.nameplate9
+    assert(plate.nameText._text == "Aria", "new plate must start with first-name mode")
+    for _, mode in ipairs({ "bars", "nameonly", "simplified" }) do
+        config.renderMode = mode
+        config.name.showLastName = true
+        NP.Driver.Refresh()
+        assert(plate.nameText._text == "Aria Moonwhisper",
+            "settings refresh must show the surname immediately in " .. mode)
+        config.name.showLastName = false
+        NP.Driver.Refresh()
+        assert(plate.nameText._text == "Aria",
+            "settings refresh must remove the surname immediately in " .. mode)
+        assert(plate._shown, "name refresh must preserve render-mode visibility")
+    end
+    config.renderMode, config.name.enabled, config.name.showLastName = "nameonly", false, true
+    NP.Driver.Refresh()
+    assert(not plate.nameText._shown, "refreshing a surname must not resurrect disabled name text")
+    local previousFriendly = settingsStore.friendly
+    settingsStore.friendly = { enabled = false }
+    plate.npReaction = "friendly"
+    NP.Driver.Refresh()
+    assert(plate.npRenderMode == "off" and not plate._shown,
+        "refreshing a surname must not resurrect a disabled friendly plate")
+    settingsStore.friendly = previousFriendly
+    FireRemoved("nameplate9")
+    settingsStore.types = previousTypes
+    ns.Helpers.GetUnitDisplayName = previousHelper
 end)
 
 test("disabled: added plates are ignored entirely", function()

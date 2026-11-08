@@ -337,6 +337,10 @@ function C_ActionBar.IsHarmfulAction(actionID, useNeutral, ...) end
 ---@param ... any
 ---@return boolean isHelpful
 function C_ActionBar.IsHelpfulAction(actionID, useNeutral, ...) end
+---@param spellID? any
+---@param ... any
+---@return boolean isHighestRank
+function C_ActionBar.IsHighestSpellRank(spellID, ...) end
 --- Returns whether the given action button contains a spell that can interrupt spellcasting.
 ---@param slotID? number
 ---@param ... any
@@ -1840,6 +1844,10 @@ function C_BattleNet.GetAccountInfoByID(id, wowAccountGUID, ...) end
 ---@param ... any
 ---@return string customName
 function C_BattleNet.GetCustomTitleFriendName(id, ...) end
+---@param id? number
+---@param ... any
+---@return string whisperTarget
+function C_BattleNet.GetDefaultTitleWhisperTarget(id, ...) end
 ---@param friendIndex? number
 ---@param wowAccountGUID? string
 ---@param ... any
@@ -6629,7 +6637,10 @@ function C_GameRules.IsStandard(...) end
 function C_GameRules.IsWoWHack(...) end
 ---@param preset? any
 ---@param ... any
-function C_GameRules.SetForeverExperiencePreset(preset, ...) end
+function C_GameRules.SetForeverExperiencePresetPostLogin(preset, ...) end
+---@param preset? any
+---@param ... any
+function C_GameRules.SetForeverExperiencePresetPreLogin(preset, ...) end
 ---@param setToSD? boolean
 ---@param usageLocation? any
 ---@param ... any
@@ -10769,7 +10780,7 @@ function C_PaperDollInfo.AmmoNeeded(...) end
 ---@param ... any
 ---@return boolean canAutoEquip
 function C_PaperDollInfo.CanAutoEquipCursorItem(...) end
---- Cancels active temporary enchantments on inventory slot items.
+--- Cancels active temporary enchantments on inventory slot items. Imbue enchants take priority over temporary enchants.
 ---@param slot? any
 ---@param ... any
 function C_PaperDollInfo.CancelTemporaryEnchantment(slot, ...) end
@@ -10832,7 +10843,7 @@ function C_PaperDollInfo.GetMinItemLevel(...) end
 ---@return number stagger
 ---@return number staggerAgainstTarget
 function C_PaperDollInfo.GetStaggerPercentage(unit, ...) end
---- Queries information about active temporary enchants on inventory slot items.
+--- Queries information about active temporary enchants on inventory slot items. Imbue enchants take priority over temporary enchants.
 ---@param slot? any
 ---@param ... any
 ---@return any enchantInfo
@@ -11253,6 +11264,9 @@ function C_PetInfo.GetSpellForPetAction(actionID, ...) end
 ---@param ... any
 ---@return boolean isPassive
 function C_PetInfo.IsPetActionPassive(actionID, ...) end
+---@param ... any
+---@return boolean isPetOrderMoveToPending
+function C_PetInfo.IsPetOrderMoveToPending(...) end
 ---@param petNumber? number
 ---@param ... any
 function C_PetInfo.PetAbandon(petNumber, ...) end
@@ -13114,7 +13128,7 @@ function C_RestrictedActions.GetAddOnRestrictionState(type, ...) end
 function C_RestrictedActions.IsAddOnRestrictionActive(type, ...) end
 
 C_Roleset = {}
---- Sets or clears both blocklist and allowlist filters atomically with a single visibility reevaluation. Pass an empty table to clear the corresponding filter.
+--- Sets or clears both blocklist and allowlist filters atomically with a single visibility reevaluation. Pass an empty table to clear the corresponding filter. Blocked for tainted callers while in combat lockdown.
 ---@param blockedRolesets? table
 ---@param allowedRolesets? table
 ---@param ... any
@@ -14952,18 +14966,21 @@ function C_Texture.GetFilenameFromFileDataID(fileDataID, ...) end
 ---@param titleID? string
 ---@param version? any
 ---@param callback? any
+---@param subIcon? string
 ---@param ... any
-function C_Texture.GetTitleIconTexture(titleID, version, callback, ...) end
+function C_Texture.GetTitleIconTexture(titleID, version, callback, subIcon, ...) end
 ---@param titleID? string
 ---@param version? any
+---@param subIcon? string
 ---@param ... any
 ---@return boolean ready
-function C_Texture.IsTitleIconTextureReady(titleID, version, ...) end
+function C_Texture.IsTitleIconTextureReady(titleID, version, subIcon, ...) end
 ---@param texture? any
 ---@param titleID? string
 ---@param version? any
+---@param subIcon? string
 ---@param ... any
-function C_Texture.SetTitleIconTexture(texture, titleID, version, ...) end
+function C_Texture.SetTitleIconTexture(texture, titleID, version, subIcon, ...) end
 ---@param texture? any
 ---@param url? string
 ---@param ... any

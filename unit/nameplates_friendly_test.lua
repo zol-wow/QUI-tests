@@ -171,6 +171,7 @@ local ns = {
         ApplyIconStyle = function() end,
         IsSecretValue = function() return false end,
         TruncateUTF8 = function(s) return s end,
+        GetUnitDisplayName = UnitName,
         GetModuleSettings = function() return settings end,
     },
     UIKit = {

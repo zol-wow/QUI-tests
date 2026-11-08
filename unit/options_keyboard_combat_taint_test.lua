@@ -52,7 +52,7 @@ QUI = {
 }
 
 -- init.lua indexes ns.L["..."] at load (post-i18n); install identity resolver.
-local nsOpt = {}
+local nsOpt = { QUI_Options = { RegisterAllFeatureTiles = function() end } }
 local installLocale = dofile("tests/helpers/locale.lua")
 installLocale(nsOpt)
 assert(loadfile("QUI_Options/init.lua"))("QUI_Options", nsOpt)

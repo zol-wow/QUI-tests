@@ -57,11 +57,13 @@ ns.Bags.BankTakeover = {
 }
 local bagToggles = 0
 local bagCooldownRefreshes = 0
+local bagPreparations = 0
 ns.Bags.BagWindow  = {
     Hide    = logger("bag-window-hide"),
     IsShown = function() return false end,
     Refresh = function() bagCooldownRefreshes = bagCooldownRefreshes + 1 end,
     Toggle  = function() bagToggles = bagToggles + 1 end,
+    PrepareLiveButtons = function() bagPreparations = bagPreparations + 1 end,
 }
 local searchWindowHides, searchToggles = 0, 0
 ns.Bags.SearchWindow = {
@@ -151,6 +153,7 @@ assert(QUI_StorageDB == nil, "bags.lua (UI) must not initialize the store — th
 assert(#takeoverLog == 0, "disabled module must not apply the takeover")
 assert(not registered["BANKFRAME_OPENED"], "UI events must not register while disabled")
 assert(ns.Bags.IsActive() == false, "IsActive must be false while disabled")
+assert(bagPreparations == 0, "disabled bags must not prepare item buttons")
 
 -- Test 3: enabling via refresh applies the takeover IMMEDIATELY (a B-press in
 -- the deferral window must not open the Blizzard bags) and defers UI-event
@@ -159,6 +162,8 @@ settings.enabled = true
 def.refresh()
 assert(QUI_StorageDB == nil, "enabling the bags UI must not initialize the store (collector owns it)")
 assert(ns.Bags.IsActive() == true, "IsActive must be true once the UI is live")
+assert(bagPreparations == 1,
+       "enabling bags must prepare live item buttons before first paint so the first combat open has items")
 -- Takeover.Apply, BankTakeover.Suppress, AND GuildTakeover.Init must all
 -- fire synchronously before first paint (same race rationale).
 assert(takeoverLog[#takeoverLog - 2] == "apply"
@@ -345,10 +350,16 @@ assert(bagCooldownRefreshes == 3 and bankCooldownRefreshes == 3,
 ns.Bags.BagWindow.IsShown = function() return false end
 ns.Bags.BankWindow.IsShown = function() return false end
 ns.Bags.itemButtonRefreshPending = true
+local preparationsBeforeHiddenCombatExit = bagPreparations
 scripts.OnEvent(frame, "PLAYER_REGEN_ENABLED")
+assert(bagPreparations == preparationsBeforeHiddenCombatExit + 1,
+       "combat exit must prepare hidden bags so a combat login recovers before the next combat open")
 assert(bagCooldownRefreshes == 3 and bankCooldownRefreshes == 3
        and ns.Bags.itemButtonRefreshPending == nil,
        "combat exit must clear deferred creation without refreshing hidden windows")
+scripts.OnEvent(frame, "PLAYER_REGEN_ENABLED")
+assert(bagPreparations == preparationsBeforeHiddenCombatExit + 2,
+       "hidden bags must prepare on combat exit even when they were never opened to request a retry")
 ns.Bags.SortExecutor, ns.Bags.Transfers, ns.Bags.Junk = nil, nil, nil
 
 -- Test 9: refresh while already enabled + active (profile switch between two

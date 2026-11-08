@@ -1299,6 +1299,22 @@ local function SecureGetChildExtentPadding(menuFrame)
 	return padding.width, padding.height;
 end
 
+-- Lets frames override their extents for the final column and row count. Returns true if any frame did.
+function MenuMixin:FinalizeGridLayout(columns, rows)
+	local menuFrame = self:ToProxy();
+	local finalized = false;
+	for _index, frame in self.frames:Enumerate() do
+		local descriptionProxy = frame:GetElementDescription();
+		local description = Proxies:ToPrivate(descriptionProxy);
+
+		if description.finalizeGridLayout:IsSet() then
+			description.finalizeGridLayout:CallFunction(frame, descriptionProxy, menuFrame, columns, rows);
+			finalized = true;
+		end
+	end
+	return finalized;
+end
+
 function MenuMixin:PerformLayout()
 	--[[
 	GetTop() is returning inconsistently between openings despite it's anchor being fixed in space.
@@ -1363,6 +1379,39 @@ function MenuMixin:PerformLayout()
 			local maxMenuHeight = math.max(0, menuFrame:GetTop() - compactionMargin);
 			local maxRows = math.max(1, math.floor(maxMenuHeight / childMaxHeight));
 			finalColumns, finalRows = TransformColumnsAndRows(size, columns, rows, maxRows);
+
+			--[[
+			Only compacting menus are clamped to the screen width. Grids with an explicit column count
+			and no compaction margin are expected to be configured by the caller to fit.
+			Menus in external windows are not bounded by the top level parent.
+			]]--
+			if (finalColumns > 1) and (menuFrame:GetWindow() == nil) then
+				-- Convert the top level parent's width into this menu's (possibly scaled) units.
+				local boundsParent = GetAppropriateTopLevelParent();
+				local screenWidth = boundsParent:GetWidth() * boundsParent:GetEffectiveScale() / menuFrame:GetEffectiveScale();
+				local insetLeft, _insetTop, insetRight = securecallfunction(SecureGetInset, menuFrame);
+				local availableWidth = screenWidth - insetLeft - insetRight;
+				local gridPadding = self.menuDescription:GetGridPadding();
+
+				-- Frames are only narrower in a multi-column menu, so only measure them as such if they might not fit.
+				if ((finalColumns * childMaxWidth) + ((finalColumns - 1) * gridPadding)) > availableWidth then
+					-- Frame widths depend on the column count, so re-measure at each candidate until it fits.
+					while finalColumns > 1 do
+						local columnWidth = childMaxWidth;
+						if self:FinalizeGridLayout(finalColumns, finalRows) then
+							columnWidth = self:MeasureFrameExtents();
+						end
+
+						local maxColumns = math.max(1, math.floor((availableWidth + gridPadding) / (columnWidth + gridPadding)));
+						if finalColumns <= maxColumns then
+							break;
+						end
+
+						finalColumns = maxColumns;
+						finalRows = math.ceil(size / finalColumns);
+					end
+				end
+			end
 		else
 			finalColumns, finalRows = columns, rows;
 		end
@@ -1371,19 +1420,7 @@ function MenuMixin:PerformLayout()
 		The final column and row count may be required by some frames to override their extents.
 		If this occurs, we will have to recalculate the ideal frame size again.
 		]]--
-		local recalculateSize = false;
-
-		for index, frame in self.frames:Enumerate() do
-			local descriptionProxy = frame:GetElementDescription();
-			local description = Proxies:ToPrivate(descriptionProxy);
-
-			if description.finalizeGridLayout:IsSet() then
-				description.finalizeGridLayout:CallFunction(frame, descriptionProxy, menuFrame, finalColumns, finalRows);
-				recalculateSize = true;
-			end
-		end
-
-		if recalculateSize then
+		if self:FinalizeGridLayout(finalColumns, finalRows) then
 			childMaxWidth = self:MeasureFrameExtents();
 		end
 	end
@@ -1664,6 +1701,14 @@ function MenuMixin:ReinitializeAll()
 	self:PerformLayout();
 end
 
+local function SecureCallResetters(frame)
+	local descriptionProxy = frame:GetElementDescription();
+	local description = Proxies:ToPrivate(descriptionProxy);
+	description:GetResetters():ExecuteRange(function(index, resetter)
+		resetter(frame);
+	end);
+end
+
 function MenuMixin:DiscardChildFrames()
 	--[[
 	Releasing the compositors will cause any keys assigned or changed to be discarded.
@@ -1677,11 +1722,7 @@ function MenuMixin:DiscardChildFrames()
 
 	local isCompositorEnabled = self.menuDescription:IsCompositorEnabled();
 	for index, frame in self.frames:Enumerate() do
-		local descriptionProxy = frame:GetElementDescription();
-		local description = Proxies:ToPrivate(descriptionProxy);
-		description:GetResetters():ExecuteRange(function(index, resetter)
-			resetter(frame);
-		end);
+		securecallfunction(SecureCallResetters, frame);
 
 		-- Compositor check avoids iterating over the secure map if we don't need to.
 		if isCompositorEnabled then
@@ -1747,6 +1788,8 @@ do
 end
 
 function MenuProxyMixin:OnLoad()
+	self.isMenuProxy = true;
+
 	self.ScrollBox = CreateFrame("Frame", nil, self, "WowScrollBoxList");
 
 	self.ScrollBar = CreateFrame("EventFrame", nil, self, "MinimalScrollBar");
@@ -2751,5 +2794,9 @@ do
 
 	function Menu.PrintOpenMenuTags()
 		print(table.concat(Menu.GetOpenMenuTags(), LIST_DELIMITER));
+	end
+
+	function Menu.IsMenuProxy(frame)
+		return frame.isMenuProxy == true;
 	end
 end

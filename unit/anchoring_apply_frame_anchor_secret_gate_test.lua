@@ -2033,6 +2033,51 @@ do
     for _, key in ipairs(keys) do frameAnchoring[key] = savedSettings[key] end
 end
 
+do
+    runScheduled()
+    local core = ns.Addon
+    local previousAnchors = core.db.profile.frameAnchoring
+    local lateFrame
+    local late = StubFrame("reloadLateFrame")
+    late.protectedAnswer = true
+    env.QUI_RegisterFrameResolver("qtestLateInit", { resolver = function() return lateFrame end })
+    core.db.profile.frameAnchoring = {
+        qtestLateInit = { parent = "screen", point = "CENTER", relative = "CENTER", offsetX = 317, offsetY = -82 },
+    }
+    local drains, settles = 0, {}
+    ns.AddonLoader = { LoadEnabledLODModulesEager = function()
+        ns.QUI_Anchoring:ApplyAllFrameAnchors()
+        ns.QUI_Anchoring:ApplyAllFrameAnchors(false, function() drains = drains + 1 end)
+        lateFrame = late
+    end }
+    core.SetupEncounterWarningsSecretValuePatch = function() end
+    env.SlashCmdList = {}
+    env.QUI = {}
+    env.RunAfterFirstFrame = function(callback) settles[#settles + 1] = callback end
+    local source = readFile("core/main.lua")
+    local first = assert(source:find("function QUICore:OnEnable()", 1, true))
+    local last = assert(source:find("\nend", first, true))
+    local enable = assert(loadstring("local ns, QUICore = ...\n" .. source:sub(first, last + 3), "@core/main.lua:OnEnable"))
+    setfenv(enable, env)
+    enable(ns, core)
+    inCombat = true
+    core:OnEnable()
+    local point = late.points[1]
+    check("combat reload places late-created protected frames before first-frame callbacks",
+        point and point.x == 317 and point.y == -82)
+    check("combat reload closes the init window after its final synchronous anchor pass",
+        ns._inInitSafeWindow == false and #settles > 0)
+    runScheduled()
+    runScheduled()
+    check("forced startup anchor pass drains prior coalesced callbacks exactly once", drains == 1)
+    point = late.points[1]
+    check("post-window throttle replay preserves the protected frame's initialized placement",
+        point and point.x == 317 and point.y == -82)
+    core.db.profile.frameAnchoring = previousAnchors
+    ns.AddonLoader = nil
+    inCombat = false
+end
+
 print(("\n%d failure(s)"):format(failures))
 if failures == 0 then
     print("OK: anchoring_apply_frame_anchor_secret_gate_test")

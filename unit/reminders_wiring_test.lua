@@ -37,7 +37,22 @@ local tile = readAll("QUI_Options/tiles/reminders.lua")
 has(tile, 'featureId = "remindersPage"', "reminders tile routes to the defensive page")
 has(tile, 'featureId = "spellRemindersPage"', "reminders tile routes to the spell page")
 has(tile, 'moduleFeatureId = "moduleAddon_QUI_Reminders"', "tile uses the module addon switch")
-has(readAll("QUI_Options/init.lua"), "ns.QUI_RemindersTile.Register(frame)", "sidebar registers the reminders tile")
+has(readAll("QUI_Options/init.lua"), "ns.QUI_Options.RegisterAllFeatureTiles(frame)", "sidebar uses shared tile registration")
+local shared = readAll("QUI_Options/shared.lua")
+local registerStart = assert(shared:find("function ns.QUI_Options.RegisterAllFeatureTiles(frame)", 1, true))
+local registrations = shared:sub(registerStart)
+has(registrations, "ns.QUI_RemindersTile.Register(frame)", "shared registration includes the reminders tile")
+local registered, registrationFrame = 0, {}
+local registrationNS = {
+    QUI_Options = {},
+    QUI_RemindersTile = { Register = function(frame)
+        assert(frame == registrationFrame, "shared registration forwards the sidebar frame")
+        registered = registered + 1
+    end },
+}
+assert(loadstring("return function(ns)\n" .. registrations .. "\nend"))()(registrationNS)
+registrationNS.QUI_Options.RegisterAllFeatureTiles(registrationFrame)
+assert(registered == 1, "shared registration mounts the reminders tile exactly once")
 has(optionsToc, "tiles\\reminders.lua", "options loads the reminders tile")
 local searchTool = readAll("tools/generate_search_cache.lua")
 has(searchTool, 'path:match("^QUI_Reminders/.+/settings/")', "search cache indexes both module pages")

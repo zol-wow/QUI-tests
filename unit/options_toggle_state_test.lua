@@ -210,6 +210,7 @@ local UIKit = ns.UIKit
 -- they close over supplied as parameters.
 ---------------------------------------------------------------------------
 local fw = readAll(os.getenv("QUI_TOGGLE_SOURCE") or "QUI_Options/framework.lua")
+local fallbackBlock = extract(fw, "GUI._formFallbacks =", "function GUI:BuildSearchWidgetDescriptor")
 local muteBlock = extract(fw, "-- BEGIN widget disabled mute", "-- END widget disabled mute")
 local pillBlock = extract(fw, "-- BEGIN pill toggle", "-- END pill toggle")
 local squareBlock = extract(fw, "-- BEGIN square checkbox", "-- END square checkbox")
@@ -227,7 +228,7 @@ local params = "ns, GUI, C, UIKit, CreateFrame, FORM_ROW_HEIGHT, SetFont, ApplyW
     .. "MaybeUpdatePinnedWidgetValue, BroadcastToSiblings, MaybeAutoNotifyProviderSync, BindWidgetMethod, "
     .. "RegisterWidgetInstance, MaybeBindPinnedWidget, RegisterSearchSettingWidgetForBinding, AttachFormWidgetTooltip"
 local source = "return function(" .. params .. ")\n"
-    .. muteBlock .. "\n" .. pillBlock .. "\n" .. squareBlock .. "\nreturn BuildPillToggle\nend"
+    .. fallbackBlock .. "\n" .. muteBlock .. "\n" .. pillBlock .. "\n" .. squareBlock .. "\nreturn BuildPillToggle\nend"
 local chunk = assert(loader(source, "framework toggles"))
 local BuildPillToggle = chunk()(ns, GUI, C, UIKit, CreateFrame, FORM_ROW_HEIGHT, SetFont, noop,
     noop, noop, noop, BindWidgetMethod, noop, noop, noop, noop)

@@ -230,6 +230,8 @@ ns.Settings = {
     },
 }
 
+env.LoadAddonFile("core/settings/model_kit.lua", "QUI", ns)
+env.LoadAddonFile("QUI_Nameplates/nameplates/settings/nameplates_model.lua", "QUI_Nameplates", ns)
 env.LoadAddonFile(
     "QUI_Nameplates/nameplates/settings/nameplates_schema.lua", "QUI_Nameplates", ns)
 

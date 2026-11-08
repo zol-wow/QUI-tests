@@ -99,6 +99,37 @@ GUI.AddFeatureTile = function(_, owner, config)
     GUI:AttachTileNavigation(owner, tile)
 end
 GUI.MainFrame = frame
+local function VisibleButton(panel, destination)
+    local function Find()
+        for _, button in ipairs(panel._buttons) do
+            local page = button._page
+            if button:IsShown() and not page._group and page.pageIndex == destination.pageIndex
+                and page.key == destination.key and page.sectionId == destination.sectionId then
+                return button
+            end
+        end
+    end
+    local button = Find()
+    if button then return button end
+    for _ = 1, 2 do
+        for _, header in ipairs(panel._buttons) do
+            local page = header._page
+            if header:IsShown() and page._group and page.pageIndex == destination.pageIndex
+                and (not page.key or page.key == destination.key)
+                and not panel._tile._navigationExpanded[page._groupId] then
+                local before = frame._lastTileIndex
+                local built = panel._tile._built
+                header._chevron._scripts.OnClick(header._chevron)
+                assert(frame._lastTileIndex == before and panel._tile._built == built,
+                    "expanding a cold page must preserve the editor and avoid constructing settings")
+                break
+            end
+        end
+        button = Find()
+        if button then return button end
+    end
+    return assert(Find(), "expanded navigation must expose " .. destination.label)
+end
 local renderField = ns.Settings.Fields.Render
 local selector
 ns.Settings.Fields.Render = function(field, ctx, parent)
@@ -198,7 +229,7 @@ for _, name in ipairs({ "QUI_BagsTile", "QUI_AltsTile", "QUI_InfoBarTile" }) do
     if tile.id == "bags" or tile.id == "alts" then
         assert(#pages == #tile.config.subPages and tile._navArrow:IsShown(),
             "focused provider pages must retain one destination per page")
-        assert(#body._sections == 2, "General must build only its two related sections")
+        assert(#body._sections == (tile.id == "bags" and 3 or 2), "General must build only its related sections")
         local destination, represented = nil, {}
         for index, page in ipairs(pages) do
             local config = tile.config.subPages[page.pageIndex]
@@ -208,7 +239,7 @@ for _, name in ipairs({ "QUI_BagsTile", "QUI_AltsTile", "QUI_InfoBarTile" }) do
             if page.pageIndex == 3 and not destination then destination = index end
         end
         for index in ipairs(tile.config.subPages) do assert(represented[index], "every provider page stays reachable") end
-        local button = frame._pageFlyout._buttons[assert(destination)]
+        local button = VisibleButton(frame._pageFlyout, pages[assert(destination)])
         button._scripts.OnClick(button)
         Flush()
         assert(frame._lastTileIndex == tile.index and tile._activeSubPageIndex == 3,
@@ -242,7 +273,7 @@ for _, name in ipairs({ "QUI_BagsTile", "QUI_AltsTile", "QUI_InfoBarTile" }) do
         local nextTop = pages[4] and pages[4].section:GetTop()
         local expected = math.min(range, 300)
         if nextTop then expected = math.min(expected, math.max(0, 800 - nextTop - 9) * range / (range + scroll:GetHeight())) end
-        local button = frame._pageFlyout._buttons[3]
+        local button = VisibleButton(frame._pageFlyout, page)
         button._scripts.OnClick(button)
         Flush()
         assert(frame._lastTileIndex == tile.index and tile._activeSubPageIndex == 1, "section selection opens the correct module")
@@ -267,7 +298,7 @@ for _, spec in ipairs({
     for _, page in ipairs(coldPages) do
         if page.pageIndex == spec.page then coldSections[#coldSections + 1] = page end
     end
-    local grouped = #config.featureIds > 2
+    local grouped = #config.featureIds >= (config.sectionNav == true and 2 or 3)
     if grouped then
         assert(#coldSections == #config.featureIds,
             "larger composite menus must list feature titles rather than internal settings headings")
@@ -284,9 +315,9 @@ for _, spec in ipairs({
     local ready = GUI.RunWhenSettingsLayoutReady
     GUI.RunWhenSettingsLayoutReady = function(_, _, target) destination = target end
     GUI:OpenNavigationFlyout(frame, tile, true)
-    for index, page in ipairs(frame._pageFlyout._pages) do
+    for _, page in ipairs(frame._pageFlyout._pages) do
         if page.pageIndex == spec.page and (not grouped or page.sectionId == config.featureIds[2]) then
-            local button = frame._pageFlyout._buttons[index]
+            local button = VisibleButton(frame._pageFlyout, page)
             button._scripts.OnClick(button)
             break
         end
@@ -368,9 +399,9 @@ GUI.RunWhenSettingsLayoutReady = function(self, owner, target, callback, isCurre
     runWhenSettingsLayoutReady(self, owner, target, callback, isCurrent)
 end
 GUI:OpenNavigationFlyout(frame, groupTile, true)
-for index, page in ipairs(frame._pageFlyout._pages) do
+for _, page in ipairs(frame._pageFlyout._pages) do
     if page.key == "layout" and page.sectionId == "Spotlight" then
-        local button = frame._pageFlyout._buttons[index]
+        local button = VisibleButton(frame._pageFlyout, page)
         button._scripts.OnClick(button)
         break
     end
@@ -404,7 +435,7 @@ for pass = 1, 2 do
             local nextPage = frame._pageFlyout._pages[index + 1]
             if not nextPage or nextPage.key ~= page.key or not nextPage.sectionId then
                 destination = page
-                local button = frame._pageFlyout._buttons[index]
+                local button = VisibleButton(frame._pageFlyout, page)
                 button._scripts.OnClick(button)
                 break
             end
@@ -420,3 +451,64 @@ end
 GUI.RunWhenSettingsLayoutReady = ready
 
 print("options_provider_flyout_integration_test: ok")
+
+profile.spellReminders.reminders = {}
+for _, id in ipairs({10060, 29166, 6940, 1022, 1044}) do
+    profile.spellReminders.reminders[id] = ns.SpellReminderModel.New(id)
+end
+ns.QUI_RemindersTile.Register(frame)
+local remindersTile = frame._tiles[#frame._tiles]
+GUI:OpenNavigationFlyout(frame, remindersTile, true)
+local reminderPanel = frame._pageFlyout
+local function ReminderRow(key, sectionId, isGroup, contextId)
+    for _, button in ipairs(reminderPanel._buttons) do
+        local row = button._page
+        if button:IsShown() and row.pageIndex == 2 and row.key == key and row.sectionId == sectionId
+            and row.contextId == contextId and (not not row._group) == (not not isGroup) then return button end
+    end
+end
+local function ContextRow(id)
+    for _, button in ipairs(reminderPanel._buttons) do
+        if button:IsShown() and button._page._groupId == "2:context:" .. id then return button end
+    end
+end
+local outer = assert(ReminderRow(nil, nil, true))
+assert(not ns.SpellReminderPresentation and outer._page.label == "Spell Reminders (5)" and outer._page._depth == 0,
+    "cold navigation must preserve the collection before spell names load")
+outer._chevron._scripts.OnClick(outer._chevron)
+assert(ReminderRow("general")._page.label == "Add Reminder" and ContextRow(10060)._page.label == "10060",
+    "cold collection must expose creation and use spell ID fallbacks")
+ns.SpellReminderPresentation = { Name = function(config)
+    return config.spellID == 10060 and "Power Infusion" or "Spell " .. config.spellID
+end }
+GUI:OpenNavigationFlyout(frame, remindersTile, true)
+outer = assert(ReminderRow(nil, nil, true))
+assert(outer._page.label == "Spell Reminders (5)", "spell names must not replace the collection root")
+if not ContextRow(10060) then outer._chevron._scripts.OnClick(outer._chevron) end
+for _, id in ipairs({10060, 29166, 6940, 1022, 1044}) do
+    assert(ContextRow(id) and ContextRow(id)._page._depth == 1, "all five reminders must be separate visible rows")
+end
+local pi = ContextRow(10060)
+assert(pi._page.label == "Power Infusion")
+pi._chevron._scripts.OnClick(pi._chevron)
+local appearance = assert(ReminderRow("appearance", nil, true, 10060))
+assert(appearance._page.label == "Appearance" and appearance._page._depth == 2,
+    "Appearance must belong to the named reminder")
+assert(ReminderRow("timing", nil, false, 10060)._page._depth == 2
+    and ReminderRow("sounds", nil, false, 10060)._page._depth == 2, "short tabs must remain siblings")
+appearance._chevron._scripts.OnClick(appearance._chevron)
+for _, label in ipairs({ "Icon and Text", "Glow and Animation", "Position" }) do
+    assert(ReminderRow("appearance", label, false, 10060)._page._depth == 3,
+        "actual reminder sections must retain their tab and reminder ancestry")
+end
+assert(not remindersTile._built, "inspecting every reminder must not build its editor")
+outer = ReminderRow(nil, nil, true)
+outer._chevron._scripts.OnClick(outer._chevron)
+assert(not ContextRow(10060) and not ReminderRow("general"), "collapsing the collection hides all descendants")
+profile.spellReminders.reminders = {}
+GUI:OpenNavigationFlyout(frame, remindersTile, true)
+outer = assert(ReminderRow(nil, nil, true))
+assert(outer._page.label == "Spell Reminders (0)", "deleting all reminders retains the collection root")
+outer._chevron._scripts.OnClick(outer._chevron)
+assert(ReminderRow("general") and not ContextRow(10060), "empty cold navigation still exposes Add Reminder")
+print("options actual Spell Reminders collection hierarchy: ok")

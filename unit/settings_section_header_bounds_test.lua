@@ -1,12 +1,13 @@
 local ns = {}
 local frames = {}
-local function header(valid)
-    local h = { top = valid and 90 or nil, points = {}, _dot = {} }
+local function header(valid, parent)
+    local h = { top = valid and 90 or nil, points = {}, _dot = {}, parent = parent }
     h._label = { top = valid and 90 or nil }
     function h._label:GetTop() return self.top end
     function h._label:ClearAllPoints() end
     function h._label:SetPoint(...) self.top = 90; self.point = {...} end
     function h:GetTop() return self.top end
+    function h:GetParent() return self.parent end
     function h:ClearAllPoints() self.points = {} end
     function h:SetPoint(...) self.points[#self.points+1] = {...} end
     function h:GetPoint(i) return unpack(self.points[i]) end
@@ -18,7 +19,7 @@ local function header(valid)
     return h
 end
 local valid = false
-ns.QUI_Options = { PADDING = 15, CreateAccentDotLabel = function() return header(valid) end }
+ns.QUI_Options = { PADDING = 15, CreateAccentDotLabel = function(parent) return header(valid, parent) end }
 assert(loadfile(os.getenv("QUI_LAYOUT_SOURCE") or "core/settings_layout_shared.lua"))("QUI", ns)
 local content = { top = nil, width = 700, sizeHooks = {} }
 function content:GetTop() return self.top end
@@ -36,10 +37,10 @@ layout.headerAt("Objective Tracker")
 local broken = frames[1]
 assert(broken.update, "section title must verify its text bounds after native layout")
 broken.update(broken)
-assert(not broken.width, "recovery must wait until the parent is positioned")
+assert(broken.width == 670 and broken.update, "explicit width must be set while bounds repair waits for parent position")
 content.top = 100
 broken.update(broken)
-assert(not broken.width, "recovery must allow the first layout frame")
+assert(broken.width == 670 and broken.update, "bounds repair must allow the first layout frame")
 -- Simulate card reflow before repair: the current offset must be preserved.
 broken.points[1][5] = -150
 broken.update(broken)
@@ -54,7 +55,25 @@ valid = true
 layout.headerAt("Next Section")
 local good = frames[2]
 good.update(good); good.update(good)
-assert(not good.width and not good.update, "valid titles must retain their native anchors")
+assert(good.width == 770 and #good.points == 1 and not good.update, "valid titles must use one anchor plus an explicit width")
 content:SetWidth(700)
-assert(not good.width, "valid titles must retain native width handling after resize")
+assert(good.width == 670, "all titles must follow content width after resize")
+local initialHooks = #content.sizeHooks
+for _ = 1, 12 do
+    local detached = {}
+    for _, old in ipairs(frames) do
+        old.parent = nil
+        detached[old] = old.width
+    end
+    local rebuilt = ns.QUI_SettingsLayoutShared.MakeLayout(content)
+    local current = rebuilt.headerAt("Rebuilt Section")
+    assert(#content.sizeHooks == initialHooks,
+        "rebuilding section headers must not grow the native parent resize hook chain")
+    content:SetWidth(650)
+    assert(current.width == 620, "the current rebuilt header must follow its parent's width")
+    for old, width in pairs(detached) do
+        assert(old.width == width, "parent resize must not update detached section headers")
+    end
+    content:SetWidth(700)
+end
 print("OK: settings_section_header_bounds_test")

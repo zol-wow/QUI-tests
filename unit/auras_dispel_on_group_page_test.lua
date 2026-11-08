@@ -39,8 +39,8 @@ check("dispel colors render on the Group Frames sub-page",
     and groupPage:find("BuildDispelHintBlock(hintHost, 0)", 1, true) ~= nil
     and groupPage:find('ns.L["What You Can Dispel"]', 1, true) ~= nil)
 
-check("dispel rows inherit the Group Frames hub route",
-    groupPage:find("SearchRoute.With(HUB_ROUTE, GF.RenderDispelTab, dispelHost, contextMode)", 1, true) ~= nil)
+-- Actual inherited host routing, including the dispel child renderer, is
+-- exercised by auras_host_route_test.lua rather than pinning a local route copy.
 
 local order = {}
 for id in tile:gmatch('id = "(auras%a+)"') do

@@ -17,6 +17,8 @@ function GUI:RunWhenSettingsLayoutReady(_, _, callback, isCurrent)
     C_Timer.After(0, function() if not isCurrent or isCurrent() then callback() end end)
 end
 for _, path in ipairs({
+    "modules/qol/sound_mute_catalog.lua",
+    "QUI_Bags/bags/views/chassis.lua",
     "QUI_ActionBars/actionbars/actionbars_env.lua", "QUI_ActionBars/actionbars/actionbars.lua",
     "QUI_ActionBars/actionbars/actionbars_helpers.lua", "QUI_ActionBars/actionbars/actionbars_per_bar_builders.lua",
 }) do
@@ -28,6 +30,15 @@ local function Copy(value)
     for key, child in pairs(value) do result[key] = Copy(child) end
     return result
 end
+local borderFeature = assert(ns.Settings.Registry:GetFeature("borderColoringPage"))
+local bagsBorder = assert(ns.Helpers.BorderRegistry.byKey.bags)
+local getDB, bagDB = ns.QUI_Options.GetDB, bagsBorder.db
+local function RejectNavigationDBAccess() error("cold border navigation must not build editors or resolve settings") end
+ns.QUI_Options.GetDB, bagsBorder.db = RejectNavigationDBAccess, RejectNavigationDBAccess
+local borderSections = borderFeature.getNavigationSections()
+assert(#borderSections == 2 and borderSections[1].id == "Global Border" and borderSections[2].id == "HUD",
+    "loaded bag borders must be navigable before the first page build")
+ns.QUI_Options.GetDB, bagsBorder.db = getDB, bagDB
 local profile = QUI.QUICore.db.profile
 for key, value in pairs(ns.defaults.profile) do
     profile[key] = Copy(value)
@@ -121,10 +132,23 @@ local function Rows(tile, pageIndex, key)
     return table.concat(result, " | ")
 end
 local checked = 0
+local function CountCards(owner)
+    local count = rawget(owner, "_quiCardGroup") and 1 or 0
+    for _, child in ipairs({ owner:GetChildren() }) do count = count + CountCards(child) end
+    return count
+end
 for _, key in ipairs({"Global", "UnitFrames", "GroupFrames", "Nameplates", "ActionBars", "Auras", "CooldownManager", "ResourceBars", "Minimap", "InfoBar", "Appearance", "ChatTooltips", "Gameplay", "Reminders", "QoL", "Bags", "Alts", "Help"}) do
     ns["QUI_" .. key .. "Tile"].Register(frame)
     local tile = frame._tiles[#frame._tiles]
     local cold = GUI:GetTileNavigationPages(tile)
+    if tile.id == "appearance" then
+        local backgroundGroups = {}
+        for _, page in ipairs(cold) do
+            if page.pageIndex == 12 then backgroundGroups[#backgroundGroups + 1] = page.label end
+        end
+        assert(table.concat(backgroundGroups, "|") == "Global Background|Skinning|Frames|Resource Bars|Trackers|HUD|CDM",
+            "Background Coloring must expose only its seven groups before the first click")
+    end
     local function ColdRows(pageIndex, surfaceKey)
         local rows = {}
         for _, page in ipairs(cold) do
@@ -138,6 +162,10 @@ for _, key in ipairs({"Global", "UnitFrames", "GroupFrames", "Nameplates", "Acti
         local ok, err = pcall(function()
             GUI:SelectFeatureTile(frame, tile.index, {subPageIndex=index})
             Flush()
+            if tile.id == "appearance" and index == 12 then
+                assert(CountCards(tile._subPageBodies[index]._contentBody) == 7,
+                    "Background Coloring must render one shared card for each of its seven navigation groups")
+            end
             local descriptor = tile._surfacePagesByPage and tile._surfacePagesByPage[index]
             for _, tab in ipairs(descriptor and descriptor.getTabs() or {{}}) do
                 if tab.key then descriptor.selectTab(tab.key); Flush() end
@@ -154,6 +182,22 @@ end
 print("OK: cold navigation matches rendered pages across " .. checked .. " destinations")
 
 frame:SetWidth(1400)
+-- Mounted Bonus Roll headings share the sidebar jump and reveal lifecycle.
+local bonusTile
+for _, tile in ipairs(frame._tiles) do if tile.id == "qol" then bonusTile = tile end end
+GUI:SelectFeatureTile(frame, bonusTile.index, { subPageIndex = 14 })
+Flush()
+local bonusBody = bonusTile._subPageBodies[14]._contentBody
+local worldSection
+for _, section in ipairs(bonusBody._sections) do
+    if section.id == "World Bosses" then worldSection = section.frame end
+end
+assert(worldSection and not worldSection._expanded, "World Bosses starts collapsed")
+GUI:ScrollToTileNavigationSection(bonusTile, { pageIndex = 14, sectionId = "World Bosses" })
+Flush()
+assert(worldSection._expanded and worldSection._body:IsShown(),
+    "sidebar section navigation must reveal the actual collapsed provider body")
+
 local actionTile
 for _, tile in ipairs(frame._tiles) do
     if tile.id == "action_bars" then actionTile = tile; break end
