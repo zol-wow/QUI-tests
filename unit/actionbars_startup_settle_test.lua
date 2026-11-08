@@ -1,7 +1,7 @@
 local function setup()
     local state = { calls = {}, timers = {}, combat = false }
     local env = setmetatable({}, { __index = _G })
-    local ns = { ActionBarsEnv = env, DebugRegister = function() end }
+    local ns = { ActionBarsEnv = env, DebugRegister = function() end, _inInitSafeWindow = false }
     env._G = {}
     env.SetChunkEnv = function(level, target) setfenv(level + 1, target) end
     env.CreateFrame = function()
@@ -37,11 +37,12 @@ local function setup()
     assert(loadfile("QUI_ActionBars/actionbars/actionbars_events.lua"))("QUI_ActionBars", ns)
     function state:enter()
         self.timers = {}
+        local previousInitSafeWindow = ns._inInitSafeWindow
         env.ownedEventFrame.OnEvent(nil, "PLAYER_ENTERING_WORLD", true, false)
         assert(#self.timers == 1 and self.timers[1].delay == 0.2,
             "entering the world must retain the 0.2-second settling timer")
-        assert(env.inInitSafeWindow == false and ns._inInitSafeWindow == false,
-            "the synchronous event must leave the init safe window")
+        assert(env.inInitSafeWindow == false and ns._inInitSafeWindow == previousInitSafeWindow,
+            "the synchronous event must preserve the caller's shared init safe window")
         self.calls = {}
     end
     return state, env, record, ns
@@ -148,6 +149,26 @@ do
     timer.callback()
     assert(table.concat(state.calls, ",") == "skin,text,empty",
         "build skinning must retain its per-button update order")
+end
+
+do
+    local state, env, _, ns = setup()
+    state.combat = true
+    ns._inInitSafeWindow = true
+    ns.QUI_Anchoring = { ApplyAllFrameAnchors = function()
+        assert(ns._inInitSafeWindow == true, "reload anchors must apply inside the initialization window")
+    end }
+    state:enter()
+    assert(ns._inInitSafeWindow == true,
+        "nested actionbar startup must not close the caller's protected-layout window")
+    ns._inInitSafeWindow = false
+    state:enter()
+    assert(ns._inInitSafeWindow == false,
+        "actionbar startup must not leave a new protected-layout window open")
+    ns._inInitSafeWindow = nil
+    state:enter()
+    assert(ns._inInitSafeWindow == nil,
+        "actionbar startup must preserve an absent caller window")
 end
 
 print("actionbars_startup_settle_test: OK")

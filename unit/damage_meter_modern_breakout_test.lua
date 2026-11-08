@@ -1,3 +1,7 @@
+local SecretSentinel = dofile("tests/helpers/secret_sentinel.lua")
+local restoreSecretStub = SecretSentinel.InstallSecretStub()
+local secretIcon = SecretSentinel.MakeSecretSentinel()
+
 local function widget(parent)
     local value = {
         shown = true, scripts = {}, parent = parent, width = 300, height = 200,
@@ -134,7 +138,7 @@ local WindowManager = { windows = {} }
 local L = setmetatable({}, { __index = function(_, key) return key end })
 local ns = {
     L = L,
-    Helpers = { IsSecretValue = function() return false end },
+    Helpers = { IsSecretValue = issecretvalue },
     SafeCall = function(_, fn, ...) return true, fn(...) end,
     UIKit = {
         CreateBackdropBorder = function() return widget() end,
@@ -215,9 +219,13 @@ local env = {
     InCombatLockdown = function() return combatLockdown end,
     GameTooltip = widget(),
     table = tableLibrary,
+    type = function(value)
+        if issecretvalue(value) then return "number" end
+        return type(value)
+    end,
 }
 setmetatable(env, { __index = _G })
-local loader = assert(loadfile("QUI_DamageMeter/damage_meter/breakout.lua"))
+local loader = assert(SecretSentinel.LoadInstrumented("QUI_DamageMeter/damage_meter/breakout.lua"))
 setfenv(loader, env)
 loader("QUI_DamageMeter", ns)
 
@@ -289,7 +297,7 @@ assert(WindowManager:OpenBreakout(ownerTwo, sources[2], "Player-Two", nil, false
 assert(WindowManager.breakout == breakout and breakout.ownerWindow == ownerTwo)
 assert(breakout.sections.players.rows[1].height == 24)
 local secretGUID = {}
-ns.Helpers.IsSecretValue = function(value) return value == secretGUID end
+ns.Helpers.IsSecretValue = function(value) return issecretvalue(value) or value == secretGUID end
 sources[1].sourceGUID = secretGUID
 sources[2].sourceGUID = secretGUID
 sources[3] = { name = "Same Spec", sourceGUID = secretGUID, specIconID = 202,
@@ -409,4 +417,64 @@ for _, localPlayer in ipairs({ false, true }) do
     breakout:Close()
 end
 
+breakout.damageMeterType = env.Enum.DamageMeterType.DamageDone
+breakout.sessionID = nil
+breakout.availableSessions = { { sessionID = 77, name = "Prior Segment" } }
+local selected = { name = "Selected", sourceGUID = "Player-Selected", specIconID = 101 }
+local first = { name = "First", sourceGUID = "Player-First", specIconID = 202 }
+local matching = { name = "Matching", sourceGUID = "Player-Matching", specIconID = 101 }
+local hidden = { name = "Hidden", sourceGUID = "Player-Hidden", specIconID = secretIcon }
+local duplicate = { name = "Duplicate", sourceGUID = "Player-Duplicate", specIconID = 101 }
+local failures = {}
+local function checkCase(case, check)
+    local ok, message = pcall(check, case)
+    if not ok then failures[#failures + 1] = case.name .. ": " .. tostring(message) end
+end
+local cases = {
+    { name = "secret candidate skipped for readable spec match", selected = selected,
+        candidates = { hidden, matching }, expected = matching },
+    { name = "secret candidate preserves first-row fallback", selected = selected,
+        candidates = { first, hidden }, expected = first },
+    { name = "secret selected icon falls back to first row", selected = hidden,
+        candidates = { first, matching }, expected = first },
+    { name = "readable GUID wins despite secret icons", selected = hidden,
+        candidates = { first, { sourceGUID = "Player-Hidden", specIconID = secretIcon } }, expectedIndex = 2 },
+    { name = "local-player identity wins despite secret icons",
+        selected = { isLocalPlayer = true, specIconID = secretIcon },
+        candidates = { first, { isLocalPlayer = true, specIconID = secretIcon } }, expectedIndex = 2 },
+    { name = "duplicate readable specs preserve selection", selected = selected,
+        candidates = { first, matching, duplicate }, expected = selected },
+}
+for _, case in ipairs(cases) do
+    checkCase(case, function(value)
+        breakout.source = value.selected
+        breakout:_ResolveSelectedSource({ sources = value.candidates })
+        assert(breakout.source == (value.expected or value.candidates[value.expectedIndex]))
+    end)
+end
+
+local comparisonCases = {
+    { name = "secret comparison candidate excluded", selected = selected,
+        candidates = { selected, hidden, matching }, count = 2, secondLabel = "Matching" },
+    { name = "secret selected icon keeps GUID comparison only", selected = hidden,
+        candidates = { { sourceGUID = "Player-Hidden", specIconID = secretIcon }, matching }, count = 1 },
+    { name = "secret selected icon without identity has no comparison", selected = hidden,
+        candidates = { first, matching }, count = 0 },
+    { name = "secret candidate cannot match readable selected spec", selected = selected,
+        candidates = { first, hidden }, count = 0 },
+    { name = "readable same-spec comparisons retained", selected = selected,
+        candidates = { selected, matching, duplicate }, count = 3, secondLabel = "Matching" },
+}
+for _, case in ipairs(comparisonCases) do
+    checkCase(case, function(value)
+        breakout.source = value.selected
+        historicalSources = value.candidates
+        local datasets = breakout:_BuildComparisonDatasets()
+        assert(#datasets == value.count)
+        if value.secondLabel then assert(datasets[2].label == value.secondLabel) end
+    end)
+end
+
+SecretSentinel.RestoreSecretStub(restoreSecretStub)
+assert(#failures == 0, table.concat(failures, "\n"))
 print("OK: damage_meter_modern_breakout_test")

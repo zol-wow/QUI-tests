@@ -48,8 +48,18 @@ print("OK raidbuffs_unknown_tolerance_test (source-text floor)")
 -- Minimal WoW global stubs (set BEFORE loadfile so locals capture them) —
 -- mirrors tests/unit/groupframes_ally_buffs_test.lua's proven baseline.
 -- =========================================================================
-_G.CreateFrame = function() -- luacheck: ignore 431
-    return setmetatable({}, { __index = function() return function() end end })
+local function NewRegion()
+    return setmetatable({ shown = true, alpha = 1, scripts = {} }, { __index = function() return function() end end })
+end
+_G.CreateFrame = function()
+    local frame = NewRegion()
+    function frame:Show() self.shown = true end
+    function frame:Hide() self.shown = false end
+    function frame:SetAlpha(alpha) self.alpha = alpha end
+    function frame:SetScript(event, callback) self.scripts[event] = callback end
+    frame.CreateTexture = NewRegion
+    frame.CreateFontString = NewRegion
+    return frame
 end
 _G.UIParent = {}
 _G.SlashCmdList = {}
@@ -69,7 +79,8 @@ _G.UnitIsUnit         = function(u, other) return u == "player" and other == "pl
 _G.IsInRaid           = function() return false end
 _G.IsInGroup          = function() return false end
 _G.GetNumGroupMembers = function() return 0  end
-_G.InCombatLockdown   = function() return false end
+local inCombat = false
+_G.InCombatLockdown   = function() return inCombat end
 _G.GetTime             = function() return 0   end
 _G.GetWeaponEnchantInfo = function()
     return false, nil, nil, nil, false, nil, nil, nil
@@ -387,6 +398,43 @@ do
     MRB.PlayerIsProviderSpec = savedProviderSpec
     MRB._spellKnownProbe = savedSpellKnown
     MRB.AnyEligibleAllyHasMyBuff = savedAnyAlly
+end
+
+do
+    local savedHasBuff = MRB.UnitHasBuff
+    local savedSettings = ns.Helpers.GetModuleSettings
+    local settings = { enabled = true, providerMode = true, showOnlyInGroup = true, showSelfBuffs = false }
+    ns.Helpers.GetModuleSettings = function() return settings end
+    _G.UnitClass = function() return "Druid", "DRUID" end
+    _G.IsInGroup = function() return true end
+    _G.IsInRaid = function() return true end
+    _G.GetNumGroupMembers = function() return 2 end
+    MRB.UnitHasBuff = function() return false end
+
+    ns.RaidBuffs:Refresh()
+    local frame = ns.RaidBuffs:GetFrame()
+    check("druid missing Mark: reminder visible before combat", frame.shown and frame.alpha == 1)
+
+    local eventFrame = ns.QUI_PerfRegistry[#ns.QUI_PerfRegistry].frame
+    inCombat = true
+    eventFrame.scripts.OnEvent(eventFrame, "PLAYER_REGEN_DISABLED")
+    check("druid missing Mark: reminder invisible during combat", not frame.shown or frame.alpha == 0)
+    inCombat = false
+    eventFrame.scripts.OnEvent(eventFrame, "PLAYER_REGEN_ENABLED")
+    check("druid missing Mark: reminder visible again after combat", frame.shown and frame.alpha == 1)
+
+    inCombat = true
+    eventFrame.scripts.OnEvent(eventFrame, "PLAYER_REGEN_DISABLED")
+    MRB.UnitHasBuff = function() return true end
+    inCombat = false
+    eventFrame.scripts.OnEvent(eventFrame, "PLAYER_REGEN_ENABLED")
+    check("druid has Mark: reminder stays hidden after combat", not frame.shown)
+    MRB.UnitHasBuff = function() return false end
+    ns.RaidBuffs:Refresh()
+    check("druid loses Mark later: reminder visible again", frame.shown and frame.alpha == 1)
+
+    MRB.UnitHasBuff = savedHasBuff
+    ns.Helpers.GetModuleSettings = savedSettings
 end
 
 if fails > 0 then error(fails .. " failure(s) in raidbuffs_unknown_tolerance_test") end

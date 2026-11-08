@@ -1,6 +1,12 @@
 local function NewFrame(parent)
     local frame = { parent = parent, shown = true, scripts = {}, width = 400, height = 100 }
     function frame:SetAllPoints(region) self.anchor = region end
+    function frame:ClearAllPoints() self.points = {} end
+    function frame:SetPoint(point, relative, relativePoint, x, y)
+        self.points = rawget(self, "points") or {}
+        self.points[point] = { relative, relativePoint, x, y }
+        self.point = { point, relative, relativePoint, x, y }
+    end
     function frame:SetSize(width, height) self.width, self.height = width, height end
     function frame:SetWidth(width) self.width = width end
     function frame:SetHeight(height) self.height = height end
@@ -13,6 +19,8 @@ local function NewFrame(parent)
     function frame:Hide() self.shown = false end
     function frame:IsShown() return self.shown end
     function frame:SetShown(value) self.shown = value end
+    function frame:SetText(value) self.text = value end
+    function frame:SetTextColor(...) self.color = { ... } end
     function frame:CreateTexture() return NewFrame(self) end
     function frame:CreateFontString() return NewFrame(self) end
     function frame:GetChildren() end
@@ -20,6 +28,10 @@ local function NewFrame(parent)
 end
 _G.CreateFrame = function(_, _, parent) return NewFrame(parent) end
 _G.UnitName = function() return "Player" end
+_G.UnitEffectiveLevel = function() return 20 end
+_G.LibStub = function() return nil end
+local utilsNS = {}
+assert(loadfile("core/utils.lua"))("QUI", utilsNS)
 
 local unit = { width = 200, height = 40, showName = true, showHealth = true }
 local gui = { Tooltip = {} }
@@ -32,7 +44,14 @@ _G.QUI = { GUI = gui, db = { profile = { quiUnitFrames = { player = unit, target
 
 local ns = {
     L = setmetatable({}, { __index = function(_, key) return key end }),
-    Helpers = { SafeValue = function(value) return value end, ApplyFontWithFallback = function() end, ApplyTextureStyle = function() end },
+    Helpers = {
+        SafeValue = function(value) return value end,
+        ApplyFontWithFallback = function() end,
+        ApplyTextureStyle = function() end,
+        GetUnitDisplayName = UnitName,
+        GetLevelTextColor = utilsNS.Helpers.GetLevelTextColor,
+        SafeToNumber = utilsNS.Helpers.SafeToNumber,
+    },
     QUI_UnitFramesSettingsModel = {
         NormalizeUnitKey = function(key) return key end,
         IsPerUnitTab = function() return true end,
@@ -75,4 +94,52 @@ unit.showName, unit.showHealth = true, true
 _G.QUI_RefreshUnitFramePreview()
 assert(mock._nameTextButton.shown and mock._healthTextButton.shown,
     "reenabling preview text must restore its navigation targets")
+unit.showLevel, unit.showPowerText = true, true
+for _, case in ipairs({
+    { shown = true, height = 4, separator = true, bottom = 6 },
+    { shown = true, height = 12, separator = true, bottom = 14 },
+    { shown = true, height = 12, separator = false, bottom = 13 },
+    { shown = false, height = 12, separator = true, bottom = 1 },
+}) do
+    unit.showPowerBar, unit.powerBarHeight, unit.powerBarBorder = case.shown, case.height, case.separator
+    for _, anchor in ipairs({ "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT", "CENTER", "TOPLEFT" }) do
+        unit.nameAnchor, unit.levelAnchor, unit.healthAnchor, unit.powerTextAnchor = anchor, anchor, anchor, anchor
+        unit.nameOffsetX, unit.levelOffsetX, unit.healthOffsetX, unit.powerTextOffsetX = 3, 3, 3, 3
+        unit.nameOffsetY, unit.levelOffsetY, unit.healthOffsetY, unit.powerTextOffsetY = 2, 2, 2, 2
+        _G.QUI_RefreshUnitFramePreview()
+        local texts = { mock._nameText, mock._levelText, mock._healthText }
+        if case.shown then texts[#texts + 1] = mock._powerText end
+        for _, text in ipairs(texts) do
+            local point = assert(text.point)
+            local area = point[2]
+            assert(area ~= mock and area ~= mock._healthBar,
+                "preview text must anchor to the full health area, excluding mana and independent of health fill")
+            local top, bottom = area.points.TOPLEFT, area.points.BOTTOMRIGHT
+            assert(top[1] == mock and top[3] == 1 and top[4] == -1)
+            assert(bottom[1] == mock and bottom[3] == -1 and bottom[4] == case.bottom,
+                "preview health area must reserve the configured mana bar and separator")
+            assert(point[1] == anchor and point[3] == anchor and point[4] == 3 and point[5] == 2,
+                "preview must preserve text offsets without adding hidden padding")
+        end
+    end
+end
+unit.levelTextColor = { 0.2, 0.4, 0.6, 0.7 }
+unit.levelDifficultyColor = true
+local coloredLevel
+_G.GetCreatureDifficultyColor = function(level)
+    coloredLevel = level
+    return { r = 1, g = 0.5, b = 0 }
+end
+surface.SetSelectedUnit("target")
+_G.QUI_RefreshUnitFramePreview()
+assert(mock._levelText.color[1] == 1 and mock._levelText.color[2] == 0.5
+    and mock._levelText.color[3] == 0 and mock._levelText.color[4] == 0.7,
+    "preview must apply difficulty color and retain custom alpha")
+assert(tostring(mock._levelText.text) == "22" and coloredLevel == 22,
+    "preview must color the displayed sample relative to the player's effective level")
+unit.levelDifficultyColor = false
+_G.QUI_RefreshUnitFramePreview()
+assert(mock._levelText.color[1] == 0.2 and mock._levelText.color[2] == 0.4
+    and mock._levelText.color[3] == 0.6 and mock._levelText.color[4] == 0.7,
+    "disabling difficulty color must restore the saved color")
 print("OK: unitframes_preview_text_navigation_test")

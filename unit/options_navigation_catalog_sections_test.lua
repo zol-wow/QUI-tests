@@ -34,9 +34,25 @@ end
 
 local perBar = assert(catalog.actionBarsPerBar, "unopened Per Bar settings must have navigation sections")
 local expectedPerBar = { "Layout", "Visual", "Keybind Text", "Macro Names", "Stack Count", "Cooldown Duration Text", "Context Visibility" }
-assert(#perBar.sections == #expectedPerBar, "cold Per Bar sections must match the initially selected bar's real headings")
+local initialSections, contextOnly = {}, {}
+for _, section in ipairs(perBar.sections) do
+    for _, context in ipairs(section.contexts) do
+        assert(context.providerKey, "Per-Bar catalog sections must be scoped to a real bar context")
+        if context.providerKey == "bar1" then initialSections[#initialSections + 1] = section end
+        if section.id == "Bar" then
+            assert(context.providerKey ~= "bar1" and context.providerKey ~= "petBar" and context.providerKey ~= "stanceBar",
+                "bar enable section must not leak into a non-toggleable context")
+            contextOnly.bar = true
+        elseif section.id == "Ticket Icon" then
+            assert(context.providerKey == "microMenu", "ticket icon section belongs only to Micro Menu")
+            contextOnly.ticket = true
+        end
+    end
+end
+assert(contextOnly.bar and contextOnly.ticket, "catalog must capture sections unique to non-default bars")
+assert(#initialSections == #expectedPerBar, "cold Per Bar sections must match the initially selected bar's real headings")
 for index, label in ipairs(expectedPerBar) do
-    assert(perBar.sections[index].id == label and perBar.sections[index].label == label,
+    assert(initialSections[index].id == label and initialSections[index].label == label,
         "Per Bar section links must use the same heading identifiers and order as the editor")
 end
 ns.QUI_OptionsNavigationCatalog = catalog
@@ -46,6 +62,27 @@ assert(#perBarLinks == #expectedPerBar and not coldPerBar._subPageBodies,
     "Per Bar must expose its section submenu before constructing any settings body")
 for index, label in ipairs(expectedPerBar) do
     assert(perBarLinks[index].sectionId == label, "cold Per Bar section links must target the real editor headings")
+end
+
+local soundNS = { L = setmetatable({}, { __index = function(_, key) return key end }) }
+assert(loadfile("modules/qol/sound_mute_catalog.lua"))("QUI", soundNS)
+local expectedSoundSections = { "Sound Mute" }
+for _, category in ipairs(soundNS.SoundMuteCatalog.categories) do
+    expectedSoundSections[#expectedSoundSections + 1] = category.label
+end
+local sound = assert(catalog.soundMute, "Sound Mute must have cold navigation metadata")
+assert(#sound.sections == #expectedSoundSections,
+    "Sound Mute cold navigation must include every runtime category before the page is opened")
+local coldSound = { config = { subPages = { { name = "Sound Mute", featureId = "soundMute" } } } }
+local create = CreateFrame
+CreateFrame = function() error("cold Sound Mute navigation must not construct settings frames") end
+local soundLinks = GUI:GetTileNavigationPages(coldSound)
+CreateFrame = create
+assert(#soundLinks == #expectedSoundSections and not coldSound._subPageBodies,
+    "Sound Mute categories must be visible without constructing its settings page")
+for index, label in ipairs(expectedSoundSections) do
+    assert(sound.sections[index].id == label and soundLinks[index].sectionId == label,
+        "Sound Mute cold navigation must preserve runtime category order and heading targets")
 end
 
 local general = Sections("groupFramesPage", "general")

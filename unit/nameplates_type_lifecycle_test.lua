@@ -163,6 +163,7 @@ local ns = {
         ApplyIconStyle = function() end,
         IsSecretValue = function() return false end,
         TruncateUTF8 = function(s, n) return type(s) == "string" and s:sub(1, n) or s end,
+        GetUnitDisplayName = UnitName,
         GetModuleSettings = function(_, defaults)
             settingsStore = settingsStore or { enabled = true }
             return settingsStore

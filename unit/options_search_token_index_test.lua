@@ -99,6 +99,22 @@ do
     check("the longest indexed prefix includes longer words", usedIndex and identical and settings == 2)
 end
 
+-- An exact candidate must not mask other matches supported by the scorer.
+-- The shipped Minimap query exercises this through the "map" synonym and
+-- BattlefieldMapFrame; these isolated rows also pin the mixed typo case.
+do
+    GUI:RegisterStaticSettingEntry({ label = "Zvqindexprobe" })
+    GUI:RegisterStaticSettingEntry({ label = "BeforeZvqindexprobeAfter" })
+    GUI:RegisterStaticSettingEntry({ label = "Zvqindxeprobe" })
+    GUI:RegisterStaticNavigationEntry({ label = "Zvqindexprobe", navType = "section" })
+    GUI:RegisterStaticNavigationEntry({ label = "BeforeZvqindexprobeAfter", navType = "section" })
+    GUI:RegisterStaticNavigationEntry({ label = "Zvqindxeprobe", navType = "section" })
+    local usedIndex, identical, settings, nav = compare("zvqindexprobe")
+    check("exact candidates retain mid-word and one-typo matches",
+        usedIndex and identical and settings == 3 and nav == 3,
+        ("expected three settings and navigation matches, got %d and %d"):format(settings, nav))
+end
+
 -- 2. The behaviours the index cannot represent must fall back and still work.
 for _, case in ipairs({
     { query = "olor",   why = "mid-word substring match" },
@@ -111,6 +127,26 @@ for _, case in ipairs({
     check(("%q still returns its matches (%d settings, %d nav)"):format(case.query, settings, nav),
         identical and (settings > 0 or nav > 0),
         "fallback path returned nothing or diverged from the full scan")
+end
+
+-- A setting label and its selector/breadcrumb are separate metadata fields,
+-- but a user can naturally put both in one query. Keep variant bindings apart.
+do
+    for _, context in ipairs({ "Utility", "Essential" }) do
+        GUI:RegisterStaticSettingEntry({
+            label = "Zvq Anchor Binding", contextLabel = "Zvq Context " .. context,
+            featureId = "contextQueryProbe", providerKey = context,
+            widgetDescriptor = { kind = "checkbox", dbPath = "profile.queryProbe." .. context, dbKey = "enabled" },
+        })
+    end
+    local query = "Zvq Context Utility Anchor Binding"
+    local usedIndex, identical, settings = compare(query)
+    check("combined control and selector query matches its specific binding",
+        usedIndex and identical and settings == 1,
+        ("expected one Utility binding on both paths, got %d"):format(settings))
+    local hits = GUI:ExecuteSearch(query)
+    check("combined query retains the requested selector identity",
+        #hits == 1 and hits[1].data.providerKey == "Utility")
 end
 
 -- 3. A query that matches nothing must stay empty on both paths.

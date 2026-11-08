@@ -10,6 +10,8 @@ CreateFrame=function() return Node() end
 local db={bags={appearance={},behavior={}},alts={}}
 local providers,headers={},{}
 local ns={L=setmetatable({},{__index=function(_,k)return k end}),Settings={ProviderPanels={}},QUI_Options={},QUI_SettingsLayoutShared={}}
+ns.Helpers={GetWindowColors=function()return 0,0,0,1,0.05,0.05,0.05,0.95 end}
+ns.QUI_BorderControl={Attach=function()return Node(),Node()end}
 function ns.Settings.ProviderPanels:RegisterAfterLoad(fn)
  fn({GUI=setmetatable({},{__index=function()return function()return Node()end end}),
  U={GetProfileDB=function()return db end},NotifyProviderFor=function()end,
@@ -24,14 +26,14 @@ end
 local root=os.getenv('QUI_PAGES_ROOT') or '.'
 assert(loadfile(root..'/QUI_Bags/bags/settings/bags_providers.lua'))('QUI',ns)
 assert(loadfile(root..'/modules/alts/settings/alts_providers.lua'))('QUI',ns)
-local expected={bags={general={'General','Appearance'},corners={'Icon Corners'},behavior={'Behavior','Auto-Open'},junk={'Junk'},currency={'Currency Bar'},cache={'Cached Data'}},alts={general={'Alts Module','Scanners'},columns={'Roster Columns'},currency={'Currencies Tab'},reputation={'Reputations Tab'},cache={'Cache'}}}
+local expected={bags={general={'General','Window Colors','Appearance'},corners={'Icon Corners'},behavior={'Behavior','Auto-Open'},junk={'Junk'},currency={'Currency Bar'},cache={'Cached Data'}},alts={general={'Alts Module','Scanners'},columns={'Roster Columns'},currency={'Currencies Tab'},reputation={'Reputations Tab'},cache={'Cache'}}}
 for id,pages in pairs(expected)do
  for page,want in pairs(pages)do
   headers={};providers[id].build(Node(),id,1000,{providerPage=page})
   assert(table.concat(headers,'|')==table.concat(want,'|'),id..' '..page..' must construct only its own sections, got '..table.concat(headers,'|'))
  end
  headers={};providers[id].build(Node(),id,1000)
- assert(#headers==(id=='bags' and 8 or 6),'unfiltered provider must preserve all sections')
+ assert(#headers==(id=='bags' and 9 or 6),'unfiltered provider must preserve all sections')
 end
 local registered={}
 ns.QUI_Options.RegisterFeatureTile=function(_,config)registered[config.id]=config end

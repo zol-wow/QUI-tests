@@ -10,6 +10,7 @@ local function noop() end
 
 local function newFrame()
     return {
+        GetWidth = function(self) return self.width or 700 end,
         SetHeight = noop,
         SetWidth = noop,
         SetSize = noop,

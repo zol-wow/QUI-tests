@@ -102,6 +102,7 @@ return {
         -- gate proves nothing about auraInstanceID, so the analyzer's
         -- aura-gate clears and wildcard proofs must not bless it.
         UNIT_AURA_BLOCKED = { 4, gateGoverned = false },
+        UNIT_COMBAT = { 6, gateGoverned = false },
         -- UNIT_IN_RANGE_UPDATE: SecretPayloads = true (UnitDocumentation) —
         -- the WHOLE payload (unitTarget pos 3, isInRange pos 4) is ALWAYS
         -- secret, not restriction-conditional, and RegisterUnitEvent

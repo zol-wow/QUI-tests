@@ -1274,6 +1274,7 @@ return {
               width = 1100
             },
             combineAbsorbsIntoHealing = true,
+            defaultWindowDeleted = false,
             enabled = true,
             hoverTooltipScale = 100,
             refreshRateCombat = 0.5,
@@ -3536,6 +3537,7 @@ return {
                 offsetY = 4,
                 point = "BOTTOM",
                 relativePoint = "TOP",
+                showLastName = true,
                 size = 11,
                 truncateLength = 28
               },
@@ -3827,6 +3829,7 @@ return {
                 offsetY = 4,
                 point = "BOTTOM",
                 relativePoint = "TOP",
+                showLastName = true,
                 size = 11,
                 truncateLength = 28
               },
@@ -4118,6 +4121,7 @@ return {
                 offsetY = 4,
                 point = "BOTTOM",
                 relativePoint = "TOP",
+                showLastName = true,
                 size = 11,
                 truncateLength = 28
               },
@@ -4409,6 +4413,7 @@ return {
                 offsetY = 4,
                 point = "BOTTOM",
                 relativePoint = "TOP",
+                showLastName = true,
                 size = 11,
                 truncateLength = 28
               },
@@ -4700,6 +4705,7 @@ return {
                 offsetY = 4,
                 point = "BOTTOM",
                 relativePoint = "TOP",
+                showLastName = true,
                 size = 11,
                 truncateLength = 28
               },
@@ -4991,6 +4997,7 @@ return {
                 offsetY = 4,
                 point = "BOTTOM",
                 relativePoint = "TOP",
+                showLastName = true,
                 size = 11,
                 truncateLength = 28
               },
@@ -6403,6 +6410,7 @@ return {
                 [4] = 1
               },
               nameTextUseClassColor = false,
+              showLastName = true,
               showLevel = false,
               showName = true
             },
@@ -6808,6 +6816,7 @@ return {
                 [4] = 1
               },
               nameTextUseClassColor = false,
+              showLastName = true,
               showLevel = false,
               showName = true
             },
@@ -6954,6 +6963,7 @@ return {
             hideHealthPercentSymbol = false,
             hidePowerPercentSymbol = false,
             levelAnchor = "RIGHT",
+            levelDifficultyColor = false,
             levelFont = "",
             levelFontSize = 11,
             levelOffsetX = -4,
@@ -7006,6 +7016,7 @@ return {
             },
             showHealth = true,
             showInlineToT = false,
+            showLastName = true,
             showLevel = false,
             showName = true,
             showPowerBar = true,
@@ -7120,6 +7131,7 @@ return {
               yOffset = 8
             },
             levelAnchor = "RIGHT",
+            levelDifficultyColor = false,
             levelFont = "",
             levelFontSize = 14,
             levelOffsetX = -4,
@@ -7180,6 +7192,7 @@ return {
             showHealth = true,
             showHealthAbsolute = true,
             showHealthPercent = true,
+            showLastName = true,
             showLevel = false,
             showName = true,
             showPortrait = false,
@@ -7314,6 +7327,7 @@ return {
             hideHealthPercentSymbol = false,
             hidePowerPercentSymbol = false,
             levelAnchor = "RIGHT",
+            levelDifficultyColor = false,
             levelFont = "",
             levelFontSize = 10,
             levelOffsetX = -4,
@@ -7363,6 +7377,7 @@ return {
             showHealth = true,
             showHealthAbsolute = false,
             showHealthPercent = true,
+            showLastName = true,
             showLevel = false,
             showName = true,
             showPowerBar = true,
@@ -7517,6 +7532,7 @@ return {
               yOffset = 8
             },
             levelAnchor = "RIGHT",
+            levelDifficultyColor = false,
             levelFont = "",
             levelFontSize = 16,
             levelOffsetX = -12,
@@ -7577,6 +7593,7 @@ return {
             showHealth = true,
             showHealthAbsolute = true,
             showHealthPercent = true,
+            showLastName = true,
             showLevel = false,
             showName = true,
             showPortrait = false,
@@ -7721,6 +7738,7 @@ return {
               yOffset = 8
             },
             levelAnchor = "LEFT",
+            levelDifficultyColor = false,
             levelFont = "",
             levelFontSize = 16,
             levelOffsetX = 9,
@@ -7782,6 +7800,7 @@ return {
             showHealthAbsolute = true,
             showHealthPercent = true,
             showInlineToT = false,
+            showLastName = true,
             showLevel = false,
             showName = true,
             showPortrait = false,
@@ -7864,6 +7883,7 @@ return {
             hideHealthPercentSymbol = false,
             hidePowerPercentSymbol = false,
             levelAnchor = "RIGHT",
+            levelDifficultyColor = false,
             levelFont = "",
             levelFontSize = 14,
             levelOffsetX = -4,
@@ -7913,6 +7933,7 @@ return {
             showHealth = true,
             showHealthAbsolute = false,
             showHealthPercent = true,
+            showLastName = true,
             showLevel = false,
             showName = true,
             showPowerBar = false,

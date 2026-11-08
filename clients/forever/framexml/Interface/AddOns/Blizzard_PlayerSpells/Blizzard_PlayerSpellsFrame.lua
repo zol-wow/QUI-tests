@@ -858,8 +858,6 @@ function PlayerSpellsFrameMixin:SetUpSpellBookGamepad()
 	local nextCategory = GamepadSharedUtility.CreatePromptedBinding(GAMEPAD_SHOULDER_RIGHT, GenerateFlatClosure(self.SelectNextSpellBookCategory, self, true), nil);
 	nextCategory:SetCustomPromptFrame(self.SpellBookFrame.NextCategoryIcon);
 
-	local tooltips = GamepadSharedUtility.CreatePromptedBinding(GAMEPAD_STICK_RIGHT_PRESS, nil, PROMPT_TOGGLE_TOOLTIPS);
-
 	-- Navigate Section --
 	local SpellBookFrameSectionHandlers = {
 		left = function()
@@ -892,8 +890,6 @@ function PlayerSpellsFrameMixin:SetUpSpellBookGamepad()
 	self.spellsFrameFooter:AddPromptedBinding(enterSearchBox);
 	self.spellsFrameFooter:AddPromptedBinding(previousCategory);
 	self.spellsFrameFooter:AddPromptedBinding(nextCategory);
-	self.spellsFrameFooter:AddPromptedBinding(tooltips);
-	self.spellsFrameFooter:AddStandardFrameControlManagerBindings(self);
 	self.spellsFrameFooter:Finalize();
 end
 
@@ -1075,9 +1071,6 @@ function PlayerSpellsFrameMixin:SetUpClassTalentsGamepad()
 		end
 	);
 
-	-- Toggle Tooltips --
-	local tooltips = GamepadSharedUtility.CreatePromptedBinding(GAMEPAD_STICK_RIGHT_PRESS, nil, PROMPT_TOGGLE_TOOLTIPS);
-
 	-- Navigate Elements --
 	local navigateElements = GamepadSharedUtility.CreatePromptedBinding(GAMEPAD_DPAD, nil, FRAME_ACTION_NAVIGATE);
 
@@ -1098,11 +1091,9 @@ function PlayerSpellsFrameMixin:SetUpClassTalentsGamepad()
 	self.classTalentsFrameFooter:AddPromptedBinding(removePoint);
 	self.classTalentsFrameFooter:AddPromptedBinding(undoChanges);
 	self.classTalentsFrameFooter:AddPromptedBinding(applyChanges);
-	self.classTalentsFrameFooter:AddPromptedBinding(tooltips);
 	self.classTalentsFrameFooter:AddPromptedBinding(navigateElements);
 	self.classTalentsFrameFooter:AddPromptedBinding(openSettings);
 	self.classTalentsFrameFooter:AddPromptedBinding(enterSearchBox);
-	self.classTalentsFrameFooter:AddStandardFrameControlManagerBindings(self);
 	self.classTalentsFrameFooter:Finalize();
 end
 
@@ -1177,7 +1168,7 @@ function PlayerSpellsFrameMixin:SetUpSearchGamepad(frame)
 		searchBoxFooter:HideAndDeactivateBindings();
 	end
 
-	searchBox.clearButton.smartNavigationIgnored = true;
+	SmartNavigation_MarkFrameIgnored(searchBox.clearButton);
 	EventRegistry:RegisterCallback("SpellSearchBox.FocusedGained", OnSearchBoxFocusGained, frame);
 	EventRegistry:RegisterCallback("SpellSearchBox.FocusedLost", OnSearchBoxFocusLost, frame);
 	EventRegistry:RegisterCallback("SpellSearchPreview.FocusedGained", OnSearchPreviewFocusGained, frame);

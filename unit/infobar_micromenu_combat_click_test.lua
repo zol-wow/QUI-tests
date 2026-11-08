@@ -88,6 +88,7 @@ for _, client in ipairs({ { false, false }, { false, true }, { true, true } }) d
         TogglePlayerSpellsFrame = function(tab) openedTab = tab end,
     }
     world.KeybindFrames_InQuickKeybindMode = falseValue
+    world.Kiosk = { IsEnabled = falseValue }
     world.PlayerSpellsMicroButtonMixin = {}
     local nativeFile = assert(io.open(nativePath .. "Interface/AddOns/Blizzard_MicroMenu/Mainline/MainMenuBarMicroButtons.lua"))
     local nativeSource = nativeFile:read("*a"); nativeFile:close()
