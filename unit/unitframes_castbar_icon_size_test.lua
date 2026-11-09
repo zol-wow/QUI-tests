@@ -455,4 +455,76 @@ for _, channeled in ipairs({ false, true }) do
     assert(secondCastbar.iconTexture.texture == interactionIcon, "interaction-name cleanup must preserve the native icon")
 end
 
+bossExists = true
+inCombat = true
+settings.target = { castbar = settings.player.castbar }
+local targetCastbar = assert(ns.QUI_Castbar:CreateCastbar(unitFrame, "target", "target"))
+local timingFailures = {}
+for _, bar in ipairs({ secondCastbar, targetCastbar, bossCastbar }) do
+    for _, channeled in ipairs({ false, true }) do
+        local ok, err = pcall(function()
+            now = 101
+            local startMS, endMS = 100000, 103000
+            UnitCastingInfo = function(unit)
+                if unit == bar.unit and not channeled then
+                    return "Holy Light", "Holy Light", 135920, startMS, endMS, false, "pushback", false, 635
+                end
+            end
+            UnitChannelInfo = function(unit)
+                if unit == bar.unit and channeled then
+                    return "Drain Life", "Drain Life", 136169, startMS, endMS, false, false, 689, false, 0
+                end
+            end
+            local function deliver(event)
+                local units = bar.unitEvents[event]
+                if units and units[1] == bar.unit then
+                    bar.scripts.OnEvent(bar, event, bar.unit, "pushback", channeled and 689 or 635)
+                end
+            end
+            deliver(channeled and "UNIT_SPELLCAST_CHANNEL_START" or "UNIT_SPELLCAST_START")
+            bar.scripts.OnUpdate(bar, 0.2)
+            assert(bar:IsVisible(), "the original cast must be visible before damage")
+            assert(bar.timeText.text == "2.0", "the original cast must have two seconds left")
+
+            if channeled then
+                endMS = 102500
+            else
+                startMS, endMS = 100500, 103500
+            end
+            deliver(channeled and "UNIT_SPELLCAST_CHANNEL_UPDATE" or "UNIT_SPELLCAST_DELAYED")
+            bar.scripts.OnUpdate(bar, 0.2)
+            assert(bar.timeText.text == (channeled and "1.5" or "2.5"),
+                bar.unit .. " countdown must use the changed cast completion time")
+            local fill = bar.statusBar.value / bar.statusBar.maxValue
+            assert(math.abs(fill - (channeled and 0.6 or 1 / 6)) < 0.000001,
+                bar.unit .. " progress must move back after damage")
+
+            if not channeled then
+                startMS, endMS = 101000, 104000
+                deliver("UNIT_SPELLCAST_DELAYED")
+                now = 103.1
+                bar.scripts.OnUpdate(bar, 0.2)
+                assert(bar:IsVisible() and bar.timeText.text == "0.9",
+                    bar.unit .. " must remain visible past the original finish after repeated pushback")
+            end
+            now = channeled and 102.6 or 104.1
+            bar.scripts.OnUpdate(bar, 0.2)
+            assert(not bar:IsVisible(), bar.unit .. " must finish at the updated completion time")
+
+            now = 101
+            startMS, endMS = 100000, 110000
+            deliver(channeled and "UNIT_SPELLCAST_CHANNEL_START" or "UNIT_SPELLCAST_START")
+            now = 106
+            startMS = channeled and 100000 or 100500
+            endMS = channeled and 109500 or 110500
+            deliver(channeled and "UNIT_SPELLCAST_CHANNEL_UPDATE" or "UNIT_SPELLCAST_DELAYED")
+            bar.scripts.OnUpdate(bar, 0.2)
+            assert(bar.timeText.text == (channeled and "3.5" or "4.5"),
+                bar.unit .. " timing updates must preserve elapsed time on casts older than five seconds")
+        end)
+        if not ok then timingFailures[#timingFailures + 1] = tostring(err) end
+    end
+end
+assert(#timingFailures == 0, table.concat(timingFailures, "\n"))
+
 print("OK: unitframes_castbar_icon_size_test")
