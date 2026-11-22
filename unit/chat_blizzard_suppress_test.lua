@@ -166,6 +166,10 @@ function _G.CreateFrame(_, name, parent)
     f.SetScript = function(s, k, v) s["_" .. k] = v end
     f.GetParent = function(s) return s.parent end
     f.SetParent = function(s, p) s.parent = p end
+    f.SetSize = function(s, w, h) s.width, s.height = w, h end
+    f.SetPoint = function(s, ...) s.point = { ... } end
+    f.SetClipsChildren = function(s, v) s.clipsChildren = v end
+    f.SetAlpha = function(s, a) s.alpha = a end
     createdFrames[#createdFrames + 1] = f
     return f
 end
@@ -210,7 +214,30 @@ for _, f in ipairs(createdFrames) do
 end
 assert(hidden and hidden.shown == false, "hidden anchor exists and is hidden")
 assert(_G.ChatFrame1.parent == hidden and _G.ChatFrame2.parent == hidden, "frames reparented")
-assert(_G.ChatFrame1Tab.parent == hidden, "tabs reparented")
+-- REGRESSION (TradeSkillMaster settings page: "Table.lua:153: assertion failed!"
+-- from SelectionDropdown:SetSelectedItemByKey). TSM (v4.15.9, General.lua)
+-- builds its "Chat Tab" dropdown from every ChatFrameNTab:IsVisible(). A saved
+-- tab missing from that list is reset to the default window's name if that one
+-- is listed; if it is not listed either, TSM empties the list and then asserts
+-- selecting the saved tab. With every tab under the HIDDEN anchor the list is
+-- always empty. The default chat frame -- the one Blizzard window whose
+-- AddMessage output QUI still surfaces -- keeps its tab under a SHOWN parent
+-- that is 1x1, off-screen, clipped and transparent: IsVisible() stays true and
+-- nothing renders. Clipping is also expected to keep the tab out of mouse
+-- hit-testing (the same assumption QUI_CombatLogShownPark makes for
+-- ChatFrame2); that part cannot be shown headlessly and is an in-game check.
+-- Every other tab stays hidden.
+local tabPark
+for _, f in ipairs(createdFrames) do
+    if f.name == "QUI_ChatSuppressTabPark" then tabPark = f end
+end
+assert(tabPark and tabPark.shown == true, "tab park exists and is shown")
+assert(tabPark.parent == _G.UIParent, "tab park lives under UIParent")
+assert(tabPark.clipsChildren == true and tabPark.alpha == 0, "tab park clips and is transparent")
+assert(tabPark.width == 1 and tabPark.height == 1, "tab park is 1x1")
+assert(tabPark.point[1] == "TOPRIGHT" and tabPark.point[3] == "BOTTOMLEFT", "tab park sits off-screen")
+assert(_G.ChatFrame1Tab.parent == tabPark, "default chat frame tab parked under the shown park")
+assert(_G.ChatFrame2Tab.parent == hidden, "non-default tabs reparented to the hidden anchor")
 assert(_G.ChatFrame1ButtonFrame.parent == hidden, "button frame reparented")
 assert(_G.QuickJoinToastButton.parent == hidden, "social quick-join button reparented")
 assert(_G.TextToSpeechButtonFrame.parent == hidden, "text-to-speech button frame reparented")
@@ -302,7 +329,9 @@ assert(not origTempCalled, "swapped wrapper never runs Blizzard's temp-window bo
 
 -- Enforcement: a dock layout pass reparenting a tab gets forced back
 _G.ChatFrame1Tab:SetParent({ name = "Dock" })
-assert(_G.ChatFrame1Tab.parent == hidden, "tab forced back to hidden while active")
+assert(_G.ChatFrame1Tab.parent == tabPark, "default tab forced back to the park while active")
+_G.ChatFrame2Tab:SetParent({ name = "Dock" })
+assert(_G.ChatFrame2Tab.parent == hidden, "non-default tab forced back to hidden while active")
 _G.QuickJoinToastButton:SetParent({ name = "SocialButtonOwner" })
 assert(_G.QuickJoinToastButton.parent == hidden, "social button forced back to hidden while active")
 
@@ -389,6 +418,13 @@ assert(globalHooks["FCF_OpenNewWindow"], "FCF_OpenNewWindow hook installed")
 globalHooks["FCF_OpenNewWindow"]()
 assert(_G.ChatFrame3.parent == hidden, "new window caught by FCF_OpenNewWindow hook")
 assert(_G.ChatFrame3Tab.parent == hidden, "new window tab caught by FCF_OpenNewWindow hook")
+-- The parked tab follows DEFAULT_CHAT_FRAME (resolved at enforcement time).
+_G.DEFAULT_CHAT_FRAME = _G.ChatFrame3
+_G.ChatFrame3Tab:SetParent({ name = "Dock" })
+assert(_G.ChatFrame3Tab.parent == tabPark, "tab of the current DEFAULT_CHAT_FRAME goes to the park")
+_G.DEFAULT_CHAT_FRAME = nil
+_G.ChatFrame3Tab:SetParent({ name = "Dock" })
+assert(_G.ChatFrame3Tab.parent == hidden, "tab returns to hidden once its frame is no longer the default")
 assert(_G.ChatFrame3ButtonFrame.parent == hidden, "new window button frame caught by hook")
 
 -- Windows born suppressed get the full canonical restore on flip-back
