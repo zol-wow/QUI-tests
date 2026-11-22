@@ -28,22 +28,26 @@ end
 
 _G.UIParent = { name = "UIParent" }
 _G.NUM_CHAT_WINDOWS = 2
-_G.CHAT_FRAMES = { "ChatFrame1", "ChatFrame2" }
-_G.ChatFrame1 = makeBlizzFrame("ChatFrame1", _G.UIParent); _G.ChatFrame1.id = 1
-_G.ChatFrame1Tab = makeBlizzFrame("ChatFrame1Tab", { name = "Dock" })
-_G.ChatFrame1ButtonFrame = makeBlizzFrame("ChatFrame1ButtonFrame", _G.ChatFrame1)
-_G.ChatFrame2 = makeBlizzFrame("ChatFrame2", _G.UIParent); _G.ChatFrame2.id = 2
-_G.ChatFrame2Tab = makeBlizzFrame("ChatFrame2Tab", { name = "Dock" })
-_G.ChatFrame2ButtonFrame = makeBlizzFrame("ChatFrame2ButtonFrame", _G.ChatFrame2)
-_G.ChatFrame1EditBox = makeBlizzFrame("ChatFrame1EditBox", _G.ChatFrame1)
-_G.GeneralDockManager = makeBlizzFrame("Dock", _G.UIParent)
-_G.ChatMenu = makeBlizzFrame("ChatMenu", _G.UIParent)
-_G.TextToSpeechButtonFrame = makeBlizzFrame("TextToSpeechButtonFrame", _G.UIParent)
-_G.QuickJoinToastButton = makeBlizzFrame("QuickJoinToastButton", _G.UIParent)
-_G.ChatFrameToggleVoiceDeafenButton = makeBlizzFrame("ChatFrameToggleVoiceDeafenButton", _G.UIParent)
-_G.ChatFrameToggleVoiceMuteButton = makeBlizzFrame("ChatFrameToggleVoiceMuteButton", _G.UIParent)
-_G.ChatFrame1.events = { CHAT_MSG_SAY = true, UPDATE_CHAT_WINDOWS = true }
-_G.ChatFrame2.events = { COMBAT_LOG_EVENT = true, UPDATE_CHAT_WINDOWS = true }
+local function setupBlizzardFrames()
+    _G.CHAT_FRAMES = { "ChatFrame1", "ChatFrame2" }
+    _G.ChatFrame1 = makeBlizzFrame("ChatFrame1", _G.UIParent); _G.ChatFrame1.id = 1
+    _G.ChatFrame1Tab = makeBlizzFrame("ChatFrame1Tab", { name = "Dock" })
+    _G.ChatFrame1ButtonFrame = makeBlizzFrame("ChatFrame1ButtonFrame", _G.ChatFrame1)
+    _G.ChatFrame2 = makeBlizzFrame("ChatFrame2", _G.UIParent); _G.ChatFrame2.id = 2
+    _G.ChatFrame2Tab = makeBlizzFrame("ChatFrame2Tab", { name = "Dock" })
+    _G.ChatFrame2ButtonFrame = makeBlizzFrame("ChatFrame2ButtonFrame", _G.ChatFrame2)
+    _G.ChatFrame1EditBox = makeBlizzFrame("ChatFrame1EditBox", _G.ChatFrame1)
+    _G.GeneralDockManager = makeBlizzFrame("Dock", _G.UIParent)
+    _G.ChatMenu = makeBlizzFrame("ChatMenu", _G.UIParent)
+    _G.TextToSpeechButtonFrame = makeBlizzFrame("TextToSpeechButtonFrame", _G.UIParent)
+    _G.QuickJoinToastButton = makeBlizzFrame("QuickJoinToastButton", _G.UIParent)
+    _G.ChatFrameToggleVoiceDeafenButton = makeBlizzFrame("ChatFrameToggleVoiceDeafenButton", _G.UIParent)
+    _G.ChatFrameToggleVoiceMuteButton = makeBlizzFrame("ChatFrameToggleVoiceMuteButton", _G.UIParent)
+    _G.ChatFrame1.events = { CHAT_MSG_SAY = true, UPDATE_CHAT_WINDOWS = true }
+    _G.ChatFrame2.events = { COMBAT_LOG_EVENT = true, UPDATE_CHAT_WINDOWS = true }
+    _G.FloatingChatFrameManager = makeBlizzFrame("FloatingChatFrameManager", _G.UIParent)
+end
+setupBlizzardFrames()
 _G.ChatTypeGroup = { GUILD = { "CHAT_MSG_GUILD", "GUILD_MOTD" } }
 _G.ChatTypeGroupInverted = { CHAT_MSG_GUILD = "GUILD", GUILD_MOTD = "GUILD" }
 
@@ -53,7 +57,6 @@ function _G.GetChatWindowChannels() return unpack({ "Trade", 0 }) end
 _G.C_EventUtils = { IsEventValid = function() return true end }
 _G.FCF_OpenTemporaryWindow = function() end
 _G.FCF_OpenNewWindow = function() end
-_G.FloatingChatFrameManager = makeBlizzFrame("FloatingChatFrameManager", _G.UIParent)
 
 function _G.hooksecurefunc(tbl, name, fn)
     if type(tbl) == "string" then return end
@@ -70,6 +73,7 @@ function _G.hooksecurefunc(tbl, name, fn)
 end
 
 local createdFrames = {}
+local clientClipsChildren = true
 function _G.CreateFrame(_, name, parent)
     local f = { name = name, parent = parent, events = {}, shown = true }
     f.Hide = function(s) s.shown = false end
@@ -79,8 +83,19 @@ function _G.CreateFrame(_, name, parent)
     f.SetScript = function(s, k, v) s["_" .. k] = v end
     f.GetParent = function(s) return s.parent end
     f.SetParent = function(s, p) s.parent = p end
+    f.SetSize = function(s, w, h) s.width, s.height = w, h end
+    f.SetPoint = function(s, ...) s.point = { ... } end
+    f.SetAlpha = function(s, a) s.alpha = a end
+    if clientClipsChildren then
+        f.SetClipsChildren = function(s, v) s.clipsChildren = v end
+    end
     createdFrames[#createdFrames + 1] = f
     return f
+end
+local function findCreated(name)
+    for _, f in ipairs(createdFrames) do
+        if f.name == name then return f end
+    end
 end
 
 local afterCalls = {}
@@ -116,7 +131,17 @@ end
 assert(hidden, "hidden anchor created")
 assert(_G.ChatFrame1.parent == hidden, "ChatFrame1 reparented to hidden anchor in the load grace")
 assert(_G.ChatFrame2.parent == hidden, "ChatFrame2 reparented in the load grace")
-assert(_G.ChatFrame1Tab.parent == hidden, "tab reparented in the load grace")
+-- The default chat frame's tab goes to the shown, clipped park in this path
+-- too, so addons that list chat windows by ChatFrameNTab:IsVisible() (TSM's
+-- settings page) still find one after a combat /reload. Blizzard shows that
+-- tab itself at UI load (PrimaryChatFrameMixin:OnLoad -> FCFDock_SetPrimary ->
+-- FCFDock_AddChatFrame -> FCFDock_UpdateTabs), long before this addon loads,
+-- so reparenting alone is enough: the module never calls Show() on it.
+local tabPark = findCreated("QUI_ChatSuppressTabPark")
+assert(tabPark and tabPark.shown == true and tabPark.clipsChildren == true and tabPark.alpha == 0,
+    "tab park created shown, clipped and transparent in the load grace")
+assert(_G.ChatFrame1Tab.parent == tabPark, "default tab parked under the shown park in the load grace")
+assert(_G.ChatFrame2Tab.parent == hidden, "non-default tab reparented to the hidden anchor in the load grace")
 assert(_G.ChatFrame1ButtonFrame.parent == hidden, "button frame reparented in the load grace")
 assert(_G.GeneralDockManager.parent == hidden, "dock reparented in the load grace")
 assert(_G.ChatFrame1EditBox.parent == _G.UIParent, "editbox parented OUT to UIParent")
@@ -149,5 +174,33 @@ assert(channelFrame, "channel refresh watcher remains registered")
 channelFrame._OnEvent(channelFrame, "CHANNEL_UI_UPDATE")
 assert(_G.ChatFrame1.channelList and _G.ChatFrame1.zoneChannelList,
     "channel refresh preserves native channel tables")
+
+-- Fallback: without Frame:SetClipsChildren a shown parent would leave a live,
+-- clickable tab on screen, so the default tab goes to the hidden anchor like
+-- every other tab and the unusable park frame is hidden. (Both shipping
+-- clients have SetClipsChildren; this guards the degraded path.)
+do
+    createdFrames = {}
+    clientClipsChildren = false
+    setupBlizzardFrames()
+    local ns2 = {
+        Helpers = ns.Helpers,
+        SafeCall = ns.SafeCall,
+        SafeCallMethod = ns.SafeCallMethod,
+        SafeCallMethodIfPresent = ns.SafeCallMethodIfPresent,
+        QUI = { Chat = { _internals = ns.QUI.Chat._internals } },
+    }
+    assert(loadfile("QUI_Chat/chat/blizzard_suppress.lua"))("QUI", ns2)
+    local SP2 = ns2.QUI.Chat.BlizzardSuppress
+    SP2.Apply()
+    assert(SP2.IsActive(), "fallback scenario: suppression active")
+    local hidden2 = assert(findCreated("QUI_ChatSuppressAnchor"), "fallback scenario: hidden anchor created")
+    local park2 = assert(findCreated("QUI_ChatSuppressTabPark"), "fallback scenario: park frame was attempted")
+    assert(park2.shown == false, "an unusable park frame is hidden")
+    assert(_G.ChatFrame1Tab.parent == hidden2, "default tab falls back to the hidden anchor without clipping")
+    assert(_G.ChatFrame2Tab.parent == hidden2, "non-default tab hidden in the fallback scenario")
+    _G.ChatFrame1Tab:SetParent({ name = "Dock" })
+    assert(_G.ChatFrame1Tab.parent == hidden2, "fallback is enforced on later reparenting too")
+end
 
 print("OK: chat_suppress_combat_reload_early_apply_test")
