@@ -215,13 +215,18 @@ end
 assert(hidden and hidden.shown == false, "hidden anchor exists and is hidden")
 assert(_G.ChatFrame1.parent == hidden and _G.ChatFrame2.parent == hidden, "frames reparented")
 -- REGRESSION (TradeSkillMaster settings page: "Table.lua:153: assertion failed!"
--- from SelectionDropdown:SetSelectedItemByKey). TSM builds its "Chat Tab"
--- dropdown from every ChatFrameNTab:IsVisible() and asserts when its saved tab
--- ("general") is not in the list. With every tab under the HIDDEN anchor the
--- list is empty. The default chat frame -- the one Blizzard window whose
+-- from SelectionDropdown:SetSelectedItemByKey). TSM (v4.15.9, General.lua)
+-- builds its "Chat Tab" dropdown from every ChatFrameNTab:IsVisible(). A saved
+-- tab missing from that list is reset to the default window's name if that one
+-- is listed; if it is not listed either, TSM empties the list and then asserts
+-- selecting the saved tab. With every tab under the HIDDEN anchor the list is
+-- always empty. The default chat frame -- the one Blizzard window whose
 -- AddMessage output QUI still surfaces -- keeps its tab under a SHOWN parent
--- that is 1x1, off-screen, clipped and transparent: IsVisible() stays true,
--- nothing renders, nothing takes mouse input. Every other tab stays hidden.
+-- that is 1x1, off-screen, clipped and transparent: IsVisible() stays true and
+-- nothing renders. Clipping is also expected to keep the tab out of mouse
+-- hit-testing (the same assumption QUI_CombatLogShownPark makes for
+-- ChatFrame2); that part cannot be shown headlessly and is an in-game check.
+-- Every other tab stays hidden.
 local tabPark
 for _, f in ipairs(createdFrames) do
     if f.name == "QUI_ChatSuppressTabPark" then tabPark = f end
