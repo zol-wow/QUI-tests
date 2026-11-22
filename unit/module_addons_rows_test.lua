@@ -219,11 +219,28 @@ local framework = readAll("QUI_Options/framework.lua")
 check("sidebar reuses Feature Toggles pill builder",
     framework:find("modulesPage.CreateModuleTogglePill", 1, true) ~= nil)
 
-local mirroredSettings = {
+-- Module ADDON master switches (AddonManifest legacyFlag) are owned by the
+-- toggle bound to that flag: BuildPillToggle resolves the module and routes the
+-- user's change through QUI_Modules:SetEnabled itself (behaviour covered by
+-- options_module_master_toggle_state_test.lua). A page that also called
+-- SetEnabled would save the addon list and notify every subscriber twice per
+-- click.
+check("pill toggle resolves a module from its bound enable flag",
+    framework:find("modules:GetFeatureForFlag(dbTable, dbKey)", 1, true) ~= nil)
+local toggleOwnedSettings = {
     ["QUI_UnitFrames/unitframes/settings/unit_frames_schema.lua"] = "moduleAddon_QUI_UnitFrames",
     ["QUI_GroupFrames/groupframes/settings/group_frames_schema.lua"] = "moduleAddon_QUI_GroupFrames",
     ["QUI_Nameplates/nameplates/settings/nameplates_schema.lua"] = "moduleAddon_QUI_Nameplates",
     ["QUI_Chat/chat/settings/chat_frame1_provider.lua"] = "moduleAddon_QUI_Chat",
+}
+for path, featureId in pairs(toggleOwnedSettings) do
+    local source = readAll(path)
+    check(path .. " leaves the module write to its bound toggle",
+        source:find('QUI_Modules:SetEnabled("' .. featureId .. '"', 1, true) == nil)
+end
+
+-- Core-module flags have no addon half, so their pages route explicitly.
+local mirroredSettings = {
     ["modules/infobar/settings/infobar_content.lua"] = "moduleFlag_infobar",
     ["modules/alts/settings/alts_providers.lua"] = "moduleFlag_alts",
 }
