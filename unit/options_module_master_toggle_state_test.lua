@@ -64,12 +64,19 @@ ns.AddonLoader.IsModuleAddonEnabled = function(folder) return addonOn[folder] ~=
 ns.AddonLoader.SetModuleAddonEnabled = function(folder, on)
     loaderCalls = loaderCalls + 1
     addonOn[folder] = on and true or false
+    if loaderResult == "depDisabled" then return "depDisabled", "QUI" end
     return loaderResult
 end
 
-local reloadPrompts = 0
+-- Reload offers and every other confirmation (the dependency prompt) are
+-- counted separately.
+local reloadPrompts, otherPrompts = 0, 0
 GUI.ShowConfirmation = function(_, options)
-    if type(options) == "table" and options.reload then reloadPrompts = reloadPrompts + 1 end
+    if type(options) == "table" and options.reload then
+        reloadPrompts = reloadPrompts + 1
+    else
+        otherPrompts = otherPrompts + 1
+    end
 end
 
 local MODULES = {
@@ -128,12 +135,20 @@ for _, module in ipairs(MODULES) do
 
     -- 3) A second switch on the same binding (page + search result open at
     --    once) follows changes made through the first one.
+    --    An inverted toggle on the same flag keeps its own polarity: it is
+    --    repainted from the module state, not painted with the clicked widget's
+    --    value.
     local mirror = GUI:CreateFormToggle(parent, "Enable", "enabled", flags, nil, {})
+    local inverted = GUI:CreateFormToggleInverted(parent, "Disable", "enabled", flags, nil, {})
+    assert(inverted.GetValue() == false and inverted.GetToggleProgress() == 0,
+        module.folder .. ": inverted switch shows OFF while the module is on")
     click(widget)
     assert(addonOn[module.folder] == false and flags.enabled == false,
         module.folder .. ": second click disables addon and flag")
     assert(widget.GetValue() == false and mirror.GetValue() == false and mirror.GetToggleProgress() == 0,
         module.folder .. ": mirrored switch repaints from the module state")
+    assert(inverted.GetValue() == true and inverted.GetToggleProgress() == 1,
+        module.folder .. ": inverted switch repaints with its own polarity")
 
     -- 4) A change made elsewhere (sidebar pill) reaches the switch.
     Modules:SetEnabled(featureId, true, { suppressReloadPrompt = true })
@@ -194,6 +209,33 @@ for _, module in ipairs(MODULES) do
     assert(loaderCalls == 1 and addonOn[module.folder] == true,
         module.folder .. ": search result click enables the already-loaded addon")
     assert(reloadPrompts == 0, module.folder .. ": no reload offered when the module entry needs none")
+    --    Disabling always needs a reload.
+    loaderCalls, reloadPrompts = 0, 0
+    click(searchWidget)
+    assert(loaderCalls == 1 and addonOn[module.folder] == false and flags.enabled == false,
+        module.folder .. ": search result click disables addon and flag")
+    assert(reloadPrompts == 1, module.folder .. ": disabling from a search result offers the reload")
+    --    Enabling an addon that is already loaded but whose flag was off needs
+    --    a reload as well: the entry sees the flag flip, which only works
+    --    because the toggle does not write the flag ahead of it.
+    addonOn[module.folder] = true
+    flags.enabled = false
+    searchWidget.Refresh()
+    loaderCalls, reloadPrompts, loaderResult = 0, 0, "loaded"
+    click(searchWidget)
+    loaderResult = "reload"
+    assert(loaderCalls == 1 and flags.enabled == true, module.folder .. ": search result click flips the flag on")
+    assert(reloadPrompts == 1, module.folder .. ": a flipped flag on a loaded addon offers the reload")
+    --    A disabled dependency gets the entry's dependency prompt, not a reload
+    --    offer.
+    addonOn[module.folder] = false
+    flags.enabled = true
+    searchWidget.Refresh()
+    loaderCalls, reloadPrompts, otherPrompts, loaderResult = 0, 0, 0, "depDisabled"
+    click(searchWidget)
+    loaderResult = "reload"
+    assert(loaderCalls == 1 and otherPrompts == 1 and reloadPrompts == 0,
+        module.folder .. ": a disabled dependency shows the dependency prompt only")
 
     -- 7) Pinning keeps carrying the bare profile flag. Pins are account-wide and
     --    are written into the active profile on every login, while "addon
@@ -222,54 +264,88 @@ for _, module in ipairs(MODULES) do
         module.folder .. ": pin must capture the profile flag (true), not this character's addon state")
 end
 
--- 8) A real settings page: the Chat page's "Enable Chat Module" switch. One
---    click is exactly one module write (the page handler must not repeat it)
---    and exactly one reload offer (the page's own).
+-- 8) The real settings pages. Each page's own "Enable ..." switch must be bound
+--    to the live profile flag (a copy or proxy table would not resolve to the
+--    module and would silently fall back to a bare flag write), show the
+--    combined state, and on one click perform exactly one module write (the
+--    page handler must not repeat it) and exactly one reload offer (the
+--    page's own). (Sliders cannot be built in the stub client: pages that
+--    build one print a caught "nativeThumb" error. That is harness noise.)
 do
-    local created = {}
+    local created
     local origCheckbox = GUI.CreateFormCheckbox
     function GUI:CreateFormCheckbox(parentFrame, label, dbKey, dbTable, onChange, info)
         local built = origCheckbox(self, parentFrame, label, dbKey, dbTable, onChange, info)
-        created[#created + 1] = { key = dbKey, tbl = dbTable, widget = built }
+        if created then created[#created + 1] = { key = dbKey, tbl = dbTable, widget = built } end
         return built
     end
-    local provider = assert(ns.Settings.Providers:Get("chatFrame1"), "chatFrame1 provider must be registered")
-    local content = _G.CreateFrame("Frame")
-    content:SetSize(800, 600)
-    addonOn.QUI_Chat = false
-    profile.chat.enabled = true
-    provider.build(content, "chatFrame1", 800, { chatSections = { "chatModule" } })
+    local function newHost()
+        local host = _G.CreateFrame("Frame")
+        host:SetSize(760, 600)
+        return host
+    end
+    local function masterSwitch(flags)
+        for _, entry in ipairs(created) do
+            if entry.key == "enabled" and entry.tbl == flags then return entry.widget end
+        end
+    end
+
+    local PAGES = {
+        {
+            folder = "QUI_Chat", flags = profile.chat,
+            build = function()
+                local provider = assert(ns.Settings.Providers:Get("chatFrame1"), "chatFrame1 provider must be registered")
+                provider.build(newHost(), "chatFrame1", 760, { chatSections = { "chatModule" } })
+            end,
+        },
+        { folder = "QUI_GroupFrames", flags = profile.quiGroupFrames, featureId = "groupFramesPage" },
+        { folder = "QUI_Nameplates", flags = profile.nameplates, featureId = "nameplatesPage" },
+        { folder = "QUI_UnitFrames", flags = profile.quiUnitFrames, featureId = "unitFramesPage" },
+    }
+    for _, page in ipairs(PAGES) do
+        local moduleFeatureId = "moduleAddon_" .. page.folder
+        addonOn[page.folder] = false
+        page.flags.enabled = true
+        created = {}
+        if page.build then
+            page.build()
+        else
+            -- Schema pages render tab by tab, as the settings inventory does.
+            local feature = assert(ns.Settings.Registry:GetFeature(page.featureId),
+                page.featureId .. " must be registered")
+            local model = type(feature.model) == "function" and feature.model() or feature.model
+            for _, tab in ipairs(model.GetTabDefinitions()) do
+                local variants = model.GetSearchContexts and model.GetSearchContexts(tab.key)
+                    or { { state = {}, searchContext = {} } }
+                for _, variant in ipairs(variants) do
+                    -- Tabs that need client state the stub lacks may fail to
+                    -- build; only the tab holding the master switch matters.
+                    if not masterSwitch(page.flags)
+                        and (not tab.visible or tab.visible(variant.state, tab, model) ~= false) then
+                        pcall(tab.render, newHost(), variant.state)
+                    end
+                end
+            end
+        end
+        local pageSwitch = assert(masterSwitch(page.flags),
+            page.folder .. ": page must bind its master switch to the live profile flag table")
+        created = nil
+        assert(pageSwitch._quiModuleFeatureId == moduleFeatureId,
+            page.folder .. ": page switch must resolve its module")
+        assert(pageSwitch.GetValue() == false, page.folder .. ": page switch shows the combined module state")
+        loaderCalls, reloadPrompts = 0, 0
+        click(pageSwitch)
+        assert(loaderCalls == 1,
+            page.folder .. ": page click must write the module state exactly once, got " .. loaderCalls)
+        assert(reloadPrompts == 1,
+            page.folder .. ": page click must offer the reload exactly once, got " .. reloadPrompts)
+        assert(addonOn[page.folder] == true and page.flags.enabled == true and pageSwitch.GetValue() == true,
+            page.folder .. ": page click enables the module")
+    end
     GUI.CreateFormCheckbox = origCheckbox
-    local pageSwitch
-    for _, entry in ipairs(created) do
-        if entry.key == "enabled" and entry.tbl == profile.chat then pageSwitch = entry.widget end
-    end
-    assert(pageSwitch, "Chat page must bind its master switch to profile.chat.enabled")
-    assert(pageSwitch._quiModuleFeatureId == "moduleAddon_QUI_Chat" and pageSwitch.GetValue() == false,
-        "Chat page switch shows the combined module state")
-    loaderCalls, reloadPrompts = 0, 0
-    click(pageSwitch)
-    assert(loaderCalls == 1, "Chat page click must write the module state exactly once, got " .. loaderCalls)
-    assert(reloadPrompts == 1, "Chat page click must offer the reload exactly once, got " .. reloadPrompts)
-    assert(addonOn.QUI_Chat == true and profile.chat.enabled == true and pageSwitch.GetValue() == true,
-        "Chat page click enables the module")
 end
 
--- 9) The other pages bind the same way. The reviewed settings inventory records
---    each page's master switch against its profile flag path; if a page stops
---    binding the live flag table its switch would silently lose the module
---    behaviour, so tie the two together here.
-do
-    local inventory = assert(io.open("tests/fixtures/settings_controls_inventory.lua", "r"))
-    local text = inventory:read("*a")
-    inventory:close()
-    for _, module in ipairs(MODULES) do
-        assert(text:find("|" .. module.dbPath .. "|enabled|", 1, true),
-            module.folder .. ": settings inventory must list a control bound to " .. module.dbPath .. ".enabled")
-    end
-end
-
--- 10) Ordinary toggles are untouched: a non-flag key reads and writes its value
+-- 9) Ordinary toggles are untouched: a non-flag key reads and writes its value
 --    directly, on pages and in search results, with no reload prompt.
 local plainStore = profile.chat
 plainStore.quiTestPlainToggle = true
